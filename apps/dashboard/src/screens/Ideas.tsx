@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Chip, EmptyState, ReasonModal, type Motivo } from '../components/ui';
-import { approveIdea, discardIdea, getIdeas } from '../lib/api';
+import { approveIdea, discardIdea, getChannels, getIdeas } from '../lib/api';
 import { useToasts } from '../lib/toasts';
 
 // Motivos de descarte de ideas, en el estilo del mock (alimentan el scoring).
@@ -25,12 +25,20 @@ export function Ideas() {
     queryFn: () => getIdeas('new'),
   });
 
+  // con packaging_first el flujo tras aprobar cambia: primero título y miniatura
+  const channelsQ = useQuery({ queryKey: ['channels'], queryFn: getChannels });
+  const packagingFirst = channelsQ.data?.[0]?.profile?.flags.packaging_first === true;
+
   const approveMut = useMutation({
     mutationFn: (id: string) => approveIdea(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['ideas'] });
       void queryClient.invalidateQueries({ queryKey: ['inbox'] });
-      push('Idea aprobada · el guion se está escribiendo');
+      push(
+        packagingFirst
+          ? 'Idea aprobada · elige título y miniatura en la puerta 2'
+          : 'Idea aprobada · el guion se está escribiendo',
+      );
       void navigate('/');
     },
     onError: () => push('No se pudo aprobar la idea', 'danger'),

@@ -51,7 +51,7 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
     const { id } = req.params as { id: string };
     const videoId = nanoid();
 
-    const channelId = await ctx.db.transaction(async (tx) => {
+    const { channelId, packagingFirst } = await ctx.db.transaction(async (tx) => {
       const [idea] = await tx.select().from(ideas).where(eq(ideas.id, id)).for('update');
       if (!idea) throw notFound(`Idea ${id} no existe`);
       if (idea.status !== 'new') throw conflict(`La idea ya fue decidida (${idea.status})`);
@@ -64,7 +64,7 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
       // el vídeo nace con la selección de brand kit del canal; el tema de
       // subtítulos integrado garantiza que el maestro siempre sea renderizable
       const [channel] = await tx
-        .select({ settings: channels.settings })
+        .select({ settings: channels.settings, profile: channels.profile })
         .from(channels)
         .where(eq(channels.id, idea.channelId));
       const settings = channelSettingsSchema.parse(channel?.settings ?? {});
@@ -89,10 +89,18 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
         state: 'idea_aprobada',
         master,
       });
-      return idea.channelId;
+      return {
+        channelId: idea.channelId,
+        packagingFirst: channel?.profile?.flags.packaging_first === true,
+      };
     });
 
-    const payload: ScriptGenerateJob = { videoId };
+    // packaging_first (docs/generacion-guion.md §4.4): el worker genera SOLO
+    // títulos + miniaturas y el guion se escribe tras confirmar el título.
+    const payload: ScriptGenerateJob = {
+      videoId,
+      ...(packagingFirst ? { packagingOnly: true } : {}),
+    };
     await ctx.enqueuer.enqueue(QUEUES.script, JOBS.script.generate, payload);
     await ctx.events.publish({ type: 'video_state', video_id: videoId, state: 'idea_aprobada' });
     await ctx.events.publish({ type: 'ideas_updated', channel_id: channelId });

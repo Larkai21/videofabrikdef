@@ -3,12 +3,14 @@ import { z } from 'zod';
 import { channels, ideas, markIncident, videos } from '@fabrica/db';
 import {
   channelSettingsSchema,
+  JOBS,
   QUEUES,
   researchSchema,
   type ChannelProfile,
   type MasterVideoJson,
   type Scene,
   type ScriptGenerateJob,
+  type ScriptJudgeJob,
   type Seo,
 } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
@@ -25,18 +27,36 @@ const genSceneSchema = z.object({
   emphasis: z.boolean().optional(),
 });
 
+// exportado: packaging_first genera SOLO esta parte (packaging.ts)
+export const seoGenSchema = z.object({
+  titles: z.array(z.string()).min(3),
+  description: z.string(),
+  tags: z.array(z.string()).min(5),
+  thumbnails: z.array(z.object({ text: z.string(), visual: z.string() })).min(2),
+});
+
 const scriptGenSchema = z.object({
   script: z.object({
     scenes: z.array(genSceneSchema).min(3),
     hook_notes: z.string(),
   }),
-  seo: z.object({
-    titles: z.array(z.string()).min(3),
-    description: z.string(),
-    tags: z.array(z.string()).min(5),
-    thumbnails: z.array(z.object({ text: z.string(), visual: z.string() })).min(2),
-  }),
+  seo: seoGenSchema,
 });
+
+// El seo generado solo sustituye al existente si el humano aún no eligió
+// título (packaging_first: el guion se escribe después y NO pisa el paquete
+// confirmado en la puerta). Exportado para tests y para packaging.ts.
+export function resolveSeo(existing: Seo | undefined, gen: z.infer<typeof seoGenSchema>): Seo {
+  if (existing && existing.chosen_idx !== null) return existing;
+  const [t0, t1, t2] = gen.titles;
+  return {
+    titles: [(t0 ?? '').slice(0, 70), (t1 ?? '').slice(0, 70), (t2 ?? '').slice(0, 70)],
+    chosen_idx: null,
+    description: gen.description,
+    tags: gen.tags.slice(0, 15),
+    thumbnails: gen.thumbnails.slice(0, 2),
+  };
+}
 
 export const refineOutputSchema = z.object({
   scenes: z.array(z.object({ id: z.string(), text: z.string() })),
@@ -171,6 +191,14 @@ export async function handleScriptGenerate(
   await progress(55, 'Redactando guion y paquete SEO');
   const prevScenes = video.master.script?.scenes ?? [];
   const editedScenes = prevScenes.filter((s) => s.edited_by_human);
+  // packaging_first: si el humano ya confirmó el título, el guion se escribe
+  // "para cumplir la promesa" (el título entra en el prompt y el seo se conserva)
+  const existingSeo = video.master.seo;
+  const chosenTitle =
+    video.titleChosen ??
+    (existingSeo && existingSeo.chosen_idx !== null
+      ? existingSeo.titles[existingSeo.chosen_idx]
+      : undefined);
   const gen = await ledgeredLlmJson(ctx, {
     videoId,
     channelId: video.channelId,
@@ -182,6 +210,7 @@ export async function handleScriptGenerate(
       targetWords,
       language: profile.language,
       ...(rewriteReason ? { rewriteReason } : {}),
+      ...(chosenTitle ? { chosenTitle } : {}),
       editedScenes,
     }),
     schema: scriptGenSchema,
@@ -189,6 +218,7 @@ export async function handleScriptGenerate(
       ideaTitle: idea.title,
       targetMinutes: settings.target_minutes,
       aiDisclosure: profile.flags.ai_disclosure,
+      ...(chosenTitle ? { chosenTitle } : {}),
     },
   });
 
@@ -204,14 +234,7 @@ export async function handleScriptGenerate(
     );
   }
 
-  const [t0, t1, t2] = gen.seo.titles;
-  const seo: Seo = {
-    titles: [(t0 ?? '').slice(0, 70), (t1 ?? '').slice(0, 70), (t2 ?? '').slice(0, 70)],
-    chosen_idx: null,
-    description: gen.seo.description,
-    tags: gen.seo.tags.slice(0, 15),
-    thumbnails: gen.seo.thumbnails.slice(0, 2),
-  };
+  const seo: Seo = resolveSeo(existingSeo, gen.seo);
 
   const master: MasterVideoJson = {
     ...video.master,
@@ -241,6 +264,11 @@ export async function handleScriptGenerate(
   }
   await ctx.publishEvent({ type: 'video_state', video_id: videoId, state: 'guion_borrador' });
   await ctx.publishEvent({ type: 'inbox_changed' });
+  // con título ya confirmado (packaging_first o reescritura tras elegirlo),
+  // el juez verifica que el guion nuevo paga la promesa
+  if (chosenTitle) {
+    await ctx.queues.script.add(JOBS.script.judge, { videoId } satisfies ScriptJudgeJob);
+  }
   ctx.logger.info(
     { videoId, words: scriptWords(scenes), targetWords, escenas: scenes.length },
     'Guion generado y en puerta de revisión',

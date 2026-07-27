@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { asc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
-import { assets, beats, transitionVideo, videos } from '@fabrica/db';
+import { assets, beats, channels, transitionVideo, videos } from '@fabrica/db';
 import {
   JOBS,
   QUEUES,
@@ -46,11 +46,30 @@ function retryJob(
   state: VideoState,
   videoId: string,
   master: MasterVideoJson,
+  opts: { packagingFirst: boolean },
 ): { queue: QueueName; job: string; payload: unknown } | null {
   switch (state) {
     case 'idea_aprobada':
-      return { queue: QUEUES.script, job: JOBS.script.generate, payload: { videoId } };
+      // con packaging_first el retry debe repetir el modo packaging
+      // (`packagingOnly` es la extensión local del payload; ver routes/ideas.ts)
+      return {
+        queue: QUEUES.script,
+        job: JOBS.script.generate,
+        payload: { videoId, ...(opts.packagingFirst ? { packagingOnly: true } : {}) },
+      };
     case 'guion_borrador':
+      // packaging: seo sin guion → con título elegido se reencarga el guion;
+      // sin título, se repite el packaging (el juez no tendría qué comparar)
+      if (!master.script && master.seo) {
+        return {
+          queue: QUEUES.script,
+          job: JOBS.script.generate,
+          payload: {
+            videoId,
+            ...(master.seo.chosen_idx == null ? { packagingOnly: true } : {}),
+          },
+        };
+      }
       // si ya hay título elegido la incidencia vino del juez; si no, del generador
       return master.seo?.chosen_idx != null
         ? { queue: QUEUES.script, job: JOBS.script.judge, payload: { videoId } }
@@ -159,7 +178,31 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
       })
       .where(eq(videos.id, id));
 
-    await ctx.enqueuer.enqueue(QUEUES.script, JOBS.script.judge, { videoId: id });
+    // sin guion todavía (packaging_first) el juez no tiene nada que comparar:
+    // se encolará al terminar write-script, desde el propio worker de guion
+    if (video.master.script) {
+      await ctx.enqueuer.enqueue(QUEUES.script, JOBS.script.judge, { videoId: id });
+    }
+    return { ok: true as const };
+  });
+
+  // packaging_first: con el título confirmado, encarga el guion "para cumplir
+  // la promesa" (script.generate normal conserva el seo elegido y encola al juez)
+  app.post('/videos/:id/write-script', async (req) => {
+    const { id } = req.params as { id: string };
+    const video = await loadVideo(ctx, id);
+    if (video.state !== 'guion_borrador') {
+      throw conflict(`El guion se encarga en guion_borrador (estado actual: ${video.state})`);
+    }
+    if (video.master.script) {
+      throw conflict('El vídeo ya tiene guion; usa la reescritura si quieres otro borrador');
+    }
+    const seo = video.master.seo;
+    if (!seo) throw conflict('El vídeo aún no tiene paquete de packaging');
+    if (seo.chosen_idx === null) {
+      throw conflict('Elige un título antes de encargar el guion');
+    }
+    await ctx.enqueuer.enqueue(QUEUES.script, JOBS.script.generate, { videoId: id });
     return { ok: true as const };
   });
 
@@ -203,7 +246,14 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
     if (!target) throw conflict('La incidencia no registra estado previo');
 
     await transitionVideo(ctx.db, id, target, { expectFrom: 'incidencia' });
-    const job = retryJob(target, id, video.master);
+    const [channel] = await ctx.db
+      .select({ profile: channels.profile })
+      .from(channels)
+      .where(eq(channels.id, video.channelId))
+      .limit(1);
+    const job = retryJob(target, id, video.master, {
+      packagingFirst: channel?.profile?.flags.packaging_first === true,
+    });
     if (job) await ctx.enqueuer.enqueue(job.queue, job.job, job.payload);
 
     await ctx.events.publish({ type: 'video_state', video_id: id, state: target });

@@ -2,11 +2,19 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { Worker, type Job } from 'bullmq';
-import { eq } from 'drizzle-orm';
+import { and, eq, or } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import PQueue from 'p-queue';
-import { beats as beatsTable, channels, markIncident, transitionVideo, videos } from '@fabrica/db';
 import {
+  assets as assetsTable,
+  beats as beatsTable,
+  channels,
+  markIncident,
+  transitionVideo,
+  videos,
+} from '@fabrica/db';
+import {
+  channelSettingsSchema,
   JOBS,
   QUEUES,
   SCENE_GAP_MS,
@@ -17,7 +25,7 @@ import {
 } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
 import { closeCost, failCost, openCost } from '../../lib/ledger.js';
-import { createTts, type TtsProvider, type TtsSceneAudio } from '../../providers/tts.js';
+import { createTts, type TtsFactory, type TtsProvider, type TtsSceneAudio } from '../../providers/tts.js';
 import {
   concatWavs,
   loudnormToWav,
@@ -29,6 +37,7 @@ import {
 } from './audio.js';
 import { computeBeats, type BeatSceneSpan } from './beats.js';
 import { buildCues } from './cues.js';
+import { MUSIC_DURATION_TOLERANCE_MS, mixMusicUnderVoice, pickMusicTrack } from './music.js';
 import { alignSceneTokens, type TimedToken } from './words.js';
 
 // Worker de voz (docs/voz-y-beats.md): síntesis POR ESCENA, concat con
@@ -64,7 +73,7 @@ async function synthesizeWithRetry(
     : new Error(`Fallo sintetizando la escena ${scene.id}: ${String(lastErr)}`);
 }
 
-async function runSynthesize(ctx: WorkerContext, tts: TtsProvider, job: Job<TtsSynthesizeJob>) {
+async function runSynthesize(ctx: WorkerContext, factory: TtsFactory, job: Job<TtsSynthesizeJob>) {
   const { videoId } = job.data;
   const { db, logger } = ctx;
 
@@ -91,6 +100,9 @@ async function runSynthesize(ctx: WorkerContext, tts: TtsProvider, job: Job<TtsS
   const voice = channel?.profile?.voice;
   const voiceId = voice?.voice_id ?? 'es-ES-AlvaroNeural';
   const rate = voice?.rate ?? '-8%';
+  const settings = channelSettingsSchema.parse(channel?.settings ?? {});
+  // proveedor por canal: profile.voice.provider decide; sin clave cae a edge
+  const tts = factory.providerFor(voice?.provider);
 
   await ctx.publishEvent({
     type: 'job_progress',
@@ -100,14 +112,20 @@ async function runSynthesize(ctx: WorkerContext, tts: TtsProvider, job: Job<TtsS
     detail: `Sintetizando ${scenes.length} escenas con voz ${voiceId}`,
   });
 
-  // ledger ANTES de la llamada externa (caracteres; edge-tts cuesta 0)
+  // ledger ANTES de la llamada externa (caracteres; unitCost 0 en ambos:
+  // edge es gratuito y elevenlabs va por suscripción — se vigilan caracteres)
   const totalChars = scenes.reduce((acc, s) => acc + s.text.length, 0);
   const handle = await openCost(db, {
     videoId,
     channelId: video.channelId,
-    provider: 'edge-tts',
+    provider: tts.name === 'elevenlabs' ? 'elevenlabs' : 'edge-tts',
     operation: 'tts',
-    meta: { scenes: scenes.length, voice: voiceId, provider: tts.name },
+    meta: {
+      scenes: scenes.length,
+      voice: voiceId,
+      provider: tts.name,
+      ...(tts.model ? { model: tts.model } : {}),
+    },
   });
 
   const sceneResults = new Array<TtsSceneAudio>(scenes.length);
@@ -188,10 +206,54 @@ async function runSynthesize(ctx: WorkerContext, tts: TtsProvider, job: Job<TtsS
     const voiceWav = path.join(audioDir, 'voice.wav');
     const voiceAac = path.join(audioDir, 'voice.m4a');
     await loudnormToWav(concatPath, voiceWav);
-    await toAacPreview(voiceWav, voiceAac);
 
-    const durationMs = await probeDurationMs(voiceWav);
-    const lufs = await measureLufs(voiceWav, logger);
+    // música de fondo (S2): DESPUÉS del loudnorm de la voz; la voz sola se
+    // conserva como voice.wav y el master pasa a ser voice-mix.wav solo si la
+    // mezcla no cambia la duración (±50 ms). Cualquier fallo → voz sola.
+    let masterAudioPath = voiceWav;
+    if (settings.background_music) {
+      const tracks = await db
+        .select({ id: assetsTable.id, path: assetsTable.path })
+        .from(assetsTable)
+        .where(
+          and(
+            eq(assetsTable.kind, 'music'),
+            or(eq(assetsTable.channelId, video.channelId), eq(assetsTable.scope, 'shared')),
+          ),
+        );
+      const track = pickMusicTrack(videoId, tracks);
+      if (!track) {
+        logger.info(
+          { videoId },
+          'Música de fondo activa pero sin pistas kind music en la biblioteca; sigue la voz sola',
+        );
+      } else {
+        const musicPath = path.isAbsolute(track.path)
+          ? track.path
+          : path.join(ctx.libraryDir, track.path);
+        const mixWav = path.join(audioDir, 'voice-mix.wav');
+        try {
+          const voiceDurationMs = await probeDurationMs(voiceWav);
+          await mixMusicUnderVoice({ voicePath: voiceWav, musicPath, outPath: mixWav, voiceDurationMs });
+          const mixDurationMs = await probeDurationMs(mixWav);
+          if (Math.abs(mixDurationMs - voiceDurationMs) <= MUSIC_DURATION_TOLERANCE_MS) {
+            masterAudioPath = mixWav;
+            logger.info({ videoId, trackId: track.id }, 'Música de fondo mezclada a -22 dB');
+          } else {
+            logger.warn(
+              { videoId, voiceDurationMs, mixDurationMs },
+              'La mezcla de música cambió la duración; se descarta y sigue la voz sola',
+            );
+          }
+        } catch (err) {
+          logger.warn({ videoId, err }, 'Fallo mezclando la música de fondo; sigue la voz sola');
+        }
+      }
+    }
+    await toAacPreview(masterAudioPath, voiceAac);
+
+    const durationMs = await probeDurationMs(masterAudioPath);
+    const lufs = await measureLufs(masterAudioPath, logger);
 
     await ctx.publishEvent({
       type: 'job_progress',
@@ -226,7 +288,7 @@ async function runSynthesize(ctx: WorkerContext, tts: TtsProvider, job: Job<TtsS
     }
 
     // chequeo: desvío de duración frente al objetivo del canal (no bloquea)
-    const targetMs = (channel?.settings?.target_minutes ?? 7) * 60_000;
+    const targetMs = settings.target_minutes * 60_000;
     const deviation = Math.abs(durationMs - targetMs) / targetMs;
     if (deviation > DURATION_DEVIATION_WARN) {
       await ctx.publishEvent({
@@ -278,7 +340,7 @@ async function runSynthesize(ctx: WorkerContext, tts: TtsProvider, job: Job<TtsS
     // el maestro guarda audio y cues; los beats viven en su tabla
     const newMaster = {
       ...master,
-      audio: { path: voiceWav, duration_ms: durationMs, lufs },
+      audio: { path: masterAudioPath, duration_ms: durationMs, lufs },
       cues,
     };
     await db
@@ -309,8 +371,8 @@ async function runSynthesize(ctx: WorkerContext, tts: TtsProvider, job: Job<TtsS
 }
 
 export async function registerTtsWorkers(ctx: WorkerContext): Promise<Worker[]> {
-  const tts = createTts(ctx.logger);
-  ctx.logger.info({ tts: tts.name }, 'Proveedor de TTS inicializado');
+  const factory = createTts(ctx.logger);
+  ctx.logger.info({ tts: factory.base.name }, 'Proveedor de TTS base inicializado');
 
   const worker = new Worker<TtsSynthesizeJob>(
     QUEUES.tts,
@@ -320,7 +382,7 @@ export async function registerTtsWorkers(ctx: WorkerContext): Promise<Worker[]> 
         return;
       }
       try {
-        await runSynthesize(ctx, tts, job);
+        await runSynthesize(ctx, factory, job);
       } catch (err) {
         const attempts = job.opts.attempts ?? 1;
         const isFinal = job.attemptsMade + 1 >= attempts;

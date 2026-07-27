@@ -24,7 +24,9 @@ export interface TtsSceneAudio {
 }
 
 export interface TtsProvider {
-  readonly name: 'edge' | 'mock';
+  readonly name: 'edge' | 'elevenlabs' | 'mock';
+  // modelo remoto usado (para meta del ledger); solo lo informa elevenlabs
+  readonly model?: string;
   synthesizeScene(text: string, opts: { voiceId: string; rate: string }): Promise<TtsSceneAudio>;
 }
 
@@ -134,6 +136,119 @@ export class EdgeTtsProvider implements TtsProvider {
   }
 }
 
+// ---- ElevenLabs (docs/voz-y-beats.md §5) ----
+// Endpoint with-timestamps: devuelve audio en base64 + alineación por carácter.
+// Se convierte a WordBoundary {offset_ms, duration_ms, text} agrupando por
+// palabras (los espacios separan) para que el resto del pipeline no cambie.
+
+export const ELEVENLABS_MODEL_ID = process.env.ELEVENLABS_MODEL_ID ?? 'eleven_flash_v2_5';
+
+export interface ElevenLabsAlignment {
+  characters: string[];
+  character_start_times_seconds: number[];
+  character_end_times_seconds: number[];
+}
+
+interface ElevenLabsTimestampsResponse {
+  audio_base64?: string;
+  alignment?: ElevenLabsAlignment | null;
+  normalized_alignment?: ElevenLabsAlignment | null;
+}
+
+// Agrupa la alineación por carácter en palabras: cualquier espacio en blanco
+// separa; la puntuación queda pegada a su palabra (alignSceneTokens ya la
+// normaliza al alinear con el guion). Pura, testeable con fixture.
+export function elevenLabsAlignmentToWords(alignment: ElevenLabsAlignment): TtsWord[] {
+  const words: TtsWord[] = [];
+  let current = '';
+  let startS: number | null = null;
+  let endS = 0;
+
+  const flush = () => {
+    if (current === '' || startS === null) return;
+    const offsetMs = Math.round(startS * 1000);
+    words.push({
+      offset_ms: offsetMs,
+      duration_ms: Math.max(0, Math.round(endS * 1000) - offsetMs),
+      text: current,
+    });
+    current = '';
+    startS = null;
+  };
+
+  for (let i = 0; i < alignment.characters.length; i++) {
+    const ch = alignment.characters[i] ?? '';
+    if (/\s/.test(ch) || ch === '') {
+      flush();
+      continue;
+    }
+    if (startS === null) startS = alignment.character_start_times_seconds[i] ?? 0;
+    endS = alignment.character_end_times_seconds[i] ?? endS;
+    current += ch;
+  }
+  flush();
+  return words;
+}
+
+// El rate estilo edge ('-8%') se traduce al speed de ElevenLabs (1.0 = normal),
+// acotado al rango que acepta la API (0.7–1.2). Entrada ilegible → 1.0.
+export function rateToSpeed(rate: string): number {
+  const match = /^([+-]?\d+(?:\.\d+)?)%$/.exec(rate.trim());
+  if (!match) return 1;
+  const pct = Number.parseFloat(match[1] ?? '0');
+  if (!Number.isFinite(pct)) return 1;
+  return Math.min(1.2, Math.max(0.7, 1 + pct / 100));
+}
+
+export class ElevenLabsTtsProvider implements TtsProvider {
+  readonly name = 'elevenlabs' as const;
+  readonly model = ELEVENLABS_MODEL_ID;
+
+  constructor(
+    private logger: pino.Logger,
+    private apiKey: string,
+  ) {}
+
+  async synthesizeScene(
+    text: string,
+    opts: { voiceId: string; rate: string },
+  ): Promise<TtsSceneAudio> {
+    const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(opts.voiceId)}/with-timestamps?output_format=mp3_44100_128`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'xi-api-key': this.apiKey, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        text,
+        model_id: this.model,
+        voice_settings: { speed: rateToSpeed(opts.rate) },
+      }),
+      signal: AbortSignal.timeout(SYNTH_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`ElevenLabs respondió ${res.status}: ${body.slice(0, 300)}`);
+    }
+    const payload = (await res.json()) as ElevenLabsTimestampsResponse;
+    if (!payload.audio_base64) {
+      throw new Error('ElevenLabs no devolvió audio_base64');
+    }
+    // la alineación del texto original conserva la puntuación del guion;
+    // la normalizada es el respaldo si la primera falta
+    const alignment = payload.alignment ?? payload.normalized_alignment;
+    if (!alignment || alignment.characters.length === 0) {
+      throw new Error('ElevenLabs no devolvió alineación por carácter');
+    }
+    const words = elevenLabsAlignmentToWords(alignment);
+    if (words.length === 0) {
+      throw new Error('La alineación de ElevenLabs no produjo palabras');
+    }
+    const audioPath = await tmpFile('mp3');
+    await fs.writeFile(audioPath, Buffer.from(payload.audio_base64, 'base64'));
+    this.logger.debug({ chars: text.length, words: words.length }, 'Escena sintetizada con ElevenLabs');
+    return { audioPath, words };
+  }
+}
+
 const MOCK_WORDS_PER_SECOND = 2.5;
 
 export class MockTtsProvider implements TtsProvider {
@@ -166,7 +281,15 @@ export class MockTtsProvider implements TtsProvider {
   }
 }
 
-export function createTts(logger: pino.Logger): TtsProvider {
+// Factoría por canal: TTS_PROVIDER de env fija el proveedor base (mock apaga
+// toda red); profile.voice.provider === 'elevenlabs' activa ElevenLabs por
+// canal si hay ELEVENLABS_API_KEY. Sin clave → warn y cae al proveedor base.
+export interface TtsFactory {
+  readonly base: TtsProvider;
+  providerFor(voiceProvider?: 'edge' | 'elevenlabs'): TtsProvider;
+}
+
+function createBaseProvider(logger: pino.Logger): TtsProvider {
   const provider = process.env.TTS_PROVIDER ?? 'mock';
   if (provider === 'edge') {
     try {
@@ -177,4 +300,26 @@ export function createTts(logger: pino.Logger): TtsProvider {
     }
   }
   return new MockTtsProvider();
+}
+
+export function createTts(logger: pino.Logger): TtsFactory {
+  const base = createBaseProvider(logger);
+  let elevenlabs: ElevenLabsTtsProvider | null = null;
+  return {
+    base,
+    providerFor(voiceProvider) {
+      if (voiceProvider !== 'elevenlabs') return base;
+      // en modo mock global no se sale a red aunque el canal pida elevenlabs
+      if (base.name === 'mock') return base;
+      const apiKey = process.env.ELEVENLABS_API_KEY;
+      if (!apiKey) {
+        logger.warn(
+          'El canal pide ElevenLabs pero falta ELEVENLABS_API_KEY; degradando a edge-tts',
+        );
+        return base;
+      }
+      if (!elevenlabs) elevenlabs = new ElevenLabsTtsProvider(logger, apiKey);
+      return elevenlabs;
+    },
+  };
 }

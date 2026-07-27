@@ -4,7 +4,6 @@ import { markIncident } from '@fabrica/db';
 import {
   JOBS,
   QUEUES,
-  type ScriptGenerateJob,
   type ScriptJudgeJob,
   type ScriptRefineJob,
 } from '@fabrica/shared';
@@ -12,6 +11,7 @@ import type { WorkerContext } from '../../lib/context.js';
 import { handleScriptGenerate } from './generate.js';
 import { handleScriptJudge } from './judge.js';
 import { registerScriptMocks } from './mocks.js';
+import { handleScriptPackaging, type ScriptGenerateJobExt } from './packaging.js';
 import { handleScriptRefine } from './refine.js';
 
 // una salida LLM inválida se arregla regenerando; un fallo de red, reintentando
@@ -60,8 +60,14 @@ export async function registerScriptWorkers(ctx: WorkerContext): Promise<Worker[
     QUEUES.script,
     async (job) => {
       switch (job.name) {
-        case JOBS.script.generate:
-          return handleScriptGenerate(ctx, job.data as ScriptGenerateJob);
+        case JOBS.script.generate: {
+          // packagingOnly (extensión local del payload, ver packaging.ts):
+          // genera solo el paquete seo; sin el campo, generate normal
+          const data = job.data as ScriptGenerateJobExt;
+          return data.packagingOnly === true
+            ? handleScriptPackaging(ctx, data)
+            : handleScriptGenerate(ctx, data);
+        }
         case JOBS.script.judge:
           return handleScriptJudge(ctx, job.data as ScriptJudgeJob);
         case JOBS.script.refine:

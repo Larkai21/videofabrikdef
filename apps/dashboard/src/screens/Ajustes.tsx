@@ -3,8 +3,37 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Chip } from '../components/ui';
-import { getChannels, putProfile } from '../lib/api';
+import { getChannels, getSettings, putProfile, putSettings } from '../lib/api';
 import { useToasts } from '../lib/toasts';
+
+// borrador editable de los settings de producción (los campos numéricos se
+// guardan como texto para no pelear con el teclado; se validan al guardar)
+interface ProdDraft {
+  monthly_budget_usd: string;
+  target_minutes: string;
+  anti_repeat_n: string;
+  background_music: boolean;
+}
+
+function parseProd(draft: ProdDraft): {
+  monthly_budget_usd: number;
+  target_minutes: number;
+  anti_repeat_n: number;
+  background_music: boolean;
+} | null {
+  const budget = Number(draft.monthly_budget_usd.replace(',', '.'));
+  const minutes = Number(draft.target_minutes.replace(',', '.'));
+  const antiRepeat = Number(draft.anti_repeat_n);
+  if (!Number.isFinite(budget) || budget <= 0) return null;
+  if (!Number.isFinite(minutes) || minutes < 0.5 || minutes > 20) return null;
+  if (!Number.isInteger(antiRepeat) || antiRepeat < 0) return null;
+  return {
+    monthly_budget_usd: budget,
+    target_minutes: minutes,
+    anti_repeat_n: antiRepeat,
+    background_music: draft.background_music,
+  };
+}
 
 export function Ajustes() {
   const { push } = useToasts();
@@ -18,6 +47,23 @@ export function Ajustes() {
     if (profile === null && channel?.profile != null) setProfile(channel.profile);
   }, [channel, profile]);
 
+  const settingsQ = useQuery({
+    queryKey: ['settings', channel?.id],
+    queryFn: () => getSettings(channel?.id as string),
+    enabled: channel !== undefined,
+  });
+  const [prod, setProd] = useState<ProdDraft | null>(null);
+  useEffect(() => {
+    if (prod === null && settingsQ.data !== undefined) {
+      setProd({
+        monthly_budget_usd: String(settingsQ.data.monthly_budget_usd),
+        target_minutes: String(settingsQ.data.target_minutes),
+        anti_repeat_n: String(settingsQ.data.anti_repeat_n),
+        background_music: settingsQ.data.background_music,
+      });
+    }
+  }, [settingsQ.data, prod]);
+
   const saveMut = useMutation({
     mutationFn: () =>
       putProfile(channel?.id as string, profile as ChannelProfile, channel?.profile_approved ?? true),
@@ -26,6 +72,19 @@ export function Ajustes() {
       push('Ajustes guardados');
     },
     onError: () => push('No se pudieron guardar los ajustes', 'danger'),
+  });
+
+  const prodParsed = prod !== null ? parseProd(prod) : null;
+  const settingsMut = useMutation({
+    mutationFn: () => {
+      if (prodParsed === null) throw new Error('Ajustes de producción inválidos');
+      return putSettings(channel?.id as string, prodParsed);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['settings', channel?.id] });
+      push('Ajustes de producción guardados');
+    },
+    onError: () => push('No se pudieron guardar los ajustes de producción', 'danger'),
   });
 
   if (channelsQ.isPending) {
@@ -153,20 +212,76 @@ export function Ajustes() {
           <div className="head" style={{ fontSize: 16 }}>
             Producción
           </div>
-          {/* Los settings de canal (presupuesto, duración) aún no tienen endpoint en la API:
-              controles deshabilitados a propósito. */}
-          <label style={{ display: 'block' }}>
-            <span className="field-label">Presupuesto mensual · $</span>
-            <input className="control" value="15" disabled aria-describedby="nota-settings" />
-          </label>
-          <label style={{ display: 'block' }}>
-            <span className="field-label">Duración objetivo · minutos de locución</span>
-            <input className="control" value="7" disabled aria-describedby="nota-settings" />
-          </label>
-          <p id="nota-settings" className="muted fs-sm" style={{ margin: 0, lineHeight: 1.5 }}>
-            Estos dos controles se activarán cuando la API exponga los ajustes del canal
-            (endpoint de settings pendiente).
-          </p>
+          {prod === null ? (
+            <p className="muted fs-sm" style={{ margin: 0 }}>
+              Cargando los ajustes de producción
+            </p>
+          ) : (
+            <>
+              <label style={{ display: 'block' }}>
+                <span className="field-label">Presupuesto mensual · $</span>
+                <input
+                  className="control"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={prod.monthly_budget_usd}
+                  onChange={(e) => setProd({ ...prod, monthly_budget_usd: e.target.value })}
+                />
+              </label>
+              <label style={{ display: 'block' }}>
+                <span className="field-label">Duración objetivo · minutos de locución</span>
+                <input
+                  className="control"
+                  type="number"
+                  min={0.5}
+                  max={20}
+                  step={0.5}
+                  value={prod.target_minutes}
+                  onChange={(e) => setProd({ ...prod, target_minutes: e.target.value })}
+                />
+              </label>
+              <label style={{ display: 'block' }}>
+                <span className="field-label">Anti repetición · vídeos recientes a evitar</span>
+                <input
+                  className="control"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={prod.anti_repeat_n}
+                  onChange={(e) => setProd({ ...prod, anti_repeat_n: e.target.value })}
+                />
+              </label>
+              <label
+                style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 'var(--fs-sm)' }}
+              >
+                <input
+                  type="checkbox"
+                  checked={prod.background_music}
+                  onChange={(e) => setProd({ ...prod, background_music: e.target.checked })}
+                />
+                Música de fondo a −22 dB bajo la voz
+              </label>
+              <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.5 }}>
+                La música necesita pistas de tipo música (kind music) en la biblioteca del canal o
+                compartidas; sin pistas, el vídeo sale solo con la voz.
+              </p>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Button
+                  variant="primary"
+                  disabled={settingsMut.isPending || prodParsed === null}
+                  onClick={() => settingsMut.mutate()}
+                >
+                  {settingsMut.isPending ? 'Guardando' : 'Guardar la producción'}
+                </Button>
+                {prodParsed === null ? (
+                  <span className="muted fs-sm">
+                    Revisa los valores: presupuesto positivo, duración entre 0,5 y 20 minutos.
+                  </span>
+                ) : null}
+              </div>
+            </>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>

@@ -2,7 +2,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Chip, CostBadge, Kbd, ReasonModal, type Motivo } from '../components/ui';
-import { approveScript, chooseTitle, getChannel, getVideo, putScript, requestRewrite } from '../lib/api';
+import {
+  approveScript,
+  chooseTitle,
+  getChannel,
+  getVideo,
+  putScript,
+  requestRewrite,
+  writeScript,
+} from '../lib/api';
 import { useLive } from '../lib/events';
 import { fmtClock, fmtMoney, sceneOffsets, speechMs, wordCount } from '../lib/format';
 import { useHotkeys } from '../lib/hotkeys';
@@ -21,6 +29,69 @@ function titleNote(t: string): string {
   if (t.length <= 45) return 'directo, bien para resultados';
   if (t.length <= 60) return 'longitud correcta';
   return 'puede cortarse en resultados';
+}
+
+// Selector de título compartido entre el modo normal y el modo packaging
+// (packaging_first: el título se confirma antes de que exista el guion).
+function TitlePicker(props: {
+  titles: string[];
+  chosenIdx: number | null;
+  onChoose: (idx: number) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }} role="radiogroup" aria-label="Título">
+      {props.titles.map((t, i) => {
+        const active = props.chosenIdx === i;
+        return (
+          <button
+            key={i}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => props.onChoose(i)}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 7,
+              width: '100%',
+              textAlign: 'left',
+              border: `1px solid ${active ? 'var(--accent)' : 'var(--line)'}`,
+              background: active
+                ? 'color-mix(in oklab, var(--accent) 8%, var(--bg2))'
+                : 'var(--bg2)',
+              borderRadius: 'var(--r-sm)',
+              padding: '11px 12px',
+              transition: 'border-color .12s',
+              cursor: 'pointer',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <span
+                className="motivo-dot"
+                style={{
+                  marginTop: 4,
+                  borderColor: active ? 'var(--accent)' : 'var(--line)',
+                  boxShadow: active ? 'inset 0 0 0 3px var(--accent)' : 'none',
+                }}
+                aria-hidden="true"
+              />
+              <span className="head" style={{ flex: 1, fontSize: 15, lineHeight: 1.3 }}>
+                {t}
+              </span>
+            </div>
+            <div
+              className="mono muted"
+              style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingLeft: 22, fontSize: 10.5 }}
+            >
+              <span>{t.length} caracteres</span>
+              <span>·</span>
+              <span>{titleNote(t)}</span>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 export function Guion() {
@@ -84,20 +155,40 @@ export function Guion() {
     onError: () => push('No se pudo pedir la reescritura', 'danger'),
   });
 
+  const writeMut = useMutation({
+    mutationFn: () => writeScript(id),
+    onSuccess: () => {
+      invalidateVideo();
+      push('Título confirmado · el guion se está escribiendo para cumplir la promesa');
+      void navigate('/');
+    },
+    onError: (err) =>
+      push(err instanceof Error ? err.message : 'No se pudo encargar el guion', 'danger'),
+  });
+
   const scenes = master?.script?.scenes ?? [];
   const seo = master?.seo;
   const research = master?.research;
   const chosenIdx = seo?.chosen_idx ?? null;
+  // packaging_first: hay paquete seo pero el guion aún no se ha escrito
+  const packagingMode =
+    video?.state === 'guion_borrador' && master?.script === undefined && seo !== undefined;
   const canApprove =
-    video?.state === 'guion_borrador' && chosenIdx !== null && !approveMut.isPending;
+    video?.state === 'guion_borrador' && !packagingMode && chosenIdx !== null && !approveMut.isPending;
+  const canWrite = packagingMode && chosenIdx !== null && !writeMut.isPending;
 
   useHotkeys((e) => {
     if (rewriteOpen) return;
     const k = e.key.toLowerCase();
-    if (k === 'a' && canApprove) {
+    if (k === 'a' && packagingMode) {
+      if (canWrite) {
+        e.preventDefault();
+        writeMut.mutate();
+      }
+    } else if (k === 'a' && canApprove) {
       e.preventDefault();
       approveMut.mutate();
-    } else if (k === 'r' && video?.state === 'guion_borrador') {
+    } else if (k === 'r' && video?.state === 'guion_borrador' && !packagingMode) {
       e.preventDefault();
       setRewriteOpen(true);
     } else if (['1', '2', '3'].includes(k) && seo !== undefined) {
@@ -122,6 +213,135 @@ export function Guion() {
     return (
       <div className="wrap-1320" style={{ padding: 'calc(var(--pad) * 2) 26px' }}>
         <div className="banner banner-danger">No se pudo cargar el vídeo.</div>
+      </div>
+    );
+  }
+
+  // modo packaging: solo título + conceptos de miniatura; el guion se encarga después
+  if (packagingMode && seo !== undefined) {
+    return (
+      <div>
+        <div className="subbar">
+          <div className="wrap-1320 subbar-inner">
+            <Button variant="secondary" onClick={() => void navigate('/')}>
+              ← Bandeja
+            </Button>
+            <span className="head" style={{ fontSize: 15, whiteSpace: 'nowrap' }}>
+              Título y miniatura · packaging
+            </span>
+            <Chip kind="warn">Puerta 2 de 3</Chip>
+            <div style={{ flex: 1 }} />
+            <CostBadge>{fmtMoney(video.costs_total)}</CostBadge>
+          </div>
+        </div>
+
+        <div
+          className="wrap-1320"
+          style={{
+            padding: 'calc(var(--pad) * 1.6) 26px 70px',
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) 380px',
+            gap: 'calc(var(--gap) * 1.8)',
+            alignItems: 'start',
+          }}
+        >
+          <div style={{ display: 'grid', gap: 'var(--gap)' }}>
+            {video.incident !== null ? (
+              <div className="banner banner-danger">
+                {video.incident.message}
+                {video.incident.suggested_action !== null
+                  ? ` · acción sugerida: ${video.incident.suggested_action}`
+                  : ''}
+              </div>
+            ) : null}
+
+            <div className="card" style={{ padding: 'calc(var(--pad) * 1.4)' }}>
+              <div className="step-label" style={{ marginBottom: 10 }}>
+                Conceptos de miniatura
+              </div>
+              <div style={{ display: 'grid', gap: 'var(--gap)' }}>
+                {seo.thumbnails.map((thumb, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      border: '1px solid var(--line)',
+                      borderRadius: 'var(--r-sm)',
+                      background: 'var(--bg2)',
+                      padding: '14px 16px',
+                      display: 'grid',
+                      gap: 6,
+                    }}
+                  >
+                    <span className="head" style={{ fontSize: 19, letterSpacing: '-0.01em' }}>
+                      {thumb.text}
+                    </span>
+                    <span className="muted fs-sm" style={{ lineHeight: 1.5 }}>
+                      {thumb.visual}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="muted fs-sm" style={{ margin: '14px 0 0', lineHeight: 1.5 }}>
+                El guion todavía no existe: se escribirá después para cumplir la promesa del
+                título que confirmes. Así el juez de alineación casi siempre da el visto bueno.
+              </p>
+            </div>
+          </div>
+
+          <aside
+            style={{
+              position: 'sticky',
+              top: 'calc(var(--row) * 2 + 18px)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--gap)',
+            }}
+          >
+            <div className="card" style={{ padding: 'var(--pad)' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  justifyContent: 'space-between',
+                  marginBottom: 12,
+                }}
+              >
+                <span className="head" style={{ fontSize: 16 }}>
+                  Elige un título
+                </span>
+                <span className="mono muted" style={{ fontSize: 11 }}>
+                  1 · 2 · 3
+                </span>
+              </div>
+              <TitlePicker
+                titles={seo.titles}
+                chosenIdx={chosenIdx}
+                onChoose={(i) => titleMut.mutate(i)}
+              />
+            </div>
+
+            <div
+              className="card"
+              style={{ padding: 'var(--pad)', display: 'flex', flexDirection: 'column', gap: 9 }}
+            >
+              <Button
+                variant="primary"
+                kbd="a"
+                disabled={!canWrite}
+                onClick={() => writeMut.mutate()}
+                style={{ height: 40 }}
+              >
+                Confirmar título y escribir el guion
+              </Button>
+              {chosenIdx === null ? (
+                <span className="muted fs-sm">Elige primero uno de los tres títulos.</span>
+              ) : null}
+              <div className="mono muted" style={{ fontSize: 11, lineHeight: 1.6, paddingTop: 4 }}>
+                <Kbd>1 2 3</Kbd> elegir título · <Kbd>a</Kbd> confirmar y encargar el guion
+              </div>
+            </div>
+          </aside>
+        </div>
       </div>
     );
   }
@@ -385,61 +605,11 @@ export function Guion() {
                 1 · 2 · 3
               </span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }} role="radiogroup" aria-label="Título">
-              {(seo?.titles ?? []).map((t, i) => {
-                const active = chosenIdx === i;
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => titleMut.mutate(i)}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 7,
-                      width: '100%',
-                      textAlign: 'left',
-                      border: `1px solid ${active ? 'var(--accent)' : 'var(--line)'}`,
-                      background: active
-                        ? 'color-mix(in oklab, var(--accent) 8%, var(--bg2))'
-                        : 'var(--bg2)',
-                      borderRadius: 'var(--r-sm)',
-                      padding: '11px 12px',
-                      transition: 'border-color .12s',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                      <span
-                        className="motivo-dot"
-                        style={{
-                          marginTop: 4,
-                          borderColor: active ? 'var(--accent)' : 'var(--line)',
-                          boxShadow: active ? 'inset 0 0 0 3px var(--accent)' : 'none',
-                        }}
-                        aria-hidden="true"
-                      />
-                      <span
-                        className="head"
-                        style={{ flex: 1, fontSize: 15, lineHeight: 1.3 }}
-                      >
-                        {t}
-                      </span>
-                    </div>
-                    <div
-                      className="mono muted"
-                      style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingLeft: 22, fontSize: 10.5 }}
-                    >
-                      <span>{t.length} caracteres</span>
-                      <span>·</span>
-                      <span>{titleNote(t)}</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            <TitlePicker
+              titles={seo?.titles ?? []}
+              chosenIdx={chosenIdx}
+              onChoose={(i) => titleMut.mutate(i)}
+            />
           </div>
 
           <div

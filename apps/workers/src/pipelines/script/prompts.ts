@@ -73,6 +73,8 @@ export function scriptUser(opts: {
   targetWords: number;
   language: string;
   rewriteReason?: string;
+  // packaging_first: título ya confirmado por el humano antes de escribir
+  chosenTitle?: string;
   editedScenes: Scene[];
 }): string {
   const parts = [
@@ -84,6 +86,13 @@ export function scriptUser(opts: {
     '',
     `Research pack: ${JSON.stringify({ summary: opts.research.summary, claims: opts.research.claims, angles: opts.research.angles })}`,
   ];
+  if (opts.chosenTitle) {
+    parts.push(
+      '',
+      `El título del vídeo YA está elegido y es una promesa al espectador: «${opts.chosenTitle}».`,
+      'Escribe el guion para cumplir exactamente esa promesa: el gancho la enuncia y el cierre la paga.',
+    );
+  }
   if (opts.rewriteReason) {
     parts.push('', `Motivo de la reescritura pedido por el humano: ${opts.rewriteReason}`);
   }
@@ -95,6 +104,44 @@ export function scriptUser(opts: {
     );
   }
   return parts.filter((p) => p !== '').join('\n');
+}
+
+// packaging_first (docs/generacion-guion.md §4.4): al aprobar la idea se
+// genera SOLO el paquete seo (títulos + miniaturas); el guion llega después.
+export function packagingSystem(profile: ChannelProfile): string {
+  const patterns = profile.title_patterns
+    .map((p) => `«${p.template}» (ej.: ${p.example})`)
+    .join(' · ');
+  return [
+    'Eres el estratega de packaging del canal: el título y la miniatura se deciden ANTES de escribir el guion.',
+    renderProfile(profile),
+    'Salida JSON: { seo: { titles, description, tags, thumbnails } }. Nada más: el guion se escribirá después para cumplir la promesa del título elegido.',
+    `seo.titles: exactamente 3 títulos de 70 caracteres máximo, cada uno aplicando uno de estos patrones: ${patterns || 'los del nicho'}. Promesas concretas que un guion pueda pagar.`,
+    'seo.description: 2 párrafos (el primero abre con la keyword principal) y al final un bloque de capítulos EXACTAMENTE así:\nCapítulos:\n{timestamps}',
+    profile.flags.ai_disclosure
+      ? 'Añade al final de la descripción una línea de transparencia sobre asistencia de IA.'
+      : '',
+    'seo.tags: 10-15 tags, mezcla de cabeza (2-3) y cola larga.',
+    'seo.thumbnails: 2 conceptos {text (4 palabras máximo), visual (descripción de la imagen)}.',
+    'Sin exclamaciones. Sentence case en títulos y textos.',
+  ]
+    .filter((line) => line !== '')
+    .join('\n');
+}
+
+export function packagingUser(opts: {
+  idea: { title: string; angle: string | null; summary: string; whyNow: string | null };
+  language: string;
+}): string {
+  return [
+    `Idea aprobada: ${opts.idea.title}`,
+    opts.idea.angle ? `Ángulo: ${opts.idea.angle}` : '',
+    `Resumen: ${opts.idea.summary}`,
+    opts.idea.whyNow ? `Por qué ahora: ${opts.idea.whyNow}` : '',
+    `Idioma: ${opts.language}.`,
+  ]
+    .filter((p) => p !== '')
+    .join('\n');
 }
 
 export function judgeSystem(): string {
