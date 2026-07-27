@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,600&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0}
+body{background:#0e0e10;-webkit-font-smoothing:antialiased;text-wrap:pretty}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit;cursor:pointer}
+input{font:inherit}
+a{color:var(--accent,#4cc2ff);text-decoration:none}
+a:hover{text-decoration:underline}
+*:focus{outline:none}
+*:focus-visible{outline:2px solid var(--ring,#4cc2ff);outline-offset:2px;border-radius:2px}
+[data-density="comoda"]{--pad:16px;--gap:14px;--row:52px;--fs:14px;--fs-sm:12.5px;--track-h:58px;--sec-gap:34px}
+[data-density="compacta"]{--pad:10px;--gap:8px;--row:38px;--fs:13px;--fs-sm:11.5px;--track-h:44px;--sec-gap:22px}
+:root{--r-sm:3px;--r:4px;--r-lg:6px;--pill-r:3px;--queue-cols:1fr;--shadow:none;--shadow-lg:0 10px 30px rgba(0,0,0,.45);
+--font-ui:'IBM Plex Sans',system-ui,sans-serif;--font-head:'IBM Plex Sans',system-ui,sans-serif;--font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,monospace;
+--bg:#0b0e11;--bg2:#12171c;--bg3:#191f26;--line:#242c35;--fg:#e6edf3;--fg2:#8fa0b0;--accent:#4cc2ff;--accent-fg:#04121b;--accent2:#4cc2ff;--ok:#3ddc84;--warn:#ffb224;--danger:#ff6b6b;--ring:#4cc2ff}
+
+[data-dir="sala"]{--font-ui:'IBM Plex Sans',system-ui,sans-serif;--font-head:'IBM Plex Sans',system-ui,sans-serif;--font-mono:'IBM Plex Mono',ui-monospace,monospace;--r-sm:3px;--r:4px;--r-lg:6px;--pill-r:3px;--queue-cols:1fr;--shadow:none;--shadow-lg:0 10px 30px rgba(0,0,0,.45);
+--bg:#eceff2;--bg2:#ffffff;--bg3:#e3e8ec;--line:#c8d0d8;--fg:#0f1418;--fg2:#4f5b67;--accent:#0a6ebd;--accent-fg:#ffffff;--accent2:#0a6ebd;--ok:#0f7a45;--warn:#8a5800;--danger:#b42318;--ring:#0a6ebd}
+[data-dir="sala"][data-mode="dark"]{--bg:#0b0e11;--bg2:#12171c;--bg3:#191f26;--line:#242c35;--fg:#e6edf3;--fg2:#8fa0b0;--accent:#4cc2ff;--accent-fg:#04121b;--accent2:#4cc2ff;--ok:#3ddc84;--warn:#ffb224;--danger:#ff6b6b;--ring:#4cc2ff}
+
+[data-dir="editorial"]{--font-ui:'IBM Plex Sans',system-ui,sans-serif;--font-head:'Newsreader',Georgia,'Times New Roman',serif;--font-mono:'IBM Plex Mono',ui-monospace,monospace;--r-sm:4px;--r:8px;--r-lg:14px;--pill-r:6px;--queue-cols:1fr;--shadow:0 1px 2px rgba(60,45,20,.06);--shadow-lg:0 18px 44px rgba(60,45,20,.14);
+--bg:#faf7f0;--bg2:#fffefa;--bg3:#f1ebdf;--line:#e0d7c6;--fg:#1f1c17;--fg2:#6b6154;--accent:#9a4a20;--accent-fg:#fffdf9;--accent2:#9a4a20;--ok:#2f6b40;--warn:#8f610c;--danger:#a3301f;--ring:#9a4a20}
+[data-dir="editorial"][data-mode="dark"]{--bg:#191712;--bg2:#211e18;--bg3:#2a261f;--line:#39332a;--fg:#f2ebdd;--fg2:#a99e8c;--accent:#e0996a;--accent-fg:#241a10;--accent2:#e0996a;--ok:#84c98a;--warn:#e6b968;--danger:#ef8b7a;--ring:#e0996a}
+
+[data-dir="terminal"]{--font-ui:'JetBrains Mono',ui-monospace,SFMono-Regular,monospace;--font-head:'JetBrains Mono',ui-monospace,monospace;--font-mono:'JetBrains Mono',ui-monospace,monospace;--r-sm:0px;--r:2px;--r-lg:2px;--pill-r:0px;--queue-cols:1fr;--shadow:none;--shadow-lg:0 0 0 1px var(--line);
+--bg:#f6f6f4;--bg2:#fdfdfb;--bg3:#eeeeea;--line:#dcdcd6;--fg:#0e0e0e;--fg2:#5f5f5f;--accent:#3f6212;--accent-fg:#f7ffe6;--accent2:#3f6212;--ok:#3f6212;--warn:#8a5a00;--danger:#a11b1b;--ring:#3f6212}
+[data-dir="terminal"][data-mode="dark"]{--bg:#080808;--bg2:#0e0e0e;--bg3:#151515;--line:#252525;--fg:#e8e8e8;--fg2:#8c8c8c;--accent:#c9f24d;--accent-fg:#101400;--accent2:#c9f24d;--ok:#c9f24d;--warn:#e0a03a;--danger:#ff7a7a;--ring:#c9f24d}
+
+[data-dir="estudio"]{--font-ui:'IBM Plex Sans',system-ui,sans-serif;--font-head:'Space Grotesk',system-ui,sans-serif;--font-mono:'IBM Plex Mono',ui-monospace,monospace;--r-sm:8px;--r:14px;--r-lg:24px;--pill-r:10px;--queue-cols:repeat(3,minmax(0,1fr));--shadow:0 2px 6px rgba(30,10,80,.07);--shadow-lg:0 22px 60px rgba(30,10,80,.20);
+--bg:#f4f1fb;--bg2:#ffffff;--bg3:#efeaff;--line:#e1dbf5;--fg:#191430;--fg2:#665e8c;--accent:#5b2ee5;--accent-fg:#ffffff;--accent2:#e0452a;--ok:#0d8a52;--warn:#b4650a;--danger:#c62a20;--ring:#5b2ee5}
+[data-dir="estudio"][data-mode="dark"]{--bg:#120f1e;--bg2:#1a1630;--bg3:#241e42;--line:#302957;--fg:#f1ecff;--fg2:#a79ed2;--accent:#a98bff;--accent-fg:#150c2e;--accent2:#ff7a5c;--ok:#34d399;--warn:#fbbf24;--danger:#ff8a80;--ring:#a98bff}
+
+[data-dir="neutro"]{--font-ui:system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;--font-head:system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;--font-mono:ui-monospace,SFMono-Regular,'IBM Plex Mono',monospace;--r-sm:6px;--r:8px;--r-lg:12px;--pill-r:6px;--queue-cols:1fr;--shadow:0 1px 2px rgba(28,26,23,.06);--shadow-lg:0 12px 32px rgba(28,26,23,.14);
+--bg:#faf9f7;--bg2:#ffffff;--bg3:#f4f2ef;--line:#e6e3de;--fg:#1c1a17;--fg2:#736d66;--accent:#1c1a17;--accent-fg:#fafaf9;--accent2:#1c1a17;--ok:#15803d;--warn:#a8560a;--danger:#b42318;--ring:#1c1a17}
+[data-dir="neutro"][data-mode="dark"]{--bg:#0f0e0d;--bg2:#191715;--bg3:#221f1c;--line:#2e2b27;--fg:#f5f3f0;--fg2:#a49e97;--accent:#f5f3f0;--accent-fg:#191715;--accent2:#f5f3f0;--ok:#4ade80;--warn:#fbbf24;--danger:#ff8b80;--ring:#f5f3f0}
+@keyframes fbup{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#0e0e10">
+
+<header style="position:sticky;top:0;z-index:60;background:#0e0e10;color:#e9e9ec;border-bottom:1px solid #26262a;padding:12px 20px 10px;display:flex;flex-direction:column;gap:10px;font-family:'IBM Plex Sans',system-ui,sans-serif">
+  <div style="display:flex;align-items:center;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <span style="font-size:14px;font-weight:600;letter-spacing:-0.01em">Fábrica</span>
+      <span style="font-size:11.5px;color:#8a8a92">explorador de direcciones · 5 estéticas · mismos datos</span>
+    </div>
+    <div style="flex:1"></div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <sc-for list="{{ screens }}" as="s" hint-placeholder-count="4">
+        <button onClick="{{ s.go }}" style="{{ s.css }}" style-hover="filter:brightness(1.25)">{{ s.label }}</button>
+      </sc-for>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <sc-for list="{{ dirs }}" as="d" hint-placeholder-count="5">
+      <button onClick="{{ d.go }}" style="{{ d.css }}" style-hover="filter:brightness(1.2)">
+        <span style="font-family:ui-monospace,monospace;font-size:10px;opacity:.6">{{ d.num }}</span>
+        {{ d.label }}
+      </button>
+    </sc-for>
+    <div style="flex:1"></div>
+    <div style="display:flex;gap:4px;background:#18181c;border:1px solid #2a2a30;border-radius:6px;padding:3px">
+      <button onClick="{{ setLight }}" style="{{ cssLight }}">Claro</button>
+      <button onClick="{{ setDark }}" style="{{ cssDark }}">Oscuro</button>
+    </div>
+    <div style="display:flex;gap:4px;background:#18181c;border:1px solid #2a2a30;border-radius:6px;padding:3px">
+      <button onClick="{{ setComoda }}" style="{{ cssComoda }}">Cómoda</button>
+      <button onClick="{{ setCompacta }}" style="{{ cssCompacta }}">Compacta</button>
+    </div>
+  </div>
+  <div style="display:flex;gap:22px;font-size:11.5px;color:#8a8a92;flex-wrap:wrap;border-top:1px solid #1e1e22;padding-top:9px">
+    <span><span style="color:#5e5e66">Sirve a</span> {{ ratWho }}</span>
+    <span><span style="color:#5e5e66">Coste</span> {{ ratCost }}</span>
+    <span><span style="color:#5e5e66">Riesgo</span> {{ ratRisk }}</span>
+  </div>
+</header>
+
+<div data-dir="{{ dir }}" data-mode="{{ mode }}" data-density="{{ density }}" style="background:var(--bg);color:var(--fg);font-family:var(--font-ui);font-size:var(--fs);min-height:calc(100vh - 118px);position:relative">
+
+  <sc-if value="{{ isBandeja }}" hint-placeholder-val="{{ true }}">
+  <div>
+    <div style="border-bottom:1px solid var(--line);background:var(--bg2);position:sticky;top:118px;z-index:30">
+      <div style="max-width:1160px;margin:0 auto;padding:0 26px;height:var(--row);display:flex;align-items:center;gap:18px">
+        <span style="font-family:var(--font-head);font-weight:600;letter-spacing:-0.01em;font-size:15px">Fábrica</span>
+        <nav style="display:flex;gap:14px;font-size:var(--fs-sm);color:var(--fg2)">
+          <span style="color:var(--fg);border-bottom:2px solid var(--accent);padding:4px 0">Bandeja</span>
+          <span style="padding:4px 0">En curso</span>
+          <span style="padding:4px 0">Publicados</span>
+          <span style="padding:4px 0">Ajustes</span>
+        </nav>
+        <div style="flex:1"></div>
+        <div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);padding:6px 10px;min-width:230px">
+          <span style="color:var(--fg2);font-size:12px">⌕</span>
+          <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="Buscar vídeos, ideas o beats" style="background:transparent;border:none;color:var(--fg);font-size:var(--fs-sm);width:100%;font-family:var(--font-ui)">
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--fg2);border:1px solid var(--line);border-radius:3px;padding:1px 4px">/</span>
+        </div>
+        <sc-if value="{{ showCost }}" hint-placeholder-val="{{ true }}">
+          <span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--fg2);border:1px solid var(--line);border-radius:999px;padding:4px 10px;white-space:nowrap">4,80 $ · 9 vídeos</span>
+        </sc-if>
+      </div>
+    </div>
+
+    <div style="max-width:1160px;margin:0 auto;padding:calc(var(--pad)*2) 26px 72px">
+
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:var(--pad)">
+        <h1 style="font-family:var(--font-head);font-size:26px;font-weight:600;letter-spacing:-0.02em;margin:0">Te espera</h1>
+        <span style="color:var(--fg2);font-size:var(--fs-sm)">3 puertas · unos 17 min en total</span>
+        <div style="flex:1"></div>
+        <sc-if value="{{ showKeys }}" hint-placeholder-val="{{ true }}">
+          <span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--fg2)">pulsa <b style="color:var(--fg)">1</b> · <b style="color:var(--fg)">2</b> · <b style="color:var(--fg)">3</b></span>
+        </sc-if>
+      </div>
+
+      <div style="display:grid;grid-template-columns:var(--queue-cols);gap:var(--gap);margin-bottom:var(--sec-gap)">
+        <sc-for list="{{ queue }}" as="q" hint-placeholder-count="3">
+          <button onClick="{{ q.go }}" style="{{ q.wrap }}" style-hover="border-color:var(--accent);box-shadow:var(--shadow-lg)">
+            <sc-if value="{{ showThumbs }}" hint-placeholder-val="{{ true }}">
+              <div style="width:var(--thumb-w);flex:none;aspect-ratio:16/9;border-radius:var(--r-sm);border:1px solid var(--line);background-color:var(--bg3);background-image:repeating-linear-gradient(135deg,color-mix(in oklab,var(--fg) 7%,transparent) 0 6px,transparent 6px 12px);display:flex;align-items:flex-end;padding:6px">
+                <span style="font-family:var(--font-mono);font-size:9.5px;color:var(--fg2)">{{ q.thumbNote }}</span>
+              </div>
+            </sc-if>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg2)">{{ q.step }}</span>
+                <span style="{{ q.chip }}">{{ q.state }}</span>
+              </div>
+              <div style="font-family:var(--font-head);font-size:{{ q.titleSize }};font-weight:600;letter-spacing:-0.015em;line-height:1.25">{{ q.title }}</div>
+              <div style="color:var(--fg2);font-size:var(--fs-sm);line-height:1.45">{{ q.meta }}</div>
+            </div>
+            <div style="flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+              <span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--fg2)">{{ q.eta }}</span>
+              <sc-if value="{{ showKeys }}" hint-placeholder-val="{{ true }}">
+                <span style="font-family:var(--font-mono);font-size:11px;min-width:20px;text-align:center;border:1px solid var(--line);border-bottom-width:2px;border-radius:var(--r-sm);padding:2px 6px;color:var(--fg2)">{{ q.key }}</span>
+              </sc-if>
+            </div>
+          </button>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:var(--pad)">
+        <h2 style="font-family:var(--font-head);font-size:17px;font-weight:600;letter-spacing:-0.01em;margin:0">En curso</h2>
+        <span style="color:var(--fg2);font-size:var(--fs-sm)">la máquina trabaja sola; solo te avisa al cruzar una puerta</span>
+      </div>
+
+      <div style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);box-shadow:var(--shadow);overflow:hidden;margin-bottom:var(--sec-gap)">
+        <sc-for list="{{ running }}" as="v" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:14px;padding:calc(var(--pad)*0.85) var(--pad);border-bottom:1px solid var(--line)" style-hover="background:var(--bg3)">
+            <div style="width:64px;flex:none;aspect-ratio:16/9;border-radius:var(--r-sm);border:1px solid var(--line);background-color:var(--bg3);background-image:repeating-linear-gradient(135deg,color-mix(in oklab,var(--fg) 7%,transparent) 0 5px,transparent 5px 10px)"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ v.title }}</div>
+              <div style="color:var(--fg2);font-size:var(--fs-sm);margin-top:3px">{{ v.sub }}</div>
+            </div>
+            <span style="{{ v.chip }}">{{ v.state }}</span>
+            <div style="width:190px;flex:none;display:flex;align-items:center;gap:10px">
+              <div style="flex:1;height:6px;border-radius:999px;background:var(--bg3);overflow:hidden;border:1px solid var(--line)">
+                <div style="{{ v.barCss }}"></div>
+              </div>
+              <span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--fg2);width:38px;text-align:right">{{ v.pctLabel }}</span>
+            </div>
+            <sc-if value="{{ showCost }}" hint-placeholder-val="{{ true }}">
+              <span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--fg2);width:52px;text-align:right">{{ v.cost }}</span>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:var(--gap);align-items:start">
+        <div style="border:1px dashed var(--line);border-radius:var(--r);padding:calc(var(--pad)*1.6);text-align:center;background:var(--bg2)">
+          <div style="font-family:var(--font-head);font-size:15px;font-weight:600;margin-bottom:6px">Nada pendiente de publicar</div>
+          <div style="color:var(--fg2);font-size:var(--fs-sm);max-width:380px;margin:0 auto 14px;line-height:1.5">Cuando un vídeo termine de renderizar aparecerá aquí para su último visto bueno. No hay nada que hacer ahora mismo.</div>
+          <span style="display:inline-block;border:1px solid var(--line);border-radius:var(--r-sm);padding:7px 14px;font-size:var(--fs-sm);color:var(--fg2)">Ver el archivo (28)</span>
+        </div>
+        <div style="border:1px solid var(--line);border-radius:var(--r);padding:var(--pad);background:var(--bg2);box-shadow:var(--shadow)">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">
+            <span style="font-size:var(--fs-sm);color:var(--fg2)">Coste del mes</span>
+            <span style="font-family:var(--font-mono);font-size:20px;font-weight:500">4,80 $</span>
+          </div>
+          <div style="height:5px;border-radius:999px;background:var(--bg3);overflow:hidden;margin-bottom:10px"><div style="width:32%;height:100%;background:var(--fg2);opacity:.55"></div></div>
+          <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--fg2)">
+            <span>9 vídeos · 0,53 $ cada uno</span><span>límite 15 $</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isGuion }}" hint-placeholder-val="{{ false }}">
+  <div>
+    <div style="border-bottom:1px solid var(--line);background:var(--bg2);position:sticky;top:118px;z-index:30">
+      <div style="max-width:1320px;margin:0 auto;padding:0 26px;height:var(--row);display:flex;align-items:center;gap:14px">
+        <button onClick="{{ goBandeja }}" style="flex:none;white-space:nowrap;background:transparent;border:1px solid var(--line);border-radius:var(--r-sm);padding:5px 10px;font-size:var(--fs-sm);color:var(--fg2)" style-hover="color:var(--fg);border-color:var(--accent)">← Bandeja</button>
+        <span style="flex:none;white-space:nowrap;font-family:var(--font-head);font-weight:600;font-size:15px;letter-spacing:-0.01em">Guion · borrador 3</span>
+        <span style="{{ chipWarn }}">Puerta 2 de 3</span>
+        <div style="flex:1"></div>
+        <span style="flex:none;white-space:nowrap;font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--fg2)">1.240 palabras · 8:42 de locución · 34 beats</span>
+        <sc-if value="{{ showCost }}" hint-placeholder-val="{{ true }}">
+          <span style="flex:none;white-space:nowrap;font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--fg2);border:1px solid var(--line);border-radius:999px;padding:4px 10px">0,09 $</span>
+        </sc-if>
+      </div>
+    </div>
+
+    <div style="max-width:1320px;margin:0 auto;padding:calc(var(--pad)*1.6) 26px 70px;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:calc(var(--gap)*1.8);align-items:start">
+
+      <article style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);box-shadow:var(--shadow);padding:calc(var(--pad)*1.8) calc(var(--pad)*2)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:calc(var(--pad)*1.2);padding-bottom:12px;border-bottom:1px solid var(--line)">
+          <span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg2)">Solo lectura · se aprueba entero</span>
+          <div style="flex:1"></div>
+          <span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--warn)">2 avisos en el margen</span>
+        </div>
+        <h1 style="font-family:var(--font-head);font-size:30px;line-height:1.15;letter-spacing:-0.025em;font-weight:600;margin:0 0 6px;max-width:22ch">{{ chosenTitle }}</h1>
+        <div style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--fg2);margin-bottom:calc(var(--pad)*1.6)">título elegido · lo cambias en el panel de la derecha</div>
+
+        <sc-for list="{{ script }}" as="p" hint-placeholder-count="7">
+          <div style="{{ p.wrap }}">
+            <div style="width:88px;flex:none;padding-top:5px;font-family:var(--font-mono);font-size:10.5px;color:var(--fg2);line-height:1.5">
+              {{ p.beatLabel }}<br><span style="opacity:.7">{{ p.time }}</span>
+            </div>
+            <p style="{{ p.textCss }}">{{ p.text }}</p>
+            <sc-if value="{{ p.hasFlag }}" hint-placeholder-val="{{ false }}">
+              <div style="width:150px;flex:none;font-size:11.5px;line-height:1.45;color:var(--warn);border-left:2px solid var(--warn);padding-left:9px;margin-top:4px">{{ p.flag }}</div>
+            </sc-if>
+          </div>
+        </sc-for>
+
+        <div style="margin-top:calc(var(--pad)*1.6);padding-top:14px;border-top:1px solid var(--line);display:flex;align-items:center;gap:14px;font-size:var(--fs-sm);color:var(--fg2)">
+          <span>Continúa 21 párrafos más · beats 13 a 34</span>
+          <div style="flex:1"></div>
+          <button style="border:1px solid var(--line);background:transparent;color:var(--fg2);border-radius:var(--r-sm);padding:6px 12px;font-size:var(--fs-sm)" style-hover="color:var(--fg);border-color:var(--accent)">Escuchar la locución completa</button>
+        </div>
+      </article>
+
+      <aside style="position:sticky;top:186px;display:flex;flex-direction:column;gap:var(--gap)">
+        <div style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);box-shadow:var(--shadow);padding:var(--pad)">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
+            <span style="font-family:var(--font-head);font-size:16px;font-weight:600;letter-spacing:-0.01em">Elige un título</span>
+            <sc-if value="{{ showKeys }}" hint-placeholder-val="{{ true }}">
+              <span style="font-family:var(--font-mono);font-size:11px;color:var(--fg2)">1 · 2 · 3</span>
+            </sc-if>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <sc-for list="{{ titles }}" as="t" hint-placeholder-count="3">
+              <button onClick="{{ t.pick }}" style="{{ t.css }}" style-hover="border-color:var(--accent)">
+                <div style="display:flex;align-items:flex-start;gap:10px">
+                  <span style="{{ t.dot }}"></span>
+                  <span style="flex:1;font-family:var(--font-head);font-size:15px;font-weight:600;line-height:1.3;letter-spacing:-0.01em">{{ t.text }}</span>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;padding-left:22px;font-family:var(--font-mono);font-size:10.5px;color:var(--fg2)">
+                  <span>{{ t.chars }}</span><span>·</span><span>{{ t.note }}</span>
+                </div>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);box-shadow:var(--shadow);padding:var(--pad);display:flex;flex-direction:column;gap:9px">
+          <div style="display:flex;justify-content:space-between;font-size:var(--fs-sm)"><span style="color:var(--fg2)">Tono detectado</span><span>Explicativo, sin hipérbole</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:var(--fs-sm)"><span style="color:var(--fg2)">Fuentes citadas</span><span style="font-family:var(--font-mono)">4 de 5</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:var(--fs-sm)"><span style="color:var(--fg2)">Duración estimada</span><span style="font-family:var(--font-mono)">8:42</span></div>
+          <button onClick="{{ approveScript }}" style="margin-top:5px;height:40px;border:1px solid var(--accent);border-radius:var(--r-sm);background:var(--accent);color:var(--accent-fg);font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px" style-hover="filter:brightness(1.08)" style-active="transform:translateY(1px)">
+            Aprobar guion y título<span style="font-family:var(--font-mono);font-size:10.5px;opacity:.7;border:1px solid currentColor;border-radius:3px;padding:0 4px">a</span>
+          </button>
+          <button onClick="{{ openModal }}" style="height:36px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg3);color:var(--fg);display:flex;align-items:center;justify-content:center;gap:8px" style-hover="border-color:var(--accent)">
+            Pedir reescritura<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--fg2);border:1px solid var(--line);border-radius:3px;padding:0 4px">r</span>
+          </button>
+          <sc-if value="{{ showKeys }}" hint-placeholder-val="{{ true }}">
+            <div style="font-family:var(--font-mono);font-size:11px;color:var(--fg2);line-height:1.6;padding-top:4px">a aprobar · r reescribir · 1 2 3 elegir título · espacio escuchar</div>
+          </sc-if>
+        </div>
+      </aside>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isTimeline }}" hint-placeholder-val="{{ true }}">
+  <div>
+    <div style="border-bottom:1px solid var(--line);background:var(--bg2);position:sticky;top:118px;z-index:30">
+      <div style="max-width:1420px;margin:0 auto;padding:0 26px;height:var(--row);display:flex;align-items:center;gap:14px">
+        <button onClick="{{ goBandeja }}" style="flex:none;white-space:nowrap;background:transparent;border:1px solid var(--line);border-radius:var(--r-sm);padding:5px 10px;font-size:var(--fs-sm);color:var(--fg2)" style-hover="color:var(--fg);border-color:var(--accent)">← Bandeja</button>
+        <span style="flex:none;white-space:nowrap;font-family:var(--font-head);font-weight:600;font-size:15px;letter-spacing:-0.01em">Por qué todos copian a DeepSeek</span>
+        <span style="{{ chipWarn }}">Curar timeline</span>
+        <div style="flex:1"></div>
+        <span style="flex:none;white-space:nowrap;font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--fg2)">{{ approvedLabel }}</span>
+        <div style="flex:none;width:120px;height:6px;border-radius:999px;background:var(--bg3);border:1px solid var(--line);overflow:hidden"><div style="{{ approvedBar }}"></div></div>
+        <sc-if value="{{ showCost }}" hint-placeholder-val="{{ true }}">
+          <span style="flex:none;white-space:nowrap;font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--fg2);border:1px solid var(--line);border-radius:999px;padding:4px 10px">0,41 $</span>
+        </sc-if>
+      </div>
+    </div>
+
+    <div style="max-width:1420px;margin:0 auto;padding:calc(var(--pad)*1.5) 26px 60px;display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:calc(var(--gap)*1.6);align-items:start">
+
+      <div style="display:flex;flex-direction:column;gap:var(--gap)">
+        <div style="position:relative;aspect-ratio:16/9;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background-color:#000;background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.05) 0 10px,transparent 10px 20px);box-shadow:var(--shadow-lg);display:flex;align-items:center;justify-content:center">
+          <div style="text-align:center">
+            <div style="font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.62)">previsualización en vivo</div>
+            <div style="font-family:var(--font-mono);font-size:11px;color:rgba(255,255,255,.34);margin-top:6px">se recompone al aprobar o cambiar un clip</div>
+          </div>
+          <div style="position:absolute;left:0;right:0;bottom:0;padding:12px 14px;display:flex;align-items:center;gap:12px;background:linear-gradient(to top,rgba(0,0,0,.72),transparent)">
+            <button onClick="{{ togglePlay }}" style="width:32px;height:32px;flex:none;border-radius:999px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px" style-hover="background:rgba(255,255,255,.24)">{{ playIcon }}</button>
+            <span style="font-family:var(--font-mono);font-size:12px;color:rgba(255,255,255,.86)">{{ clock }}</span>
+            <div style="flex:1;height:3px;background:rgba(255,255,255,.2);border-radius:999px;overflow:hidden"><div style="{{ scrubCss }}"></div></div>
+            <span style="font-family:var(--font-mono);font-size:10.5px;color:rgba(255,255,255,.5)">espacio</span>
+          </div>
+        </div>
+
+        <div style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);padding:var(--pad);box-shadow:var(--shadow)">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:var(--fs-sm);color:var(--fg2)">Pista de clips · 34 beats · anchos fijados por el audio</span>
+            <span style="display:flex;align-items:center;gap:12px;flex:none">
+              <span style="white-space:nowrap;font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--fg2)">{{ legend }}</span>
+              <button onClick="{{ nextPending }}" style="flex:none;white-space:nowrap;border:1px solid var(--line);background:var(--bg3);color:var(--fg);border-radius:var(--r-sm);padding:5px 10px;font-size:var(--fs-sm);display:flex;align-items:center;gap:7px" style-hover="border-color:var(--accent)">
+                {{ pendingLabel }}<span style="font-family:var(--font-mono);font-size:10.5px;color:var(--fg2);border:1px solid var(--line);border-radius:3px;padding:0 4px">n</span>
+              </button>
+            </span>
+          </div>
+
+          <div style="position:relative">
+            <div style="display:flex;gap:3px;align-items:stretch">
+              <sc-for list="{{ beats }}" as="b" hint-placeholder-count="14">
+                <div style="{{ b.wrap }}">
+                  <button onClick="{{ b.pick }}" style="width:100%;height:var(--track-h);border-radius:var(--pill-r);border:1px solid var(--pill-line);background:var(--pill-bg);box-shadow:var(--pill-ring);padding:6px 7px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;overflow:hidden;text-align:left;transition:transform .12s" style-hover="transform:translateY(-2px)">
+                    <span style="font-family:var(--font-mono);font-size:10px;color:var(--pill-fg);white-space:nowrap">{{ b.num }}</span>
+                    <span style="font-size:10.5px;color:var(--pill-fg);opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">{{ b.short }}</span>
+                  </button>
+                </div>
+              </sc-for>
+              <div style="{{ playheadCss }}"></div>
+            </div>
+
+            <div style="display:flex;gap:3px;margin-top:6px">
+              <div style="flex:1;height:16px;border-radius:var(--pill-r);border:1px solid var(--line);background-color:var(--bg3);background-image:repeating-linear-gradient(90deg,color-mix(in oklab,var(--fg) 34%,transparent) 0 2px,transparent 2px 6px);opacity:.7"></div>
+              <span style="font-family:var(--font-mono);font-size:9.5px;color:var(--fg2);width:74px;flex:none;line-height:16px">voz · locución</span>
+            </div>
+            <div style="display:flex;gap:3px;margin-top:3px">
+              <div style="flex:1;height:10px;border-radius:var(--pill-r);border:1px solid var(--line);background-color:var(--bg3);background-image:repeating-linear-gradient(90deg,color-mix(in oklab,var(--fg) 22%,transparent) 0 26px,transparent 26px 34px)"></div>
+              <span style="font-family:var(--font-mono);font-size:9.5px;color:var(--fg2);width:74px;flex:none;line-height:10px">subtítulos</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:7px;font-family:var(--font-mono);font-size:10px;color:var(--fg2)">
+              <span>0:15</span><span>0:40</span><span>1:05</span><span>1:30</span><span>1:55</span><span>2:07</span>
+            </div>
+          </div>
+
+          <sc-if value="{{ showKeys }}" hint-placeholder-val="{{ true }}">
+            <div style="margin-top:var(--pad);padding-top:10px;border-top:1px solid var(--line);display:flex;gap:16px;flex-wrap:wrap;font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--fg2)">
+              <span><b style="color:var(--fg);border:1px solid var(--line);border-radius:3px;padding:1px 5px">a</b> aprobar</span>
+              <span><b style="color:var(--fg);border:1px solid var(--line);border-radius:3px;padding:1px 5px">espacio</b> reproducir</span>
+              <span><b style="color:var(--fg);border:1px solid var(--line);border-radius:3px;padding:1px 5px">← →</b> moverse</span>
+              <span><b style="color:var(--fg);border:1px solid var(--line);border-radius:3px;padding:1px 5px">d</b> descartar con motivo</span>
+              <div style="flex:1"></div>
+              <span>los tiempos son de solo lectura</span>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <aside style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);box-shadow:var(--shadow);position:sticky;top:186px;overflow:hidden">
+        <div style="aspect-ratio:16/9;border-bottom:1px solid var(--line);background-color:var(--bg3);background-image:repeating-linear-gradient(135deg,color-mix(in oklab,var(--fg) 8%,transparent) 0 8px,transparent 8px 16px);display:flex;align-items:flex-end;padding:10px">
+          <span style="white-space:nowrap;font-family:var(--font-mono);font-size:10px;color:var(--fg2);background:var(--bg2);border:1px solid var(--line);border-radius:var(--r-sm);padding:3px 7px">{{ selThumbNote }}</span>
+        </div>
+        <div style="padding:var(--pad);display:flex;flex-direction:column;gap:var(--pad)">
+          <div>
+            <div style="font-family:var(--font-mono);font-size:var(--fs);font-weight:500">{{ selHeadline }}</div>
+            <div style="color:var(--fg2);font-size:var(--fs-sm);margin-top:4px;display:flex;align-items:center;gap:6px">
+              <span>⛬</span><span>La duración la fija el audio. No hay recorte manual.</span>
+            </div>
+          </div>
+          <div style="font-family:var(--font-head);font-size:16px;font-weight:600;line-height:1.3;letter-spacing:-0.01em">{{ selLabel }}</div>
+          <div style="border-left:2px solid var(--line);padding-left:11px">
+            <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg2);margin-bottom:4px">La locución dice aquí</div>
+            <div style="font-size:var(--fs-sm);line-height:1.5;color:var(--fg)">{{ selLine }}</div>
+            <button onClick="{{ goGuion }}" style="margin-top:6px;background:transparent;border:none;padding:0;color:var(--accent);font-size:var(--fs-sm)" style-hover="text-decoration:underline">Ver en el guion →</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:var(--fs-sm)">
+            <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--fg2)">Origen</span><span style="font-family:var(--font-mono)">{{ selSource }}</span></div>
+            <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--fg2)">Licencia</span><span style="font-family:var(--font-mono)">{{ selLicense }}</span></div>
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:center">
+              <span style="color:var(--fg2)">Similitud con el beat</span>
+              <span style="display:flex;align-items:center;gap:8px">
+                <span style="width:66px;height:5px;border-radius:999px;background:var(--bg3);overflow:hidden;display:inline-block"><span style="{{ simBar }}"></span></span>
+                <span style="font-family:var(--font-mono)">{{ selSim }}</span>
+              </span>
+            </div>
+            <div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--fg2)">Estado</span><span style="{{ selChip }}">{{ selState }}</span></div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:8px;padding-top:2px">
+            <button onClick="{{ approve }}" style="height:38px;border:1px solid var(--accent);border-radius:var(--r-sm);background:var(--accent);color:var(--accent-fg);font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px" style-hover="filter:brightness(1.08)" style-active="transform:translateY(1px)">
+              Aprobar<span style="font-family:var(--font-mono);font-size:10.5px;opacity:.7;border:1px solid currentColor;border-radius:3px;padding:0 4px">a</span>
+            </button>
+            <button onClick="{{ toggleAlts }}" style="height:36px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg3);color:var(--fg);display:flex;align-items:center;justify-content:center;gap:8px" style-hover="border-color:var(--accent)">Alternativas (3)</button>
+            <sc-if value="{{ alts }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+                <sc-for list="{{ altList }}" as="alt" hint-placeholder-count="3">
+                  <button onClick="{{ alt.pick }}" style="{{ alt.css }}" style-hover="border-color:var(--accent);transform:translateY(-2px)">
+                    <div style="aspect-ratio:16/9;background-color:var(--bg3);background-image:repeating-linear-gradient(135deg,color-mix(in oklab,var(--fg) 8%,transparent) 0 5px,transparent 5px 10px)"></div>
+                    <div style="font-family:var(--font-mono);font-size:9.5px;color:var(--fg2);padding:4px 5px;display:flex;justify-content:space-between"><span>{{ alt.sim }}</span><span>{{ alt.key }}</span></div>
+                  </button>
+                </sc-for>
+              </div>
+            </sc-if>
+            <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg3);padding:0 10px;height:36px">
+              <span style="color:var(--fg2);font-size:12px">⌕</span>
+              <input value="{{ stockQuery }}" onChange="{{ onStock }}" placeholder="Buscar en stock" style="background:transparent;border:none;color:var(--fg);font-size:var(--fs-sm);width:100%;font-family:var(--font-ui)">
+            </div>
+            <sc-if value="{{ hasStock }}" hint-placeholder-val="{{ false }}">
+              <div style="border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden">
+                <sc-for list="{{ stockResults }}" as="r" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;gap:8px;padding:7px 9px;border-bottom:1px solid var(--line);font-size:var(--fs-sm)" style-hover="background:var(--bg3)">
+                    <div style="width:44px;flex:none;aspect-ratio:16/9;border-radius:2px;background-color:var(--bg3);background-image:repeating-linear-gradient(135deg,color-mix(in oklab,var(--fg) 8%,transparent) 0 4px,transparent 4px 8px)"></div>
+                    <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.title }}</span>
+                    <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--fg2)">{{ r.sim }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <div style="display:flex;gap:8px">
+              <button style="flex:1;height:34px;border:1px solid transparent;border-radius:var(--r-sm);background:transparent;color:var(--fg2)" style-hover="color:var(--fg);border-color:var(--line)">Subir el mío</button>
+              <button onClick="{{ openModal }}" style="flex:1;height:34px;border:1px solid transparent;border-radius:var(--r-sm);background:transparent;color:var(--fg2);display:flex;align-items:center;justify-content:center;gap:6px" style-hover="color:var(--danger);border-color:var(--danger)">Descartar<span style="font-family:var(--font-mono);font-size:10.5px;border:1px solid var(--line);border-radius:3px;padding:0 4px">d</span></button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isBase }}" hint-placeholder-val="{{ false }}">
+  <div style="max-width:1160px;margin:0 auto;padding:calc(var(--pad)*2) 26px 80px;display:flex;flex-direction:column;gap:var(--sec-gap)">
+    <div>
+      <h1 style="font-family:var(--font-head);font-size:24px;font-weight:600;letter-spacing:-0.02em;margin:0 0 6px">Base estructural común</h1>
+      <p style="color:var(--fg2);font-size:var(--fs-sm);margin:0;max-width:660px;line-height:1.55">Mismo inventario y mismas reglas en las cinco direcciones: solo cambian los tokens. Todo lo de abajo se pinta con variables CSS, así que portarlo a shadcn/ui es reasignar valores, no reescribir componentes.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--gap)">
+      <div style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);padding:var(--pad);box-shadow:var(--shadow)">
+        <div style="font-size:var(--fs-sm);color:var(--fg2);margin-bottom:12px">Botón · 3 variantes + estados</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button style="height:36px;padding:0 14px;border:1px solid var(--accent);border-radius:var(--r-sm);background:var(--accent);color:var(--accent-fg);font-weight:600" style-hover="filter:brightness(1.08)" style-active="transform:translateY(1px)">Aprobar</button>
+          <button style="height:36px;padding:0 14px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg3);color:var(--fg)" style-hover="border-color:var(--accent)">Alternativas</button>
+          <button style="height:36px;padding:0 14px;border:1px solid transparent;border-radius:var(--r-sm);background:transparent;color:var(--fg2)" style-hover="color:var(--fg);border-color:var(--line)">Subir el mío</button>
+          <button disabled="true" style="height:36px;padding:0 14px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg3);color:var(--fg2);opacity:.45;cursor:not-allowed">Publicar</button>
+        </div>
+        <div style="color:var(--fg2);font-size:var(--fs-sm);margin-top:12px">Pasa el foco con el tabulador: el anillo usa <span style="font-family:var(--font-mono)">--ring</span> y nunca se oculta.</div>
+      </div>
+
+      <div style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);padding:var(--pad);box-shadow:var(--shadow)">
+        <div style="font-size:var(--fs-sm);color:var(--fg2);margin-bottom:12px">Chip de estado · badge de coste</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <span style="{{ chipOk }}">Auto-aprobado</span>
+          <span style="{{ chipWarn }}">Requiere revisión</span>
+          <span style="{{ chipNeutral }}">En cola</span>
+          <span style="{{ chipDanger }}">Error de render</span>
+          <span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--fg2);border:1px solid var(--line);border-radius:999px;padding:4px 10px">0,41 $</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px">
+          <span style="{{ pillOk }}">Beat 11 · 4 s</span>
+          <span style="{{ pillWarn }}">Beat 12 · 9 s</span>
+          <span style="{{ pillSel }}">Beat 12 · seleccionado</span>
+        </div>
+      </div>
+
+      <div style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);padding:var(--pad);box-shadow:var(--shadow)">
+        <div style="font-size:var(--fs-sm);color:var(--fg2);margin-bottom:12px">Progreso de render · input de búsqueda</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <div style="flex:1;height:6px;border-radius:999px;background:var(--bg3);border:1px solid var(--line);overflow:hidden"><div style="width:62%;height:100%;background:var(--accent)"></div></div>
+          <span style="font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--fg2)">62 %</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px">
+          <span style="color:var(--fg2);font-size:12px">⌕</span>
+          <input placeholder="Buscar en stock" style="background:transparent;border:none;color:var(--fg);font-size:var(--fs-sm);width:100%;font-family:var(--font-ui)">
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--fg2);border:1px solid var(--line);border-radius:3px;padding:1px 4px">/</span>
+        </div>
+      </div>
+
+      <div style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);padding:var(--pad);box-shadow:var(--shadow)">
+        <div style="font-size:var(--fs-sm);color:var(--fg2);margin-bottom:12px">Aviso (toast) · estado vacío</div>
+        <div style="display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg3);padding:10px 12px;box-shadow:var(--shadow-lg)">
+          <span style="width:7px;height:7px;border-radius:999px;background:var(--ok);flex:none"></span>
+          <span style="flex:1;font-size:var(--fs-sm)">Beat 12 aprobado</span>
+          <span style="font-size:var(--fs-sm);color:var(--accent)">Deshacer</span>
+        </div>
+        <div style="border:1px dashed var(--line);border-radius:var(--r-sm);padding:16px;text-align:center;margin-top:12px">
+          <div style="font-weight:600;font-family:var(--font-head)">Sin ideas nuevas</div>
+          <div style="color:var(--fg2);font-size:var(--fs-sm);margin-top:4px">El ranking se recalcula cada lunes a las 6:00.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap)">
+      <div style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);padding:var(--pad)">
+        <div style="font-size:var(--fs-sm);color:var(--fg2);margin-bottom:10px">Escala de espaciado</div>
+        <div style="display:flex;flex-direction:column;gap:7px;font-family:var(--font-mono);font-size:11.5px">
+          <sc-for list="{{ spacing }}" as="s" hint-placeholder-count="7">
+            <div style="display:flex;align-items:center;gap:10px"><span style="width:38px;color:var(--fg2)">{{ s.name }}</span><span style="{{ s.bar }}"></span><span style="color:var(--fg2)">{{ s.px }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);padding:var(--pad)">
+        <div style="font-size:var(--fs-sm);color:var(--fg2);margin-bottom:10px">Radios</div>
+        <div style="display:flex;gap:10px;align-items:flex-end">
+          <div style="width:46px;height:46px;border:1px solid var(--line);background:var(--bg3);border-radius:var(--r-sm)"></div>
+          <div style="width:46px;height:46px;border:1px solid var(--line);background:var(--bg3);border-radius:var(--r)"></div>
+          <div style="width:46px;height:46px;border:1px solid var(--line);background:var(--bg3);border-radius:var(--r-lg)"></div>
+          <div style="width:46px;height:46px;border:1px solid var(--line);background:var(--bg3);border-radius:999px"></div>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--fg2);margin-top:10px">{{ radiiLabel }}</div>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);padding:var(--pad)">
+        <div style="font-size:var(--fs-sm);color:var(--fg2);margin-bottom:10px">Reglas de interacción</div>
+        <ul style="margin:0;padding-left:16px;font-size:var(--fs-sm);line-height:1.6;color:var(--fg2)">
+          <li>Foco visible siempre, también con ratón.</li>
+          <li>Hover, active y disabled definidos en las 3 variantes.</li>
+          <li>Todo atajo se muestra en la propia UI.</li>
+          <li>Dos densidades: cómoda y compacta.</li>
+          <li>Contraste mínimo AA en claro y oscuro.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-size:var(--fs-sm);color:var(--fg2);margin-bottom:10px">Modal de confirmación</div>
+      <button onClick="{{ openModal }}" style="height:36px;padding:0 14px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg3);color:var(--fg)" style-hover="border-color:var(--accent)">Abrir «Descartar con motivo»</button>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isTokens }}" hint-placeholder-val="{{ false }}">
+  <div style="max-width:1160px;margin:0 auto;padding:calc(var(--pad)*2) 26px 90px;display:flex;flex-direction:column;gap:var(--sec-gap)">
+    <div>
+      <h1 style="font-family:var(--font-head);font-size:24px;font-weight:600;letter-spacing:-0.02em;margin:0 0 6px">Hoja de tokens · {{ dirName }}</h1>
+      <p style="color:var(--fg2);font-size:var(--fs-sm);margin:0;max-width:680px;line-height:1.55">{{ dirDesc }}</p>
+    </div>
+
+    <div style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);overflow:hidden">
+      <div style="display:grid;grid-template-columns:220px 1fr 1fr;gap:0;font-size:var(--fs-sm);font-family:var(--font-mono);background:var(--bg3);border-bottom:1px solid var(--line)">
+        <div style="padding:9px 12px;color:var(--fg2)">token</div><div style="padding:9px 12px;color:var(--fg2)">claro</div><div style="padding:9px 12px;color:var(--fg2)">oscuro</div>
+      </div>
+      <sc-for list="{{ tokenRows }}" as="t" hint-placeholder-count="14">
+        <div style="display:grid;grid-template-columns:220px 1fr 1fr;border-bottom:1px solid var(--line);font-size:var(--fs-sm);font-family:var(--font-mono)">
+          <div style="padding:8px 12px">{{ t.name }}</div>
+          <div style="padding:8px 12px;display:flex;align-items:center;gap:8px"><span style="{{ t.swL }}"></span>{{ t.light }}</div>
+          <div style="padding:8px 12px;display:flex;align-items:center;gap:8px"><span style="{{ t.swD }}"></span>{{ t.dark }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div>
+      <div style="font-size:var(--fs-sm);color:var(--fg2);margin-bottom:8px">Tipografía y forma</div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap)">
+        <div style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);padding:var(--pad)">
+          <div style="font-family:var(--font-head);font-size:22px;font-weight:600;letter-spacing:-0.02em">Titulares</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--fg2);margin-top:8px">--font-head: {{ fontHead }}</div>
+        </div>
+        <div style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);padding:var(--pad)">
+          <div style="font-family:var(--font-ui);font-size:15px">Texto de interfaz y guiones</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--fg2);margin-top:8px">--font-ui: {{ fontUi }}</div>
+        </div>
+        <div style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);padding:var(--pad)">
+          <div style="font-family:var(--font-mono);font-size:15px">0:58–1:07 · 9 s · 0,87</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--fg2);margin-top:8px">--font-mono: {{ fontMono }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-size:var(--fs-sm);color:var(--fg2);margin-bottom:8px">CSS portable (pégalo en tu capa de tema de shadcn/ui)</div>
+      <pre style="margin:0;border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);padding:var(--pad);overflow:auto;font-family:var(--font-mono);font-size:11.5px;line-height:1.7;color:var(--fg)">{{ cssSheet }}</pre>
+    </div>
+
+    <div>
+      <h2 style="font-family:var(--font-head);font-size:19px;font-weight:600;letter-spacing:-0.015em;margin:0 0 12px">Comparativa de las cinco direcciones</h2>
+      <div style="border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);overflow:auto">
+        <div style="display:grid;grid-template-columns:180px repeat(5,minmax(120px,1fr));font-size:var(--fs-sm);background:var(--bg3);border-bottom:1px solid var(--line)">
+          <div style="padding:10px 12px;color:var(--fg2)">Criterio</div>
+          <div style="padding:10px 12px">Sala de control</div><div style="padding:10px 12px">Editorial sereno</div><div style="padding:10px 12px">Terminal moderno</div><div style="padding:10px 12px">Estudio creativo</div><div style="padding:10px 12px">Neutro nativo</div>
+        </div>
+        <sc-for list="{{ compareRows }}" as="c" hint-placeholder-count="5">
+          <div style="display:grid;grid-template-columns:180px repeat(5,minmax(120px,1fr));border-bottom:1px solid var(--line);font-size:var(--fs-sm)">
+            <div style="padding:10px 12px;color:var(--fg2)">{{ c.k }}</div>
+            <div style="padding:10px 12px">{{ c.a }}</div><div style="padding:10px 12px">{{ c.b }}</div><div style="padding:10px 12px">{{ c.c }}</div><div style="padding:10px 12px">{{ c.d }}</div><div style="padding:10px 12px">{{ c.e }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="border-left:2px solid var(--accent);padding-left:16px;max-width:760px">
+      <h2 style="font-family:var(--font-head);font-size:19px;font-weight:600;letter-spacing:-0.015em;margin:0 0 8px">Recomendación</h2>
+      <p style="margin:0;font-size:var(--fs);line-height:1.65;color:var(--fg)">Enviaría <b>Neutro nativo como línea base y Sala de control como su tema oscuro</b>, no como direcciones rivales. La sesión dura de diez a dieciocho minutos y consiste en tres decisiones binarias: la interfaz que gana es la que no pide atención, y Neutro nativo es literalmente el tema por defecto de shadcn/ui con grises cálidos, así que su coste de implementación tiende a cero y el riesgo estético es nulo. Pero el operador trabaja mirando vídeo, y sobre un fondo claro el reproductor deslumbra y la pista de clips pierde el contraste que separa verde de ámbar; por eso Sala de control no es un capricho de género, sino el modo correcto para la pantalla de timeline, y comparte con Neutro la misma estructura y el mismo inventario, solo cambiando valores de tokens. Terminal moderno lo dejaría como un ajuste de densidad para uso experto —es la única que sostiene 34 beats sin desplazamiento, pero fatiga si la sesión se alarga y su acento único no basta para codificar estados—; Editorial sereno merece sobrevivir como tratamiento local de la pantalla de guion, donde leer mil doscientas palabras en serif es objetivamente mejor; y Estudio creativo lo descartaría: sus tarjetas grandes y su color con carácter animan la bandeja, pero cuestan tres veces más en píxeles y en tiempo de portado, y esa energía no ayuda a alguien que solo quiere cruzar tres puertas y cerrar el portátil.</p>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:26px;bottom:26px;z-index:70;display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);color:var(--fg);padding:12px 14px;box-shadow:var(--shadow-lg);animation:fbup .18s ease-out;font-family:var(--font-ui);font-size:var(--fs-sm)">
+      <span style="width:7px;height:7px;border-radius:999px;background:var(--ok);flex:none"></span>
+      <span>{{ toast }}</span>
+      <button onClick="{{ undo }}" style="background:transparent;border:none;color:var(--accent);padding:0 2px">Deshacer</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ modal }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:24px">
+      <div style="width:440px;max-width:100%;border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);color:var(--fg);box-shadow:var(--shadow-lg);font-family:var(--font-ui);overflow:hidden;animation:fbup .16s ease-out">
+        <div style="padding:var(--pad);border-bottom:1px solid var(--line)">
+          <div style="font-family:var(--font-head);font-size:17px;font-weight:600;letter-spacing:-0.01em">{{ modalTitle }}</div>
+          <div style="color:var(--fg2);font-size:var(--fs-sm);margin-top:5px">{{ modalDesc }}</div>
+        </div>
+        <div style="padding:var(--pad);display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ motivos }}" as="m" hint-placeholder-count="4">
+            <button onClick="{{ m.pick }}" style="{{ m.css }}">
+              <span style="{{ m.dot }}"></span>{{ m.label }}
+            </button>
+          </sc-for>
+        </div>
+        <div style="padding:var(--pad);border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end">
+          <button onClick="{{ closeModal }}" style="height:36px;padding:0 14px;border:1px solid var(--line);border-radius:var(--r-sm);background:transparent;color:var(--fg2)" style-hover="color:var(--fg)">Cancelar</button>
+          <button onClick="{{ confirmDiscard }}" style="height:36px;padding:0 14px;border:1px solid var(--danger);border-radius:var(--r-sm);background:var(--danger);color:#fff;font-weight:600" style-hover="filter:brightness(1.08)">{{ modalCta }}</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;direccionInicial&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;estudio&quot;,&quot;sala&quot;,&quot;editorial&quot;,&quot;terminal&quot;,&quot;neutro&quot;],&quot;default&quot;:&quot;estudio&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Arranque&quot;},&quot;modoInicial&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Arranque&quot;},&quot;densidadInicial&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;comoda&quot;,&quot;compacta&quot;],&quot;default&quot;:&quot;comoda&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Arranque&quot;},&quot;mostrarAtajos&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Reglas&quot;},&quot;mostrarCoste&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Reglas&quot;}}">
+class Component extends DCLogic {
+  state = {
+    dir: this.props.direccionInicial ?? 'estudio',
+    mode: this.props.modoInicial ?? 'light',
+    density: this.props.densidadInicial ?? 'comoda',
+    screen: 'bandeja',
+    title: 1,
+    scriptApproved: false,
+    swapped: {},
+    sel: 12,
+    approved: {},
+    discarded: {},
+    toast: null,
+    modal: false,
+    motivo: 'guion',
+    query: '',
+    stock: '',
+    alts: false,
+    playing: false,
+    t: 66
+  };
+
+  DIRS = [
+    { id: 'sala', label: 'Sala de control', mode: 'dark', desc: 'Oscuro por defecto, denso, tipografía técnica de IBM Plex y acentos puramente funcionales: el color solo aparece cuando significa algo (verde auto-aprobado, ámbar requiere revisión).',
+      who: 'operador que vive en el timeline', cost: 'medio · tokens propios + densidad', risk: 'el modo claro parece un segundo diseño' },
+    { id: 'editorial', label: 'Editorial sereno', mode: 'light', desc: 'Papel cálido, mucho aire y titulares en Newsreader. Pensado para leer un guion de 1.240 palabras como un documento, no como un formulario.',
+      who: 'quien revisa guiones y titulares', cost: 'bajo · una fuente y una paleta', risk: 'poca densidad para 34 beats' },
+    { id: 'terminal', label: 'Terminal moderno', mode: 'dark', desc: 'Monoespaciada de arriba abajo, hairlines, monocromo con un único acento lima. Máxima densidad y teclado por delante del ratón.',
+      who: 'operador experto que va a ciegas por atajos', cost: 'bajo · casi todo son bordes de 1 px', risk: 'fatiga y estados difíciles de codificar' },
+    { id: 'estudio', label: 'Estudio creativo', mode: 'light', desc: 'Violeta con carácter y coral de apoyo, tarjetas grandes, radios generosos y miniaturas protagonistas: energía de herramienta creativa.',
+      who: 'creador que decide mirando imágenes', cost: 'alto · componentes a medida', risk: 'decoración que compite con el vídeo' },
+    { id: 'neutro', label: 'Neutro nativo', mode: 'light', desc: 'shadcn/ui refinado con grises cálidos. La opción que desaparece: cero personalidad y cero fricción de implementación.',
+      who: 'cualquiera, desde el primer día', cost: 'mínimo · tema por defecto', risk: 'olvidable, sin identidad propia' }
+  ];
+
+  SCREENS = [
+    { id: 'bandeja', label: 'A · Bandeja' },
+    { id: 'guion', label: 'Guion' },
+    { id: 'timeline', label: 'B · Timeline' },
+    { id: 'base', label: 'Componentes' },
+    { id: 'tokens', label: 'Tokens y comparativa' }
+  ];
+
+  BEATS = [
+    { n: 6, dur: 7, st: 'ok', label: 'Servidores en rack, plano lateral', src: 'Pexels · clip 7710243', sim: 0.88 },
+    { n: 7, dur: 5, st: 'ok', label: 'Gráfico: descargas por semana', src: 'Generado · plantilla de datos', sim: 0.95 },
+    { n: 8, dur: 12, st: 'ok', label: 'Rueda de prensa, plano medio', src: 'Pexels · clip 6153734', sim: 0.81 },
+    { n: 9, dur: 6, st: 'warn', label: 'Ciudad de noche, timelapse', src: 'Pixabay · clip 118220', sim: 0.64 },
+    { n: 10, dur: 9, st: 'ok', label: 'Pantalla de código, macro', src: 'Pexels · clip 8369520', sim: 0.9 },
+    { n: 11, dur: 4, st: 'ok', label: 'Manos escribiendo', src: 'Archivo local · b-roll 44', sim: 0.86 },
+    { n: 12, dur: 9, st: 'warn', label: 'Oblea de silicio, macro', src: 'Pexels · clip 8842190', sim: 0.62 },
+    { n: 13, dur: 11, st: 'ok', label: 'Mapa de rutas de datos', src: 'Generado · mapa animado', sim: 0.92 },
+    { n: 14, dur: 6, st: 'warn', label: 'Oficina vacía al amanecer', src: 'Pixabay · clip 209331', sim: 0.58 },
+    { n: 15, dur: 8, st: 'ok', label: 'Gráfico: coste por millón de tokens', src: 'Generado · plantilla de datos', sim: 0.94 },
+    { n: 16, dur: 5, st: 'ok', label: 'Persona mirando el móvil', src: 'Pexels · clip 5495849', sim: 0.79 },
+    { n: 17, dur: 10, st: 'ok', label: 'Sala de servidores, travelling', src: 'Pexels · clip 3163534', sim: 0.85 },
+    { n: 18, dur: 7, st: 'warn', label: 'Retrato: ingeniera hablando', src: 'Pixabay · clip 155902', sim: 0.66 },
+    { n: 19, dur: 13, st: 'ok', label: 'Cierre: logotipo y suscripción', src: 'Archivo local · outro 03', sim: 0.97 }
+  ];
+
+  T0 = 15;
+
+  SCRIPT = [
+    { beat: 6, time: '0:15', text: 'En enero, un laboratorio chino publicó un modelo que igualaba a los grandes por una fracción del presupuesto. La noticia no fue el modelo. Fue el precio.' },
+    { beat: 7, time: '0:22', text: 'En seis semanas, casi todos los laboratorios occidentales habían enseñado algo que se le parecía mucho: el mismo enfoque de mezcla de expertos y la misma obsesión por el coste por token.', flag: 'Dato sin fuente: «casi todos». Conviene citar un recuento concreto.' },
+    { beat: 8, time: '0:27', text: 'Para entenderlo basta con mirar dos números. Uno explica quién puede entrenar un modelo; el otro, quién puede permitirse ejecutarlo todos los días.' },
+    { beat: 9, time: '0:39', text: 'El primero es el coste de entrenamiento. Durante tres años se dio por hecho que hacían falta cientos de millones de dólares. Ese suelo se movió, y se movió hacia abajo.', flag: 'Cifra pendiente de verificar antes de renderizar.' },
+    { beat: 10, time: '0:45', text: 'El segundo es lo que cuesta responder. Cuando el precio por millón de tokens cae un orden de magnitud, dejan de existir productos imposibles y empiezan a existir productos aburridos y rentables.' },
+    { beat: 11, time: '0:54', text: 'Y aquí aparece la parte incómoda para quien iba en cabeza: la ventaja ya no estaba en saber hacerlo, sino en poder cobrarlo.' },
+    { beat: 12, time: '0:58', text: 'Copiar una arquitectura es legal, y además es lo normal en investigación. Lo que cambió no fue la ética del sector, sino su velocidad: de la publicación a la réplica pasaron semanas, no años.' }
+  ];
+
+  LINES = {
+    13: 'Si dibujamos las rutas por las que viaja una petición, se ve dónde se queda el margen.',
+    14: 'Los equipos que llevaban dos años optimizando para GPU se despertaron con otra pregunta.',
+    15: 'Este es el coste por millón de tokens antes y después. La escala es logarítmica.',
+    16: 'Para el usuario final nada de esto se nota, salvo en una cosa: de repente todo es gratis.',
+    17: 'Los centros de datos siguen ahí. Solo que ya no son la ventaja, son el peaje.',
+    18: 'Se lo pregunté a una ingeniera que ha trabajado a los dos lados del muro.',
+    19: 'Si te ha servido, suscríbete. La semana que viene: quién paga la factura de todo esto.'
+  };
+
+  TITLES = [
+    { id: 1, text: 'Por qué todos copian a DeepSeek', chars: '31 caracteres', note: 'promesa clara, tono neutro' },
+    { id: 2, text: 'El modelo que abarató la inteligencia', chars: '37 caracteres', note: 'más descriptivo, menos gancho' },
+    { id: 3, text: 'Copiar ya no es trampa: es la estrategia', chars: '40 caracteres', note: 'gancho alto, riesgo de sensacionalismo' }
+  ];
+
+  ALTS = [
+    { sim: 0.84, src: 'Pexels · clip 9012774', key: '1' },
+    { sim: 0.79, src: 'Pixabay · clip 233190', key: '2' },
+    { sim: 0.71, src: 'Archivo local · b-roll 12', key: '3' }
+  ];
+
+  TOKENS = {
+    sala: {
+      light: { '--bg': '#eceff2', '--bg2': '#ffffff', '--bg3': '#e3e8ec', '--line': '#c8d0d8', '--fg': '#0f1418', '--fg2': '#4f5b67', '--accent': '#0a6ebd', '--accent-fg': '#ffffff', '--ok': '#0f7a45', '--warn': '#8a5800', '--danger': '#b42318', '--ring': '#0a6ebd' },
+      dark: { '--bg': '#0b0e11', '--bg2': '#12171c', '--bg3': '#191f26', '--line': '#242c35', '--fg': '#e6edf3', '--fg2': '#8fa0b0', '--accent': '#4cc2ff', '--accent-fg': '#04121b', '--ok': '#3ddc84', '--warn': '#ffb224', '--danger': '#ff6b6b', '--ring': '#4cc2ff' },
+      radii: '--r-sm 3px · --r 4px · --r-lg 6px', head: "'IBM Plex Sans', system-ui, sans-serif", ui: "'IBM Plex Sans', system-ui, sans-serif", mono: "'IBM Plex Mono', ui-monospace, monospace",
+      shadow: { light: '0 1px 2px rgba(15,20,24,.06)', dark: 'ninguna · se separa con líneas' }
+    },
+    editorial: {
+      light: { '--bg': '#faf7f0', '--bg2': '#fffefa', '--bg3': '#f1ebdf', '--line': '#e0d7c6', '--fg': '#1f1c17', '--fg2': '#6b6154', '--accent': '#9a4a20', '--accent-fg': '#fffdf9', '--ok': '#2f6b40', '--warn': '#8f610c', '--danger': '#a3301f', '--ring': '#9a4a20' },
+      dark: { '--bg': '#191712', '--bg2': '#211e18', '--bg3': '#2a261f', '--line': '#39332a', '--fg': '#f2ebdd', '--fg2': '#a99e8c', '--accent': '#e0996a', '--accent-fg': '#241a10', '--ok': '#84c98a', '--warn': '#e6b968', '--danger': '#ef8b7a', '--ring': '#e0996a' },
+      radii: '--r-sm 4px · --r 8px · --r-lg 14px', head: "'Newsreader', Georgia, serif", ui: "'IBM Plex Sans', system-ui, sans-serif", mono: "'IBM Plex Mono', ui-monospace, monospace",
+      shadow: { light: '0 18px 44px rgba(60,45,20,.14)', dark: '0 18px 44px rgba(0,0,0,.45)' }
+    },
+    terminal: {
+      light: { '--bg': '#f6f6f4', '--bg2': '#fdfdfb', '--bg3': '#eeeeea', '--line': '#dcdcd6', '--fg': '#0e0e0e', '--fg2': '#5f5f5f', '--accent': '#3f6212', '--accent-fg': '#f7ffe6', '--ok': '#3f6212', '--warn': '#8a5a00', '--danger': '#a11b1b', '--ring': '#3f6212' },
+      dark: { '--bg': '#080808', '--bg2': '#0e0e0e', '--bg3': '#151515', '--line': '#252525', '--fg': '#e8e8e8', '--fg2': '#8c8c8c', '--accent': '#c9f24d', '--accent-fg': '#101400', '--ok': '#c9f24d', '--warn': '#e0a03a', '--danger': '#ff7a7a', '--ring': '#c9f24d' },
+      radii: '--r-sm 0 · --r 2px · --r-lg 2px', head: "'JetBrains Mono', ui-monospace, monospace", ui: "'JetBrains Mono', ui-monospace, monospace", mono: "'JetBrains Mono', ui-monospace, monospace",
+      shadow: { light: 'ninguna · solo hairlines', dark: 'ninguna · solo hairlines' }
+    },
+    estudio: {
+      light: { '--bg': '#f4f1fb', '--bg2': '#ffffff', '--bg3': '#efeaff', '--line': '#e1dbf5', '--fg': '#191430', '--fg2': '#665e8c', '--accent': '#5b2ee5', '--accent-fg': '#ffffff', '--ok': '#0d8a52', '--warn': '#b4650a', '--danger': '#c62a20', '--ring': '#5b2ee5' },
+      dark: { '--bg': '#120f1e', '--bg2': '#1a1630', '--bg3': '#241e42', '--line': '#302957', '--fg': '#f1ecff', '--fg2': '#a79ed2', '--accent': '#a98bff', '--accent-fg': '#150c2e', '--ok': '#34d399', '--warn': '#fbbf24', '--danger': '#ff8a80', '--ring': '#a98bff' },
+      radii: '--r-sm 8px · --r 14px · --r-lg 24px', head: "'Space Grotesk', system-ui, sans-serif", ui: "'IBM Plex Sans', system-ui, sans-serif", mono: "'IBM Plex Mono', ui-monospace, monospace",
+      shadow: { light: '0 22px 60px rgba(30,10,80,.20)', dark: '0 22px 60px rgba(0,0,0,.55)' }
+    },
+    neutro: {
+      light: { '--bg': '#faf9f7', '--bg2': '#ffffff', '--bg3': '#f4f2ef', '--line': '#e6e3de', '--fg': '#1c1a17', '--fg2': '#736d66', '--accent': '#1c1a17', '--accent-fg': '#fafaf9', '--ok': '#15803d', '--warn': '#a8560a', '--danger': '#b42318', '--ring': '#1c1a17' },
+      dark: { '--bg': '#0f0e0d', '--bg2': '#191715', '--bg3': '#221f1c', '--line': '#2e2b27', '--fg': '#f5f3f0', '--fg2': '#a49e97', '--accent': '#f5f3f0', '--accent-fg': '#191715', '--ok': '#4ade80', '--warn': '#fbbf24', '--danger': '#ff8b80', '--ring': '#f5f3f0' },
+      radii: '--r-sm 6px · --r 8px · --r-lg 12px', head: 'system-ui, -apple-system, sans-serif', ui: 'system-ui, -apple-system, sans-serif', mono: 'ui-monospace, SFMono-Regular, monospace',
+      shadow: { light: '0 12px 32px rgba(28,26,23,.14)', dark: '0 12px 32px rgba(0,0,0,.5)' }
+    }
+  };
+
+  COMPARE = [
+    { k: 'Legibilidad en sesión corta', a: 'Alta', b: 'Muy alta en texto', c: 'Alta si conoces la app', d: 'Media', e: 'Alta' },
+    { k: 'Fatiga a los 15 min', a: 'Baja', b: 'Muy baja', c: 'Media-alta', d: 'Media', e: 'Baja' },
+    { k: 'Densidad de información', a: 'Alta', b: 'Baja', c: 'Máxima', d: 'Baja', e: 'Media' },
+    { k: 'Coste de portar a shadcn', a: 'Medio', b: 'Bajo', c: 'Bajo', d: 'Alto', e: 'Mínimo' },
+    { k: 'Personalidad', a: 'Técnica', b: 'Serena', c: 'Radical', d: 'Expresiva', e: 'Invisible' }
+  ];
+
+  componentDidMount() {
+    this._onKey = (e) => {
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const k = e.key.toLowerCase();
+      if (this.state.modal) { if (e.key === 'Escape') this.setState({ modal: false }); return; }
+      if (k === 'b') this.setState({ screen: 'bandeja' });
+      else if (k === 'g') this.setState({ screen: 'guion' });
+      else if (k === 't') this.setState({ screen: 'timeline' });
+      else if (this.state.screen === 'bandeja' && ['1', '2', '3'].includes(k)) this.setState({ screen: k === '3' ? 'timeline' : 'guion' });
+      else if (this.state.screen === 'guion') {
+        if (k === 'a') { e.preventDefault(); this.approveScript(); }
+        else if (k === 'r') { e.preventDefault(); this.setState({ modal: true }); }
+        else if (['1', '2', '3'].includes(k)) this.setState({ title: Number(k) });
+      }
+      else if (this.state.screen === 'timeline') {
+        if (k === 'a') { e.preventDefault(); this.approve(); }
+        else if (k === 'n') { e.preventDefault(); this.nextPending(); }
+        else if (e.key === ' ') { e.preventDefault(); this.togglePlay(); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); this.move(1); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); this.move(-1); }
+        else if (k === 'd') { e.preventDefault(); this.setState({ modal: true }); }
+      }
+    };
+    window.addEventListener('keydown', this._onKey);
+  }
+  componentWillUnmount() { window.removeEventListener('keydown', this._onKey); clearInterval(this._iv); }
+
+  fmt(s) { const m = Math.floor(s / 60); const r = Math.round(s % 60); return m + ':' + String(r).padStart(2, '0'); }
+  startOf(n) { let t = this.T0; for (const b of this.BEATS) { if (b.n === n) return t; t += b.dur; } return t; }
+  total() { return this.BEATS.reduce((a, b) => a + b.dur, 0); }
+  stateOf(b) { if (this.state.approved[b.n] || this.state.swapped[b.n]) return 'ok'; return this.state.discarded[b.n] ? 'warn' : b.st; }
+  pending() { return this.BEATS.filter(b => this.stateOf(b) === 'warn'); }
+  nextPending = () => {
+    const p = this.pending();
+    if (!p.length) { this.setState({ toast: 'No queda ningún beat por revisar en esta ventana' }); return; }
+    const next = p.find(b => b.n > this.state.sel) || p[0];
+    this.setState({ sel: next.n, t: this.startOf(next.n) + 1, alts: false });
+  };
+  approveScript = () => {
+    this.setState({ scriptApproved: true, screen: 'timeline', toast: 'Guion y título aprobados · empieza la puerta 3' });
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState({ toast: null }), 3600);
+  };
+
+  move(d) {
+    const i = this.BEATS.findIndex(b => b.n === this.state.sel);
+    const j = Math.max(0, Math.min(this.BEATS.length - 1, i + d));
+    const b = this.BEATS[j];
+    this.setState({ sel: b.n, t: this.startOf(b.n) + 1, alts: false });
+  }
+  approve = () => {
+    const n = this.state.sel;
+    this.setState(s => ({ approved: { ...s.approved, [n]: true }, toast: 'Beat ' + n + ' aprobado' }));
+    clearTimeout(this._tt); this._tt = setTimeout(() => this.setState({ toast: null }), 3200);
+  };
+  undo = () => { this.setState(s => { const a = { ...s.approved }; delete a[s.sel]; return { approved: a, toast: null }; }); };
+  togglePlay = () => {
+    const p = !this.state.playing;
+    clearInterval(this._iv);
+    if (p) this._iv = setInterval(() => this.setState(s => ({ t: s.t + 0.25 > this.T0 + this.total() ? this.T0 : s.t + 0.25 })), 250);
+    this.setState({ playing: p });
+  };
+
+  chip(kind) {
+    const base = 'display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-sm);line-height:1;padding:5px 9px;border-radius:999px;white-space:nowrap;';
+    if (kind === 'ok') return base + 'color:var(--ok);border:1px solid color-mix(in oklab,var(--ok) 45%,transparent);background:color-mix(in oklab,var(--ok) 14%,transparent)';
+    if (kind === 'warn') return base + 'color:var(--warn);border:1px solid color-mix(in oklab,var(--warn) 45%,transparent);background:color-mix(in oklab,var(--warn) 14%,transparent)';
+    if (kind === 'danger') return base + 'color:var(--danger);border:1px solid color-mix(in oklab,var(--danger) 45%,transparent);background:color-mix(in oklab,var(--danger) 12%,transparent)';
+    return base + 'color:var(--fg2);border:1px solid var(--line);background:var(--bg3)';
+  }
+
+  cssSheetFor(dir) {
+    const T = this.TOKENS[dir];
+    const line = (o) => Object.keys(o).map(k => '  ' + k + ': ' + o[k] + ';').join('\n');
+    return ':root[data-tema="' + dir + '"] {\n' + line(T.light) +
+      '\n  --font-head: ' + T.head + ';\n  --font-ui: ' + T.ui + ';\n  --font-mono: ' + T.mono + ';\n  ' + T.radii.split(' · ').map(s => s.replace(' ', ': ') + ';').join('\n  ') +
+      '\n}\n\n:root[data-tema="' + dir + '"].dark {\n' + line(T.dark) + '\n}';
+  }
+
+  renderVals() {
+    const s = this.state;
+    const dirDef = this.DIRS.find(d => d.id === s.dir) || this.DIRS[0];
+    const T = this.TOKENS[s.dir];
+    const showThumbs = s.dir !== 'editorial' && s.dir !== 'terminal';
+    const thumbW = s.dir === 'estudio' ? '100%' : '104px';
+
+    const tabCss = (on) => 'border:1px solid ' + (on ? '#3a3a42' : 'transparent') + ';background:' + (on ? '#232329' : 'transparent') + ';color:' + (on ? '#f2f2f5' : '#8a8a92') + ';border-radius:6px;padding:5px 11px;font-size:12px;white-space:nowrap';
+    const dirCss = (on) => 'display:flex;align-items:center;gap:7px;border:1px solid ' + (on ? '#4a4a55' : '#232329') + ';background:' + (on ? '#26262e' : '#141418') + ';color:' + (on ? '#f2f2f5' : '#9a9aa2') + ';border-radius:7px;padding:6px 11px;font-size:12px;white-space:nowrap';
+    const segCss = (on) => 'border:none;background:' + (on ? '#2c2c33' : 'transparent') + ';color:' + (on ? '#f2f2f5' : '#86868e') + ';border-radius:4px;padding:4px 10px;font-size:11.5px';
+
+    const sel = this.BEATS.find(b => b.n === s.sel) || this.BEATS[6];
+    const swap = s.swapped[s.sel];
+    const simVal = swap ? swap.sim : sel.sim;
+    const pendingCount = this.pending().length;
+    const chosen = this.TITLES.find(t => t.id === s.title) || this.TITLES[0];
+    const selState = this.stateOf(sel);
+    const start = this.startOf(sel.n);
+    const totalSpan = this.total();
+    const playPct = Math.max(0, Math.min(100, ((s.t - this.T0) / totalSpan) * 100));
+
+    const pillColors = (st, on) => {
+      const c = st === 'ok' ? 'var(--ok)' : 'var(--warn)';
+      return '--pill-bg:color-mix(in oklab,' + c + ' ' + (on ? 30 : 16) + '%,var(--bg2));' +
+        '--pill-line:color-mix(in oklab,' + c + ' ' + (on ? 70 : 40) + '%,transparent);' +
+        '--pill-fg:var(--fg);' +
+        '--pill-ring:' + (on ? 'inset 0 0 0 2px var(--accent)' : 'none') + ';';
+    };
+
+    const beats = this.BEATS.map(b => {
+      const st = this.stateOf(b);
+      const on = b.n === s.sel;
+      return {
+        num: b.n, short: b.label.split(',')[0].split(':')[0],
+        wrap: 'flex:' + b.dur + ' 1 0px;min-width:0;' + pillColors(st, on),
+        pick: () => this.setState({ sel: b.n, t: this.startOf(b.n) + 1, alts: false })
+      };
+    });
+
+    const approvedCount = 6 + Object.keys(s.approved).length;
+
+    const queue = [
+      { step: 'Puerta 1 · elegir', title: 'Elegir la idea de la semana', meta: 'Ranking de 12 ideas puntuadas por interés y coste · la primera lleva 0,81', state: 'Requiere revisión', kind: 'warn', eta: '≈ 3 min', key: '1', thumbNote: 'ranking' },
+      { step: 'Puerta 2 · aprobar', title: 'Revisar el guion de «Por qué todos copian a DeepSeek»', meta: '1.240 palabras · 3 títulos propuestos, eliges uno', state: 'Requiere revisión', kind: 'warn', eta: '≈ 6 min', key: '2', thumbNote: 'guion' },
+      { step: 'Puerta 3 · curar', title: 'Curar la timeline', meta: '6 de 34 beats aprobados · 4 clips por debajo de 0,70 de similitud', state: 'En curso', kind: 'neutral', eta: '≈ 8 min', key: '3', thumbNote: 'timeline' }
+    ].map((q, qi) => ({
+      ...q,
+      titleSize: s.dir === 'editorial' ? '20px' : (s.dir === 'estudio' ? '18px' : '16px'),
+      chip: this.chip(q.kind),
+      wrap: 'display:flex;' + (s.dir === 'estudio' ? 'flex-direction:column;align-items:stretch;padding:calc(var(--pad)*0.9);' : 'flex-direction:row;align-items:center;padding:var(--pad);') +
+        'gap:var(--gap);text-align:left;width:100%;border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);box-shadow:var(--shadow);transition:border-color .12s,box-shadow .12s,transform .12s;--thumb-w:' + thumbW,
+      go: () => this.setState({ screen: qi < 2 ? 'guion' : 'timeline' })
+    }));
+
+    const running = [
+      { title: 'Por qué todos copian a DeepSeek', sub: 'Render 1080p · pista 2 de 3 · quedan 4 min', state: 'Renderizando', kind: 'neutral', pct: 62, cost: '0,41 $' },
+      { title: 'El chip que China no puede fabricar', sub: 'Voz generada y validada sin intervención', state: 'Auto-aprobado', kind: 'ok', pct: 100, cost: '0,55 $' },
+      { title: 'Cómo entrenar un modelo por 500 $', sub: 'Guion listo · espera tu visto bueno', state: 'Requiere revisión', kind: 'warn', pct: 34, cost: '0,12 $' },
+      { title: 'El día que la GPU dejó de importar', sub: 'Buscando clips · 18 de 31 resueltos', state: 'En cola', kind: 'neutral', pct: 12, cost: '0,08 $' }
+    ].map(v => ({
+      ...v, chip: this.chip(v.kind), pctLabel: v.pct + ' %',
+      barCss: 'width:' + v.pct + '%;height:100%;background:' + (v.kind === 'ok' ? 'var(--ok)' : v.kind === 'warn' ? 'var(--warn)' : 'var(--accent)')
+    }));
+
+    const tokenRows = Object.keys(T.light).map(k => ({
+      name: k, light: T.light[k], dark: T.dark[k],
+      swL: 'width:14px;height:14px;border-radius:3px;border:1px solid rgba(128,128,128,.4);display:inline-block;flex:none;background:' + T.light[k],
+      swD: 'width:14px;height:14px;border-radius:3px;border:1px solid rgba(128,128,128,.4);display:inline-block;flex:none;background:' + T.dark[k]
+    }));
+
+    const spacing = [4, 8, 12, 16, 24, 32, 48].map(px => ({
+      name: 'sp-' + px, px: px + ' px',
+      bar: 'height:8px;border-radius:2px;background:var(--accent);opacity:.55;display:inline-block;width:' + px + 'px'
+    }));
+
+    const enGuion = s.screen === 'guion';
+    const motivos = (enGuion ? [
+      { id: 'largo', label: 'Demasiado largo para ocho minutos' },
+      { id: 'tono', label: 'El tono se va a la hipérbole' },
+      { id: 'fuente', label: 'Faltan fuentes en los datos marcados' },
+      { id: 'entrada', label: 'La entradilla tarda en llegar al grano' }
+    ] : [
+      { id: 'guion', label: 'No coincide con lo que dice el guion' },
+      { id: 'calidad', label: 'Calidad o resolución insuficiente' },
+      { id: 'repetido', label: 'Ya se usa en otro beat' },
+      { id: 'marca', label: 'Marca o rostro reconocible' }
+    ]).map(m => ({
+      ...m,
+      css: 'display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid ' + (s.motivo === m.id ? 'var(--accent)' : 'var(--line)') + ';background:' + (s.motivo === m.id ? 'color-mix(in oklab,var(--accent) 10%,var(--bg2))' : 'var(--bg2)') + ';border-radius:var(--r-sm);padding:10px 12px;font-size:var(--fs-sm);color:var(--fg)',
+      dot: 'width:12px;height:12px;border-radius:999px;flex:none;border:1px solid ' + (s.motivo === m.id ? 'var(--accent)' : 'var(--line)') + ';box-shadow:' + (s.motivo === m.id ? 'inset 0 0 0 3px var(--accent)' : 'none'),
+      pick: () => this.setState({ motivo: m.id })
+    }));
+
+    return {
+      dir: s.dir, mode: s.mode, density: s.density,
+      dirName: dirDef.label, dirDesc: dirDef.desc,
+      ratWho: dirDef.who, ratCost: dirDef.cost, ratRisk: dirDef.risk,
+      isBandeja: s.screen === 'bandeja', isTimeline: s.screen === 'timeline', isBase: s.screen === 'base', isTokens: s.screen === 'tokens',
+      showKeys: this.props.mostrarAtajos ?? true,
+      showCost: this.props.mostrarCoste ?? true,
+      showThumbs,
+      dirs: this.DIRS.map((d, i) => ({ label: d.label, num: String(i + 1), css: dirCss(d.id === s.dir), go: () => this.setState({ dir: d.id, mode: d.mode }) })),
+      screens: this.SCREENS.map(sc => ({ label: sc.label, css: tabCss(sc.id === s.screen), go: () => this.setState({ screen: sc.id }) })),
+      cssLight: segCss(s.mode === 'light'), cssDark: segCss(s.mode === 'dark'),
+      cssComoda: segCss(s.density === 'comoda'), cssCompacta: segCss(s.density === 'compacta'),
+      setLight: () => this.setState({ mode: 'light' }), setDark: () => this.setState({ mode: 'dark' }),
+      setComoda: () => this.setState({ density: 'comoda' }), setCompacta: () => this.setState({ density: 'compacta' }),
+      goBandeja: () => this.setState({ screen: 'bandeja' }),
+      query: s.query, onQuery: (e) => this.setState({ query: e.target.value }),
+      queue, running,
+      beats,
+      legend: 'verde aprobado · ámbar requiere revisión',
+      playheadCss: 'position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--accent);box-shadow:0 0 0 3px color-mix(in oklab,var(--accent) 22%,transparent);pointer-events:none;left:' + playPct + '%',
+      scrubCss: 'width:' + playPct + '%;height:100%;background:#fff',
+      clock: this.fmt(s.t) + ' / 8:42',
+      playIcon: s.playing ? '❚❚' : '▶',
+      togglePlay: this.togglePlay,
+      approve: this.approve, undo: this.undo,
+      approvedLabel: approvedCount + ' de 34 beats aprobados',
+      approvedBar: 'width:' + Math.round((approvedCount / 34) * 100) + '%;height:100%;background:var(--ok)',
+      selHeadline: 'Beat ' + sel.n + ' · ' + this.fmt(start) + '–' + this.fmt(start + sel.dur) + ' · ' + sel.dur + ' s (fijado por el audio)',
+      selLabel: sel.label, selSource: swap ? swap.src : sel.src, selLicense: 'CC0 · uso comercial',
+      selSim: String(simVal).replace('.', ','),
+      selLine: (this.SCRIPT.find(p => p.beat === sel.n) || {}).text || this.LINES[sel.n] || '—',
+      simBar: 'display:block;height:100%;width:' + Math.round(simVal * 100) + '%;background:' + (simVal >= 0.75 ? 'var(--ok)' : 'var(--warn)'),
+      selState: selState === 'ok' ? (s.approved[sel.n] ? 'Aprobado por ti' : 'Auto-aprobado') : 'Requiere revisión',
+      selChip: this.chip(selState),
+      selThumbNote: 'fotograma 0:58 · 1920 × 1080',
+      chipOk: this.chip('ok'), chipWarn: this.chip('warn'), chipNeutral: this.chip('neutral'), chipDanger: this.chip('danger'),
+      pillOk: 'display:inline-flex;align-items:center;height:30px;padding:0 10px;border-radius:var(--pill-r);font-size:var(--fs-sm);background:color-mix(in oklab,var(--ok) 16%,var(--bg2));border:1px solid color-mix(in oklab,var(--ok) 40%,transparent)',
+      pillWarn: 'display:inline-flex;align-items:center;height:30px;padding:0 10px;border-radius:var(--pill-r);font-size:var(--fs-sm);background:color-mix(in oklab,var(--warn) 16%,var(--bg2));border:1px solid color-mix(in oklab,var(--warn) 40%,transparent)',
+      pillSel: 'display:inline-flex;align-items:center;height:30px;padding:0 10px;border-radius:var(--pill-r);font-size:var(--fs-sm);background:color-mix(in oklab,var(--warn) 30%,var(--bg2));border:1px solid color-mix(in oklab,var(--warn) 70%,transparent);box-shadow:inset 0 0 0 2px var(--accent)',
+      alts: s.alts, toggleAlts: () => this.setState(p => ({ alts: !p.alts })),
+      altList: this.ALTS.map(a => ({
+        sim: String(a.sim).replace('.', ','), key: a.key,
+        css: 'border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;background:var(--bg2);padding:0;text-align:left;transition:transform .12s,border-color .12s',
+        pick: () => { this.setState(p => ({ swapped: { ...p.swapped, [p.sel]: a }, alts: false, toast: 'Clip sustituido · similitud ' + String(a.sim).replace('.', ',') })); clearTimeout(this._tt); this._tt = setTimeout(() => this.setState({ toast: null }), 3200); }
+      })),
+      isGuion: s.screen === 'guion',
+      goGuion: () => this.setState({ screen: 'guion' }),
+      approveScript: this.approveScript,
+      nextPending: this.nextPending,
+      pendingLabel: pendingCount ? pendingCount + ' sin revisar · siguiente' : 'Todo revisado',
+      chosenTitle: chosen.text,
+      titles: this.TITLES.map(t => ({
+        text: t.text, chars: t.chars, note: t.note,
+        css: 'display:flex;flex-direction:column;gap:7px;width:100%;text-align:left;border:1px solid ' + (t.id === s.title ? 'var(--accent)' : 'var(--line)') + ';background:' + (t.id === s.title ? 'color-mix(in oklab,var(--accent) 8%,var(--bg2))' : 'var(--bg2)') + ';border-radius:var(--r-sm);padding:11px 12px;transition:border-color .12s',
+        dot: 'width:12px;height:12px;margin-top:4px;border-radius:999px;flex:none;border:1px solid ' + (t.id === s.title ? 'var(--accent)' : 'var(--line)') + ';box-shadow:' + (t.id === s.title ? 'inset 0 0 0 3px var(--accent)' : 'none'),
+        pick: () => this.setState({ title: t.id })
+      })),
+      script: this.SCRIPT.map(p => ({
+        beatLabel: 'Beat ' + p.beat, time: p.time, text: p.text, flag: p.flag || '', hasFlag: !!p.flag,
+        wrap: 'display:flex;gap:16px;align-items:flex-start;margin-bottom:calc(var(--pad)*1.15)' + (p.beat === s.sel ? ';background:color-mix(in oklab,var(--accent) 6%,transparent);border-radius:var(--r-sm)' : ''),
+        textCss: 'flex:1;min-width:0;margin:0;font-family:' + (s.dir === 'editorial' ? 'var(--font-head)' : 'var(--font-ui)') + ';font-size:' + (s.dir === 'terminal' ? '14px' : '16.5px') + ';line-height:1.7;max-width:66ch;color:var(--fg)'
+      })),
+      modalTitle: enGuion ? 'Pedir una reescritura del guion' : 'Descartar el clip del beat ' + s.sel,
+      modalDesc: enGuion ? 'La máquina reescribe el borrador con tu motivo y te avisa. Tú no editas el texto.' : 'El hueco se rellena con la mejor alternativa. La duración no cambia: la fija el audio.',
+      modalCta: enGuion ? 'Pedir reescritura' : 'Descartar y sustituir',
+      stockQuery: s.stock, onStock: (e) => this.setState({ stock: e.target.value }),
+      hasStock: s.stock.trim().length > 1,
+      stockResults: [
+        { title: 'Oblea de silicio girando · 12 s', sim: '0,91' },
+        { title: 'Sala limpia, técnico con traje · 8 s', sim: '0,83' },
+        { title: 'Microscopio sobre chip · 6 s', sim: '0,77' }
+      ],
+      modal: s.modal, openModal: () => this.setState({ modal: true }), closeModal: () => this.setState({ modal: false }),
+      confirmDiscard: () => this.setState(p => (enGuion
+        ? { modal: false, toast: 'Reescritura pedida · el borrador 4 llega en unos 3 min' }
+        : { modal: false, swapped: { ...p.swapped, [p.sel]: this.ALTS[0] }, toast: 'Beat ' + p.sel + ' sustituido por la mejor alternativa' })),
+      motivos,
+      toast: s.toast,
+      spacing, tokenRows,
+      radiiLabel: T.radii,
+      fontHead: T.head, fontUi: T.ui, fontMono: T.mono,
+      cssSheet: this.cssSheetFor(s.dir),
+      compareRows: this.COMPARE
+    };
+  }
+}
+</script>
+</body>
+</html>

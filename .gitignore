@@ -1,0 +1,36 @@
+# Dependencias
+node_modules/
+.pnpm-store/
+
+# Builds
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+
+# Remotion
+.remotion/
+packages/video/out/
+
+# Datos locales (índice en Postgres; los binarios no van al repo)
+library/assets/
+outputs/
+!outputs/.gitkeep
+!library/assets/.gitkeep
+
+# Entorno
+.env
+.env.local
+.env.*.local
+
+# Sistema
+.DS_Store
+*.log
+
+# Docker
+postgres-data/
+redis-data/
+
+# Modelos de embeddings descargados
+.fastembed_cache/
+local_cache/
