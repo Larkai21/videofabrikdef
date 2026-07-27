@@ -93,7 +93,11 @@ export function registerLibraryBrowseRoutes(app: FastifyInstance, ctx: ApiContex
 
     const conditions: SQL[] = [];
     if (query.kind) conditions.push(eq(assets.kind, query.kind));
-    if (query.channel) conditions.push(eq(assets.channelId, query.channel));
+    if (query.channel) {
+      // la vista escopada incluye los assets compartidos (música, b-roll común)
+      const scoped = or(eq(assets.channelId, query.channel), eq(assets.scope, 'shared'));
+      if (scoped) conditions.push(scoped);
+    }
     if (query.q) {
       const pattern = likePattern(query.q);
       const textMatch = or(

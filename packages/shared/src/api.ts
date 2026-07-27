@@ -179,6 +179,13 @@ export const channelSettingsUpdateSchema = z.object({
   anti_repeat_n: z.number().int().min(0).optional(),
   background_music: z.boolean().optional(),
   brand_components: z.record(z.string(), z.string()).optional(),
+  publish_schedule: z
+    .object({
+      weekday: z.number().int().min(0).max(6),
+      hour: z.number().int().min(0).max(23),
+    })
+    .nullable()
+    .optional(),
 });
 export type ChannelSettingsUpdate = z.infer<typeof channelSettingsUpdateSchema>;
 

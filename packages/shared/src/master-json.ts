@@ -99,6 +99,8 @@ export const beatSchema = z.object({
 });
 
 export const brandSchema = z.object({
+  // nombre visible del canal para intro/outro/rótulos (el render no lee BD)
+  channel_name: z.string().optional(),
   // valores "tipo@versión" resueltos por el registry generado
   components: z.object({
     intro: z.string().optional(),

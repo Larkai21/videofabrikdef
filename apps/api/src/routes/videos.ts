@@ -16,6 +16,7 @@ import { beatRowToBeat, kindFromPath, type AssetFileInfo } from '../lib/beats.js
 import type { ApiContext } from '../lib/context.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { masterWithFileUrls } from '../lib/master.js';
+import { publishVideo } from './youtube.js';
 
 type VideoRow = typeof videos.$inferSelect;
 
@@ -281,5 +282,13 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
     await ctx.events.publish({ type: 'video_state', video_id: id, state: target });
     await ctx.events.publish({ type: 'inbox_changed' });
     return { ok: true as const };
+  });
+
+  // S3: aprobación humana de la subida a YouTube en privado desde la bandeja.
+  // No toca la máquina de estados (hecho es terminal); el estado de la subida
+  // vive en videos.youtube. La lógica es del módulo de publicación.
+  app.post('/videos/:id/publish', async (req) => {
+    const { id } = req.params as { id: string };
+    return publishVideo(ctx, id);
   });
 }
