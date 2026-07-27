@@ -87,11 +87,11 @@ export function Wizard() {
 
   const approveMut = useMutation({
     mutationFn: () => putProfile(channelId as string, profile as ChannelProfile, true),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['channels'] });
+    onSuccess: async () => {
+      // la lista de canales debe contener el nuevo ANTES de activarlo: si no,
+      // resolveActiveChannelId lo descarta y la bandeja pinta el canal viejo
+      await queryClient.invalidateQueries({ queryKey: ['channels'] });
       void queryClient.invalidateQueries({ queryKey: ['channel', channelId] });
-      // el canal recién aprobado pasa a ser el activo: la bandeja que se abre
-      // a continuación es la suya (vacía hasta que el ranking traiga ideas)
       if (channelId !== null) setActiveChannel(channelId);
       push('Perfil aprobado · la ideación está en marcha');
       void navigate('/');

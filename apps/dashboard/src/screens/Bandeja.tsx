@@ -47,6 +47,9 @@ export function Bandeja() {
     queryKey: ['inbox', activeChannelId],
     queryFn: () => getInboxFor(activeChannelId),
     refetchInterval: 30_000,
+    // sin canal resuelto todavía no se pinta el agregado global como si
+    // fuera el canal activo
+    enabled: activeChannelId !== null,
   });
 
   const q = search.trim().toLowerCase();

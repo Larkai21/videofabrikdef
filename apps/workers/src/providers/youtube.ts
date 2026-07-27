@@ -15,6 +15,17 @@ export const UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024; // 8 MB, múltiplo de 256 KiB
 export const MAX_TITLE_LENGTH = 100;
 const MAX_CHUNK_RETRIES = 5;
 
+// Fallos sin remedio con reintentos (token revocado, metadatos rechazados):
+// el worker los marca 'fallido' a la primera con la acción correcta.
+export class PermanentUploadError extends Error {}
+
+// Sesión resumable persistida entre intentos del job: un crash del proceso
+// no debe re-subir el archivo entero ni duplicar el vídeo en YouTube.
+export interface UploadSession {
+  location: string;
+  total: number;
+}
+
 export interface PublishUploadParams {
   videoId: string;
   filePath: string;
@@ -24,6 +35,10 @@ export interface PublishUploadParams {
   // ISO 8601 o null: sin hueco programado el vídeo queda en privado sin fecha
   publishAt: string | null;
   containsSyntheticMedia: boolean;
+  // sesión previa (si el job se reintenta tras un crash)
+  session?: UploadSession | null;
+  // se invoca al abrir sesión nueva, ANTES de subir bytes: el llamador la persiste
+  onSession?: (session: UploadSession) => void | Promise<void>;
   // 0–100 sobre los bytes subidos
   onProgress?: (progress: number) => void;
 }
@@ -127,7 +142,14 @@ export function createYoutubeProvider(auth: YoutubeAuth, logger?: pino.Logger): 
       }),
     });
     if (!res.ok) {
-      throw new Error(`No se pudo refrescar el token de acceso (${res.status}): ${await bodyText(res)}`);
+      const body = await bodyText(res);
+      // token revocado o cliente inválido: reintentar no arregla nada
+      if (/invalid_grant|invalid_client/i.test(body)) {
+        throw new PermanentUploadError(
+          'La conexión de YouTube caducó o fue revocada; desconéctala y vuelve a conectarla en Ajustes',
+        );
+      }
+      throw new Error(`No se pudo refrescar el token de acceso (${res.status}): ${body}`);
     }
     const data = (await res.json()) as { access_token?: string; expires_in?: number };
     if (data.access_token === undefined) {
@@ -167,33 +189,69 @@ export function createYoutubeProvider(auth: YoutubeAuth, logger?: pino.Logger): 
       const size = (await fsp.stat(params.filePath)).size;
       if (size === 0) throw new Error(`El archivo está vacío: ${params.filePath}`);
 
-      const initRes = await fetch(UPLOAD_INIT_URL, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${await accessToken()}`,
-          'content-type': 'application/json; charset=utf-8',
-          'x-upload-content-length': String(size),
-          'x-upload-content-type': 'video/mp4',
-        },
-        body: JSON.stringify(
-          buildUploadBody({
-            title: params.title,
-            description: params.description,
-            tags: params.tags,
-            publishAt: params.publishAt,
-            containsSyntheticMedia: params.containsSyntheticMedia,
-          }),
-        ),
-      });
-      if (!initRes.ok) {
-        throw new Error(`videos.insert rechazó la subida (${initRes.status}): ${await bodyText(initRes)}`);
+      // sesión previa persistida (reintento tras crash): sondear ANTES de
+      // abrir un videos.insert nuevo — una subida ya completada se recupera
+      // (sin duplicar el vídeo) y una parcial continúa desde su offset
+      let location: string | null = null;
+      let startOffset = 0;
+      if (params.session && params.session.total === size) {
+        try {
+          const state = await probe(params.session.location, size);
+          if (state.kind === 'done') {
+            params.onProgress?.(100);
+            logger?.info({ videoId: params.videoId }, 'Subida previa ya completada; recuperada sin re-subir');
+            return state.result;
+          }
+          location = params.session.location;
+          startOffset = state.offset;
+          logger?.info(
+            { videoId: params.videoId, offset: startOffset },
+            'Reanudando la sesión de subida previa',
+          );
+        } catch (err) {
+          if (err instanceof PermanentUploadError) throw err;
+          logger?.warn({ err }, 'La sesión de subida previa no es reanudable; se abre una nueva');
+        }
       }
-      const location = initRes.headers.get('location');
-      if (location === null) throw new Error('videos.insert no devolvió la URL de subida (Location)');
+
+      if (location === null) {
+        const initRes = await fetch(UPLOAD_INIT_URL, {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${await accessToken()}`,
+            'content-type': 'application/json; charset=utf-8',
+            'x-upload-content-length': String(size),
+            'x-upload-content-type': 'video/mp4',
+          },
+          body: JSON.stringify(
+            buildUploadBody({
+              title: params.title,
+              description: params.description,
+              tags: params.tags,
+              publishAt: params.publishAt,
+              containsSyntheticMedia: params.containsSyntheticMedia,
+            }),
+          ),
+        });
+        if (!initRes.ok) {
+          const body = await bodyText(initRes);
+          // 400 = metadatos rechazados (p. ej. publishAt en el pasado):
+          // reintentar con lo mismo no puede funcionar
+          if (initRes.status === 400) {
+            throw new PermanentUploadError(`videos.insert rechazó los metadatos (400): ${body}`);
+          }
+          throw new Error(`videos.insert rechazó la subida (${initRes.status}): ${body}`);
+        }
+        location = initRes.headers.get('location');
+        if (location === null) throw new Error('videos.insert no devolvió la URL de subida (Location)');
+        // persistir la sesión ANTES de subir bytes: un crash a partir de aquí
+        // reanuda en vez de duplicar
+        await params.onSession?.({ location, total: size });
+      }
 
       const handle = await fsp.open(params.filePath, 'r');
       try {
-        let offset = 0;
+        let offset = startOffset;
         let retries = 0;
         for (;;) {
           const end = Math.min(offset + UPLOAD_CHUNK_SIZE, size);

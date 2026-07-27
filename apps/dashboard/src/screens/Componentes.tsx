@@ -128,8 +128,13 @@ export function Componentes() {
   const [uploading, setUploading] = useState(false);
 
   // el canal activo viene del contexto multicanal (antes se asumía channels[0])
-  const { activeChannel: channel, activeChannelId: channelId, isPending: channelsPending } =
-    useChannel();
+  const {
+    activeChannel: channel,
+    activeChannelId: channelId,
+    isPending: channelsPending,
+    isError: channelsError,
+    refetch: refetchChannels,
+  } = useChannel();
 
   // EventsProvider invalida el prefijo ['componentes'] con el SSE inbox_changed
   // (que el worker publica al terminar la validación) y con job_progress de la
@@ -243,7 +248,9 @@ export function Componentes() {
           z.object + assets/. Restricciones de render: animar solo con useCurrentFrame, sin fetch
           durante el render, sin aleatoriedad sin semilla y fuentes empaquetadas en el zip o pila
           del sistema. La validación compila el componente, comprueba el contrato de props de su
-          tipo y hace un render de humo de 60 frames antes de dejarlo activable.
+          tipo y hace un render de humo de 60 frames antes de dejarlo activable. Nota: el render
+          usa el componente nuevo de inmediato; la previsualización del dashboard compilado lo
+          incorpora en el siguiente build (en desarrollo se recarga sola).
         </p>
       </div>
 
@@ -251,7 +258,18 @@ export function Componentes() {
         <div className="muted fs-sm">Cargando el brand kit</div>
       ) : null}
 
-      {!channelsPending && channel === undefined ? (
+      {channelsError ? (
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div className="banner banner-danger">No se pudieron cargar los canales.</div>
+          <div>
+            <Button variant="secondary" onClick={refetchChannels}>
+              Reintentar
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {!channelsPending && !channelsError && channel === undefined ? (
         <EmptyState title="Todavía no hay canal">
           Crea el canal con el wizard para poder subir componentes del brand kit.
         </EmptyState>

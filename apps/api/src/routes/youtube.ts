@@ -10,6 +10,7 @@ import { channels, videos } from '@fabrica/db';
 import {
   channelSettingsSchema,
   JOBS,
+  nextPublishSlot,
   QUEUES,
   type ChannelSettings,
   type PublishUploadJob,
@@ -56,14 +57,9 @@ export interface PublishSchedule {
  * local del servidor. Pura y testeada: el worker no la recalcula, usa el
  * publish_at que fija la aprobación.
  */
-export function nextPublishSlot(schedule: PublishSchedule, from: Date): Date {
-  const slot = new Date(from);
-  slot.setHours(schedule.hour, 0, 0, 0);
-  const dayDiff = (schedule.weekday - slot.getDay() + 7) % 7;
-  slot.setDate(slot.getDate() + dayDiff);
-  if (slot.getTime() <= from.getTime()) slot.setDate(slot.getDate() + 7);
-  return slot;
-}
+// re-export: la implementación vive en @fabrica/shared (el worker de subida
+// la reutiliza para revalidar huecos pasados)
+export { nextPublishSlot };
 
 // ---- state firmado del OAuth (HMAC con el client_secret; sin tabla extra) ----
 
@@ -182,6 +178,22 @@ export async function publishVideo(
       ? nextPublishSlot(settings.publish_schedule, new Date()).toISOString()
       : null;
 
+  // el job fallido anterior se limpia ANTES de escribir 'subiendo': si aún
+  // está bloqueado (activo), es un conflicto explícito, nunca un ok silencioso
+  const queue = publishQueueFor(ctx);
+  const jobId = `publish-${videoId}`;
+  const existing = await queue.getJob(jobId);
+  if (existing) {
+    const state = await existing.getState().catch(() => 'unknown');
+    if (state === 'active' || state === 'waiting' || state === 'delayed') {
+      throw conflict('La subida ya está en marcha');
+    }
+    const removed = await queue.remove(jobId);
+    if (removed === 0) {
+      throw conflict('La subida anterior aún se está liberando; reintenta en unos segundos');
+    }
+  }
+
   await ctx.db
     .update(videos)
     .set({
@@ -198,13 +210,31 @@ export async function publishVideo(
     })
     .where(eq(videos.id, videoId));
 
-  // jobId sin ':' y estable por vídeo: dedupe mientras corre; el job fallido
-  // anterior se limpia para que el reintento humano pueda reencolar
-  const queue = publishQueueFor(ctx);
-  const jobId = `publish-${videoId}`;
-  await queue.remove(jobId);
-  const payload: PublishUploadJob = { videoId };
-  await queue.add(JOBS.publish.upload, payload, { jobId });
+  try {
+    const payload: PublishUploadJob = { videoId };
+    await queue.add(JOBS.publish.upload, payload, { jobId });
+  } catch (err) {
+    // sin job no puede quedar 'subiendo' para siempre: se revierte a fallido
+    // reintentable con el motivo visible
+    const message = err instanceof Error ? err.message : String(err);
+    await ctx.db
+      .update(videos)
+      .set({
+        youtube: {
+          status: 'fallido',
+          youtube_id: null,
+          url: null,
+          privacy_status: null,
+          publish_at: publishAt,
+          uploaded_at: null,
+          error: `No se pudo encolar la subida: ${message}`,
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(videos.id, videoId))
+      .catch(() => {});
+    throw err;
+  }
 
   await ctx.events.publish({ type: 'inbox_changed' });
   return { ok: true as const, publish_at: publishAt };

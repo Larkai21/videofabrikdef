@@ -26,6 +26,7 @@ export function Ideas() {
   const { data: ideas, isPending, isError, refetch } = useQuery({
     queryKey: ['ideas', activeChannelId],
     queryFn: () => getIdeasFor('new', activeChannelId),
+    enabled: activeChannelId !== null,
   });
 
   const approveMut = useMutation({

@@ -3,7 +3,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { componentTypeSchema } from '@fabrica/shared';
-import { generateRegistrySource, kitDirName, type KitRegistryEntry } from '../src/registry-gen';
+import {
+  BUILTIN_REFS,
+  generateRegistrySource,
+  kitDirName,
+  type KitRegistryEntry,
+} from '../src/registry-gen';
 
 // Sincroniza src/kit/ y regenera src/registry.generated.ts a partir de un
 // spec JSON (listado completo deseado de componentes validados). Lo invoca el
@@ -62,9 +67,16 @@ function main(): void {
   const entries: KitRegistryEntry[] = [];
   const desired = new Set<string>();
 
+  const builtinRefs = new Set(BUILTIN_REFS);
   for (const component of spec.components) {
     const dirName = kitDirName(component.name, component.version);
     if (desired.has(dirName)) continue; // duplicado nombre@versión: primero gana
+    // los refs integrados están reservados: reportado para que la validación
+    // marque el componente como fallido en vez de machacarlos en silencio
+    if (builtinRefs.has(`${component.name}@${component.version}`)) {
+      skipped.push(`${dirName}: colisiona con un componente integrado (ref reservado)`);
+      continue;
+    }
     const sourceDir = path.resolve(component.source_dir);
     if (!existsSync(path.join(sourceDir, 'Component.tsx'))) {
       skipped.push(`${dirName}: falta Component.tsx en ${sourceDir}`);
@@ -82,11 +94,15 @@ function main(): void {
     });
   }
 
-  // poda: directorios del kit que ya no están en el estado deseado
+  // poda: directorios del kit que ya no están en el estado deseado. El
+  // ejemplo comiteado se preserva (viene de git, no de la BD: borrarlo en
+  // cada arranque dejaría el clon sucio y la plantilla inutilizada)
+  const PRESERVED_KIT_DIRS = new Set(['rotulo-ejemplo@1.0.0']);
   const removed: string[] = [];
   for (const item of readdirSync(kitDir, { withFileTypes: true })) {
     if (!item.isDirectory()) continue;
     if (desired.has(item.name)) continue;
+    if (PRESERVED_KIT_DIRS.has(item.name)) continue;
     rmSync(path.join(kitDir, item.name), { recursive: true, force: true });
     removed.push(item.name);
   }

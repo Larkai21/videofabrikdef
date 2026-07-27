@@ -23,6 +23,10 @@ interface ChannelContextValue {
   setActiveChannel: (id: string) => void;
   /** true mientras la lista de canales aún no respondió. */
   isPending: boolean;
+  /** true si la lista de canales no se pudo cargar (≠ lista vacía). */
+  isError: boolean;
+  /** reintenta la carga de canales. */
+  refetch: () => void;
 }
 
 const ChannelContext = createContext<ChannelContextValue>({
@@ -31,6 +35,8 @@ const ChannelContext = createContext<ChannelContextValue>({
   activeChannel: undefined,
   setActiveChannel: () => undefined,
   isPending: true,
+  isError: false,
+  refetch: () => undefined,
 });
 
 export function ChannelProvider({ children }: { children: ReactNode }) {
@@ -55,8 +61,10 @@ export function ChannelProvider({ children }: { children: ReactNode }) {
       activeChannel: channels?.find((c) => c.id === activeChannelId),
       setActiveChannel,
       isPending: channelsQ.isPending,
+      isError: channelsQ.isError,
+      refetch: () => void channelsQ.refetch(),
     };
-  }, [channels, storedId, setActiveChannel, channelsQ.isPending]);
+  }, [channels, storedId, setActiveChannel, channelsQ.isPending, channelsQ.isError, channelsQ]);
 
   return <ChannelContext.Provider value={value}>{children}</ChannelContext.Provider>;
 }

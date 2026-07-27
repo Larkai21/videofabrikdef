@@ -7,4 +7,5 @@ export * from './queues.js';
 export * from './cost.js';
 export * from './events.js';
 export * from './api.js';
+export * from './publish.js';
 export * from './fixtures.js';

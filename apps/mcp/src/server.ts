@@ -10,6 +10,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import {
+  ASSET_KINDS,
   IDEA_STATUSES,
   ideaDtoSchema,
   inboxDtoSchema,
@@ -117,7 +118,11 @@ export function buildServer(api: FabricaApi = createApi()): McpServer {
       ...readOnly,
     },
     async ({ channel, status }) => {
-      const query = status ? `?status=${encodeURIComponent(status)}` : '';
+      // el filtro de canal se aplica en la API (?channel=), no en cliente
+      const params = new URLSearchParams();
+      if (status !== undefined) params.set('status', status);
+      if (channel !== undefined) params.set('channel', channel);
+      const query = params.size > 0 ? `?${params.toString()}` : '';
       return fetchAndFormat(
         api.request('GET', `/ideas${query}`),
         ideasResponseSchema,
@@ -333,7 +338,10 @@ export function buildServer(api: FabricaApi = createApi()): McpServer {
         'Busca en la biblioteca local de assets por texto (descripción, etiquetas, consulta de origen) y tipo opcional.',
       inputSchema: {
         q: z.string().min(1).describe('Texto a buscar'),
-        kind: z.string().optional().describe('Tipo de asset: clip, image, music, screenshot, upload'),
+        kind: z
+          .enum(ASSET_KINDS)
+          .optional()
+          .describe('Tipo de asset: clip, image, music, screenshot o upload'),
       },
       ...readOnly,
     },

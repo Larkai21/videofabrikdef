@@ -25,10 +25,13 @@ export function roundUsd(value: number): number {
   return Math.round(value * 10_000) / 10_000;
 }
 
-/** Clave YYYY-MM del mes en curso (hora local del servidor). */
+/**
+ * Clave YYYY-MM del mes en curso en UTC: el agregado del API sale de un
+ * date_trunc de Postgres y el MCP puede correr en otra zona horaria.
+ */
 export function currentMonthKey(now: Date = new Date()): string {
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = now.getUTCFullYear();
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
   return `${year}-${month}`;
 }
 

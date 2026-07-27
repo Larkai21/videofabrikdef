@@ -3,13 +3,20 @@ import path from 'node:path';
 import { Worker, type Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { channels, videos } from '@fabrica/db';
-import { channelSettingsSchema, JOBS, QUEUES, type PublishUploadJob } from '@fabrica/shared';
+import {
+  channelSettingsSchema,
+  JOBS,
+  nextPublishSlot,
+  QUEUES,
+  type PublishUploadJob,
+} from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
 import { env } from '../../lib/env.js';
 import { closeCost, failCost, openCost } from '../../lib/ledger.js';
 import {
   createMockProvider,
   createYoutubeProvider,
+  PermanentUploadError,
   type PublishProvider,
 } from '../../providers/youtube.js';
 
@@ -141,7 +148,19 @@ async function handlePublishUpload(ctx: WorkerContext, job: Job<PublishUploadJob
   const containsSyntheticMedia = channel.profile?.flags.ai_disclosure === true;
 
   const provider = selectProvider(ctx, settings.youtube?.refresh_token ?? null);
-  const publishAt = publication.publish_at;
+
+  // revalidar el hueco: la aprobación pudo quedar en cola (concurrencia 1,
+  // backoff) y un publishAt en el pasado tumba videos.insert con 400
+  let publishAt = publication.publish_at;
+  const PUBLISH_AT_MARGIN_MS = 5 * 60_000;
+  if (publishAt !== null && new Date(publishAt).getTime() <= Date.now() + PUBLISH_AT_MARGIN_MS) {
+    publishAt =
+      settings.publish_schedule !== null
+        ? nextPublishSlot(settings.publish_schedule, new Date()).toISOString()
+        : null;
+    await saveYoutube(ctx, videoId, { ...publication, publish_at: publishAt });
+    log.info({ publishAt }, 'publish_at quedó en el pasado; recalculado al siguiente hueco');
+  }
 
   await ctx.publishEvent({
     type: 'job_progress',
@@ -176,6 +195,12 @@ async function handlePublishUpload(ctx: WorkerContext, job: Job<PublishUploadJob
       tags,
       publishAt,
       containsSyntheticMedia,
+      // reanudación tras crash: la sesión resumable se persiste en BD antes
+      // de subir bytes y se limpia al terminar (saveYoutube sin session)
+      session: publication.session ?? null,
+      onSession: async (session) => {
+        await saveYoutube(ctx, videoId, { ...publication, publish_at: publishAt, session });
+      },
       onProgress: (progress) => {
         const now = Date.now();
         if (progress < 100 && now - lastEmit < 1_000) return;
@@ -259,7 +284,8 @@ export async function registerPublishWorkers(ctx: WorkerContext): Promise<Worker
       try {
         await handlePublishUpload(ctx, job);
       } catch (err) {
-        const permanent = err instanceof PermanentPublishError;
+        const permanent =
+          err instanceof PermanentPublishError || err instanceof PermanentUploadError;
         // attemptsMade cuenta los intentos ANTERIORES dentro del procesador
         const isFinal = job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
         const message = `Fallo en la subida a YouTube: ${errorMessage(err)}`;

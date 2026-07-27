@@ -32,6 +32,17 @@ export const componentManifestV1 = z.object({
   fixed_duration_frames: z.number().int().positive().optional(),
   // rutas relativas dentro del zip
   assets: z.array(z.string()),
+}).superRefine((manifest, ctx) => {
+  // sin duración fija, una intro/outro/transition se validaría pero jamás se
+  // montaría (docs/contratos.md §3 la exige para estos tipos)
+  const requiresFixed = ['intro', 'outro', 'transition'].includes(manifest.type);
+  if (requiresFixed && manifest.fixed_duration_frames === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['fixed_duration_frames'],
+      message: `los componentes de tipo ${manifest.type} exigen fixed_duration_frames`,
+    });
+  }
 });
 
 export type ComponentManifest = z.infer<typeof componentManifestV1>;

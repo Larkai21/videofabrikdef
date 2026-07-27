@@ -41,12 +41,26 @@ export function Ajustes() {
   // el canal activo viene del contexto multicanal (antes se asumía channels[0]);
   // el formulario interno se re-monta por key al cambiar de canal para que los
   // borradores locales no se mezclen entre canales
-  const { activeChannel: channel, isPending } = useChannel();
+  const { activeChannel: channel, isPending, isError, refetch } = useChannel();
 
   if (isPending) {
     return (
       <div className="wrap-1160" style={{ padding: 'calc(var(--pad) * 2) 26px' }}>
         <div className="muted fs-sm">Cargando los ajustes</div>
+      </div>
+    );
+  }
+
+  // error ≠ lista vacía: sin canales invita al wizard, con error se reintenta
+  if (isError) {
+    return (
+      <div className="wrap-1160" style={{ padding: 'calc(var(--pad) * 2) 26px', display: 'grid', gap: 12 }}>
+        <div className="banner banner-danger">No se pudieron cargar los canales.</div>
+        <div>
+          <Button variant="secondary" onClick={refetch}>
+            Reintentar
+          </Button>
+        </div>
       </div>
     );
   }

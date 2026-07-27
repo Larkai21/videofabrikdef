@@ -72,9 +72,9 @@ function candidateTitle(candidate: BeatCandidate): string {
 }
 
 // posición de reproducción como estado LOCAL: solo re-renderizan estas hojas.
-// introFrames descuenta la intro del brand kit: el reloj y la aguja miden la
-// línea temporal del AUDIO (la ley), no la de la composición.
-function useCurrentMs(player: PlayerRef | null, introFrames = 0): number {
+// introFrames descuenta la intro del brand kit y maxMs acota la outro: el
+// reloj y la aguja miden la línea temporal del AUDIO (la ley), nunca más.
+function useCurrentMs(player: PlayerRef | null, introFrames = 0, maxMs = Infinity): number {
   const [frame, setFrame] = useState(0);
   useEffect(() => {
     if (player === null) return;
@@ -82,7 +82,7 @@ function useCurrentMs(player: PlayerRef | null, introFrames = 0): number {
     player.addEventListener('frameupdate', onFrame);
     return () => player.removeEventListener('frameupdate', onFrame);
   }, [player]);
-  return (Math.max(0, frame - introFrames) / FPS) * 1000;
+  return Math.min(maxMs, (Math.max(0, frame - introFrames) / FPS) * 1000);
 }
 
 function ClockAndScrub({
@@ -96,7 +96,7 @@ function ClockAndScrub({
   introFrames: number;
   onSeek: (ms: number) => void;
 }) {
-  const currentMs = useCurrentMs(player, introFrames);
+  const currentMs = useCurrentMs(player, introFrames, durationMs);
   return (
     <>
       <span className="mono" style={{ fontSize: 12, color: 'rgba(255,255,255,.86)' }}>
@@ -138,7 +138,7 @@ function Playhead({
   durationMs: number;
   introFrames: number;
 }) {
-  const currentMs = useCurrentMs(player, introFrames);
+  const currentMs = useCurrentMs(player, introFrames, durationMs);
   if (durationMs <= 0) return null;
   return (
     <div

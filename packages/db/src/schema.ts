@@ -135,6 +135,8 @@ export const videos = pgTable(
       publish_at: string | null;
       uploaded_at: string | null;
       error: string | null;
+      // sesión resumable interna (no viaja en el DTO): reanudación tras crash
+      session?: { location: string; total: number } | null;
     }>(),
     // maestro progresivo SIN beats: los beats viven en su tabla y se funden al leer
     master: jsonb('master').$type<MasterVideoJson>().notNull(),

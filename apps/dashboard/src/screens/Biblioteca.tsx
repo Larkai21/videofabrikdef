@@ -292,6 +292,7 @@ export function Biblioteca() {
         limit,
       }),
     placeholderData: (prev) => prev,
+    enabled: activeChannelId !== null,
   });
 
   const backfillMut = useMutation({

@@ -80,8 +80,13 @@ export function kitDirName(name: string, version: string): string {
  * integrados más las entradas validadas del kit. Función pura: dado el mismo
  * listado produce byte a byte el mismo archivo.
  */
+// refs reservados por los componentes integrados: un zip no puede ocuparlos
+export const BUILTIN_REFS: readonly string[] = BUILTINS.map((b) => b.line.ref);
+
 export function generateRegistrySource(entries: KitRegistryEntry[]): string {
-  const seen = new Set<string>();
+  // los refs de los integrados están RESERVADOS: una entrada del kit con la
+  // misma name@version duplicaría la clave del mapa y machacaría sus metadatos
+  const seen = new Set<string>(BUILTIN_REFS);
   const clean: KitRegistryEntry[] = [];
   for (const entry of entries) {
     if (!NAME_RE.test(entry.name)) {

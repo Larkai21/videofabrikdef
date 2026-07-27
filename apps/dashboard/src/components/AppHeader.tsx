@@ -31,6 +31,7 @@ export function AppHeader() {
     queryKey: ['inbox', activeChannelId],
     queryFn: () => getInboxFor(activeChannelId),
     refetchInterval: 30_000,
+    enabled: activeChannelId !== null,
   });
 
   useHotkeys((e) => {

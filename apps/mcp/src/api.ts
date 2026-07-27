@@ -53,11 +53,17 @@ export function readableApiError(
 export function connectionErrorMessage(baseUrl: string, cause: unknown): string {
   const root = cause instanceof Error && cause.cause instanceof Error ? cause.cause : cause;
   const reason = root instanceof Error ? root.message : String(root);
+  if (root instanceof Error && (root.name === 'TimeoutError' || root.name === 'AbortError')) {
+    return `La API de la fábrica en ${baseUrl} no respondió a tiempo. ¿Está colgada o arrancando?`;
+  }
   return (
     `No se pudo conectar con la API de la fábrica en ${baseUrl} (${reason}). ` +
     'Comprueba que la API esté en marcha (pnpm dev) o ajusta FABRICA_API_URL.'
   );
 }
+
+// una API colgada no debe bloquear todas las herramientas del MCP
+const REQUEST_TIMEOUT_MS = Number(process.env.FABRICA_API_TIMEOUT_MS ?? '15000');
 
 export function createApi(baseUrl?: string): FabricaApi {
   const root = (baseUrl ?? process.env.FABRICA_API_URL ?? DEFAULT_API_URL).replace(/\/+$/, '');
@@ -67,6 +73,7 @@ export function createApi(baseUrl?: string): FabricaApi {
     try {
       res = await fetch(`${root}${path}`, {
         method,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         ...(body === undefined
           ? {}
           : {

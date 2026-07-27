@@ -54,9 +54,11 @@ export function registerInboxRoutes(app: FastifyInstance, ctx: ApiContext): void
             : eq(ideas.status, 'new'),
         )
         .orderBy(desc(ideas.score)),
+      // sin ?channel el presupuesto es el AGREGADO de todos los canales, no
+      // el de un canal arbitrario frente a costes de todos
       channel !== undefined
         ? ctx.db.select().from(channels).where(eq(channels.id, channel)).limit(1)
-        : ctx.db.select().from(channels).limit(1),
+        : ctx.db.select().from(channels),
     ]);
 
     const gates: Gate[] = [];
@@ -192,7 +194,10 @@ export function registerInboxRoutes(app: FastifyInstance, ctx: ApiContext): void
         ),
     ]);
 
-    const settings = channelSettingsSchema.parse(channelRows[0]?.settings ?? {});
+    const monthBudget = channelRows.reduce(
+      (acc, row) => acc + channelSettingsSchema.parse(row.settings ?? {}).monthly_budget_usd,
+      0,
+    );
 
     return {
       gates,
@@ -200,7 +205,7 @@ export function registerInboxRoutes(app: FastifyInstance, ctx: ApiContext): void
       done,
       month_cost_usd: Number(costRow?.total ?? 0),
       month_videos: Number(countRow?.n ?? 0),
-      month_budget_usd: settings.monthly_budget_usd,
+      month_budget_usd: monthBudget,
     };
   });
 }
