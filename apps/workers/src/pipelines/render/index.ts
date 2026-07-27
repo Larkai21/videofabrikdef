@@ -1,10 +1,283 @@
-import type { Worker } from 'bullmq';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import fsp from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { Worker, type Job } from 'bullmq';
+import { eq } from 'drizzle-orm';
+import { markIncident, transitionVideo, videos } from '@fabrica/db';
+import {
+  JOBS,
+  QUEUES,
+  renderableMasterV1,
+  type RenderableMaster,
+  type RenderVideoJob,
+} from '@fabrica/shared';
+import { chaptersToText, computeChapters } from '@fabrica/video/chapters';
+import { webpackOverride } from '@fabrica/video/bundling';
+import { bundle } from '@remotion/bundler';
+import {
+  ensureBrowser,
+  renderMedia,
+  renderStill,
+  selectComposition,
+} from '@remotion/renderer';
 import type { WorkerContext } from '../../lib/context.js';
+import { env, REPO_ROOT } from '../../lib/env.js';
+import { rewriteMasterMedia } from './media-rewrite.js';
 
-// TODO(agente render): validar renderableMasterV1, bundle() cacheado de
-// packages/video, renderMedia h264 crf 18 con progreso a Redis, renderStill
-// de 2 miniaturas y salida outputs/<id>/ con metadatos. Cola con concurrencia
-// 1. Ver docs/render.md.
-export async function registerRenderWorkers(_ctx: WorkerContext): Promise<Worker[]> {
-  return [];
+// ESTRATEGIA DE MEDIOS — decidida leyendo @remotion/renderer 4.0.499:
+// el proxy de OffthreadVideo (offthread-video-server.js → assets/read-file.js)
+// solo descarga src http:// o https:// (y data:); las rutas absolutas del
+// sistema de archivos y file:// NO son cargables ni por el compositor ni por
+// Chromium (el bundle se sirve desde su propio servidor local). Por tanto se
+// aplica la opción (b): antes de renderizar, las rutas absolutas bajo
+// LIBRARY_DIR/OUTPUTS_DIR se reescriben a URLs de la API
+// (FILES_BASE_URL, por defecto http://127.0.0.1:3001/files, que sirve ambos
+// directorios bajo /files/library y /files/outputs; en dev la API siempre está
+// levantada). El render de humo de packages/video no depende de esto: usa
+// rutas relativas resueltas con staticFile desde el public/ del bundle.
+
+const require = createRequire(import.meta.url);
+
+function videoPackageDir(): string {
+  // resuelve el subpath exportado para localizar packages/video sin asumir
+  // la estructura del repo (funciona también instalado en contenedor)
+  const entry = require.resolve('@fabrica/video/entry');
+  return path.resolve(path.dirname(entry), '..');
+}
+
+async function hashTree(
+  hash: ReturnType<typeof createHash>,
+  dir: string,
+  relBase: string,
+): Promise<void> {
+  const entries = (await fsp.readdir(dir, { withFileTypes: true })).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+  for (const entry of entries) {
+    const abs = path.join(dir, entry.name);
+    const rel = `${relBase}/${entry.name}`;
+    if (entry.isDirectory()) await hashTree(hash, abs, rel);
+    else if (entry.isFile()) {
+      hash.update(rel);
+      hash.update(await fsp.readFile(abs));
+    }
+  }
+}
+
+// bundle() una vez por versión del código de la composición: la clave es el
+// hash de packages/video/src + fuentes + package.json, cacheado en un
+// directorio gitignoreado. Los renders siguientes reutilizan el bundle.
+async function ensureBundle(ctx: WorkerContext): Promise<string> {
+  const pkgDir = videoPackageDir();
+  const hash = createHash('sha1');
+  await hashTree(hash, path.join(pkgDir, 'src'), 'src');
+  const fontsDir = path.join(pkgDir, 'public', 'fonts');
+  if (fs.existsSync(fontsDir)) await hashTree(hash, fontsDir, 'public/fonts');
+  hash.update(await fsp.readFile(path.join(pkgDir, 'package.json')));
+  const key = hash.digest('hex').slice(0, 16);
+
+  const outDir = path.join(REPO_ROOT, '.turbo', 'remotion-bundle', key);
+  const marker = path.join(outDir, '.bundle-completo');
+  if (fs.existsSync(marker)) return outDir;
+  await fsp.rm(outDir, { recursive: true, force: true });
+  ctx.logger.info({ key }, 'Empaquetando la composición de Remotion');
+  const serveUrl = await bundle({
+    entryPoint: path.join(pkgDir, 'src', 'entry.ts'),
+    publicDir: path.join(pkgDir, 'public'),
+    outDir,
+    webpackOverride,
+  });
+  await fsp.writeFile(marker, key);
+  return serveUrl;
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+async function writeOutputs(outDir: string, master: RenderableMaster): Promise<void> {
+  const chosenIdx = master.seo.chosen_idx;
+  if (chosenIdx === null) throw new Error('Falta elegir título (seo.chosen_idx)');
+  const title = master.seo.titles[chosenIdx] ?? master.seo.titles[0];
+  const chapters = computeChapters(master.script.scenes, master.beats);
+  const description = master.seo.description.replaceAll(
+    '{timestamps}',
+    chaptersToText(chapters),
+  );
+  await fsp.writeFile(path.join(outDir, 'title.txt'), `${title}\n`);
+  await fsp.writeFile(path.join(outDir, 'description.txt'), `${description}\n`);
+  await fsp.writeFile(path.join(outDir, 'tags.txt'), `${master.seo.tags.join('\n')}\n`);
+  // maestro congelado con rutas locales, para auditoría y re-render idéntico
+  await fsp.writeFile(path.join(outDir, 'master.json'), JSON.stringify(master, null, 2));
+}
+
+async function handleRenderVideo(ctx: WorkerContext, job: Job<RenderVideoJob>): Promise<void> {
+  const { videoId } = job.data;
+  const log = ctx.logger.child({ videoId, queue: QUEUES.render });
+
+  const [video] = await ctx.db.select().from(videos).where(eq(videos.id, videoId)).limit(1);
+  if (!video) throw new Error(`Vídeo no encontrado: ${videoId}`);
+
+  const parsed = renderableMasterV1.safeParse(video.master);
+  if (!parsed.success) {
+    // fallo permanente: sin reintentos automáticos, el humano decide
+    const detail = parsed.error.issues
+      .slice(0, 3)
+      .map((issue) => issue.message)
+      .join('; ');
+    const message = `El maestro no es renderizable: ${detail}`;
+    log.error({ issues: parsed.error.issues.length }, message);
+    await markIncident(ctx.db, videoId, {
+      message,
+      suggested_action: 'regenerar',
+      queue: QUEUES.render,
+    });
+    await ctx.publishEvent({ type: 'video_state', video_id: videoId, state: 'incidencia' });
+    await ctx.publishEvent({
+      type: 'incident',
+      video_id: videoId,
+      queue: QUEUES.render,
+      message,
+      suggested_action: 'regenerar',
+    });
+    return;
+  }
+  const master = parsed.data;
+
+  if (video.state === 'timeline_ok') {
+    await transitionVideo(ctx.db, videoId, 'render', { expectFrom: 'timeline_ok' });
+    await ctx.publishEvent({ type: 'video_state', video_id: videoId, state: 'render' });
+  } else if (video.state !== 'render') {
+    // reanudación idempotente: solo se acepta el estado de la propia fase
+    throw new Error(`Estado inesperado para renderizar: ${video.state}`);
+  }
+
+  try {
+    await ensureBrowser();
+    const serveUrl = await ensureBundle(ctx);
+
+    const filesBaseUrl = env(
+      'FILES_BASE_URL',
+      `http://127.0.0.1:${env('API_PORT', '3001')}/files`,
+    );
+    const inputProps = rewriteMasterMedia(master, {
+      libraryDir: ctx.libraryDir,
+      outputsDir: ctx.outputsDir,
+      baseUrl: filesBaseUrl,
+    });
+
+    const composition = await selectComposition({ serveUrl, id: 'LongForm', inputProps });
+    const outDir = path.join(ctx.outputsDir, videoId);
+    await fsp.mkdir(outDir, { recursive: true });
+
+    let lastProgressAt = 0;
+    log.info({ frames: composition.durationInFrames }, 'Comenzando el render del vídeo');
+    await renderMedia({
+      composition,
+      serveUrl,
+      codec: 'h264',
+      crf: 18,
+      audioCodec: 'aac',
+      audioBitrate: '192k',
+      pixelFormat: 'yuv420p',
+      concurrency: Number(env('RENDER_CONCURRENCY', '4')),
+      inputProps,
+      outputLocation: path.join(outDir, 'video.mp4'),
+      onProgress: ({ progress, renderedFrames }) => {
+        const now = Date.now();
+        if (progress < 1 && now - lastProgressAt < 2_000) return;
+        lastProgressAt = now;
+        void ctx.publishEvent({
+          type: 'render_progress',
+          video_id: videoId,
+          progress: Math.round(progress * 100),
+          rendered_frames: renderedFrames,
+          total_frames: composition.durationInFrames,
+        });
+      },
+    });
+
+    // dos miniaturas con los dos conceptos del paquete SEO
+    const thumbComposition = await selectComposition({ serveUrl, id: 'Thumbnail' });
+    const variants = [
+      { variant: 'a', file: 'thumb_a.jpg' },
+      { variant: 'b', file: 'thumb_b.jpg' },
+    ] as const;
+    for (let i = 0; i < variants.length; i += 1) {
+      const item = variants[i];
+      if (!item) continue;
+      const concept = master.seo.thumbnails[i] ?? master.seo.thumbnails[0];
+      const text = concept?.text ?? master.seo.titles[0];
+      await renderStill({
+        composition: thumbComposition,
+        serveUrl,
+        output: path.join(outDir, item.file),
+        imageFormat: 'jpeg',
+        jpegQuality: 90,
+        inputProps: { text, variant: item.variant },
+      });
+    }
+
+    await writeOutputs(outDir, master);
+
+    await ctx.db
+      .update(videos)
+      .set({ outputDir: outDir, updatedAt: new Date() })
+      .where(eq(videos.id, videoId));
+    await transitionVideo(ctx.db, videoId, 'hecho', { expectFrom: 'render' });
+    await ctx.publishEvent({
+      type: 'render_progress',
+      video_id: videoId,
+      progress: 100,
+      rendered_frames: composition.durationInFrames,
+      total_frames: composition.durationInFrames,
+    });
+    await ctx.publishEvent({ type: 'video_state', video_id: videoId, state: 'hecho' });
+    log.info({ outDir }, 'Render terminado y entregables escritos');
+  } catch (err) {
+    const message = `Fallo en el render: ${errorMessage(err)}`;
+    log.error({ err }, message);
+    // attemptsMade ya incluye el intento en curso; la incidencia solo se
+    // marca cuando BullMQ agota los reintentos con backoff
+    const isLastAttempt = job.attemptsMade >= (job.opts.attempts ?? 1);
+    if (isLastAttempt) {
+      await markIncident(ctx.db, videoId, {
+        message,
+        suggested_action: 'reintentar',
+        queue: QUEUES.render,
+      });
+      await ctx.publishEvent({ type: 'video_state', video_id: videoId, state: 'incidencia' });
+      await ctx.publishEvent({
+        type: 'incident',
+        video_id: videoId,
+        queue: QUEUES.render,
+        message,
+        suggested_action: 'reintentar',
+      });
+    }
+    throw err;
+  }
+}
+
+// Cola de render con concurrencia 1: un solo vídeo renderizando a la vez;
+// el paralelismo (RENDER_CONCURRENCY pestañas de Chromium) va dentro del
+// render, no entre renders (docs/render.md §3).
+export async function registerRenderWorkers(ctx: WorkerContext): Promise<Worker[]> {
+  const worker = new Worker<RenderVideoJob>(
+    QUEUES.render,
+    async (job) => {
+      if (job.name !== JOBS.render.video) {
+        ctx.logger.warn({ job: job.name }, 'Job desconocido en la cola de render');
+        return;
+      }
+      await handleRenderVideo(ctx, job);
+    },
+    { connection: ctx.connection, concurrency: 1 },
+  );
+  worker.on('failed', (job, err) => {
+    ctx.logger.error({ job: job?.id, err: err.message }, 'Job de render fallido');
+  });
+  return [worker];
 }

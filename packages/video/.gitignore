@@ -1,0 +1,4 @@
+# medios generados por el render de humo y salidas locales
+public/demo/
+out/
+.turbo/

@@ -71,7 +71,8 @@ export const lowerThirdPropsSchema = z.object({
 
 export const thumbnailTemplatePropsSchema = z.object({
   text: z.string(),
-  image_path: z.string(),
+  // opcional: la plantilla integrada de S1 compone sin imagen de fondo
+  image_path: z.string().optional(),
   variant: z.enum(['a', 'b']),
 });
 
