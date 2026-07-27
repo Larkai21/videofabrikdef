@@ -53,7 +53,11 @@ export function Bandeja() {
   });
 
   const q = search.trim().toLowerCase();
-  const gates = (inbox?.gates ?? []).filter((g) => q === '' || g.title.toLowerCase().includes(q));
+  // «Te espera» son SOLO las puertas de decisión (idea/guion/timeline): las
+  // entregas viven en su propio bloque inferior, como en el mock
+  const gates = (inbox?.gates ?? []).filter(
+    (g) => g.kind !== 'entrega' && (q === '' || g.title.toLowerCase().includes(q)),
+  );
   const running = (inbox?.running ?? []).filter(
     (v) => q === '' || v.title.toLowerCase().includes(q),
   );
@@ -290,12 +294,21 @@ export function Bandeja() {
                 <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span className="step-label">Entrega · subir a mano</span>
-                    <Chip kind="ok">Lista para publicar</Chip>
+                    {d.youtube?.status === 'subido' ? (
+                      <Chip kind="ok">Subido a YouTube</Chip>
+                    ) : d.youtube?.status === 'subiendo' ? (
+                      <Chip kind="neutral">Subiendo a YouTube</Chip>
+                    ) : d.youtube?.status === 'fallido' ? (
+                      <Chip kind="danger">Subida fallida</Chip>
+                    ) : (
+                      <Chip kind="ok">Lista para publicar</Chip>
+                    )}
                   </div>
                   <div className="head" style={{ fontSize: 16, lineHeight: 1.25 }}>
                     {d.title}
                   </div>
-                  <div className="muted fs-sm mono">{d.output_dir}</div>
+                  {/* la ruta de disco pertenece a la pantalla de entrega, no a la bandeja */}
+                  <div className="muted fs-sm">MP4, metadatos y miniaturas listos en la entrega</div>
                 </div>
               </button>
             ))
@@ -343,7 +356,7 @@ export function Bandeja() {
                 ? ` · ${fmtMoney(perVideo)} cada uno`
                 : ''}
             </span>
-            <span>límite {fmtMoney(monthBudget)}</span>
+            <span style={{ whiteSpace: 'nowrap' }}>límite {fmtMoney(monthBudget)}</span>
           </div>
         </div>
       </div>

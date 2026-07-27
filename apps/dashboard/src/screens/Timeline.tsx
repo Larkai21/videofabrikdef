@@ -569,10 +569,20 @@ export function Timeline() {
                 display: 'flex',
                 alignItems: 'baseline',
                 justifyContent: 'space-between',
+                gap: 12,
                 marginBottom: 8,
               }}
             >
-              <span className="muted fs-sm">
+              <span
+                className="muted fs-sm"
+                style={{
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  flex: '0 1 auto',
+                  minWidth: 0,
+                }}
+              >
                 Pista de clips · {beats.length} beats · anchos fijados por el audio
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 'none' }}>
@@ -635,7 +645,17 @@ export function Timeline() {
                   }}
                   aria-hidden="true"
                 />
-                <span className="mono" style={{ fontSize: 9.5, color: 'var(--fg2)', width: 74, flex: 'none', lineHeight: '16px' }}>
+                <span
+                  className="mono"
+                  style={{
+                    fontSize: 9.5,
+                    color: 'var(--fg2)',
+                    width: 74,
+                    flex: 'none',
+                    lineHeight: '16px',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   voz · locución
                 </span>
               </div>
@@ -652,7 +672,17 @@ export function Timeline() {
                   }}
                   aria-hidden="true"
                 />
-                <span className="mono" style={{ fontSize: 9.5, color: 'var(--fg2)', width: 74, flex: 'none', lineHeight: '10px' }}>
+                <span
+                  className="mono"
+                  style={{
+                    fontSize: 9.5,
+                    color: 'var(--fg2)',
+                    width: 74,
+                    flex: 'none',
+                    lineHeight: '10px',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   subtítulos
                 </span>
               </div>
@@ -702,7 +732,9 @@ export function Timeline() {
 
           {allReady && !canApproveTimeline && video.state !== 'assets' ? (
             <div className="banner">
-              La timeline ya está aprobada. El vídeo sigue su camino hacia el render.
+              {video.state === 'hecho'
+                ? 'La timeline quedó aprobada y el vídeo ya está renderizado; los entregables esperan en la entrega.'
+                : 'La timeline ya está aprobada. El vídeo sigue su camino hacia el render.'}
             </div>
           ) : null}
         </div>

@@ -570,7 +570,9 @@ textarea.control {
   height: var(--row);
   display: flex;
   align-items: center;
-  gap: 18px;
+  /* 12px: la cabecera lleva más elementos que el subbar del mock (multicanal,
+     biblioteca, brand kit, tema y densidad) y debe caber en un portátil */
+  gap: 12px;
 }
 .nav-link {
   font-size: var(--fs-sm);

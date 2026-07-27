@@ -123,6 +123,35 @@ export function Entrega() {
       ),
   });
 
+  // los ENTREGABLES finales del render (description.txt lleva los capítulos
+  // reales en lugar de {timestamps}): lo que se copia es lo que se sube
+  const deliverablesQ = useQuery({
+    queryKey: ['entregables', id],
+    queryFn: async () => {
+      const load = async (file: string) => {
+        const res = await fetch(fileUrl(`/files/outputs/${id}/${file}`));
+        if (!res.ok) throw new Error(`falta ${file}`);
+        return res.text();
+      };
+      const [rawTitle, rawDescription, rawTags] = await Promise.all([
+        load('title.txt'),
+        load('description.txt'),
+        load('tags.txt'),
+      ]);
+      return {
+        title: rawTitle.trim(),
+        description: rawDescription.replace(/\n$/, ''),
+        tags: rawTags
+          .split('\n')
+          .map((t) => t.trim())
+          .filter((t) => t !== '')
+          .join(', '),
+      };
+    },
+    enabled: id !== '' && videoQ.data?.state === 'hecho',
+    retry: false,
+  });
+
   if (videoQ.isPending) {
     return (
       <div className="wrap-1160" style={{ padding: 'calc(var(--pad) * 2) 26px' }}>
@@ -143,9 +172,12 @@ export function Entrega() {
   const outputDir = doneEntry?.output_dir ?? `outputs/${id}`;
   const relativeDir = outputDir.startsWith('/') ? `outputs/${id}` : outputDir;
   const seo = master.seo;
-  const title = video.title_chosen ?? (seo !== undefined ? (seo.titles[seo.chosen_idx ?? 0] ?? '') : '');
-  const description = seo?.description ?? '';
-  const tags = (seo?.tags ?? []).join(', ');
+  const title =
+    deliverablesQ.data?.title ??
+    video.title_chosen ??
+    (seo !== undefined ? (seo.titles[seo.chosen_idx ?? 0] ?? '') : '');
+  const description = deliverablesQ.data?.description ?? seo?.description ?? '';
+  const tags = deliverablesQ.data?.tags ?? (seo?.tags ?? []).join(', ');
   const aiDisclosure = channelQ.data?.profile?.flags.ai_disclosure === true;
 
   const yt = video.youtube;

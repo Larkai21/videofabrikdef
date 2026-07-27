@@ -6,7 +6,66 @@ import { Button, Chip } from '../components/ui';
 import { YoutubeSection } from '../components/YoutubeSection';
 import { getSettings, putProfile, putSettings } from '../lib/api';
 import { useChannel } from '../lib/channel';
+import { useTheme } from '../lib/theme';
 import { useToasts } from '../lib/toasts';
+
+// Tema y densidad (preferencias del navegador, no del canal): en el mock el
+// subbar solo lleva marca, navegación, buscador y coste, así que los
+// conmutadores viven aquí.
+function InterfazCard() {
+  const { tema, densidad, setTema, setDensidad } = useTheme();
+  return (
+    <div className="card" style={{ padding: 'var(--pad)', display: 'grid', gap: 12 }}>
+      <div className="head" style={{ fontSize: 16 }}>
+        Interfaz
+      </div>
+      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 'var(--fs-sm)' }}>
+          <span className="muted">Tema</span>
+          <span className="seg-group" role="group" aria-label="Tema">
+            <button
+              type="button"
+              className="seg-btn"
+              aria-pressed={tema === 'claro'}
+              onClick={() => setTema('claro')}
+            >
+              Claro
+            </button>
+            <button
+              type="button"
+              className="seg-btn"
+              aria-pressed={tema === 'oscuro'}
+              onClick={() => setTema('oscuro')}
+            >
+              Oscuro
+            </button>
+          </span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 'var(--fs-sm)' }}>
+          <span className="muted">Densidad</span>
+          <span className="seg-group" role="group" aria-label="Densidad">
+            <button
+              type="button"
+              className="seg-btn"
+              aria-pressed={densidad === 'comoda'}
+              onClick={() => setDensidad('comoda')}
+            >
+              Cómoda
+            </button>
+            <button
+              type="button"
+              className="seg-btn"
+              aria-pressed={densidad === 'compacta'}
+              onClick={() => setDensidad('compacta')}
+            >
+              Compacta
+            </button>
+          </span>
+        </label>
+      </div>
+    </div>
+  );
+}
 
 // borrador editable de los settings de producción (los campos numéricos se
 // guardan como texto para no pelear con el teclado; se validan al guardar)
@@ -307,6 +366,8 @@ function AjustesCanal({ channel }: { channel: ChannelDto }) {
 
         {/* sección propiedad del módulo de publicación (no tocar aquí) */}
         <YoutubeSection channelId={channel.id} />
+
+        <InterfazCard />
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {/* guardar desde aquí marca el perfil como aprobado en la API:

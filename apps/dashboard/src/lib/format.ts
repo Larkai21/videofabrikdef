@@ -12,6 +12,8 @@ export function fmtClock(ms: number): string {
 
 /** Dólares → «4,80 $» (coma decimal, como el mock). */
 export function fmtMoney(usd: number): string {
+  // los enteros van limpios como en el mock («límite 15 $», no «15,00 $»)
+  if (Number.isInteger(usd)) return `${usd} $`;
   return `${usd.toFixed(2).replace('.', ',')} $`;
 }
 
