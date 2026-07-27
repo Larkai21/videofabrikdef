@@ -1,8 +1,18 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Chip, CostBadge } from '../components/ui';
-import { fileUrl, getChannel, getInbox, getVideo } from '../lib/api';
+import { Button, Chip, CostBadge, ProgressBar } from '../components/ui';
+import { WEEKDAY_LABELS } from '../components/YoutubeSection';
+import {
+  ApiError,
+  fileUrl,
+  getChannel,
+  getInbox,
+  getVideo,
+  getYoutubeStatus,
+  publishToYoutube,
+} from '../lib/api';
+import { useLive } from '../lib/events';
 import { fmtMoney } from '../lib/format';
 import { useToasts } from '../lib/toasts';
 
@@ -52,12 +62,31 @@ function CopyField({ label, value, multiline = false, onCopied }: CopyFieldProps
 // Nombres de fichero según docs/render.md (video.mp4) y convención de miniaturas.
 const THUMB_NAMES = ['thumb_a.jpg', 'thumb_b.jpg'];
 
+/** ISO → «lunes, 3 de agosto, 17:00» en hora local. */
+function fmtInstant(iso: string): string {
+  return new Date(iso).toLocaleString('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export function Entrega() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { push } = useToasts();
 
-  const videoQ = useQuery({ queryKey: ['video', id], queryFn: () => getVideo(id), enabled: id !== '' });
+  const videoQ = useQuery({
+    queryKey: ['video', id],
+    queryFn: () => getVideo(id),
+    enabled: id !== '',
+    // la publicación no toca la máquina de estados (no hay video_state por
+    // SSE al terminar): mientras sube se sondea el detalle del vídeo
+    refetchInterval: (query) =>
+      query.state.data?.youtube?.status === 'subiendo' ? 2_000 : false,
+  });
   const inboxQ = useQuery({ queryKey: ['inbox'], queryFn: getInbox });
 
   const video = videoQ.data;
@@ -69,6 +98,30 @@ export function Entrega() {
   });
 
   const [checked, setChecked] = useState<Record<string, boolean>>({});
+
+  // publicación en YouTube (S3): estado de conexión + aprobación de la subida
+  const queryClient = useQueryClient();
+  const { jobNotes } = useLive();
+  const ytStatusQ = useQuery({
+    queryKey: ['youtube-status', video?.channel_id],
+    queryFn: () => getYoutubeStatus(video?.channel_id as string),
+    enabled: video !== undefined,
+  });
+  const publishMut = useMutation({
+    mutationFn: () => publishToYoutube(id),
+    onSuccess: () => {
+      push('Subida a YouTube encolada');
+      void queryClient.invalidateQueries({ queryKey: ['video', id] });
+      void queryClient.invalidateQueries({ queryKey: ['inbox'] });
+    },
+    onError: (err) =>
+      push(
+        err instanceof ApiError && err.detail !== undefined
+          ? err.detail
+          : 'No se pudo encolar la subida',
+        'danger',
+      ),
+  });
 
   if (videoQ.isPending) {
     return (
@@ -94,6 +147,14 @@ export function Entrega() {
   const description = seo?.description ?? '';
   const tags = (seo?.tags ?? []).join(', ');
   const aiDisclosure = channelQ.data?.profile?.flags.ai_disclosure === true;
+
+  const yt = video.youtube;
+  const ytStatus = ytStatusQ.data;
+  const providerIsYoutube = ytStatus?.provider === 'youtube';
+  const needsConnection = providerIsYoutube && ytStatus !== undefined && !ytStatus.connected;
+  const liveNote = jobNotes[id];
+  const uploadProgress =
+    yt?.status === 'subiendo' && liveNote?.queue === 'publish' ? liveNote.progress : null;
 
   const checklist: { id: string; label: string }[] = [
     { id: 'titulo', label: 'Título pegado en YouTube Studio' },
@@ -187,6 +248,74 @@ export function Entrega() {
         <aside style={{ display: 'grid', gap: 'var(--gap)', position: 'sticky', top: 'calc(var(--row) * 2 + 18px)' }}>
           <div className="card" style={{ padding: 'var(--pad)' }}>
             <div className="head" style={{ fontSize: 16, marginBottom: 10 }}>
+              Publicación
+            </div>
+            {yt?.status === 'subido' ? (
+              <div style={{ display: 'grid', gap: 8 }}>
+                <div>
+                  <Chip kind="ok">Subido a YouTube en privado</Chip>
+                </div>
+                {yt.url !== null ? (
+                  <a href={yt.url} target="_blank" rel="noreferrer" className="fs-sm">
+                    Ver en YouTube →
+                  </a>
+                ) : null}
+                <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.5 }}>
+                  {yt.publish_at !== null
+                    ? `Publicación programada para ${fmtInstant(yt.publish_at)}.`
+                    : 'Queda en privado sin fecha; publícalo desde YouTube Studio.'}
+                </p>
+              </div>
+            ) : yt?.status === 'subiendo' ? (
+              <div style={{ display: 'grid', gap: 8 }}>
+                <ProgressBar value={uploadProgress ?? 6} />
+                <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.5 }}>
+                  Subiendo a YouTube en privado
+                  {liveNote?.queue === 'publish' && liveNote.detail !== undefined
+                    ? ` · ${liveNote.detail.toLowerCase()}`
+                    : ''}
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {yt?.status === 'fallido' ? (
+                  <div className="banner banner-danger fs-sm">
+                    {yt.error ?? 'La subida falló.'}
+                  </div>
+                ) : null}
+                <div>
+                  <Button
+                    variant="primary"
+                    disabled={video.state !== 'hecho' || needsConnection || publishMut.isPending}
+                    onClick={() => publishMut.mutate()}
+                  >
+                    {yt?.status === 'fallido' ? 'Reintentar la subida' : 'Subir a YouTube en privado'}
+                  </Button>
+                </div>
+                {needsConnection ? (
+                  <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.5 }}>
+                    Conecta el canal de YouTube en ajustes para activar la subida.
+                  </p>
+                ) : null}
+                {ytStatus !== undefined && !providerIsYoutube ? (
+                  <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.5 }}>
+                    Proveedor en modo simulado (PUBLISH_PROVIDER=mock): la subida se simula sin
+                    llegar a YouTube.
+                  </p>
+                ) : null}
+                <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.5 }}>
+                  {ytStatus?.publish_schedule
+                    ? `Se programará para el siguiente ${(
+                        WEEKDAY_LABELS[ytStatus.publish_schedule.weekday] ?? ''
+                      ).toLowerCase()} a las ${String(ytStatus.publish_schedule.hour).padStart(2, '0')}:00.`
+                    : 'Sin programación en ajustes: quedará en privado sin fecha.'}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="card" style={{ padding: 'var(--pad)' }}>
+            <div className="head" style={{ fontSize: 16, marginBottom: 10 }}>
               Checklist de subida manual
             </div>
             <div style={{ display: 'grid', gap: 8 }}>
@@ -225,7 +354,8 @@ export function Entrega() {
               {outputDir}
             </div>
             <p className="muted fs-sm" style={{ margin: '10px 0 0', lineHeight: 1.5 }}>
-              El MVP no toca la API de YouTube: la subida es manual y tarda unos dos minutos.
+              La subida manual sigue disponible; la automática en privado va en el bloque de
+              publicación.
             </p>
           </div>
         </aside>
