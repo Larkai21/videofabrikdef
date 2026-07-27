@@ -126,6 +126,16 @@ export const videos = pgTable(
       job?: { queue: string; name: string; data?: Record<string, unknown> };
     }>(),
     titleChosen: text('title_chosen'),
+    // publicación en YouTube (S3): estado aparte de la máquina del pipeline
+    youtube: jsonb('youtube').$type<{
+      status: 'subiendo' | 'subido' | 'fallido';
+      youtube_id: string | null;
+      url: string | null;
+      privacy_status: string | null;
+      publish_at: string | null;
+      uploaded_at: string | null;
+      error: string | null;
+    }>(),
     // maestro progresivo SIN beats: los beats viven en su tabla y se funden al leer
     master: jsonb('master').$type<MasterVideoJson>().notNull(),
     costsTotal: doublePrecision('costs_total').notNull().default(0),

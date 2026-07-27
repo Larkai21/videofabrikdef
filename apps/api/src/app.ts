@@ -21,6 +21,7 @@ import { registerSettingsRoutes } from './routes/settings.js';
 import { registerStockRoutes } from './routes/stock.js';
 import { registerTimelineRoutes } from './routes/timeline.js';
 import { registerVideoRoutes } from './routes/videos.js';
+import { registerYoutubeRoutes } from './routes/youtube.js';
 
 export { toFileUrl } from './lib/files.js';
 
@@ -122,6 +123,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   registerLibraryBrowseRoutes(app, ctx);
   registerSettingsRoutes(app, ctx);
   registerComponentRoutes(app, ctx);
+  registerYoutubeRoutes(app, ctx);
   registerEventRoutes(app, ctx);
 
   app.addHook('onClose', async () => {

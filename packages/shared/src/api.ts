@@ -43,6 +43,18 @@ export const ideaDtoSchema = z.object({
 });
 export type IdeaDto = z.infer<typeof ideaDtoSchema>;
 
+export const youtubePublicationSchema = z.object({
+  // estado de la publicación, SEPARADO de la máquina de estados del vídeo
+  status: z.enum(['subiendo', 'subido', 'fallido']),
+  youtube_id: z.string().nullable(),
+  url: z.string().nullable(),
+  privacy_status: z.string().nullable(),
+  publish_at: z.string().nullable(),
+  uploaded_at: z.string().nullable(),
+  error: z.string().nullable(),
+});
+export type YoutubePublication = z.infer<typeof youtubePublicationSchema>;
+
 export const inboxGateSchema = z.object({
   kind: z.enum(['idea', 'guion', 'timeline', 'entrega']),
   video_id: z.string().nullable(),
@@ -78,6 +90,7 @@ export const inboxDtoSchema = z.object({
       title: z.string(),
       output_dir: z.string(),
       finished_at: z.string(),
+      youtube: youtubePublicationSchema.nullable(),
     }),
   ),
   month_cost_usd: z.number(),
@@ -93,6 +106,7 @@ export const videoDetailDtoSchema = z.object({
   title_chosen: z.string().nullable(),
   master: masterVideoJsonV1,
   costs_total: z.number(),
+  youtube: youtubePublicationSchema.nullable(),
   incident: z
     .object({
       message: z.string(),

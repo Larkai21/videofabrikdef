@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Chip } from '../components/ui';
+import { YoutubeSection } from '../components/YoutubeSection';
 import { getChannels, getSettings, putProfile, putSettings } from '../lib/api';
 import { useToasts } from '../lib/toasts';
 
@@ -283,6 +284,9 @@ export function Ajustes() {
             </>
           )}
         </div>
+
+        {/* sección propiedad del módulo de publicación (no tocar aquí) */}
+        <YoutubeSection channelId={channel.id} />
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {/* guardar desde aquí marca el perfil como aprobado en la API:

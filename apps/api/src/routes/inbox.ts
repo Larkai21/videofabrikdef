@@ -145,6 +145,7 @@ export function registerInboxRoutes(app: FastifyInstance, ctx: ApiContext): void
         title: videoTitle(video),
         output_dir: video.outputDir ?? '',
         finished_at: video.updatedAt.toISOString(),
+        youtube: video.youtube ?? null,
       }));
 
     const monthStart = sql`date_trunc('month', now())`;

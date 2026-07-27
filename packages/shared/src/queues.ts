@@ -10,6 +10,7 @@ export const QUEUES = {
   render: 'render',
   components: 'components',
   library: 'library',
+  publish: 'publish',
 } as const;
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
@@ -24,6 +25,7 @@ export const JOBS = {
   render: { video: 'video' },
   components: { validate: 'validate' },
   library: { backfill: 'backfill', purgeScan: 'purge-scan', reembed: 'reembed' },
+  publish: { upload: 'upload' },
 } as const;
 
 export interface SourcePollJob {
@@ -95,6 +97,12 @@ export interface LibraryPurgeScanJob {
 export interface LibraryReembedJob {
   // opcional: limitar a tablas concretas; por defecto, todas
   tables?: ('raw_items' | 'ideas' | 'assets')[];
+}
+
+// subida a YouTube en privado (SPEC S3): siempre disparada por una aprobación
+// humana desde la bandeja, nunca automática al terminar el render
+export interface PublishUploadJob {
+  videoId: string;
 }
 
 // Progreso y eventos se publican en Redis pub/sub con este canal

@@ -84,6 +84,26 @@ export const channelSettingsSchema = z.object({
     .default({ subtitle_theme: 'subtitulos-basicos@0.1.0' }),
   // música de fondo: pista de library/assets/music por mood a −22 dB (S2)
   background_music: z.boolean().default(false),
+  // programación de publicación (S3): al aprobar la subida, publishAt salta
+  // al siguiente hueco (día de la semana 0=domingo…6, hora local del VPS);
+  // sin regla, el vídeo queda en privado sin fecha
+  publish_schedule: z
+    .object({
+      weekday: z.number().int().min(0).max(6),
+      hour: z.number().int().min(0).max(23),
+    })
+    .nullable()
+    .default(null),
+  // conexión OAuth del canal de YouTube (refresh token del propietario);
+  // instalación monousuario en VPS propio: vive en settings jsonb
+  youtube: z
+    .object({
+      refresh_token: z.string(),
+      channel_title: z.string().optional(),
+      connected_at: z.string(),
+    })
+    .nullable()
+    .default(null),
 });
 
 export type ChannelSettings = z.infer<typeof channelSettingsSchema>;

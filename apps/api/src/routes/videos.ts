@@ -121,6 +121,7 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
       title_chosen: video.titleChosen ?? null,
       master: masterWithFileUrls(master),
       costs_total: video.costsTotal,
+      youtube: video.youtube ?? null,
       incident: video.incident
         ? { message: video.incident.message, suggested_action: video.incident.suggested_action }
         : null,
