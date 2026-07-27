@@ -35,6 +35,8 @@ const PROVIDER_LABELS: Record<BeatCandidate['provider'], string> = {
 };
 
 export function originLabel(candidate: BeatCandidate): string {
+  // misma convención que el worker de assets: Flux no expone su ref interna
+  if (candidate.provider === 'flux') return 'Generado · Flux';
   const colon = candidate.ref.indexOf(':');
   const bare = colon > 0 ? candidate.ref.slice(colon + 1) : candidate.ref;
   return `${PROVIDER_LABELS[candidate.provider]} · ${bare}`;
