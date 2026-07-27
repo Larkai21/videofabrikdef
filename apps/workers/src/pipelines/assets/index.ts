@@ -145,6 +145,8 @@ interface MatchDeps {
   channelId: string;
   styleSuffix: string;
   recentIds: Set<string>;
+  // refs ya elegidas en este vídeo (otros beats): anti-repetición intra-vídeo
+  usedRefs: Set<string>;
 }
 
 // Intercalado por proveedor y tipo: sin esto los finalistas salen por orden
@@ -257,11 +259,11 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
   }
 
   // 3) decisión: solo entran candidatos con fit válido (un clip que no cubre
-  // el beat ni con el máximo de loops tampoco sirve como alternativa)
+  // el beat ni con el máximo de loops tampoco sirve como alternativa). Un
+  // asset ya elegido para OTRO beat del mismo vídeo solo repite como elegido
+  // si no queda alternativa con fit (anti-repetición intra-vídeo).
   pool.sort((a, b) => b.cand.score - a.cand.score);
-  let chosen: PoolEntry | undefined;
-  let chosenFit: Fit | undefined;
-  const rest: PoolEntry[] = [];
+  const fitted: { entry: PoolEntry; fit: Fit }[] = [];
   for (const entry of pool) {
     const fit = computeFit({
       kind: entry.kind,
@@ -275,13 +277,12 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
       );
       continue;
     }
-    if (!chosen) {
-      chosen = entry;
-      chosenFit = fit.fit;
-    } else {
-      rest.push(entry);
-    }
+    fitted.push({ entry, fit: fit.fit });
   }
+  const pick = fitted.find((f) => !deps.usedRefs.has(f.entry.cand.ref)) ?? fitted[0];
+  let chosen: PoolEntry | undefined = pick?.entry;
+  let chosenFit: Fit | undefined = pick?.fit;
+  const rest: PoolEntry[] = fitted.filter((f) => f !== pick).map((f) => f.entry);
 
   let status: 'auto_ok' | 'review';
   let candidates: BeatCandidate[];
@@ -354,7 +355,9 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
       { videoId, beatIdx: beat.idx },
       'Matching descartado: el humano bloqueó el beat durante el proceso',
     );
+    return;
   }
+  deps.usedRefs.add(chosen.cand.ref);
 }
 
 function stockToEntry(finalist: StockResult, score: number): PoolEntry {
@@ -390,18 +393,36 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
   const antiN = channel?.settings?.anti_repeat_n ?? ANTI_REPEAT_N;
   const recentIds = await recentAssetIds(db, video.channelId, videoId, antiN);
 
-  const beatRows = await db
+  const allRows = await db
     .select()
     .from(beatsTable)
-    .where(
-      fullRun
-        ? eq(beatsTable.videoId, videoId)
-        : and(eq(beatsTable.videoId, videoId), inArray(beatsTable.idx, beatIdxs ?? [])),
-    )
+    .where(eq(beatsTable.videoId, videoId))
     .orderBy(asc(beatsTable.idx));
+  const targetIdxs = new Set(beatIdxs ?? []);
+  const beatRows = fullRun ? allRows : allRows.filter((b) => targetIdxs.has(b.idx));
   if (beatRows.length === 0) throw new Error('El vídeo no tiene beats que matchear');
 
-  const deps: MatchDeps = { ctx, videoId, channelId: video.channelId, styleSuffix, recentIds };
+  // anti-repetición intra-vídeo: cuentan como usados los elegidos de los
+  // beats que NO se van a re-matchear (bloqueados siempre; y en un re-match
+  // parcial, también el resto). En un run completo no se siembra con los
+  // elegidos previos: rompería la idempotencia de la re-ejecución.
+  const usedRefs = new Set<string>();
+  for (const row of allRows) {
+    const willRematch = row.status !== 'locked' && (fullRun || targetIdxs.has(row.idx));
+    if (willRematch) continue;
+    if (row.assetId) usedRefs.add(`library:${row.assetId}`);
+    const chosenRef = row.candidates?.[0]?.ref;
+    if (chosenRef) usedRefs.add(chosenRef);
+  }
+
+  const deps: MatchDeps = {
+    ctx,
+    videoId,
+    channelId: video.channelId,
+    styleSuffix,
+    recentIds,
+    usedRefs,
+  };
   for (let i = 0; i < beatRows.length; i++) {
     const beat = beatRows[i];
     if (!beat) continue;

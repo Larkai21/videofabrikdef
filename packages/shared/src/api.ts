@@ -196,6 +196,7 @@ export const libraryAssetDtoSchema = z.object({
   height: z.number().nullable(),
   tags: z.array(z.string()),
   caption: z.string().nullable(),
+  origin_query: z.string().nullable(),
   times_used: z.number(),
   last_video_id: z.string().nullable(),
   purge_candidate: z.boolean(),

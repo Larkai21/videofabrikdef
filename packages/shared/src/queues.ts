@@ -23,7 +23,7 @@ export const JOBS = {
   assets: { match: 'match', ingest: 'ingest' },
   render: { video: 'video' },
   components: { validate: 'validate' },
-  library: { backfill: 'backfill', purgeScan: 'purge-scan' },
+  library: { backfill: 'backfill', purgeScan: 'purge-scan', reembed: 'reembed' },
 } as const;
 
 export interface SourcePollJob {
@@ -44,6 +44,9 @@ export interface ScriptGenerateJob {
   videoId: string;
   // motivo de reescritura si el humano la pidió (regeneración dirigida)
   rewriteReason?: string;
+  // packaging_first: generar SOLO títulos y conceptos de miniatura; el guion
+  // se escribe después para cumplir la promesa del título elegido
+  packagingOnly?: boolean;
 }
 
 export interface ScriptJudgeJob {
@@ -85,6 +88,13 @@ export interface LibraryBackfillJob {
 
 export interface LibraryPurgeScanJob {
   channelId?: string;
+}
+
+// re-embebido completo tras cambiar el modelo de embeddings (invalida TODAS
+// las similitudes; orden fijo raw_items → ideas → assets)
+export interface LibraryReembedJob {
+  // opcional: limitar a tablas concretas; por defecto, todas
+  tables?: ('raw_items' | 'ideas' | 'assets')[];
 }
 
 // Progreso y eventos se publican en Redis pub/sub con este canal

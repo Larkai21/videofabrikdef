@@ -16,6 +16,12 @@ import {
   type VideoDetailDto,
   type WizardRequest,
 } from '@fabrica/shared';
+// import aparte para no tocar el bloque anterior (hay agentes en paralelo)
+import {
+  channelSettingsSchema,
+  type ChannelSettings,
+  type ChannelSettingsUpdate,
+} from '@fabrica/shared';
 
 export const API_URL: string =
   (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3001';
@@ -114,6 +120,23 @@ export async function putProfile(
   await put(`/channels/${id}/profile`, profile);
 }
 
+// settings del canal (presupuesto, duración objetivo, música de fondo…)
+export async function getSettings(id: string): Promise<ChannelSettings> {
+  return channelSettingsSchema.parse(await request(`/channels/${id}/settings`));
+}
+
+export async function putSettings(
+  id: string,
+  patch: ChannelSettingsUpdate,
+): Promise<ChannelSettings> {
+  return channelSettingsSchema.parse(await put(`/channels/${id}/settings`, patch));
+}
+
+// packaging primero: con el título confirmado, encarga la escritura del guion
+export async function writeScript(videoId: string): Promise<void> {
+  await post(`/videos/${videoId}/write-script`);
+}
+
 // ---- ideas ----
 
 export async function getIdeas(status = 'new'): Promise<IdeaDto[]> {
@@ -198,8 +221,65 @@ export async function uploadToLibrary(input: {
 
 // ---- ficheros servidos por la API (/files) ----
 
+// ---- biblioteca etiquetada (S2) ----
+// import local a la sección para no tocar la cabecera del módulo
+import { libraryListDtoSchema, type LibraryListDto } from '@fabrica/shared';
+
+export interface LibraryFilters {
+  kind?: string;
+  q?: string;
+  channel?: string;
+  purge?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+export async function getLibrary(filters: LibraryFilters = {}): Promise<LibraryListDto> {
+  const params = new URLSearchParams();
+  if (filters.kind !== undefined && filters.kind !== '') params.set('kind', filters.kind);
+  if (filters.q !== undefined && filters.q !== '') params.set('q', filters.q);
+  if (filters.channel !== undefined && filters.channel !== '') params.set('channel', filters.channel);
+  if (filters.purge === true) params.set('purge', 'true');
+  if (filters.limit !== undefined) params.set('limit', String(filters.limit));
+  if (filters.offset !== undefined) params.set('offset', String(filters.offset));
+  const qs = params.toString();
+  return libraryListDtoSchema.parse(await request(qs === '' ? '/library' : `/library?${qs}`));
+}
+
+export async function deleteAsset(id: string): Promise<void> {
+  await request(`/library/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function requestBackfill(): Promise<void> {
+  await post('/library/backfill');
+}
+
 export function fileUrl(path: string): string {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
   if (path.startsWith('/')) return `${API_URL}${path}`;
   return `${API_URL}/files/${path}`;
+}
+
+// ---- componentes del brand kit (S2) ----
+// import local a la sección para no tocar la cabecera del módulo
+import { componentDtoSchema, type ComponentDto } from '@fabrica/shared';
+
+export async function getComponents(channelId: string): Promise<ComponentDto[]> {
+  const data = await request(`/components?channel=${encodeURIComponent(channelId)}`);
+  return componentDtoSchema.array().parse(unwrapList(data, 'components'));
+}
+
+export async function uploadComponent(input: { file: File; channelId: string }): Promise<void> {
+  const form = new FormData();
+  form.append('file', input.file);
+  form.append('channel_id', input.channelId);
+  await request('/components', { method: 'POST', body: form });
+}
+
+export async function activateComponent(id: string): Promise<void> {
+  await post(`/components/${encodeURIComponent(id)}/activate`);
+}
+
+export async function deleteComponent(id: string): Promise<void> {
+  await request(`/components/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }

@@ -153,9 +153,13 @@ class OpenAiLlm implements LlmProvider {
 
   async captionImage(imageUrl: string, prompt: string) {
     const client = await this.client();
+    // presupuesto holgado + esfuerzo bajo: en la familia gpt-5 el razonamiento
+    // consume tokens de salida y con 120 el caption volvía siempre vacío
+    const reasoningFamily = /gpt-5|(^|\/)o\d/.test(this.model);
     const response = await client.chat.completions.create({
       model: this.model,
-      max_completion_tokens: 120,
+      max_completion_tokens: 1_000,
+      ...(reasoningFamily ? { reasoning_effort: 'low' as const } : {}),
       messages: [
         {
           role: 'user',
@@ -166,8 +170,17 @@ class OpenAiLlm implements LlmProvider {
         },
       ],
     });
+    const choice = response.choices[0];
+    const caption = choice?.message?.content?.trim() ?? '';
+    if (caption === '') {
+      // el caption es opcional aguas arriba: se avisa y se devuelve vacío
+      this.logger.warn(
+        { finish_reason: choice?.finish_reason, model: this.model },
+        'Caption VLM vacío',
+      );
+    }
     return {
-      caption: response.choices[0]?.message?.content?.trim() ?? '',
+      caption,
       usage: {
         inputTokens: response.usage?.prompt_tokens ?? 0,
         outputTokens: response.usage?.completion_tokens ?? 0,
