@@ -7,9 +7,9 @@ import {
   deleteComponent,
   fileUrl,
   getComponents,
-  getChannels,
   uploadComponent,
 } from '../lib/api';
+import { useChannel } from '../lib/channel';
 import { useLive, type JobNote } from '../lib/events';
 import { useHotkeys } from '../lib/hotkeys';
 import { useToasts } from '../lib/toasts';
@@ -127,23 +127,23 @@ export function Componentes() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
-  const channelsQ = useQuery({ queryKey: ['channels'], queryFn: getChannels });
-  const channel = channelsQ.data?.[0];
-  const channelId = channel?.id;
+  // el canal activo viene del contexto multicanal (antes se asumía channels[0])
+  const { activeChannel: channel, activeChannelId: channelId, isPending: channelsPending } =
+    useChannel();
 
-  // clave bajo el prefijo 'inbox' a propósito: EventsProvider invalida ese
-  // prefijo con el SSE inbox_changed (que el worker publica al terminar la
-  // validación), así la lista se refresca en vivo sin tocar events.tsx
+  // EventsProvider invalida el prefijo ['componentes'] con el SSE inbox_changed
+  // (que el worker publica al terminar la validación) y con job_progress de la
+  // cola components al llegar al 100 %: la lista se refresca en vivo
   const componentsQ = useQuery({
-    queryKey: ['inbox', 'componentes', channelId],
+    queryKey: ['componentes', channelId],
     queryFn: () => getComponents(channelId as string),
-    enabled: channelId !== undefined,
+    enabled: channelId !== null,
   });
 
   const { jobNotes } = useLive();
 
   const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ['inbox', 'componentes'] });
+    queryClient.invalidateQueries({ queryKey: ['componentes'] });
 
   const uploadMut = useMutation({
     mutationFn: (file: File) => uploadComponent({ file, channelId: channelId as string }),
@@ -177,7 +177,7 @@ export function Componentes() {
   });
 
   useHotkeys((e) => {
-    if (e.key === 's' && channelId !== undefined && !uploading) {
+    if (e.key === 's' && channelId !== null && !uploading) {
       e.preventDefault();
       fileRef.current?.click();
     }
@@ -185,7 +185,7 @@ export function Componentes() {
 
   const onFileChosen = (files: FileList | null) => {
     const file = files?.[0];
-    if (file !== undefined && channelId !== undefined) uploadMut.mutate(file);
+    if (file !== undefined && channelId !== null) uploadMut.mutate(file);
     if (fileRef.current !== null) fileRef.current.value = '';
   };
 
@@ -223,7 +223,7 @@ export function Componentes() {
         <Button
           variant="primary"
           kbd="s"
-          disabled={channelId === undefined || uploading}
+          disabled={channelId === null || uploading}
           onClick={() => fileRef.current?.click()}
         >
           {uploading ? 'Subiendo el zip' : 'Subir zip'}
@@ -247,11 +247,11 @@ export function Componentes() {
         </p>
       </div>
 
-      {channelsQ.isPending || componentsQ.isPending ? (
+      {channelsPending || (channelId !== null && componentsQ.isPending) ? (
         <div className="muted fs-sm">Cargando el brand kit</div>
       ) : null}
 
-      {!channelsQ.isPending && channel === undefined ? (
+      {!channelsPending && channel === undefined ? (
         <EmptyState title="Todavía no hay canal">
           Crea el canal con el wizard para poder subir componentes del brand kit.
         </EmptyState>

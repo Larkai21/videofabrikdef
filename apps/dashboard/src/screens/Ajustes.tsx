@@ -1,10 +1,11 @@
-import type { ChannelProfile } from '@fabrica/shared';
+import type { ChannelDto, ChannelProfile } from '@fabrica/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Chip } from '../components/ui';
 import { YoutubeSection } from '../components/YoutubeSection';
-import { getChannels, getSettings, putProfile, putSettings } from '../lib/api';
+import { getSettings, putProfile, putSettings } from '../lib/api';
+import { useChannel } from '../lib/channel';
 import { useToasts } from '../lib/toasts';
 
 // borrador editable de los settings de producción (los campos numéricos se
@@ -37,58 +38,12 @@ function parseProd(draft: ProdDraft): {
 }
 
 export function Ajustes() {
-  const { push } = useToasts();
-  const queryClient = useQueryClient();
+  // el canal activo viene del contexto multicanal (antes se asumía channels[0]);
+  // el formulario interno se re-monta por key al cambiar de canal para que los
+  // borradores locales no se mezclen entre canales
+  const { activeChannel: channel, isPending } = useChannel();
 
-  const channelsQ = useQuery({ queryKey: ['channels'], queryFn: getChannels });
-  const channel = channelsQ.data?.[0];
-
-  const [profile, setProfile] = useState<ChannelProfile | null>(null);
-  useEffect(() => {
-    if (profile === null && channel?.profile != null) setProfile(channel.profile);
-  }, [channel, profile]);
-
-  const settingsQ = useQuery({
-    queryKey: ['settings', channel?.id],
-    queryFn: () => getSettings(channel?.id as string),
-    enabled: channel !== undefined,
-  });
-  const [prod, setProd] = useState<ProdDraft | null>(null);
-  useEffect(() => {
-    if (prod === null && settingsQ.data !== undefined) {
-      setProd({
-        monthly_budget_usd: String(settingsQ.data.monthly_budget_usd),
-        target_minutes: String(settingsQ.data.target_minutes),
-        anti_repeat_n: String(settingsQ.data.anti_repeat_n),
-        background_music: settingsQ.data.background_music,
-      });
-    }
-  }, [settingsQ.data, prod]);
-
-  const saveMut = useMutation({
-    mutationFn: () =>
-      putProfile(channel?.id as string, profile as ChannelProfile, channel?.profile_approved ?? true),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['channels'] });
-      push('Ajustes guardados');
-    },
-    onError: () => push('No se pudieron guardar los ajustes', 'danger'),
-  });
-
-  const prodParsed = prod !== null ? parseProd(prod) : null;
-  const settingsMut = useMutation({
-    mutationFn: () => {
-      if (prodParsed === null) throw new Error('Ajustes de producción inválidos');
-      return putSettings(channel?.id as string, prodParsed);
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['settings', channel?.id] });
-      push('Ajustes de producción guardados');
-    },
-    onError: () => push('No se pudieron guardar los ajustes de producción', 'danger'),
-  });
-
-  if (channelsQ.isPending) {
+  if (isPending) {
     return (
       <div className="wrap-1160" style={{ padding: 'calc(var(--pad) * 2) 26px' }}>
         <div className="muted fs-sm">Cargando los ajustes</div>
@@ -113,6 +68,57 @@ export function Ajustes() {
       </div>
     );
   }
+
+  return <AjustesCanal key={channel.id} channel={channel} />;
+}
+
+function AjustesCanal({ channel }: { channel: ChannelDto }) {
+  const { push } = useToasts();
+  const queryClient = useQueryClient();
+
+  const [profile, setProfile] = useState<ChannelProfile | null>(null);
+  useEffect(() => {
+    if (profile === null && channel.profile != null) setProfile(channel.profile);
+  }, [channel, profile]);
+
+  const settingsQ = useQuery({
+    queryKey: ['settings', channel.id],
+    queryFn: () => getSettings(channel.id),
+  });
+  const [prod, setProd] = useState<ProdDraft | null>(null);
+  useEffect(() => {
+    if (prod === null && settingsQ.data !== undefined) {
+      setProd({
+        monthly_budget_usd: String(settingsQ.data.monthly_budget_usd),
+        target_minutes: String(settingsQ.data.target_minutes),
+        anti_repeat_n: String(settingsQ.data.anti_repeat_n),
+        background_music: settingsQ.data.background_music,
+      });
+    }
+  }, [settingsQ.data, prod]);
+
+  const saveMut = useMutation({
+    mutationFn: () =>
+      putProfile(channel.id, profile as ChannelProfile, channel.profile_approved),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['channels'] });
+      push('Ajustes guardados');
+    },
+    onError: () => push('No se pudieron guardar los ajustes', 'danger'),
+  });
+
+  const prodParsed = prod !== null ? parseProd(prod) : null;
+  const settingsMut = useMutation({
+    mutationFn: () => {
+      if (prodParsed === null) throw new Error('Ajustes de producción inválidos');
+      return putSettings(channel.id, prodParsed);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['settings', channel.id] });
+      push('Ajustes de producción guardados');
+    },
+    onError: () => push('No se pudieron guardar los ajustes de producción', 'danger'),
+  });
 
   if (profile === null) {
     return (

@@ -11,6 +11,7 @@ import {
   type Motivo,
 } from '../components/ui';
 import { ApiError, deleteAsset, fileUrl, getLibrary, requestBackfill } from '../lib/api';
+import { useChannel } from '../lib/channel';
 import { useLive } from '../lib/events';
 import { fmtClock } from '../lib/format';
 import { useDebounced, useHotkeys } from '../lib/hotkeys';
@@ -268,6 +269,7 @@ export function Biblioteca() {
   const { push } = useToasts();
   const queryClient = useQueryClient();
   const { jobNotes } = useLive();
+  const { activeChannelId } = useChannel();
 
   const [kind, setKind] = useState('');
   const [search, setSearch] = useState('');
@@ -280,9 +282,10 @@ export function Biblioteca() {
   const q = useDebounced(search.trim(), 300);
 
   const { data, isPending, isError, refetch } = useQuery({
-    queryKey: ['library', kind, q, purgeOnly, limit],
+    queryKey: ['library', activeChannelId, kind, q, purgeOnly, limit],
     queryFn: () =>
       getLibrary({
+        ...(activeChannelId !== null ? { channel: activeChannelId } : {}),
         ...(kind !== '' ? { kind } : {}),
         ...(q !== '' ? { q } : {}),
         ...(purgeOnly ? { purge: true } : {}),

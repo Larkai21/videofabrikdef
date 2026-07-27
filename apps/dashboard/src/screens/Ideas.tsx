@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Chip, EmptyState, ReasonModal, type Motivo } from '../components/ui';
-import { approveIdea, discardIdea, getChannels, getIdeas } from '../lib/api';
+import { approveIdea, discardIdea, getIdeasFor } from '../lib/api';
+import { useChannel } from '../lib/channel';
 import { useToasts } from '../lib/toasts';
 
 // Motivos de descarte de ideas, en el estilo del mock (alimentan el scoring).
@@ -20,20 +21,22 @@ export function Ideas() {
   const queryClient = useQueryClient();
   const [discarding, setDiscarding] = useState<IdeaDto | null>(null);
 
+  const { channels, activeChannelId } = useChannel();
+
   const { data: ideas, isPending, isError, refetch } = useQuery({
-    queryKey: ['ideas'],
-    queryFn: () => getIdeas('new'),
+    queryKey: ['ideas', activeChannelId],
+    queryFn: () => getIdeasFor('new', activeChannelId),
   });
 
-  // con packaging_first el flujo tras aprobar cambia: primero título y miniatura
-  const channelsQ = useQuery({ queryKey: ['channels'], queryFn: getChannels });
-  const packagingFirst = channelsQ.data?.[0]?.profile?.flags.packaging_first === true;
-
   const approveMut = useMutation({
-    mutationFn: (id: string) => approveIdea(id),
-    onSuccess: () => {
+    mutationFn: (idea: IdeaDto) => approveIdea(idea.id),
+    onSuccess: (_res, idea) => {
       void queryClient.invalidateQueries({ queryKey: ['ideas'] });
       void queryClient.invalidateQueries({ queryKey: ['inbox'] });
+      // con packaging_first el flujo tras aprobar cambia: primero título y
+      // miniatura; el flag se lee del canal de la idea, no del canal activo
+      const packagingFirst =
+        channels?.find((c) => c.id === idea.channel_id)?.profile?.flags.packaging_first === true;
       push(
         packagingFirst
           ? 'Idea aprobada · elige título y miniatura en la puerta 2'
@@ -143,7 +146,7 @@ export function Ideas() {
                 <Button
                   variant="primary"
                   disabled={approveMut.isPending}
-                  onClick={() => approveMut.mutate(idea.id)}
+                  onClick={() => approveMut.mutate(idea)}
                 >
                   Aprobar y escribir el guion
                 </Button>

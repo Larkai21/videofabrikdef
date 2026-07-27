@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { channels, ideas, videos } from '@fabrica/db';
@@ -37,12 +37,21 @@ const discardBodySchema = z.object({ reason: z.string().optional() }).optional()
 
 export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void {
   app.get('/ideas', async (req) => {
-    const raw = (req.query as { status?: string }).status ?? 'new';
-    const status = ideaStatusSchema.parse(raw);
+    // multicanal (SPEC §14 S3): ?channel= filtra el ranking por canal;
+    // sin el parámetro se devuelve todo (lo usa el MCP)
+    const query = req.query as { status?: string; channel?: string };
+    const status = ideaStatusSchema.parse(query.status ?? 'new');
+    const channel = typeof query.channel === 'string' && query.channel.trim() !== ''
+      ? query.channel.trim()
+      : undefined;
     const rows = await ctx.db
       .select()
       .from(ideas)
-      .where(eq(ideas.status, status))
+      .where(
+        channel !== undefined
+          ? and(eq(ideas.status, status), eq(ideas.channelId, channel))
+          : eq(ideas.status, status),
+      )
       .orderBy(desc(ideas.score));
     return rows.map(ideaDto);
   });
@@ -64,7 +73,7 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
       // el vídeo nace con la selección de brand kit del canal; el tema de
       // subtítulos integrado garantiza que el maestro siempre sea renderizable
       const [channel] = await tx
-        .select({ settings: channels.settings, profile: channels.profile })
+        .select({ settings: channels.settings, profile: channels.profile, name: channels.name })
         .from(channels)
         .where(eq(channels.id, idea.channelId));
       const settings = channelSettingsSchema.parse(channel?.settings ?? {});
@@ -79,6 +88,8 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
           height: 1080,
         },
         brand: {
+          // el render no lee BD: el nombre visible viaja congelado en el maestro
+          channel_name: channel?.profile?.identity.name ?? channel?.name ?? '',
           components: { ...defaultBrand().components, ...settings.brand_components },
         },
       });

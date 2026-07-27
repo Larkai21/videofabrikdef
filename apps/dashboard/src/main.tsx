@@ -3,6 +3,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
+import { ChannelProvider } from './lib/channel';
 import { EventsProvider } from './lib/events';
 import { SearchProvider } from './lib/search';
 import { ThemeProvider } from './lib/theme';
@@ -28,11 +29,13 @@ createRoot(container).render(
       <ThemeProvider>
         <ToastProvider>
           <EventsProvider>
-            <BrowserRouter>
-              <SearchProvider>
-                <App />
-              </SearchProvider>
-            </BrowserRouter>
+            <ChannelProvider>
+              <BrowserRouter>
+                <SearchProvider>
+                  <App />
+                </SearchProvider>
+              </BrowserRouter>
+            </ChannelProvider>
           </EventsProvider>
         </ToastProvider>
       </ThemeProvider>

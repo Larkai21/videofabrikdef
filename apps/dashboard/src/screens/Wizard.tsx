@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Chip } from '../components/ui';
 import { getChannel, getChannels, postWizard, putProfile } from '../lib/api';
+import { useChannel } from '../lib/channel';
 import { useToasts } from '../lib/toasts';
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -42,6 +43,7 @@ export function Wizard() {
   const navigate = useNavigate();
   const { push } = useToasts();
   const queryClient = useQueryClient();
+  const { setActiveChannel } = useChannel();
 
   // Formulario inicial
   const [niche, setNiche] = useState('');
@@ -88,6 +90,9 @@ export function Wizard() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['channels'] });
       void queryClient.invalidateQueries({ queryKey: ['channel', channelId] });
+      // el canal recién aprobado pasa a ser el activo: la bandeja que se abre
+      // a continuación es la suya (vacía hasta que el ranking traiga ideas)
+      if (channelId !== null) setActiveChannel(channelId);
       push('Perfil aprobado · la ideación está en marcha');
       void navigate('/');
     },

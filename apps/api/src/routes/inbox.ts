@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import { beats, channels, costLedger, ideas, videos } from '@fabrica/db';
 import {
   channelSettingsSchema,
@@ -8,6 +9,12 @@ import {
 } from '@fabrica/shared';
 import type { ApiContext } from '../lib/context.js';
 import { videoTitle } from '../lib/master.js';
+
+// multicanal (SPEC §14 S3): ?channel= filtra puertas, en curso, hechos y costes
+// por canal; sin el parámetro se devuelve todo (lo usan el MCP y los agregados)
+const inboxQuerySchema = z.object({
+  channel: z.string().trim().min(1).optional(),
+});
 
 type Gate = InboxDto['gates'][number];
 type Running = InboxDto['running'][number];
@@ -30,11 +37,26 @@ const RUNNING_DETAILS: Partial<Record<VideoState, string>> = {
 };
 
 export function registerInboxRoutes(app: FastifyInstance, ctx: ApiContext): void {
-  app.get('/inbox', async (): Promise<InboxDto> => {
+  app.get('/inbox', async (req): Promise<InboxDto> => {
+    const { channel } = inboxQuerySchema.parse(req.query ?? {});
+
     const [videoRows, newIdeas, channelRows] = await Promise.all([
-      ctx.db.select().from(videos),
-      ctx.db.select().from(ideas).where(eq(ideas.status, 'new')).orderBy(desc(ideas.score)),
-      ctx.db.select().from(channels).limit(1),
+      ctx.db
+        .select()
+        .from(videos)
+        .where(channel !== undefined ? eq(videos.channelId, channel) : undefined),
+      ctx.db
+        .select()
+        .from(ideas)
+        .where(
+          channel !== undefined
+            ? and(eq(ideas.status, 'new'), eq(ideas.channelId, channel))
+            : eq(ideas.status, 'new'),
+        )
+        .orderBy(desc(ideas.score)),
+      channel !== undefined
+        ? ctx.db.select().from(channels).where(eq(channels.id, channel)).limit(1)
+        : ctx.db.select().from(channels).limit(1),
     ]);
 
     const gates: Gate[] = [];
@@ -153,11 +175,21 @@ export function registerInboxRoutes(app: FastifyInstance, ctx: ApiContext): void
       ctx.db
         .select({ total: sql<string>`coalesce(sum(${costLedger.cost}), 0)` })
         .from(costLedger)
-        .where(gte(costLedger.createdAt, monthStart)),
+        .where(
+          channel !== undefined
+            ? and(gte(costLedger.createdAt, monthStart), eq(costLedger.channelId, channel))
+            : gte(costLedger.createdAt, monthStart),
+        ),
       ctx.db
         .select({ n: sql<string>`count(*)` })
         .from(videos)
-        .where(and(eq(videos.state, 'hecho'), gte(videos.updatedAt, monthStart))),
+        .where(
+          and(
+            eq(videos.state, 'hecho'),
+            gte(videos.updatedAt, monthStart),
+            ...(channel !== undefined ? [eq(videos.channelId, channel)] : []),
+          ),
+        ),
     ]);
 
     const settings = channelSettingsSchema.parse(channelRows[0]?.settings ?? {});

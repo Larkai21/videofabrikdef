@@ -283,3 +283,101 @@ export async function activateComponent(id: string): Promise<void> {
 export async function deleteComponent(id: string): Promise<void> {
   await request(`/components/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
+
+// ---- publicación en YouTube (S3) ----
+// El estado de la publicación de un vídeo llega dentro de videoDetailDtoSchema
+// (campo youtube, esquema de shared). Los endpoints de conexión OAuth aún no
+// tienen esquema en @fabrica/shared y el dashboard no depende de zod: se
+// valida a mano hasta que el dueño de shared publique youtubeStatusDtoSchema.
+
+export interface PublishScheduleDto {
+  weekday: number; // 0=domingo … 6=sábado
+  hour: number; // 0–23, hora local del servidor
+}
+
+export interface YoutubeStatusDto {
+  connected: boolean;
+  channel_title?: string;
+  connected_at?: string;
+  oauth_configured: boolean;
+  provider: string;
+  publish_schedule: PublishScheduleDto | null;
+}
+
+function parsePublishSchedule(value: unknown): PublishScheduleDto | null {
+  if (value === null || value === undefined) return null;
+  const raw = value as { weekday?: unknown; hour?: unknown };
+  if (typeof raw.weekday !== 'number' || typeof raw.hour !== 'number') return null;
+  return { weekday: raw.weekday, hour: raw.hour };
+}
+
+export async function getYoutubeStatus(channelId: string): Promise<YoutubeStatusDto> {
+  const data = await request(`/youtube/status?channel=${encodeURIComponent(channelId)}`);
+  const raw = (data ?? {}) as Record<string, unknown>;
+  if (typeof raw.connected !== 'boolean' || typeof raw.oauth_configured !== 'boolean') {
+    throw new ApiError(500, 'Respuesta inesperada de /youtube/status');
+  }
+  return {
+    connected: raw.connected,
+    ...(typeof raw.channel_title === 'string' ? { channel_title: raw.channel_title } : {}),
+    ...(typeof raw.connected_at === 'string' ? { connected_at: raw.connected_at } : {}),
+    oauth_configured: raw.oauth_configured,
+    provider: typeof raw.provider === 'string' ? raw.provider : 'mock',
+    publish_schedule: parsePublishSchedule(raw.publish_schedule),
+  };
+}
+
+export async function getYoutubeAuthUrl(channelId: string): Promise<string> {
+  const data = await request(`/youtube/auth-url?channel=${encodeURIComponent(channelId)}`);
+  const url = (data as { url?: unknown } | null)?.url;
+  if (typeof url !== 'string') {
+    throw new ApiError(500, 'La respuesta de /youtube/auth-url no incluye la URL');
+  }
+  return url;
+}
+
+export async function disconnectYoutube(channelId: string): Promise<void> {
+  await request(`/youtube/connection?channel=${encodeURIComponent(channelId)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function putPublishSchedule(
+  channelId: string,
+  schedule: PublishScheduleDto | null,
+): Promise<void> {
+  await put('/youtube/schedule', { channel: channelId, schedule });
+}
+
+export async function publishToYoutube(videoId: string): Promise<{ publish_at: string | null }> {
+  const data = await post(`/videos/${videoId}/publish`);
+  const publishAt = (data as { publish_at?: unknown } | null)?.publish_at;
+  return { publish_at: typeof publishAt === 'string' ? publishAt : null };
+}
+
+// ---- multicanal ----
+// Variantes con canal de getInbox/getIdeas: las firmas originales quedan
+// intactas (Entrega.tsx pasa getInbox como queryFn directa). Aceptan null
+// (canal activo aún sin resolver) y con él devuelven el agregado completo.
+// El resto de endpoints ya aceptaban canal: getLibrary vía
+// LibraryFilters.channel, getComponents/getSettings por id explícito.
+
+export async function getInboxFor(channel?: string | null): Promise<InboxDto> {
+  const qs =
+    channel !== undefined && channel !== null && channel !== ''
+      ? `?channel=${encodeURIComponent(channel)}`
+      : '';
+  return inboxDtoSchema.parse(await request(`/inbox${qs}`));
+}
+
+export async function getIdeasFor(
+  status = 'new',
+  channel?: string | null,
+): Promise<IdeaDto[]> {
+  const params = new URLSearchParams({ status });
+  if (channel !== undefined && channel !== null && channel !== '') {
+    params.set('channel', channel);
+  }
+  const data = await request(`/ideas?${params.toString()}`);
+  return ideaDtoSchema.array().parse(unwrapList(data, 'ideas'));
+}

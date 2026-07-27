@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { getInbox } from '../lib/api';
+import { getInboxFor } from '../lib/api';
+import { useChannel } from '../lib/channel';
 import { fmtMoney } from '../lib/format';
 import { useHotkeys } from '../lib/hotkeys';
 import { useSearch } from '../lib/search';
@@ -24,9 +25,11 @@ export function AppHeader() {
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const { channels, activeChannelId, setActiveChannel } = useChannel();
+
   const { data: inbox } = useQuery({
-    queryKey: ['inbox'],
-    queryFn: getInbox,
+    queryKey: ['inbox', activeChannelId],
+    queryFn: () => getInboxFor(activeChannelId),
     refetchInterval: 30_000,
   });
 
@@ -49,6 +52,26 @@ export function AppHeader() {
         <span className="head" style={{ fontSize: 15 }}>
           Fábrica
         </span>
+        {channels !== undefined && channels.length >= 2 ? (
+          <select
+            className="control"
+            aria-label="Canal activo"
+            value={activeChannelId ?? ''}
+            style={{ width: 'auto', minWidth: 120, fontSize: 'var(--fs-sm)' }}
+            onChange={(e) => {
+              if (e.target.value !== '') setActiveChannel(e.target.value);
+            }}
+          >
+            {channels.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
+        <Link to="/wizard" className="nav-link muted fs-sm" title="Crear un canal nuevo">
+          Nuevo canal
+        </Link>
         <nav style={{ display: 'flex', gap: 14 }} aria-label="Secciones">
           {NAV.map((item) => (
             <Link

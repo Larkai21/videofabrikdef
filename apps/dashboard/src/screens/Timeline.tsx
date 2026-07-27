@@ -71,8 +71,10 @@ function candidateTitle(candidate: BeatCandidate): string {
   return `${candidate.provider} · ${candidate.ref}`;
 }
 
-// posición de reproducción como estado LOCAL: solo re-renderizan estas hojas
-function useCurrentMs(player: PlayerRef | null): number {
+// posición de reproducción como estado LOCAL: solo re-renderizan estas hojas.
+// introFrames descuenta la intro del brand kit: el reloj y la aguja miden la
+// línea temporal del AUDIO (la ley), no la de la composición.
+function useCurrentMs(player: PlayerRef | null, introFrames = 0): number {
   const [frame, setFrame] = useState(0);
   useEffect(() => {
     if (player === null) return;
@@ -80,19 +82,21 @@ function useCurrentMs(player: PlayerRef | null): number {
     player.addEventListener('frameupdate', onFrame);
     return () => player.removeEventListener('frameupdate', onFrame);
   }, [player]);
-  return (frame / FPS) * 1000;
+  return (Math.max(0, frame - introFrames) / FPS) * 1000;
 }
 
 function ClockAndScrub({
   player,
   durationMs,
+  introFrames,
   onSeek,
 }: {
   player: PlayerRef | null;
   durationMs: number;
+  introFrames: number;
   onSeek: (ms: number) => void;
 }) {
-  const currentMs = useCurrentMs(player);
+  const currentMs = useCurrentMs(player, introFrames);
   return (
     <>
       <span className="mono" style={{ fontSize: 12, color: 'rgba(255,255,255,.86)' }}>
@@ -125,8 +129,16 @@ function ClockAndScrub({
   );
 }
 
-function Playhead({ player, durationMs }: { player: PlayerRef | null; durationMs: number }) {
-  const currentMs = useCurrentMs(player);
+function Playhead({
+  player,
+  durationMs,
+  introFrames,
+}: {
+  player: PlayerRef | null;
+  durationMs: number;
+  introFrames: number;
+}) {
+  const currentMs = useCurrentMs(player, introFrames);
   if (durationMs <= 0) return null;
   return (
     <div
@@ -190,10 +202,34 @@ export function Timeline() {
     };
   }, [player]);
 
-  const durationInFrames = Math.max(1, Math.round((durationMs / 1000) * FPS));
+  // layout del brand kit (intro/outro desplazan la línea temporal): se calcula
+  // con el mismo import dinámico que el Player para no arrastrar Remotion al
+  // chunk inicial; sin kit activo equivale al cálculo de siempre
+  const [kitLayout, setKitLayout] = useState<{ totalFrames: number; introFrames: number } | null>(
+    null,
+  );
+  useEffect(() => {
+    if (master === undefined) return;
+    let alive = true;
+    void import('@fabrica/video')
+      .then((mod) => {
+        if (!alive) return;
+        const layout = mod.computeBrandKitLayout(master);
+        setKitLayout({ totalFrames: layout.totalFrames, introFrames: layout.introFrames });
+      })
+      .catch(() => {
+        if (alive) setKitLayout(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [master]);
+  const introFrames = kitLayout?.introFrames ?? 0;
+  const durationInFrames =
+    kitLayout?.totalFrames ?? Math.max(1, Math.round((durationMs / 1000) * FPS));
 
   const seekToMs = (ms: number) => {
-    player?.seekTo(Math.round((ms / 1000) * FPS));
+    player?.seekTo(introFrames + Math.round((ms / 1000) * FPS));
   };
 
   const selectBeat = (idx: number) => {
@@ -514,7 +550,12 @@ export function Timeline() {
               >
                 {playing ? '❚❚' : '▶'}
               </button>
-              <ClockAndScrub player={player} durationMs={durationMs} onSeek={seekToMs} />
+              <ClockAndScrub
+                player={player}
+                durationMs={durationMs}
+                introFrames={introFrames}
+                onSeek={seekToMs}
+              />
               <span className="mono" style={{ fontSize: 10.5, color: 'rgba(255,255,255,.5)' }}>
                 espacio
               </span>
@@ -577,7 +618,7 @@ export function Timeline() {
                     </button>
                   </div>
                 ))}
-                <Playhead player={player} durationMs={durationMs} />
+                <Playhead player={player} durationMs={durationMs} introFrames={introFrames} />
               </div>
 
               <div style={{ display: 'flex', gap: 3, marginTop: 6 }}>

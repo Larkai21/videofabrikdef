@@ -1,7 +1,8 @@
 import type { VideoState } from '@fabrica/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { getInbox } from '../lib/api';
+import { getInboxFor } from '../lib/api';
+import { useChannel } from '../lib/channel';
 import { useLive } from '../lib/events';
 import { fmtMoney } from '../lib/format';
 import { useHotkeys } from '../lib/hotkeys';
@@ -40,10 +41,11 @@ export function Bandeja() {
   const navigate = useNavigate();
   const { search } = useSearch();
   const live = useLive();
+  const { activeChannelId } = useChannel();
 
   const { data: inbox, isPending, isError, refetch } = useQuery({
-    queryKey: ['inbox'],
-    queryFn: getInbox,
+    queryKey: ['inbox', activeChannelId],
+    queryFn: () => getInboxFor(activeChannelId),
     refetchInterval: 30_000,
   });
 
@@ -109,9 +111,18 @@ export function Bandeja() {
       <div style={{ display: 'grid', gap: 'var(--gap)', marginBottom: 'var(--sec-gap)' }}>
         {isPending ? <div className="muted fs-sm">Cargando la bandeja</div> : null}
         {!isPending && gates.length === 0 ? (
-          <EmptyState title="Nada que decidir">
-            La máquina sigue trabajando sola; te avisará aquí cuando haya una puerta que cruzar.
-          </EmptyState>
+          (inbox?.gates.length ?? 0) === 0 &&
+          (inbox?.running.length ?? 0) === 0 &&
+          (inbox?.done.length ?? 0) === 0 ? (
+            <EmptyState title="Canal sin actividad todavía">
+              El ranking de ideas se recalcula solo cuando las fuentes traen material nuevo; la
+              primera puerta aparecerá aquí.
+            </EmptyState>
+          ) : (
+            <EmptyState title="Nada que decidir">
+              La máquina sigue trabajando sola; te avisará aquí cuando haya una puerta que cruzar.
+            </EmptyState>
+          )
         ) : null}
         {gates.map((gate, i) => (
           <button

@@ -69,6 +69,11 @@ export function EventsProvider({ children }: { children: ReactNode }) {
           }));
           if (event.progress >= 100) {
             void queryClient.invalidateQueries({ queryKey: ['inbox'] });
+            // invalidación dedicada del brand kit: al terminar la validación
+            // de un zip la lista de componentes se refresca sola
+            if (event.queue === 'components') {
+              void queryClient.invalidateQueries({ queryKey: ['componentes'] });
+            }
           }
           break;
         }
@@ -90,6 +95,9 @@ export function EventsProvider({ children }: { children: ReactNode }) {
         }
         case 'inbox_changed': {
           void queryClient.invalidateQueries({ queryKey: ['inbox'] });
+          // los workers publican inbox_changed también al validar componentes;
+          // la clave del brand kit ya no cuelga del prefijo 'inbox'
+          void queryClient.invalidateQueries({ queryKey: ['componentes'] });
           break;
         }
       }
