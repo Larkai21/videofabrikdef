@@ -1,9 +1,42 @@
-import type { Worker } from 'bullmq';
+import { Worker } from 'bullmq';
+import {
+  JOBS,
+  QUEUES,
+  type SourcePollJob,
+  type SourcesBootstrapJob,
+} from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
+import { handleBootstrap } from './bootstrap.js';
+import { registerSourcesMocks } from './mocks.js';
+import { handleSourcePoll } from './poll.js';
+import { syncSourceSchedulers } from './scheduler.js';
 
-// TODO(agente sources): polling de fuentes (RSS, HN, arXiv, Google News),
-// normalización a raw_items, dedupe exacto por hash y semántico por embeddings,
-// clustering; modo bootstrap del wizard. Ver docs/scraper.md.
-export async function registerSourcesWorkers(_ctx: WorkerContext): Promise<Worker[]> {
-  return [];
+export async function registerSourcesWorkers(ctx: WorkerContext): Promise<Worker[]> {
+  registerSourcesMocks();
+  try {
+    await syncSourceSchedulers(ctx);
+  } catch (err) {
+    ctx.logger.error({ err }, 'No se pudieron sincronizar los schedulers de fuentes');
+  }
+
+  const worker = new Worker(
+    QUEUES.sources,
+    async (job) => {
+      if (job.name === JOBS.sources.poll) {
+        return handleSourcePoll(ctx, job.data as SourcePollJob);
+      }
+      if (job.name === JOBS.sources.bootstrap) {
+        return handleBootstrap(ctx, job.data as SourcesBootstrapJob);
+      }
+      ctx.logger.warn({ name: job.name }, 'Job desconocido en la cola sources');
+    },
+    { connection: ctx.connection, concurrency: 2 },
+  );
+
+  // sin vídeo asociado no hay incidencia: los fallos de fuentes solo se loguean
+  worker.on('failed', (job, err) => {
+    ctx.logger.error({ jobId: job?.id, name: job?.name, err }, 'Fallo en job de sources');
+  });
+
+  return [worker];
 }

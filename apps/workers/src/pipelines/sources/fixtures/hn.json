@@ -1,0 +1,32 @@
+{
+  "hits": [
+    {
+      "objectID": "41000001",
+      "title": "Show HN: An incremental compiler for data pipelines",
+      "url": "https://Example.com/blog/compiler/?utm_source=hn&utm_medium=social&id=5#top",
+      "points": 321,
+      "num_comments": 120,
+      "created_at": "2026-07-20T10:00:00Z",
+      "story_text": null
+    },
+    {
+      "objectID": "41000002",
+      "title": "Ask HN: How do you test LLM pipelines?",
+      "url": null,
+      "points": 87,
+      "num_comments": 45,
+      "created_at": "2026-07-21T08:30:00Z",
+      "story_text": "<p>Testing is <b>hard</b> when outputs are stochastic.</p>"
+    },
+    {
+      "objectID": "41000003",
+      "title": null,
+      "url": "https://example.com/no-title",
+      "points": 10,
+      "num_comments": 1,
+      "created_at": "2026-07-21T09:00:00Z",
+      "story_text": null
+    }
+  ],
+  "nbHits": 3
+}

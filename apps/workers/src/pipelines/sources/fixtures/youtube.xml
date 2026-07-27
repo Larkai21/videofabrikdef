@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
+  <link rel="self" href="http://www.youtube.com/feeds/videos.xml?channel_id=UCtestchannel00001"/>
+  <id>yt:channel:UCtestchannel00001</id>
+  <yt:channelId>UCtestchannel00001</yt:channelId>
+  <title>Canal Ejemplo</title>
+  <author>
+    <name>Canal Ejemplo</name>
+    <uri>https://www.youtube.com/channel/UCtestchannel00001</uri>
+  </author>
+  <published>2020-01-01T00:00:00+00:00</published>
+  <entry>
+    <id>yt:video:abc123DEF45</id>
+    <yt:videoId>abc123DEF45</yt:videoId>
+    <yt:channelId>UCtestchannel00001</yt:channelId>
+    <title>La GPU que lo cambió todo</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=abc123DEF45"/>
+    <author>
+      <name>Canal Ejemplo</name>
+    </author>
+    <published>2026-07-19T12:00:00+00:00</published>
+    <updated>2026-07-20T09:00:00+00:00</updated>
+    <media:group>
+      <media:title>La GPU que lo cambió todo</media:title>
+      <media:content url="https://www.youtube.com/v/abc123DEF45?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+      <media:thumbnail url="https://i2.ytimg.com/vi/abc123DEF45/hqdefault.jpg" width="480" height="360"/>
+      <media:description>Análisis de la nueva GPU y de lo que significa para el entrenamiento de modelos.</media:description>
+      <media:community>
+        <media:starRating count="1200" average="5.00" min="1" max="5"/>
+        <media:statistics views="45210"/>
+      </media:community>
+    </media:group>
+  </entry>
+  <entry>
+    <id>yt:video:xyz987QRS21</id>
+    <yt:videoId>xyz987QRS21</yt:videoId>
+    <yt:channelId>UCtestchannel00001</yt:channelId>
+    <title>Probamos el agente que programa solo</title>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=xyz987QRS21"/>
+    <author>
+      <name>Canal Ejemplo</name>
+    </author>
+    <published>2026-07-22T15:30:00+00:00</published>
+    <updated>2026-07-23T10:00:00+00:00</updated>
+    <media:group>
+      <media:title>Probamos el agente que programa solo</media:title>
+      <media:description>Una semana usando el agente en un proyecto real.</media:description>
+      <media:community>
+        <media:starRating count="98" average="4.90" min="1" max="5"/>
+        <media:statistics views="999"/>
+      </media:community>
+    </media:group>
+  </entry>
+</feed>
