@@ -1,0 +1,7 @@
+# Componentes del brand kit copiados por el validador desde library/.
+# Regenerables con scripts/generate-registry.ts: no van al repo, salvo el
+# componente de ejemplo (mantiene compilable un clon nuevo).
+*
+!.gitignore
+!rotulo-ejemplo@1.0.0
+!rotulo-ejemplo@1.0.0/**

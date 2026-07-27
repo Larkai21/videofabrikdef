@@ -6,7 +6,10 @@ import tseslint from 'typescript-eslint';
 // deriva de hashSeed(video_id, beat_idx). scripts/ queda fuera (tooling).
 export default tseslint.config(
   {
-    ignores: ['out/**', 'public/**', 'node_modules/**', 'scripts/**'],
+    // src/kit/** son copias regenerables de componentes subidos por zip: el
+    // estilo de terceros no debe romper el lint del paquete. TODO(S3): que el
+    // validador ejecute las reglas de determinismo sobre el zip.
+    ignores: ['out/**', 'public/**', 'node_modules/**', 'scripts/**', 'src/kit/**'],
   },
   ...tseslint.configs.recommended,
   {
