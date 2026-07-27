@@ -1,0 +1,188 @@
+import { eq, and } from 'drizzle-orm';
+import { nanoid } from 'nanoid';
+import { stockCache, type Db } from '@fabrica/db';
+import { STOCK_CACHE_TTL_H, type BeatCandidate } from '@fabrica/shared';
+import { closeCost, failCost, openCost } from './ledger.js';
+
+// Cliente de stock de la API (búsqueda libre desde la timeline). Los workers
+// tienen su propio cliente: duplicación asumida en S1 (docs/contratos.md §4).
+// Caché obligatoria en stock_cache con TTL 24 h y query normalizada.
+
+const TTL_MS = STOCK_CACHE_TTL_H * 3_600_000;
+const FETCH_TIMEOUT_MS = 10_000;
+
+export function normalizeQuery(q: string): string {
+  return q.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+interface PexelsVideoFile {
+  link?: string;
+  file_type?: string;
+  width?: number;
+  height?: number;
+}
+
+interface PexelsVideo {
+  id?: number;
+  image?: string;
+  duration?: number;
+  video_files?: PexelsVideoFile[];
+}
+
+function mapPexels(payload: unknown): BeatCandidate[] {
+  const videos = (payload as { videos?: PexelsVideo[] }).videos ?? [];
+  const out: BeatCandidate[] = [];
+  for (const video of videos) {
+    if (video.id == null) continue;
+    const files = (video.video_files ?? []).filter(
+      (f) => typeof f.link === 'string' && (f.file_type ?? '').includes('mp4'),
+    );
+    // el archivo más grande que no pase de 1920 de ancho; si no hay, el menor
+    files.sort((a, b) => (b.width ?? 0) - (a.width ?? 0));
+    const file = files.find((f) => (f.width ?? 0) <= 1920) ?? files[files.length - 1];
+    if (!file?.link) continue;
+    out.push({
+      ref: `pexels:${video.id}`,
+      provider: 'pexels',
+      // la búsqueda libre no pasa por embeddings: score neutro, decide el humano
+      score: 0,
+      ...(video.image ? { thumb_url: video.image } : {}),
+      meta: {
+        download_url: file.link,
+        kind: 'clip',
+        width: file.width ?? null,
+        height: file.height ?? null,
+        duration_ms: Math.round((video.duration ?? 0) * 1000),
+      },
+    });
+  }
+  return out;
+}
+
+interface PixabayVideoVariant {
+  url?: string;
+  width?: number;
+  height?: number;
+  thumbnail?: string;
+}
+
+interface PixabayHit {
+  id?: number;
+  duration?: number;
+  videos?: {
+    large?: PixabayVideoVariant;
+    medium?: PixabayVideoVariant;
+    small?: PixabayVideoVariant;
+    tiny?: PixabayVideoVariant;
+  };
+}
+
+function mapPixabay(payload: unknown): BeatCandidate[] {
+  const hits = (payload as { hits?: PixabayHit[] }).hits ?? [];
+  const out: BeatCandidate[] = [];
+  for (const hit of hits) {
+    if (hit.id == null) continue;
+    const variant = hit.videos?.large ?? hit.videos?.medium ?? hit.videos?.small;
+    if (!variant?.url) continue;
+    const thumb = variant.thumbnail ?? hit.videos?.tiny?.thumbnail;
+    out.push({
+      ref: `pixabay:${hit.id}`,
+      provider: 'pixabay',
+      score: 0,
+      ...(thumb ? { thumb_url: thumb } : {}),
+      meta: {
+        download_url: variant.url,
+        kind: 'clip',
+        width: variant.width ?? null,
+        height: variant.height ?? null,
+        duration_ms: Math.round((hit.duration ?? 0) * 1000),
+      },
+    });
+  }
+  return out;
+}
+
+async function cachedSearch(
+  db: Db,
+  provider: 'pexels' | 'pixabay',
+  queryNorm: string,
+  fetcher: () => Promise<BeatCandidate[]>,
+): Promise<BeatCandidate[]> {
+  const [cached] = await db
+    .select()
+    .from(stockCache)
+    .where(and(eq(stockCache.queryNorm, queryNorm), eq(stockCache.provider, provider)))
+    .limit(1);
+  if (cached && Date.now() - cached.fetchedAt.getTime() < TTL_MS) {
+    return cached.results as BeatCandidate[];
+  }
+
+  const handle = await openCost(db, { provider, operation: 'search', meta: { query: queryNorm } });
+  let results: BeatCandidate[];
+  try {
+    results = await fetcher();
+    await closeCost(db, handle, { units: 1, unitCost: 0 });
+  } catch (error) {
+    await failCost(db, handle, error instanceof Error ? error.message : String(error));
+    return cached ? (cached.results as BeatCandidate[]) : [];
+  }
+
+  await db
+    .insert(stockCache)
+    .values({ id: nanoid(), queryNorm, provider, results, fetchedAt: new Date() })
+    .onConflictDoUpdate({
+      target: [stockCache.queryNorm, stockCache.provider],
+      set: { results, fetchedAt: new Date() },
+    });
+  return results;
+}
+
+export async function searchStock(db: Db, query: string): Promise<BeatCandidate[]> {
+  const queryNorm = normalizeQuery(query);
+  const pexelsKey = process.env.PEXELS_API_KEY;
+  const pixabayKey = process.env.PIXABAY_API_KEY;
+
+  const tasks: Promise<BeatCandidate[]>[] = [];
+
+  if (pexelsKey) {
+    tasks.push(
+      cachedSearch(db, 'pexels', queryNorm, async () => {
+        const params = new URLSearchParams({
+          query: queryNorm,
+          orientation: 'landscape',
+          size: 'medium',
+          per_page: '15',
+        });
+        const res = await fetch(`https://api.pexels.com/videos/search?${params}`, {
+          headers: { Authorization: pexelsKey },
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        });
+        if (!res.ok) throw new Error(`Pexels respondió ${res.status}`);
+        return mapPexels(await res.json());
+      }),
+    );
+  }
+
+  if (pixabayKey) {
+    tasks.push(
+      cachedSearch(db, 'pixabay', queryNorm, async () => {
+        const params = new URLSearchParams({
+          key: pixabayKey,
+          q: queryNorm,
+          per_page: '15',
+          safesearch: 'true',
+        });
+        const res = await fetch(`https://pixabay.com/api/videos/?${params}`, {
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        });
+        if (!res.ok) throw new Error(`Pixabay respondió ${res.status}`);
+        return mapPixabay(await res.json());
+      }),
+    );
+  }
+
+  // sin claves configuradas la búsqueda devuelve vacío (modo mock)
+  if (!tasks.length) return [];
+  const settled = await Promise.all(tasks);
+  return settled.flat();
+}
