@@ -75,6 +75,8 @@ export const channelSettingsSchema = z.object({
     }),
   anti_repeat_n: z.number().int().default(8),
   monthly_budget_usd: z.number().default(15),
+  // duración objetivo de locución en minutos (SPEC: 6–9; corto para pruebas)
+  target_minutes: z.number().default(7),
 });
 
 export type ChannelSettings = z.infer<typeof channelSettingsSchema>;

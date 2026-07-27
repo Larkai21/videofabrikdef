@@ -22,6 +22,7 @@ export const COST_OPERATIONS = [
   'refine',
   'research',
   'idea_writeup',
+  'profile_synthesis',
   'vlm_caption',
   'tts',
   'search',
