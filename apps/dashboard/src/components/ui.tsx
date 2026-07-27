@@ -1,5 +1,5 @@
 import { clsx } from 'clsx';
-import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 
 // Primitivos del bloque «Base estructural común» del explorador de direcciones.
 // Todo se pinta con las variables CSS de los tokens.
@@ -93,6 +93,7 @@ export function ReasonModal({
   onClose,
 }: ReasonModalProps) {
   const [selected, setSelected] = useState<string>(motivos[0]?.id ?? '');
+  const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) setSelected(motivos[0]?.id ?? '');
@@ -100,13 +101,38 @@ export function ReasonModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // foco inicial dentro del modal y trampa de Tab: el foco no sale del diálogo
   useEffect(() => {
     if (!open) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const focusables = () =>
+      Array.from(
+        boxRef.current?.querySelectorAll<HTMLElement>('button, [href], input, [tabindex]') ?? [],
+      );
+    focusables()[0]?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const items = focusables();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!first || !last) return;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      previous?.focus();
+    };
   }, [open, onClose]);
 
   if (!open) return null;

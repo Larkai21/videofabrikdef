@@ -92,6 +92,7 @@ export function Guion() {
     video?.state === 'guion_borrador' && chosenIdx !== null && !approveMut.isPending;
 
   useHotkeys((e) => {
+    if (rewriteOpen) return;
     const k = e.key.toLowerCase();
     if (k === 'a' && canApprove) {
       e.preventDefault();
@@ -101,7 +102,11 @@ export function Guion() {
       setRewriteOpen(true);
     } else if (['1', '2', '3'].includes(k) && seo !== undefined) {
       e.preventDefault();
-      titleMut.mutate(Number(k) - 1);
+      // solo en borrador y solo si ese título existe
+      const idx = Number(k) - 1;
+      if (video?.state === 'guion_borrador' && idx < seo.titles.length) {
+        titleMut.mutate(idx);
+      }
     }
   });
 

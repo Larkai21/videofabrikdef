@@ -73,8 +73,11 @@ async function ensureBundle(ctx: WorkerContext): Promise<string> {
   const pkgDir = videoPackageDir();
   const hash = createHash('sha1');
   await hashTree(hash, path.join(pkgDir, 'src'), 'src');
-  const fontsDir = path.join(pkgDir, 'public', 'fonts');
-  if (fs.existsSync(fontsDir)) await hashTree(hash, fontsDir, 'public/fonts');
+  // la composición importa @fabrica/shared: un cambio ahí también invalida
+  const sharedDir = path.dirname(require.resolve('@fabrica/shared'));
+  await hashTree(hash, sharedDir, 'shared/src');
+  const publicDir = path.join(pkgDir, 'public');
+  if (fs.existsSync(publicDir)) await hashTree(hash, publicDir, 'public');
   hash.update(await fsp.readFile(path.join(pkgDir, 'package.json')));
   const key = hash.digest('hex').slice(0, 16);
 
@@ -149,6 +152,10 @@ async function handleRenderVideo(ctx: WorkerContext, job: Job<RenderVideoJob>): 
   if (video.state === 'timeline_ok') {
     await transitionVideo(ctx.db, videoId, 'render', { expectFrom: 'timeline_ok' });
     await ctx.publishEvent({ type: 'video_state', video_id: videoId, state: 'render' });
+  } else if (video.state === 'hecho') {
+    // job duplicado tras una re-ejecución de la ingesta: no hay nada que hacer
+    log.info('El vídeo ya está en hecho; render duplicado ignorado');
+    return;
   } else if (video.state !== 'render') {
     // reanudación idempotente: solo se acepta el estado de la propia fase
     throw new Error(`Estado inesperado para renderizar: ${video.state}`);
@@ -246,23 +253,29 @@ async function handleRenderVideo(ctx: WorkerContext, job: Job<RenderVideoJob>): 
   } catch (err) {
     const message = `Fallo en el render: ${errorMessage(err)}`;
     log.error({ err }, message);
-    // attemptsMade ya incluye el intento en curso; la incidencia solo se
-    // marca cuando BullMQ agota los reintentos con backoff
-    const isLastAttempt = job.attemptsMade >= (job.opts.attempts ?? 1);
+    // dentro del procesador attemptsMade cuenta los intentos ANTERIORES
+    // (BullMQ lo incrementa al mover el job a failed/retry), de ahí el +1;
+    // la incidencia solo se marca cuando se agotan los reintentos con backoff
+    const isLastAttempt = job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
     if (isLastAttempt) {
-      await markIncident(ctx.db, videoId, {
-        message,
-        suggested_action: 'reintentar',
-        queue: QUEUES.render,
-      });
-      await ctx.publishEvent({ type: 'video_state', video_id: videoId, state: 'incidencia' });
-      await ctx.publishEvent({
-        type: 'incident',
-        video_id: videoId,
-        queue: QUEUES.render,
-        message,
-        suggested_action: 'reintentar',
-      });
+      try {
+        await markIncident(ctx.db, videoId, {
+          message,
+          suggested_action: 'reintentar',
+          queue: QUEUES.render,
+        });
+        await ctx.publishEvent({ type: 'video_state', video_id: videoId, state: 'incidencia' });
+        await ctx.publishEvent({
+          type: 'incident',
+          video_id: videoId,
+          queue: QUEUES.render,
+          message,
+          suggested_action: 'reintentar',
+        });
+      } catch (incErr) {
+        // el error original manda; no ocultarlo si la incidencia no se pudo marcar
+        log.error({ err: incErr }, 'No se pudo marcar la incidencia de render');
+      }
     }
     throw err;
   }

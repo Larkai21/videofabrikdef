@@ -61,18 +61,61 @@ export function alignSceneTokens(
   const tokens = sceneText.split(/\s+/).filter(Boolean);
   const out: TimedToken[] = [];
   let j = 0;
+  // estado de un token del guion partido por el TTS en varios boundaries:
+  // se acumulan fragmentos y el token se emite UNA sola vez al completarse
+  let partial = '';
+  let fragFromMs = 0;
+  let fragToMs = 0;
 
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i];
+  const push = (raw: string, from_ms: number, to_ms: number) => {
+    out.push({
+      from_ms,
+      to_ms,
+      raw,
+      sentenceEnd: SENTENCE_END_RE.test(raw),
+      clauseEnd: CLAUSE_END_RE.test(raw),
+      sceneIdx,
+    });
+  };
+
+  for (const word of words) {
     if (!word) continue;
     const nw = norm(word.text);
-    let raw = word.text;
+    const wFrom = offsetMs + word.offset_ms;
+    const wTo = wFrom + word.duration_ms;
+    let handled = false;
 
-    if (j < tokens.length) {
-      const nt = norm(tokens[j] ?? '');
-      if (nt === nw || nt.includes(nw) || nw.includes(nt)) {
-        raw = tokens[j] ?? raw;
-        // el TTS puede unir varios tokens en una palabra: consumir mientras quepan
+    while (!handled) {
+      if (j >= tokens.length) {
+        push(word.text, wFrom, wTo);
+        handled = true;
+        break;
+      }
+      const token = tokens[j] ?? '';
+      const nt = norm(token);
+      const candidate = partial + nw;
+
+      if (nt === candidate) {
+        // token completo (con o sin fragmentos previos)
+        push(token, partial ? fragFromMs : wFrom, wTo);
+        j++;
+        partial = '';
+        handled = true;
+      } else if (nt.startsWith(candidate)) {
+        // fragmento intermedio: acumular sin emitir todavía
+        if (!partial) fragFromMs = wFrom;
+        fragToMs = wTo;
+        partial = candidate;
+        handled = true;
+      } else if (partial) {
+        // desalineación dentro de un token partido: cerrar el token con lo
+        // acumulado y reevaluar esta palabra contra el token siguiente
+        push(token, fragFromMs, fragToMs);
+        j++;
+        partial = '';
+      } else if (nt.length > 0 && nw.includes(nt)) {
+        // el TTS unió varios tokens en una palabra: consumir mientras quepan
+        let raw = token;
         let acc = nt;
         j++;
         while (j < tokens.length && acc.length < nw.length) {
@@ -82,6 +125,8 @@ export function alignSceneTokens(
           raw += ` ${tokens[j]}`;
           j++;
         }
+        push(raw, wFrom, wTo);
+        handled = true;
       } else {
         // desalineación puntual: buscar el token en una ventana corta
         let found = -1;
@@ -93,20 +138,21 @@ export function alignSceneTokens(
           }
         }
         if (found >= 0) {
-          raw = tokens[found] ?? raw;
+          push(tokens[found] ?? word.text, wFrom, wTo);
           j = found + 1;
+        } else {
+          push(word.text, wFrom, wTo);
         }
+        handled = true;
       }
     }
+  }
 
-    out.push({
-      from_ms: offsetMs + word.offset_ms,
-      to_ms: offsetMs + word.offset_ms + word.duration_ms,
-      raw,
-      sentenceEnd: SENTENCE_END_RE.test(raw),
-      clauseEnd: CLAUSE_END_RE.test(raw),
-      sceneIdx,
-    });
+  // último token partido sin cerrar (la lista de palabras terminó a mitad)
+  if (partial && j < tokens.length) {
+    push(tokens[j] ?? partial, fragFromMs, Math.max(fragFromMs + 1, fragToMs));
+    j++;
+    partial = '';
   }
 
   // cada escena cierra frase aunque el guion no acabe en puntuación

@@ -6,10 +6,11 @@ import { pipeline } from 'node:stream/promises';
 import { promisify } from 'node:util';
 import type { FastifyInstance } from 'fastify';
 import { nanoid } from 'nanoid';
-import { components } from '@fabrica/db';
+import { eq } from 'drizzle-orm';
+import { channels, components } from '@fabrica/db';
 import { componentManifestV1 } from '@fabrica/shared';
 import type { ApiContext } from '../lib/context.js';
-import { badRequest } from '../lib/errors.js';
+import { badRequest, notFound } from '../lib/errors.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -41,6 +42,22 @@ export function registerComponentRoutes(app: FastifyInstance, ctx: ApiContext): 
     if (!channelId) {
       await rm(zipPath, { force: true });
       throw badRequest('Falta el campo channel_id');
+    }
+    // channel_id forma parte de la ruta de extracción: alfabeto cerrado y
+    // existencia en BD antes de tocar disco (manifest.type y name ya vienen
+    // constreñidos por el esquema componentManifestV1)
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(channelId)) {
+      await rm(zipPath, { force: true });
+      throw badRequest('channel_id inválido');
+    }
+    const [channel] = await ctx.db
+      .select({ id: channels.id })
+      .from(channels)
+      .where(eq(channels.id, channelId))
+      .limit(1);
+    if (!channel) {
+      await rm(zipPath, { force: true });
+      throw notFound(`El canal ${channelId} no existe`);
     }
 
     let manifestRaw: string;

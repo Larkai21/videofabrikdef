@@ -5,8 +5,8 @@ import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
-import { assets, beats } from '@fabrica/db';
-import type { Fit } from '@fabrica/shared';
+import { assets, beats, channels } from '@fabrica/db';
+import type { BeatCandidate, Fit } from '@fabrica/shared';
 import type { ApiContext } from '../lib/context.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { extOf, isVideoExt } from '../lib/beats.js';
@@ -51,6 +51,21 @@ export function registerLibraryRoutes(app: FastifyInstance, ctx: ApiContext): vo
       await cleanup();
       throw badRequest('Falta el campo channel_id');
     }
+    // el channel_id forma parte de la ruta en disco: alfabeto cerrado y
+    // existencia en BD antes de tocar el sistema de archivos
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(channelId)) {
+      await cleanup();
+      throw badRequest('channel_id inválido');
+    }
+    const [channel] = await ctx.db
+      .select({ id: channels.id })
+      .from(channels)
+      .where(eq(channels.id, channelId))
+      .limit(1);
+    if (!channel) {
+      await cleanup();
+      throw notFound(`El canal ${channelId} no existe`);
+    }
 
     const ext = extOf(filename) || 'bin';
     const assetId = nanoid();
@@ -84,12 +99,26 @@ export function registerLibraryRoutes(app: FastifyInstance, ctx: ApiContext): vo
       if (!row) throw notFound(`El beat ${idx} no existe en el vídeo ${fields.video_id}`);
       // fit provisional por extensión; el definitivo lo recalcula assets.ingest con ffprobe
       const fit: Fit = isVideoExt(ext) ? { mode: 'trim', offset_ms: 0 } : { mode: 'kenburns' };
+      // convención candidates[0] = elegido: el panel debe mostrar la subida,
+      // no el candidato que había antes
+      const uploadCandidate: BeatCandidate = {
+        ref: `library:${assetId}`,
+        provider: 'library',
+        score: 1,
+        meta: {
+          asset_id: assetId,
+          kind: isVideoExt(ext) ? 'clip' : 'image',
+          title: filename,
+          path: finalPath,
+        },
+      };
       await ctx.db
         .update(beats)
         .set({
           assetId,
           status: 'locked',
           fit,
+          candidates: [uploadCandidate],
           chosenScore: null,
           chosenOrigin: 'Biblioteca · subida propia',
           discardReason: null,

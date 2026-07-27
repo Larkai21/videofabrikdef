@@ -184,11 +184,13 @@ export async function searchStock(
 
 export async function uploadToLibrary(input: {
   file: File;
+  channelId: string;
   videoId?: string;
   beatIdx?: number;
 }): Promise<void> {
   const form = new FormData();
   form.append('file', input.file);
+  form.append('channel_id', input.channelId);
   if (input.videoId !== undefined) form.append('video_id', input.videoId);
   if (input.beatIdx !== undefined) form.append('beat_idx', String(input.beatIdx));
   await request('/library/upload', { method: 'POST', body: form });

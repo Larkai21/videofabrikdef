@@ -147,6 +147,28 @@ interface MatchDeps {
   recentIds: Set<string>;
 }
 
+// Intercalado por proveedor y tipo: sin esto los finalistas salen por orden
+// de API y Pixabay o las fotos de Pexels casi nunca llegan a puntuarse.
+function interleaveByProvider(results: StockResult[]): StockResult[] {
+  const groups = new Map<string, StockResult[]>();
+  for (const r of results) {
+    const key = `${r.provider}:${r.meta.kind}`;
+    const group = groups.get(key) ?? [];
+    group.push(r);
+    groups.set(key, group);
+  }
+  const lists = [...groups.values()];
+  const out: StockResult[] = [];
+  for (let i = 0; out.length < results.length; i++) {
+    for (const list of lists) {
+      const item = list[i];
+      if (item) out.push(item);
+    }
+    if (lists.every((l) => i >= l.length)) break;
+  }
+  return out;
+}
+
 async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
   const { ctx, videoId, channelId } = deps;
   const { db, logger } = ctx;
@@ -155,16 +177,25 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
   const [qVec] = await ctx.embeddings.embed([queryText]);
   if (!qVec) throw new Error('No se pudo calcular el embedding de la query');
 
+  // el clip que el humano descartó con motivo no debe volver a proponerse
+  const vetoedRefs = new Set<string>(
+    beat.discardReason && beat.candidates?.length ? [beat.candidates[0]!.ref] : [],
+  );
+
   // 1) biblioteca (canal + shared, anti-repeat)
   const lib = await libraryCandidates(db, channelId, qVec, deps.recentIds);
-  const pool: PoolEntry[] = lib.map((l) => l.entry);
+  const pool: PoolEntry[] = lib
+    .map((l) => l.entry)
+    .filter((e) => !vetoedRefs.has(e.cand.ref));
   const libAssetByRef = new Map(lib.map((l) => [l.entry.cand.ref, l.assetId]));
   const bestLib = pool[0]?.cand.score ?? 0;
 
   // 2) stock solo si la biblioteca no llega al umbral
   if (bestLib < T_STOCK) {
     const stockResults = await searchStock(db, logger, queryText, { videoId, channelId });
-    const finalists = stockResults.slice(0, STOCK_FINALISTS);
+    const finalists = interleaveByProvider(stockResults)
+      .filter((f) => !vetoedRefs.has(f.ref))
+      .slice(0, STOCK_FINALISTS);
 
     if (finalists.length > 0) {
       // caption VLM de finalistas (con caché dentro de stock_cache)
@@ -225,30 +256,31 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
     }
   }
 
-  // 3) decisión: el mejor con fit válido (loop insuficiente descarta)
+  // 3) decisión: solo entran candidatos con fit válido (un clip que no cubre
+  // el beat ni con el máximo de loops tampoco sirve como alternativa)
   pool.sort((a, b) => b.cand.score - a.cand.score);
   let chosen: PoolEntry | undefined;
   let chosenFit: Fit | undefined;
   const rest: PoolEntry[] = [];
   for (const entry of pool) {
-    if (!chosen) {
-      const fit = computeFit({
-        kind: entry.kind,
-        assetDurationMs: entry.durationMs,
-        beatDurationMs: beatMs,
-      });
-      if (fit) {
-        chosen = entry;
-        chosenFit = fit.fit;
-        continue;
-      }
+    const fit = computeFit({
+      kind: entry.kind,
+      assetDurationMs: entry.durationMs,
+      beatDurationMs: beatMs,
+    });
+    if (!fit) {
       logger.info(
         { videoId, beatIdx: beat.idx, ref: entry.cand.ref },
         'Candidato descartado: no cubre el beat ni con el máximo de loops',
       );
       continue;
     }
-    rest.push(entry);
+    if (!chosen) {
+      chosen = entry;
+      chosenFit = fit.fit;
+    } else {
+      rest.push(entry);
+    }
   }
 
   let status: 'auto_ok' | 'review';
@@ -265,12 +297,27 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
       beatIdx: beat.idx,
       prompt,
     });
+    // el PNG vive bajo la biblioteca (no en tmp) para que la timeline pueda
+    // mostrarlo vía /files y la ingesta lo reutilice tal cual se aprobó
+    const fluxDir = path.join(deps.ctx.libraryDir, 'assets', channelId, 'flux');
+    await fs.mkdir(fluxDir, { recursive: true });
+    const fluxName = `${videoId}-${beat.idx}.png`;
+    const fluxPath = path.join(fluxDir, fluxName);
+    await fs.copyFile(flux.path, fluxPath);
     chosen = {
       cand: {
         ref: `flux:${videoId}:${beat.idx}`,
         provider: 'flux',
         score: 0,
-        meta: { path: flux.path, width: 1280, height: 720, kind: 'image', seed: flux.seed },
+        thumb_url: `/files/library/assets/${channelId}/flux/${fluxName}`,
+        meta: {
+          path: fluxPath,
+          width: 1280,
+          height: 720,
+          kind: 'image',
+          seed: flux.seed,
+          prompt,
+        },
       },
       kind: 'image',
       durationMs: null,
@@ -286,8 +333,10 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
     candidates = [chosen.cand, ...rest.slice(0, ALTERNATES).map((e) => e.cand)];
   }
 
-  // convención compartida con la API: el elegido va PRIMERO en candidates
-  await ctx.db
+  // convención compartida con la API: el elegido va PRIMERO en candidates.
+  // La escritura respeta el candado humano: si el beat pasó a locked mientras
+  // el matching trabajaba, la elección de la máquina se descarta.
+  const updated = await ctx.db
     .update(beatsTable)
     .set({
       status,
@@ -298,7 +347,14 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
       assetId: chosen.cand.provider === 'library' ? (libAssetByRef.get(chosen.cand.ref) ?? null) : null,
       discardReason: null,
     })
-    .where(eq(beatsTable.id, beat.id));
+    .where(and(eq(beatsTable.id, beat.id), ne(beatsTable.status, 'locked')))
+    .returning({ id: beatsTable.id });
+  if (updated.length === 0) {
+    logger.info(
+      { videoId, beatIdx: beat.idx },
+      'Matching descartado: el humano bloqueó el beat durante el proceso',
+    );
+  }
 }
 
 function stockToEntry(finalist: StockResult, score: number): PoolEntry {
@@ -322,12 +378,10 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
 
   const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
   if (!video) throw new Error(`Vídeo no encontrado: ${videoId}`);
-  if (fullRun && video.state !== 'audio') {
-    logger.info({ videoId, state: video.state }, 'El vídeo no está en audio; se omite el matching');
-    return;
-  }
-  if (!fullRun && video.state !== 'audio' && video.state !== 'assets') {
-    logger.info({ videoId, state: video.state }, 'Estado no válido para re-matching parcial; se omite');
+  // fullRun también se acepta en 'assets' (reintento desde incidencia): se
+  // rehacen los beats sin bloquear y no se repite la transición
+  if (video.state !== 'audio' && video.state !== 'assets') {
+    logger.info({ videoId, state: video.state }, 'Estado no válido para matching; se omite');
     return;
   }
 
@@ -351,6 +405,8 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
   for (let i = 0; i < beatRows.length; i++) {
     const beat = beatRows[i];
     if (!beat) continue;
+    // lo que el humano ya bloqueó no se rehace
+    if (beat.status === 'locked') continue;
     await matchBeat(deps, beat);
     await ctx.publishEvent({
       type: 'job_progress',
@@ -361,7 +417,7 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
     });
   }
 
-  if (fullRun) {
+  if (fullRun && video.state === 'audio') {
     await transitionVideo(db, videoId, 'assets', { expectFrom: 'audio' });
     await ctx.publishEvent({ type: 'video_state', video_id: videoId, state: 'assets' });
     await ctx.publishEvent({ type: 'inbox_changed' });
@@ -490,31 +546,96 @@ async function ingestChosen(
   if (chosen.provider === 'flux') {
     source = 'flux';
     license = 'CC0 Flux';
-    let tmpPath = meta.path as string | undefined;
-    const exists = tmpPath ? await fs.access(tmpPath).then(() => true, () => false) : false;
-    if (!tmpPath || !exists) {
+    let srcPath = meta.path as string | undefined;
+    const exists = srcPath ? await fs.access(srcPath).then(() => true, () => false) : false;
+    if (!srcPath || !exists) {
+      // regeneración de emergencia con el MISMO prompt de la imagen aprobada
+      // (la semilla ya es determinista); solo pasa si el PNG desapareció
       const regenerated = await generateFluxImage(db, logger, {
         videoId: video.id,
         channelId: video.channelId,
         beatIdx: beat.idx,
-        prompt: beat.visualQuery,
+        prompt: (meta.prompt as string | undefined) ?? beat.visualQuery,
       });
-      tmpPath = regenerated.path;
+      srcPath = regenerated.path;
     }
     destPath = path.join(destDir, `${nanoid()}.png`);
-    await fs.copyFile(tmpPath, destPath);
+    await fs.copyFile(srcPath, destPath);
   } else {
     source = chosen.provider;
     license = chosen.provider === 'pexels' ? 'Pexels' : 'Pixabay';
     const downloadUrl = meta.download_url as string | undefined;
     if (!downloadUrl) throw new Error(`El candidato ${chosen.ref} no tiene download_url`);
-    const res = await fetch(downloadUrl, { signal: AbortSignal.timeout(180_000) });
-    if (!res.ok) throw new Error(`Descarga fallida (${chosen.ref}): HTTP ${res.status}`);
     destPath = path.join(destDir, `${nanoid()}.${extFromUrl(downloadUrl, kind)}`);
-    await fs.writeFile(destPath, Buffer.from(await res.arrayBuffer()));
+    await downloadWithCap(downloadUrl, destPath, chosen.ref);
   }
 
-  const probed = await probeMedia(destPath);
+  try {
+    const probed = await probeMedia(destPath);
+    return await insertIngestedAsset(ctx, video, beat, chosen, {
+      kind,
+      destPath,
+      source,
+      license,
+      probed,
+      meta,
+    });
+  } catch (err) {
+    // sin archivo huérfano en la biblioteca si el probe o el insert fallan
+    await fs.unlink(destPath).catch(() => {});
+    throw err;
+  }
+}
+
+const MAX_DOWNLOAD_BYTES =
+  Number(process.env.STOCK_MAX_DOWNLOAD_MB ?? '200') * 1024 * 1024;
+
+async function downloadWithCap(url: string, destPath: string, ref: string): Promise<void> {
+  const res = await fetch(url, { signal: AbortSignal.timeout(180_000) });
+  if (!res.ok || !res.body) throw new Error(`Descarga fallida (${ref}): HTTP ${res.status}`);
+  const declared = Number(res.headers.get('content-length') ?? '0');
+  if (declared > MAX_DOWNLOAD_BYTES) {
+    throw new Error(`Descarga rechazada (${ref}): ${declared} bytes supera el límite`);
+  }
+  const reader = res.body.getReader();
+  const handle = await fs.open(destPath, 'w');
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_DOWNLOAD_BYTES) {
+        throw new Error(`Descarga abortada (${ref}): supera el límite de tamaño`);
+      }
+      await handle.write(value);
+    }
+  } catch (err) {
+    await handle.close();
+    await fs.unlink(destPath).catch(() => {});
+    throw err;
+  }
+  await handle.close();
+}
+
+interface IngestFileInfo {
+  kind: 'clip' | 'image';
+  destPath: string;
+  source: string;
+  license: string;
+  probed: ProbedMedia;
+  meta: Record<string, unknown>;
+}
+
+async function insertIngestedAsset(
+  ctx: WorkerContext,
+  video: { id: string; channelId: string },
+  beat: BeatRow,
+  chosen: BeatCandidate,
+  info: IngestFileInfo,
+): Promise<IngestedAsset> {
+  const { db, logger } = ctx;
+  const { kind, destPath, source, license, probed, meta } = info;
   const caption =
     (meta.caption as string | undefined) ??
     (chosen.provider === 'flux' ? `Imagen generada para: ${beat.visualQuery}` : String(meta.title ?? ''));
@@ -621,7 +742,10 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
     .set({ master: newMaster, updatedAt: new Date() })
     .where(eq(videos.id, videoId));
 
-  await ctx.queues.render.add(JOBS.render.video, { videoId } satisfies RenderVideoJob);
+  // jobId determinista: una re-ejecución de la ingesta no duplica el render
+  await ctx.queues.render.add(JOBS.render.video, { videoId } satisfies RenderVideoJob, {
+    jobId: `render-${videoId}`,
+  });
   await ctx.publishEvent({
     type: 'job_progress',
     video_id: videoId,

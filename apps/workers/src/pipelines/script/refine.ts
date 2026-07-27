@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { channels, videos } from '@fabrica/db';
 import { QUEUES, type MasterVideoJson, type Scene, type ScriptRefineJob } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
@@ -14,6 +14,10 @@ export async function handleScriptRefine(
   const { videoId, patchTargets, reasons } = data;
   const [video] = await ctx.db.select().from(videos).where(eq(videos.id, videoId));
   if (!video) throw new Error(`Vídeo no encontrado: ${videoId}`);
+  if (video.state !== 'guion_borrador') {
+    ctx.logger.info({ videoId, state: video.state }, 'Refinado omitido: el guion ya no está en borrador');
+    return;
+  }
   const script = video.master.script;
   if (!script) {
     ctx.logger.warn({ videoId }, 'Sin guion que refinar');
@@ -63,7 +67,17 @@ export async function handleScriptRefine(
     return text && targetIds.has(s.id) ? { ...s, text } : s;
   });
   const master: MasterVideoJson = { ...video.master, script: { ...script, scenes } };
-  await ctx.db.update(videos).set({ master, updatedAt: new Date() }).where(eq(videos.id, videoId));
+  // escritura condicionada al estado: si el humano aprobó mientras el LLM
+  // trabajaba, el guion aprobado no se pisa (puerta 2 intocable)
+  const updated = await ctx.db
+    .update(videos)
+    .set({ master, updatedAt: new Date() })
+    .where(and(eq(videos.id, videoId), eq(videos.state, 'guion_borrador')))
+    .returning({ id: videos.id });
+  if (updated.length === 0) {
+    ctx.logger.warn({ videoId }, 'Refinado descartado: el estado cambió durante la reescritura');
+    return;
+  }
   await ctx.publishEvent({
     type: 'job_progress',
     video_id: videoId,

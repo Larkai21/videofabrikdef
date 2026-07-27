@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { channels, ideas, markIncident, transitionVideo, videos } from '@fabrica/db';
+import { channels, ideas, markIncident, videos } from '@fabrica/db';
 import {
   channelSettingsSchema,
   QUEUES,
@@ -219,11 +219,26 @@ export async function handleScriptGenerate(
     script: { scenes, hook_notes: gen.script.hook_notes },
     seo,
   };
-  await ctx.db
-    .update(videos)
-    .set({ master, updatedAt: new Date() })
-    .where(eq(videos.id, videoId));
-  await transitionVideo(ctx.db, videoId, 'guion_borrador');
+  // escritura y transición en una transacción con candado: si el humano
+  // aprobó el guion mientras el LLM generaba (reescritura lenta), el borrador
+  // nuevo se descarta y el guion aprobado no se pisa
+  const applied = await ctx.db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ state: videos.state })
+      .from(videos)
+      .where(eq(videos.id, videoId))
+      .for('update');
+    if (!row || (row.state !== 'idea_aprobada' && row.state !== 'guion_borrador')) return false;
+    await tx
+      .update(videos)
+      .set({ master, state: 'guion_borrador', updatedAt: new Date() })
+      .where(eq(videos.id, videoId));
+    return true;
+  });
+  if (!applied) {
+    ctx.logger.warn({ videoId }, 'Borrador descartado: el estado cambió durante la generación');
+    return;
+  }
   await ctx.publishEvent({ type: 'video_state', video_id: videoId, state: 'guion_borrador' });
   await ctx.publishEvent({ type: 'inbox_changed' });
   ctx.logger.info(

@@ -80,7 +80,12 @@ export async function probeDurationMs(filePath: string): Promise<number> {
 }
 
 // Mide la sonoridad integrada real del archivo final (input_i del análisis).
-export async function measureLufs(filePath: string): Promise<number> {
+// Si la medición no se puede parsear devuelve el objetivo como aproximación,
+// dejándolo registrado: un maestro con lufs = objetivo exacto puede venir de aquí.
+export async function measureLufs(
+  filePath: string,
+  logger?: { warn: (obj: object, msg: string) => void },
+): Promise<number> {
   const { stderr } = await execa('ffmpeg', [
     '-hide_banner',
     '-i',
@@ -91,13 +96,17 @@ export async function measureLufs(filePath: string): Promise<number> {
     'null',
     '-',
   ]);
+  const fallback = () => {
+    logger?.warn({ filePath }, 'No se pudo medir LUFS; se anota el objetivo como aproximación');
+    return LOUDNORM_LUFS;
+  };
   const jsonStart = stderr.lastIndexOf('{');
-  if (jsonStart < 0) return LOUDNORM_LUFS;
+  if (jsonStart < 0) return fallback();
   try {
     const parsed = JSON.parse(stderr.slice(jsonStart)) as { input_i?: string };
     const lufs = Number.parseFloat(parsed.input_i ?? '');
-    return Number.isFinite(lufs) ? lufs : LOUDNORM_LUFS;
+    return Number.isFinite(lufs) ? lufs : fallback();
   } catch {
-    return LOUDNORM_LUFS;
+    return fallback();
   }
 }

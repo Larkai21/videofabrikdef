@@ -86,3 +86,19 @@ describe('buildCues', () => {
     expect(cues[0]?.from_ms).toBe(0);
   });
 });
+
+describe('buildCues con final de escena forzado', () => {
+  it('un sentenceEnd sin puntuación cierra el cue (no cruza escenas)', () => {
+    const tokens: CueToken[] = [
+      { from_ms: 0, to_ms: 400, raw: 'fin' },
+      { from_ms: 400, to_ms: 800, raw: 'de escena', sentenceEnd: true },
+      // silencio de 450 ms entre escenas
+      { from_ms: 1250, to_ms: 1650, raw: 'otra' },
+      { from_ms: 1650, to_ms: 2050, raw: 'escena' },
+    ];
+    const cues = buildCues(tokens, 3000);
+    expect(cues.length).toBeGreaterThanOrEqual(2);
+    expect(cues[0]?.text).not.toContain('otra');
+    expect(cues[1]?.from_ms).toBeGreaterThanOrEqual(1250);
+  });
+});

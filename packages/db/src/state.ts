@@ -17,11 +17,17 @@ export class InvalidTransitionError extends Error {
   }
 }
 
+export interface IncidentPayload {
+  message: string;
+  suggested_action: 'reintentar' | 'regenerar' | 'descartar' | null;
+  queue?: string;
+}
+
 export async function transitionVideo(
   db: Db,
   videoId: string,
   to: VideoState,
-  opts: { expectFrom?: VideoState } = {},
+  opts: { expectFrom?: VideoState; incident?: IncidentPayload } = {},
 ): Promise<{ from: VideoState; to: VideoState }> {
   return db.transaction(async (tx) => {
     const [row] = await tx
@@ -40,7 +46,11 @@ export async function transitionVideo(
       .set({
         state: to,
         updatedAt: new Date(),
-        ...(to === 'incidencia' ? { stateBeforeIncident: from } : {}),
+        // el payload viaja en el MISMO update que la transición: nunca hay
+        // 'incidencia' sin mensaje ni mensaje sobre un vídeo ya reintentado
+        ...(to === 'incidencia'
+          ? { stateBeforeIncident: from, incident: opts.incident ?? null }
+          : {}),
         ...(from === 'incidencia' ? { stateBeforeIncident: null, incident: null } : {}),
       })
       .where(eq(videos.id, videoId));
@@ -51,12 +61,7 @@ export async function transitionVideo(
 export async function markIncident(
   db: Db,
   videoId: string,
-  incident: {
-    message: string;
-    suggested_action: 'reintentar' | 'regenerar' | 'descartar' | null;
-    queue?: string;
-  },
+  incident: IncidentPayload,
 ): Promise<void> {
-  await transitionVideo(db, videoId, 'incidencia');
-  await db.update(videos).set({ incident }).where(eq(videos.id, videoId));
+  await transitionVideo(db, videoId, 'incidencia', { incident });
 }

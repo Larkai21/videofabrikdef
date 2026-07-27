@@ -74,18 +74,28 @@ const KenBurnsImage: React.FC<{
   src: string;
   seed: number;
   durationInFrames: number;
-}> = ({ src, seed, durationInFrames }) => {
+  // efecto congelado en el maestro por la ingesta ('kenburns-in-left'…);
+  // manda sobre la derivación local para que master.json documente lo que
+  // realmente se renderiza
+  effect?: string;
+}> = ({ src, seed, durationInFrames, effect }) => {
   const frame = useCurrentFrame();
-  const direction = PAN_DIRECTIONS[seed % PAN_DIRECTIONS.length] ?? [1, 0];
+  let direction = PAN_DIRECTIONS[seed % PAN_DIRECTIONS.length] ?? [1, 0];
+  let zoomIn = true;
+  if (effect?.startsWith('kenburns-')) {
+    zoomIn = effect.includes('-in-');
+    direction = effect.endsWith('left') ? [1, 0] : [-1, 0];
+  }
   const progress = interpolate(frame, [0, Math.max(1, durationInFrames - 1)], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
   // el zoom 1,00→1,08 deja un 4% de margen por lado; el paneo usa como máximo
-  // la mitad de ese margen para no descubrir bordes
-  const scale = 1 + 0.08 * progress;
-  const translateX = 2 * progress * direction[0];
-  const translateY = 2 * progress * direction[1];
+  // la mitad de ese margen y va ligado al zoom para no descubrir bordes
+  const zoomProgress = zoomIn ? progress : 1 - progress;
+  const scale = 1 + 0.08 * zoomProgress;
+  const translateX = 2 * zoomProgress * direction[0];
+  const translateY = 2 * zoomProgress * direction[1];
   return (
     <AbsoluteFill style={{ overflow: 'hidden' }}>
       <Img
@@ -170,7 +180,14 @@ export const BeatVisual: React.FC<BeatVisualProps> = ({ beat, videoId, durationI
   const trimBeforeFrames = msToFrames(asset.fit.offset_ms ?? 0, fps);
 
   if (asset.kind === 'image') {
-    return <KenBurnsImage src={src} seed={seed} durationInFrames={durationInFrames} />;
+    return (
+      <KenBurnsImage
+        src={src}
+        seed={seed}
+        durationInFrames={durationInFrames}
+        effect={asset.effect}
+      />
+    );
   }
   if (asset.fit.mode === 'loop') {
     return (

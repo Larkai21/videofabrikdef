@@ -102,7 +102,11 @@ export function registerTimelineRoutes(app: FastifyInstance, ctx: ApiContext): v
       }
       case 'choose': {
         if (!body.ref) throw badRequest('La acción choose requiere ref');
-        const candidate = (row.candidates ?? []).find((c) => c.ref === body.ref);
+        // la búsqueda libre de stock manda el candidato completo en el body
+        // (sus resultados no están en beats.candidates)
+        const candidate =
+          (row.candidates ?? []).find((c) => c.ref === body.ref) ??
+          (body.candidate?.ref === body.ref ? body.candidate : undefined);
         if (!candidate) throw notFound(`El candidato ${body.ref} no está en el beat ${idx}`);
         await lockWithCandidate(candidate);
         break;
@@ -129,7 +133,13 @@ export function registerTimelineRoutes(app: FastifyInstance, ctx: ApiContext): v
 
   app.post('/videos/:id/approve-timeline', async (req) => {
     const { id } = req.params as { id: string };
-    await loadVideo(ctx, id);
+    const video = await loadVideo(ctx, id);
+    // puerta idempotente: si la transición hizo commit pero el encolado
+    // falló (blip de Redis), repetir la petición re-encola y devuelve ok
+    if (video.state === 'timeline_ok') {
+      await ctx.enqueuer.enqueue(QUEUES.assets, JOBS.assets.ingest, { videoId: id });
+      return { ok: true as const };
+    }
     const rows = await ctx.db
       .select({ idx: beats.idx, status: beats.status })
       .from(beats)

@@ -169,13 +169,24 @@ export function Ajustes() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Button variant="primary" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* guardar desde aquí marca el perfil como aprobado en la API:
+              con el perfil sin aprobar se bloquea para no aprobarlo sin querer */}
+          <Button
+            variant="primary"
+            disabled={saveMut.isPending || !channel.profile_approved}
+            onClick={() => saveMut.mutate()}
+          >
             {saveMut.isPending ? 'Guardando' : 'Guardar los ajustes'}
           </Button>
           <Link to="/wizard" className="fs-sm">
             Editar el perfil completo en el wizard →
           </Link>
+          {!channel.profile_approved ? (
+            <span className="muted fs-sm">
+              El perfil está sin aprobar: revísalo y apruébalo primero en el wizard.
+            </span>
+          ) : null}
         </div>
       </div>
     </div>

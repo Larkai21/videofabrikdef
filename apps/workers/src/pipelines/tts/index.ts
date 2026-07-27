@@ -70,6 +70,14 @@ async function runSynthesize(ctx: WorkerContext, tts: TtsProvider, job: Job<TtsS
 
   const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
   if (!video) throw new Error(`Vídeo no encontrado: ${videoId}`);
+  if (video.state === 'audio') {
+    // auto-reparación: la transición hizo commit pero el encolado de match
+    // no llegó (caída o blip de Redis); re-encolar es inocuo (runMatch
+    // omite beats bloqueados y no repite la transición)
+    logger.warn({ videoId }, 'Vídeo ya en audio: re-encolando el matching de assets');
+    await ctx.queues.assets.add(JOBS.assets.match, { videoId } satisfies AssetsMatchJob);
+    return;
+  }
   if (video.state !== 'guion_ok') {
     logger.info({ videoId, state: video.state }, 'El vídeo no está en guion_ok; se omite la síntesis');
     return;
@@ -103,6 +111,15 @@ async function runSynthesize(ctx: WorkerContext, tts: TtsProvider, job: Job<TtsS
   });
 
   const sceneResults = new Array<TtsSceneAudio>(scenes.length);
+  // sin fugas: los temporales de las escenas ya sintetizadas se barren
+  // también cuando la síntesis o la concatenación fallan a mitad
+  const sweepSceneTmp = async () => {
+    await Promise.allSettled(
+      sceneResults
+        .filter((r): r is TtsSceneAudio => Boolean(r))
+        .map((r) => fs.rm(path.dirname(r.audioPath), { recursive: true, force: true })),
+    );
+  };
   try {
     const queue = new PQueue({ concurrency: SCENE_CONCURRENCY });
     await Promise.all(
@@ -115,6 +132,7 @@ async function runSynthesize(ctx: WorkerContext, tts: TtsProvider, job: Job<TtsS
     await closeCost(db, handle, { units: totalChars, unitCost: 0 });
   } catch (err) {
     await failCost(db, handle, err instanceof Error ? err.message : String(err));
+    await sweepSceneTmp();
     throw err;
   }
 
@@ -173,7 +191,7 @@ async function runSynthesize(ctx: WorkerContext, tts: TtsProvider, job: Job<TtsS
     await toAacPreview(voiceWav, voiceAac);
 
     const durationMs = await probeDurationMs(voiceWav);
-    const lufs = await measureLufs(voiceWav);
+    const lufs = await measureLufs(voiceWav, logger);
 
     await ctx.publishEvent({
       type: 'job_progress',
@@ -286,6 +304,7 @@ async function runSynthesize(ctx: WorkerContext, tts: TtsProvider, job: Job<TtsS
     );
   } finally {
     await fs.rm(workDir, { recursive: true, force: true });
+    await sweepSceneTmp();
   }
 }
 

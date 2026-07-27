@@ -63,7 +63,13 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     }
   });
 
-  await app.register(cors, { origin: true });
+  // solo el dashboard local: reflejar cualquier origen convertiría las rutas
+  // de escritura (sin autenticación en el MVP monousuario) en drive-by
+  const corsOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:5173,http://127.0.0.1:5173')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  await app.register(cors, { origin: corsOrigins });
   await app.register(multipart, { limits: { fileSize: 512 * 1024 * 1024 } });
   await app.register(fastifyStatic, {
     root: outputsDir,

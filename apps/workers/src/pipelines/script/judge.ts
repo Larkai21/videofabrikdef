@@ -16,6 +16,12 @@ export async function handleScriptJudge(ctx: WorkerContext, data: ScriptJudgeJob
   const { videoId } = data;
   const [video] = await ctx.db.select().from(videos).where(eq(videos.id, videoId));
   if (!video) throw new Error(`Vídeo no encontrado: ${videoId}`);
+  // la puerta 2 solo está abierta en guion_borrador: si el humano ya aprobó
+  // (o el vídeo avanzó), el juez no debe tocar ni encolar nada
+  if (video.state !== 'guion_borrador') {
+    ctx.logger.info({ videoId, state: video.state }, 'Juez omitido: el guion ya no está en borrador');
+    return;
+  }
   const script = video.master.script;
   const seo = video.master.seo;
   if (!script || !seo) {

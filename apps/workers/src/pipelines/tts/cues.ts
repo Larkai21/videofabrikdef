@@ -17,6 +17,9 @@ export interface CueToken {
   from_ms: number;
   to_ms: number;
   raw: string;
+  // final de frase decidido aguas arriba (incluye el forzado al cerrar cada
+  // escena): un cue nunca debe cruzar el silencio entre escenas
+  sentenceEnd?: boolean;
 }
 
 const SENTENCE_END_RE = /[.!?…]["')\]»]*$/;
@@ -76,8 +79,8 @@ export function buildCues(tokens: CueToken[], totalMs?: number): Cue[] {
     line.words.push({ from_ms: token.from_ms, to_ms: token.to_ms, w: token.raw });
     line.chars = line.chars === 0 ? wordLen : line.chars + 1 + wordLen;
 
-    if (SENTENCE_END_RE.test(token.raw)) {
-      // la puntuación fuerte cierra el cue entero
+    if (token.sentenceEnd || SENTENCE_END_RE.test(token.raw)) {
+      // la puntuación fuerte (o el final forzado de escena) cierra el cue
       closeCue();
     } else if (ANY_PUNCT_RE.test(token.raw) && line.chars >= CUE_MAX_CHARS / 2) {
       // corte preferente en puntuación débil cuando la línea ya tiene cuerpo

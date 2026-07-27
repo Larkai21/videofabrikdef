@@ -6,6 +6,27 @@ import { RESEARCH_MAX_CHARS_PER_SOURCE } from '@fabrica/shared';
 const USER_AGENT = 'FabricaBot/0.1 (+contacto en README)';
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_SOURCES = 5;
+// tope de bytes por fuente: un HTML de research no legítimo no debe poder
+// agotar la memoria del worker
+const MAX_FETCH_BYTES = 5 * 1024 * 1024;
+
+async function readBodyCapped(res: Response, maxBytes: number): Promise<string> {
+  if (!res.body) return '';
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new Error(`Respuesta truncada: supera ${maxBytes} bytes`);
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
 
 export interface SourceRef {
   url: string;
@@ -33,12 +54,18 @@ export async function downloadSources(
   const docs: ResearchDoc[] = [];
   for (const ref of selected) {
     try {
+      const parsedUrl = new URL(ref.url);
+      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+        throw new Error(`Protocolo no permitido: ${parsedUrl.protocol}`);
+      }
       const res = await fetch(ref.url, {
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         headers: { 'user-agent': USER_AGENT },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const html = await res.text();
+      const declared = Number(res.headers.get('content-length') ?? '0');
+      if (declared > MAX_FETCH_BYTES) throw new Error(`Respuesta de ${declared} bytes rechazada`);
+      const html = await readBodyCapped(res, MAX_FETCH_BYTES);
       const dom = new JSDOM(html, { url: ref.url });
       const article = new Readability(dom.window.document).parse();
       const text = (article?.textContent ?? '')

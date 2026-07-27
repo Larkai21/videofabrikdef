@@ -165,7 +165,13 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
 
   app.post('/videos/:id/approve-script', async (req) => {
     const { id } = req.params as { id: string };
-    await loadVideo(ctx, id);
+    const video = await loadVideo(ctx, id);
+    // puerta idempotente: si la transición hizo commit pero el encolado
+    // falló, repetir la petición re-encola en vez de devolver conflicto
+    if (video.state === 'guion_ok') {
+      await ctx.enqueuer.enqueue(QUEUES.tts, JOBS.tts.synthesize, { videoId: id });
+      return { ok: true as const };
+    }
     await transitionVideo(ctx.db, id, 'guion_ok', { expectFrom: 'guion_borrador' });
     await ctx.enqueuer.enqueue(QUEUES.tts, JOBS.tts.synthesize, { videoId: id });
     await ctx.events.publish({ type: 'video_state', video_id: id, state: 'guion_ok' });

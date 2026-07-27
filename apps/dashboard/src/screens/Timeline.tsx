@@ -71,6 +71,80 @@ function candidateTitle(candidate: BeatCandidate): string {
   return `${candidate.provider} · ${candidate.ref}`;
 }
 
+// posición de reproducción como estado LOCAL: solo re-renderizan estas hojas
+function useCurrentMs(player: PlayerRef | null): number {
+  const [frame, setFrame] = useState(0);
+  useEffect(() => {
+    if (player === null) return;
+    const onFrame = (e: { detail: { frame: number } }) => setFrame(e.detail.frame);
+    player.addEventListener('frameupdate', onFrame);
+    return () => player.removeEventListener('frameupdate', onFrame);
+  }, [player]);
+  return (frame / FPS) * 1000;
+}
+
+function ClockAndScrub({
+  player,
+  durationMs,
+  onSeek,
+}: {
+  player: PlayerRef | null;
+  durationMs: number;
+  onSeek: (ms: number) => void;
+}) {
+  const currentMs = useCurrentMs(player);
+  return (
+    <>
+      <span className="mono" style={{ fontSize: 12, color: 'rgba(255,255,255,.86)' }}>
+        {fmtClock(currentMs)} / {fmtClock(durationMs)}
+      </span>
+      <div
+        style={{
+          flex: 1,
+          height: 3,
+          background: 'rgba(255,255,255,.2)',
+          borderRadius: 999,
+          overflow: 'hidden',
+          cursor: 'pointer',
+        }}
+        onClick={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const ratio = (e.clientX - rect.left) / rect.width;
+          onSeek(ratio * durationMs);
+        }}
+        role="slider"
+        aria-label="Posición de reproducción"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(durationMs / 1000)}
+        aria-valuenow={Math.round(currentMs / 1000)}
+        tabIndex={0}
+      >
+        <div style={{ width: `${pct(currentMs, durationMs)}%`, height: '100%', background: '#fff' }} />
+      </div>
+    </>
+  );
+}
+
+function Playhead({ player, durationMs }: { player: PlayerRef | null; durationMs: number }) {
+  const currentMs = useCurrentMs(player);
+  if (durationMs <= 0) return null;
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: -4,
+        bottom: -4,
+        width: 2,
+        background: 'var(--accent)',
+        boxShadow: '0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent)',
+        pointerEvents: 'none',
+        left: `${pct(currentMs, durationMs)}%`,
+      }}
+      aria-hidden="true"
+    />
+  );
+}
+
 export function Timeline() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
@@ -99,26 +173,23 @@ export function Timeline() {
   }, [beats, selIdx]);
   const sel = beats.find((b) => b.idx === selIdx);
 
-  // Player
+  // Player. El frame NO vive aquí: durante la reproducción cambia 30 veces
+  // por segundo y re-renderizaría toda la pantalla; lo consumen componentes
+  // hoja (ClockAndScrub, Playhead) que se suscriben ellos mismos.
   const [player, setPlayer] = useState<PlayerRef | null>(null);
   const [playing, setPlaying] = useState(false);
-  const [frame, setFrame] = useState(0);
   useEffect(() => {
     if (player === null) return;
-    const onFrame = (e: { detail: { frame: number } }) => setFrame(e.detail.frame);
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
-    player.addEventListener('frameupdate', onFrame);
     player.addEventListener('play', onPlay);
     player.addEventListener('pause', onPause);
     return () => {
-      player.removeEventListener('frameupdate', onFrame);
       player.removeEventListener('play', onPlay);
       player.removeEventListener('pause', onPause);
     };
   }, [player]);
 
-  const currentMs = (frame / FPS) * 1000;
   const durationInFrames = Math.max(1, Math.round((durationMs / 1000) * FPS));
 
   const seekToMs = (ms: number) => {
@@ -140,10 +211,19 @@ export function Timeline() {
   };
 
   const actionMut = useMutation({
-    mutationFn: (args: { idx: number; action: 'approve' | 'choose' | 'discard'; ref?: string; reason?: string }) =>
+    mutationFn: (args: {
+      idx: number;
+      action: 'approve' | 'choose' | 'discard';
+      ref?: string;
+      // los resultados de la búsqueda libre no están en beats.candidates:
+      // el candidato completo viaja en el body
+      candidate?: BeatCandidate;
+      reason?: string;
+    }) =>
       beatAction(id, args.idx, {
         action: args.action,
         ...(args.ref !== undefined ? { ref: args.ref } : {}),
+        ...(args.candidate !== undefined ? { candidate: args.candidate } : {}),
         ...(args.reason !== undefined ? { reason: args.reason } : {}),
       }),
     onSuccess: (_, args) => {
@@ -166,8 +246,15 @@ export function Timeline() {
   });
 
   const uploadMut = useMutation({
-    mutationFn: (file: File) =>
-      uploadToLibrary({ file, videoId: id, ...(selIdx !== null ? { beatIdx: selIdx } : {}) }),
+    mutationFn: (file: File) => {
+      if (video === undefined) throw new Error('El vídeo aún no está cargado');
+      return uploadToLibrary({
+        file,
+        channelId: video.channel_id,
+        videoId: id,
+        ...(selIdx !== null ? { beatIdx: selIdx } : {}),
+      });
+    },
     onSuccess: () => {
       invalidate();
       push('Subido a la biblioteca · asignado al beat');
@@ -220,6 +307,9 @@ export function Timeline() {
   const canApproveTimeline = allReady && video?.state === 'assets' && !approveTlMut.isPending;
 
   useHotkeys((e) => {
+    // con un modal abierto los atajos globales se apagan (el modal gestiona
+    // su propio teclado)
+    if (discardOpen) return;
     const k = e.key.toLowerCase();
     if (k === 'a') {
       e.preventDefault();
@@ -259,10 +349,23 @@ export function Timeline() {
     );
   }
 
-  if (video === undefined || master === undefined) {
+  if (video === undefined || master === undefined || tlQ.isError) {
     return (
-      <div className="wrap-1420" style={{ padding: 'calc(var(--pad) * 2) 26px' }}>
-        <div className="banner banner-danger">No se pudo cargar el vídeo.</div>
+      <div className="wrap-1420" style={{ padding: 'calc(var(--pad) * 2) 26px', display: 'grid', gap: 12 }}>
+        <div className="banner banner-danger">
+          {tlQ.isError ? 'No se pudo cargar la timeline.' : 'No se pudo cargar el vídeo.'}
+        </div>
+        <div>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              void videoQ.refetch();
+              void tlQ.refetch();
+            }}
+          >
+            Reintentar
+          </Button>
+        </div>
       </div>
     );
   }
@@ -411,34 +514,7 @@ export function Timeline() {
               >
                 {playing ? '❚❚' : '▶'}
               </button>
-              <span className="mono" style={{ fontSize: 12, color: 'rgba(255,255,255,.86)' }}>
-                {fmtClock(currentMs)} / {fmtClock(durationMs)}
-              </span>
-              <div
-                style={{
-                  flex: 1,
-                  height: 3,
-                  background: 'rgba(255,255,255,.2)',
-                  borderRadius: 999,
-                  overflow: 'hidden',
-                  cursor: 'pointer',
-                }}
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const ratio = (e.clientX - rect.left) / rect.width;
-                  seekToMs(ratio * durationMs);
-                }}
-                role="slider"
-                aria-label="Posición de reproducción"
-                aria-valuemin={0}
-                aria-valuemax={Math.round(durationMs / 1000)}
-                aria-valuenow={Math.round(currentMs / 1000)}
-                tabIndex={0}
-              >
-                <div
-                  style={{ width: `${pct(currentMs, durationMs)}%`, height: '100%', background: '#fff' }}
-                />
-              </div>
+              <ClockAndScrub player={player} durationMs={durationMs} onSeek={seekToMs} />
               <span className="mono" style={{ fontSize: 10.5, color: 'rgba(255,255,255,.5)' }}>
                 espacio
               </span>
@@ -501,21 +577,7 @@ export function Timeline() {
                     </button>
                   </div>
                 ))}
-                {durationMs > 0 ? (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: -4,
-                      bottom: -4,
-                      width: 2,
-                      background: 'var(--accent)',
-                      boxShadow: '0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent)',
-                      pointerEvents: 'none',
-                      left: `${pct(currentMs, durationMs)}%`,
-                    }}
-                    aria-hidden="true"
-                  />
-                ) : null}
+                <Playhead player={player} durationMs={durationMs} />
               </div>
 
               <div style={{ display: 'flex', gap: 3, marginTop: 6 }}>
@@ -840,7 +902,9 @@ export function Timeline() {
                         key={r.ref}
                         type="button"
                         className="row-hover"
-                        onClick={() => actionMut.mutate({ idx: sel.idx, action: 'choose', ref: r.ref })}
+                        onClick={() =>
+                          actionMut.mutate({ idx: sel.idx, action: 'choose', ref: r.ref, candidate: r })
+                        }
                         style={{
                           display: 'flex',
                           alignItems: 'center',

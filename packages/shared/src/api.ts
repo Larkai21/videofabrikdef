@@ -125,6 +125,9 @@ export const beatActionRequestSchema = z.object({
   action: z.enum(['approve', 'choose', 'discard']),
   // para choose: candidate.ref
   ref: z.string().optional(),
+  // para choose desde la búsqueda libre de stock: el candidato completo
+  // (sus resultados no viven en beats.candidates hasta que se elige uno)
+  candidate: candidateSchema.optional(),
   // para discard: motivo (alimenta la regeneración)
   reason: z.string().optional(),
 });
@@ -134,7 +137,8 @@ export const scriptEditRequestSchema = z.object({
   scenes: z.array(
     z.object({
       id: z.string(),
-      text: z.string(),
+      // una escena vacía revienta la síntesis con el proveedor real
+      text: z.string().trim().min(1, 'el texto de la escena no puede quedar vacío'),
     }),
   ),
 });
