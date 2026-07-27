@@ -12,6 +12,8 @@ const NAV = [
   { label: 'Bandeja', to: '/' },
   { label: 'En curso', to: '/#en-curso' },
   { label: 'Publicados', to: '/#publicados' },
+  { label: 'Biblioteca', to: '/biblioteca' },
+  { label: 'Brand kit', to: '/componentes' },
   { label: 'Ajustes', to: '/ajustes' },
 ];
 

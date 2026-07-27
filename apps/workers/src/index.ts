@@ -6,6 +6,8 @@ import { registerScriptWorkers } from './pipelines/script/index.js';
 import { registerTtsWorkers } from './pipelines/tts/index.js';
 import { registerAssetsWorkers } from './pipelines/assets/index.js';
 import { registerRenderWorkers } from './pipelines/render/index.js';
+import { registerComponentsWorkers } from './pipelines/components/index.js';
+import { registerLibraryWorkers } from './pipelines/library/index.js';
 
 const ctx = createWorkerContext();
 ctx.logger.info(
@@ -20,6 +22,8 @@ const workers: Worker[] = [
   ...(await registerTtsWorkers(ctx)),
   ...(await registerAssetsWorkers(ctx)),
   ...(await registerRenderWorkers(ctx)),
+  ...(await registerComponentsWorkers(ctx)),
+  ...(await registerLibraryWorkers(ctx)),
 ];
 
 ctx.logger.info({ count: workers.length }, 'Workers registrados');

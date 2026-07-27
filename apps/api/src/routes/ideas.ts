@@ -2,8 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import { desc, eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
-import { ideas, videos } from '@fabrica/db';
+import { channels, ideas, videos } from '@fabrica/db';
 import {
+  channelSettingsSchema,
   defaultBrand,
   ideaStatusSchema,
   JOBS,
@@ -60,6 +61,13 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
         .set({ status: 'approved', decidedAt: new Date() })
         .where(eq(ideas.id, id));
 
+      // el vídeo nace con la selección de brand kit del canal; el tema de
+      // subtítulos integrado garantiza que el maestro siempre sea renderizable
+      const [channel] = await tx
+        .select({ settings: channels.settings })
+        .from(channels)
+        .where(eq(channels.id, idea.channelId));
+      const settings = channelSettingsSchema.parse(channel?.settings ?? {});
       const master = masterVideoJsonV1.parse({
         version: '1',
         video: {
@@ -70,9 +78,9 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
           width: 1920,
           height: 1080,
         },
-        // el registro del brand kit por zips llega en S2; el tema integrado
-        // garantiza que el maestro siempre sea renderizable
-        brand: defaultBrand(),
+        brand: {
+          components: { ...defaultBrand().components, ...settings.brand_components },
+        },
       });
       await tx.insert(videos).values({
         id: videoId,

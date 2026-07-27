@@ -77,6 +77,13 @@ export const channelSettingsSchema = z.object({
   monthly_budget_usd: z.number().default(15),
   // duración objetivo de locución en minutos (SPEC: 6–9; corto para pruebas)
   target_minutes: z.number().default(7),
+  // componentes activos del brand kit por tipo: refs "nombre@versión" del
+  // registry; los vídeos nacen con esta selección en master.brand
+  brand_components: z
+    .record(z.string(), z.string())
+    .default({ subtitle_theme: 'subtitulos-basicos@0.1.0' }),
+  // música de fondo: pista de library/assets/music por mood a −22 dB (S2)
+  background_music: z.boolean().default(false),
 });
 
 export type ChannelSettings = z.infer<typeof channelSettingsSchema>;

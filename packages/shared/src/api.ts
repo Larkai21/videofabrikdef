@@ -159,6 +159,56 @@ export const beatStatusUpdateSchema = z.object({
   status: beatStatusSchema,
 });
 
+export const channelSettingsUpdateSchema = z.object({
+  monthly_budget_usd: z.number().positive().optional(),
+  target_minutes: z.number().min(0.5).max(20).optional(),
+  anti_repeat_n: z.number().int().min(0).optional(),
+  background_music: z.boolean().optional(),
+  brand_components: z.record(z.string(), z.string()).optional(),
+});
+export type ChannelSettingsUpdate = z.infer<typeof channelSettingsUpdateSchema>;
+
+export const componentDtoSchema = z.object({
+  id: z.string(),
+  channel_id: z.string(),
+  type: z.string(),
+  name: z.string(),
+  version: z.string(),
+  status: z.enum(['pending', 'validated', 'failed']),
+  log: z.string().nullable(),
+  preview_url: z.string().nullable(),
+  active: z.boolean(),
+  created_at: z.string(),
+});
+export type ComponentDto = z.infer<typeof componentDtoSchema>;
+
+export const libraryAssetDtoSchema = z.object({
+  id: z.string(),
+  scope: z.string(),
+  channel_id: z.string().nullable(),
+  kind: z.string(),
+  url: z.string(),
+  thumb_url: z.string().nullable(),
+  source: z.string(),
+  license: z.string(),
+  duration_ms: z.number().nullable(),
+  width: z.number().nullable(),
+  height: z.number().nullable(),
+  tags: z.array(z.string()),
+  caption: z.string().nullable(),
+  times_used: z.number(),
+  last_video_id: z.string().nullable(),
+  purge_candidate: z.boolean(),
+  created_at: z.string(),
+});
+export type LibraryAssetDto = z.infer<typeof libraryAssetDtoSchema>;
+
+export const libraryListDtoSchema = z.object({
+  assets: z.array(libraryAssetDtoSchema),
+  total: z.number(),
+});
+export type LibraryListDto = z.infer<typeof libraryListDtoSchema>;
+
 export const okResponseSchema = z.object({ ok: z.literal(true) });
 
 export const errorResponseSchema = z.object({

@@ -8,6 +8,8 @@ export const QUEUES = {
   tts: 'tts',
   assets: 'assets',
   render: 'render',
+  components: 'components',
+  library: 'library',
 } as const;
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
@@ -20,6 +22,8 @@ export const JOBS = {
   tts: { synthesize: 'synthesize' },
   assets: { match: 'match', ingest: 'ingest' },
   render: { video: 'video' },
+  components: { validate: 'validate' },
+  library: { backfill: 'backfill', purgeScan: 'purge-scan' },
 } as const;
 
 export interface SourcePollJob {
@@ -68,6 +72,19 @@ export interface AssetsIngestJob {
 
 export interface RenderVideoJob {
   videoId: string;
+}
+
+export interface ComponentsValidateJob {
+  componentId: string;
+}
+
+export interface LibraryBackfillJob {
+  // sin assetIds: barre todos los assets sin embedding o sin caption
+  assetIds?: string[];
+}
+
+export interface LibraryPurgeScanJob {
+  channelId?: string;
 }
 
 // Progreso y eventos se publican en Redis pub/sub con este canal
