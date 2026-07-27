@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 export const COST_PROVIDERS = [
   'openai',
+  'openrouter',
   'edge-tts',
   'elevenlabs',
   'pexels',

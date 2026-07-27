@@ -33,7 +33,7 @@ export async function ledgeredLlmJson<S extends z.ZodType>(
   const handle = await openCost(ctx.db, {
     videoId: params.videoId ?? null,
     channelId: params.channelId ?? null,
-    provider: 'openai',
+    provider: ctx.llm.ledgerProvider,
     operation: params.op,
     meta: { model: ctx.llm.model },
   });

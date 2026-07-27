@@ -1,6 +1,6 @@
 import type pino from 'pino';
 import { z } from 'zod';
-import type { CostOperation } from '@fabrica/shared';
+import type { CostOperation, CostProvider } from '@fabrica/shared';
 
 // Proveedor LLM encapsulado. `op` identifica la operación tanto para el
 // ledger como para el modo mock (cada pipeline registra sus generadores
@@ -22,8 +22,10 @@ export interface CompleteJsonOptions<S extends z.ZodType> {
 }
 
 export interface LlmProvider {
-  readonly name: 'openai' | 'mock';
+  readonly name: 'openai' | 'openrouter' | 'mock';
   readonly model: string;
+  // proveedor que se anota en cost_ledger (mock registra como openai a coste 0)
+  readonly ledgerProvider: CostProvider;
   completeJson<S extends z.ZodType>(
     opts: CompleteJsonOptions<S>,
   ): Promise<{ data: z.infer<S>; usage: LlmUsage }>;
@@ -45,6 +47,7 @@ export function registerMockOp(op: CostOperation, generator: MockGenerator): voi
 class MockLlm implements LlmProvider {
   readonly name = 'mock' as const;
   readonly model = 'mock';
+  readonly ledgerProvider = 'openai' as const;
 
   async completeJson<S extends z.ZodType>(opts: CompleteJsonOptions<S>) {
     const generator = mockOps.get(opts.op);
@@ -68,31 +71,51 @@ class MockLlm implements LlmProvider {
 }
 
 class OpenAiLlm implements LlmProvider {
-  readonly name = 'openai' as const;
+  readonly name: 'openai' | 'openrouter';
   readonly model: string;
+  readonly ledgerProvider: CostProvider;
   private clientPromise: Promise<import('openai').default> | null = null;
 
   constructor(
     private logger: pino.Logger,
     model: string,
+    opts: { name?: 'openai' | 'openrouter'; baseURL?: string; apiKey?: string } = {},
   ) {
     this.model = model;
+    this.name = opts.name ?? 'openai';
+    this.ledgerProvider = this.name;
+    this.baseURL = opts.baseURL;
+    this.apiKey = opts.apiKey;
   }
+
+  private readonly baseURL: string | undefined;
+  private readonly apiKey: string | undefined;
 
   private async client() {
     if (!this.clientPromise) {
-      this.clientPromise = import('openai').then((m) => new m.default());
+      this.clientPromise = import('openai').then(
+        (m) =>
+          new m.default({
+            ...(this.baseURL ? { baseURL: this.baseURL } : {}),
+            ...(this.apiKey ? { apiKey: this.apiKey } : {}),
+          }),
+      );
     }
     return this.clientPromise;
   }
 
   async completeJson<S extends z.ZodType>(opts: CompleteJsonOptions<S>) {
     const client = await this.client();
+    // la familia gpt-5 razona antes de responder: el razonamiento consume
+    // presupuesto de salida, así que se fija un suelo y esfuerzo bajo (las
+    // tareas del pipeline son estructuradas, no de razonamiento profundo)
+    const reasoningFamily = /gpt-5|(^|\/)o\d/.test(this.model);
     const attempt = async (extraSystem = ''): Promise<{ data: z.infer<S>; usage: LlmUsage }> => {
       const response = await client.chat.completions.create({
         model: this.model,
         response_format: { type: 'json_object' },
-        max_completion_tokens: opts.maxOutputTokens ?? 8_000,
+        max_completion_tokens: Math.max(opts.maxOutputTokens ?? 8_000, 2_000),
+        ...(reasoningFamily ? { reasoning_effort: 'low' as const } : {}),
         messages: [
           {
             role: 'system',
@@ -104,11 +127,17 @@ class OpenAiLlm implements LlmProvider {
           { role: 'user', content: opts.user },
         ],
       });
-      const text = response.choices[0]?.message?.content ?? '';
+      const choice = response.choices[0];
+      const text = choice?.message?.content ?? '';
       const usage = {
         inputTokens: response.usage?.prompt_tokens ?? 0,
         outputTokens: response.usage?.completion_tokens ?? 0,
       };
+      if (text.trim() === '') {
+        throw new Error(
+          `El modelo devolvió contenido vacío (finish_reason: ${choice?.finish_reason ?? 'desconocido'})`,
+        );
+      }
       const data = opts.schema.parse(JSON.parse(text));
       return { data, usage };
     };
@@ -152,8 +181,19 @@ export function createLlm(logger: pino.Logger): LlmProvider {
   if (provider === 'openai' && process.env.OPENAI_API_KEY) {
     return new OpenAiLlm(logger, process.env.LLM_MODEL ?? 'gpt-5-mini');
   }
-  if (provider === 'openai') {
-    logger.warn('LLM_PROVIDER=openai sin OPENAI_API_KEY; usando modo mock');
+  if (provider === 'openrouter' && process.env.OPENROUTER_API_KEY) {
+    // OpenRouter es compatible con el SDK de OpenAI; los modelos llevan
+    // prefijo de vendor (openai/gpt-5-mini). Sin prefijo se asume openai/.
+    const raw = process.env.LLM_MODEL ?? 'openai/gpt-5-mini';
+    const model = raw.includes('/') ? raw : `openai/${raw}`;
+    return new OpenAiLlm(logger, model, {
+      name: 'openrouter',
+      baseURL: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY,
+    });
+  }
+  if (provider !== 'mock') {
+    logger.warn({ provider }, 'Proveedor LLM sin clave o desconocido; usando modo mock');
   }
   return new MockLlm();
 }

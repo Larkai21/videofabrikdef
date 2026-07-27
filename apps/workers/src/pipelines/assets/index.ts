@@ -203,7 +203,7 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
       const handle = await openCost(db, {
         videoId,
         channelId,
-        provider: 'openai',
+        provider: ctx.llm.ledgerProvider,
         operation: 'vlm_caption',
         meta: { query: queryText, finalists: toCaption.length },
       });
