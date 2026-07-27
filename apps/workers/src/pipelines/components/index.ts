@@ -1,6 +1,7 @@
 import { Worker } from 'bullmq';
 import { JOBS, QUEUES, type ComponentsValidateJob } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
+import { videoSrcLock } from '../../lib/locks.js';
 import { handleComponentsValidate, syncRegistryFromDb } from './validate.js';
 
 // Validador del brand kit (SPEC §10, docs/render.md §2). Concurrencia 1:
@@ -10,7 +11,7 @@ export async function registerComponentsWorkers(ctx: WorkerContext): Promise<Wor
   // auto-reparación al arrancar: src/kit y el registry se regeneran desde la
   // BD (clon nuevo o despliegue sin las copias del kit)
   try {
-    await syncRegistryFromDb(ctx);
+    await videoSrcLock.run(() => syncRegistryFromDb(ctx));
   } catch (err) {
     ctx.logger.warn({ err }, 'No se pudo sincronizar el registry del kit al arrancar');
   }

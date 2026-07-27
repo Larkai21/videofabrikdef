@@ -3,6 +3,7 @@ import { asc, gt, eq, inArray, isNotNull, and, sql } from 'drizzle-orm';
 import { assets, ideas, rawItems } from '@fabrica/db';
 import { JOBS, QUEUES, type LibraryReembedJob } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
+import { buildAssetEmbedText } from '../../lib/embed-text.js';
 import { centroid } from '../ideas/scoring.js';
 
 // Re-embebido total (docs/assets-y-biblioteca.md §1): cambiar el modelo de
@@ -37,16 +38,13 @@ export function rawItemEmbeddingText(row: { title: string; excerpt: string | nul
   return `${row.title} ${row.excerpt ?? ''}`.trim();
 }
 
-// igual que insertIngestedAsset en pipelines/assets/index.ts: caption + query
-// de origen; si faltan ambos, las tags como último recurso
+// texto canónico compartido por ingesta, backfill y re-embebido
 export function assetEmbeddingText(row: {
   caption: string | null;
   originQuery: string | null;
   tags: string[];
 }): string {
-  const main = [row.caption ?? '', row.originQuery ?? ''].join(' ').trim();
-  if (main.length > 0) return main;
-  return row.tags.join(' ').trim();
+  return buildAssetEmbedText(row.caption, row.originQuery, row.tags);
 }
 
 // solo para ideas sin cluster con embeddings: texto de la ficha
@@ -254,32 +252,50 @@ async function reembedAssets(rt: PhaseRuntime, startAfterId: string | null): Pro
 export async function runReembed(ctx: WorkerContext, job: Job<LibraryReembedJob>): Promise<void> {
   const tables = normalizeTables(job.data.tables);
   const plan = resumePlan(tables, readCursor(job.progress));
+
+  // sonda ANTES de tocar filas: fuerza la carga real del modelo, de modo que
+  // describe() refleje el backend efectivo (no el intención) y un backend
+  // degradado aborte el job en vez de migrar todo a hash anunciando e5
+  await ctx.embeddings.embed(['sonda de re-embebido']);
   const backend = ctx.embeddings.describe();
+  if (ctx.embeddings.name === 'fastembed' && backend.backend !== 'e5-transformers') {
+    throw new Error(
+      `Re-embebido abortado: backend efectivo '${backend.backend}' en lugar de e5-transformers`,
+    );
+  }
   ctx.logger.info(
     { tables: plan.map((p) => p.table), backend, jobId: job.id },
     'Re-embebido de la biblioteca iniciado',
   );
 
-  const rt: PhaseRuntime = { ctx, job, total: 0, processed: 0 };
-  for (const step of plan) rt.total += await countRows(ctx, step.table);
+  // los polls escriben embeddings y clusters en paralelo: pausar la cola de
+  // fuentes evita clustering contra un espacio vectorial mixto
+  await ctx.queues.sources.pause().catch(() => {});
+  try {
+    const rt: PhaseRuntime = { ctx, job, total: 0, processed: 0 };
+    for (const step of plan) rt.total += await countRows(ctx, step.table);
 
-  for (const step of plan) {
-    if (step.table === 'raw_items') await reembedRawItems(rt, step.startAfterId);
-    else if (step.table === 'ideas') await reembedIdeas(rt, step.startAfterId);
-    else await reembedAssets(rt, step.startAfterId);
+    for (const step of plan) {
+      if (step.table === 'raw_items') await reembedRawItems(rt, step.startAfterId);
+      else if (step.table === 'ideas') await reembedIdeas(rt, step.startAfterId);
+      else await reembedAssets(rt, step.startAfterId);
+    }
+
+    const finalBackend = ctx.embeddings.describe();
+    await ctx.publishEvent({
+      type: 'job_progress',
+      video_id: REEMBED_PROGRESS_VIDEO_ID,
+      queue: QUEUES.library,
+      progress: 100,
+      detail: `Re-embebido completado: ${rt.processed} filas con el modelo ${finalBackend.model}`,
+    });
+    ctx.logger.info(
+      { filas: rt.processed, backend: finalBackend },
+      'Re-embebido de la biblioteca completado',
+    );
+  } finally {
+    await ctx.queues.sources.resume().catch(() => {});
   }
-
-  await ctx.publishEvent({
-    type: 'job_progress',
-    video_id: REEMBED_PROGRESS_VIDEO_ID,
-    queue: QUEUES.library,
-    progress: 100,
-    detail: `Re-embebido completado: ${rt.processed} filas con el modelo ${backend.model}`,
-  });
-  ctx.logger.info(
-    { filas: rt.processed, backend },
-    'Re-embebido de la biblioteca completado',
-  );
 }
 
 // Encolado con id único (BullMQ prohíbe ':' en ids custom). No se usa un id

@@ -12,6 +12,7 @@ import {
   type LibraryReembedJob,
 } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
+import { buildAssetEmbedText } from '../../lib/embed-text.js';
 import { closeCost, failCost, openCost } from '../../lib/ledger.js';
 import {
   extractCaptionJpeg,
@@ -122,14 +123,12 @@ async function backfillAsset(
   }
 
   const tags = caption === null ? asset.tags : mergeTags(asset.tags, caption);
-  const embedText = [caption ?? '', asset.originQuery ?? '', tags.join(' ')]
-    .filter((s) => s !== '')
-    .join(' ')
-    .trim();
+  // texto canónico compartido con ingesta y reembed (lib/embed-text.ts)
+  const embedText = buildAssetEmbedText(caption, asset.originQuery, tags);
   const [embedding] = embedText === '' ? [null] : await ctx.embeddings.embed([embedText]);
 
   const newKind = reclassifyKind(asset.kind, visual);
-  await db
+  const updated = await db
     .update(assets)
     .set({
       caption,
@@ -142,7 +141,14 @@ async function backfillAsset(
       ...(asset.width === null && probed.width !== null ? { width: probed.width } : {}),
       ...(asset.height === null && probed.height !== null ? { height: probed.height } : {}),
     })
-    .where(eq(assets.id, asset.id));
+    .where(eq(assets.id, asset.id))
+    .returning({ id: assets.id });
+  if (updated.length === 0) {
+    // el asset se borró mientras se etiquetaba: sin fila no debe quedar thumb
+    await fs.rm(thumbPathFor(ctx.libraryDir, asset), { force: true }).catch(() => {});
+    logger.info({ assetId: asset.id }, 'Asset borrado durante el backfill; thumb retirado');
+    return 'skipped';
+  }
   return outcome;
 }
 

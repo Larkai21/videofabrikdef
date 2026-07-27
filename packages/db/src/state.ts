@@ -21,6 +21,8 @@ export interface IncidentPayload {
   message: string;
   suggested_action: 'reintentar' | 'regenerar' | 'descartar' | null;
   queue?: string;
+  // job exacto que falló: el retry lo re-encola tal cual en vez de inferirlo
+  job?: { queue: string; name: string; data?: Record<string, unknown> };
 }
 
 export async function transitionVideo(

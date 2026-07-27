@@ -36,7 +36,9 @@ export function purgeCandidatesCondition(now: Date): SQL {
   const condition = and(
     eq(assets.timesUsed, 0),
     lt(assets.createdAt, purgeCutoff(now)),
-    sql`NOT EXISTS (SELECT 1 FROM beats WHERE beats.asset_id = ${assets.id})`,
+    // referencias directas Y como candidato elegido aún sin ingerir
+    sql`NOT EXISTS (SELECT 1 FROM beats WHERE beats.asset_id = ${assets.id}
+        OR beats.candidates::text LIKE '%"library:' || ${assets.id} || '"%')`,
   );
   // and() con argumentos no vacíos nunca devuelve undefined
   if (!condition) throw new Error('Condición de purga vacía');

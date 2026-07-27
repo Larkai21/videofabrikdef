@@ -6,8 +6,8 @@ import { pipeline } from 'node:stream/promises';
 import { promisify } from 'node:util';
 import type { FastifyInstance } from 'fastify';
 import { nanoid } from 'nanoid';
-import { eq } from 'drizzle-orm';
-import { channels, components } from '@fabrica/db';
+import { and, eq, ne, sql } from 'drizzle-orm';
+import { channels, components, videos } from '@fabrica/db';
 import {
   channelSettingsSchema,
   componentDtoSchema,
@@ -115,6 +115,28 @@ export function registerComponentRoutes(app: FastifyInstance, ctx: ApiContext): 
       await cleanup();
       throw badRequest(
         `manifest.json inválido: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    // una name@version validada es INMUTABLE: re-subirla destruiría la única
+    // fuente del componente (library/) y resetearía a pending sin rollback
+    // posible; los cambios exigen bump de versión. La unicidad es global (el
+    // registry y src/kit se indexan por name@version, sin canal).
+    const [existing] = await ctx.db
+      .select({ id: components.id, status: components.status, channelId: components.channelId })
+      .from(components)
+      .where(and(eq(components.name, manifest.name), eq(components.version, manifest.component_version)))
+      .limit(1);
+    if (existing && existing.channelId !== channelId) {
+      await cleanup();
+      throw conflict(
+        `${manifest.name}@${manifest.component_version} ya existe en otro canal; el nombre@versión es global`,
+      );
+    }
+    if (existing && existing.status === 'validated') {
+      await cleanup();
+      throw conflict(
+        `${manifest.name}@${manifest.component_version} ya está validado; sube una versión nueva (bump de semver)`,
       );
     }
 
@@ -233,6 +255,21 @@ export function registerComponentRoutes(app: FastifyInstance, ctx: ApiContext): 
     const settings = channelSettingsSchema.parse(channelRow?.settings ?? {});
     if (settings.brand_components[row.type] === refOf(row)) {
       throw conflict('El componente está activo; activa otro de su tipo antes de borrarlo');
+    }
+    // los vídeos no terminados llevan la ref congelada en su maestro: borrar
+    // el componente los mandaría a incidencia al llegar al render
+    const needle = `%"${refOf(row)}"%`;
+    const [inUse] = await ctx.db
+      .select({ id: videos.id })
+      .from(videos)
+      .where(
+        and(ne(videos.state, 'hecho'), sql`(${videos.master}->'brand')::text LIKE ${needle}`),
+      )
+      .limit(1);
+    if (inUse) {
+      throw conflict(
+        `El componente lo referencia un vídeo en curso (${inUse.id}); termina o descarta ese vídeo antes de borrarlo`,
+      );
     }
     await ctx.db.delete(components).where(eq(components.id, id));
     // borrar en disco solo si la ruta cae bajo library/ (defensa ante filas raras);

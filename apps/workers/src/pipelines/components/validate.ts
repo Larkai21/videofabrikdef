@@ -19,6 +19,7 @@ import { webpackOverride } from '@fabrica/video/bundling';
 import { bundle } from '@remotion/bundler';
 import { ensureBrowser, renderMedia, renderStill, selectComposition } from '@remotion/renderer';
 import type { WorkerContext } from '../../lib/context.js';
+import { videoSrcLock } from '../../lib/locks.js';
 import { buildHarnessSource, buildHarnessTsconfig, schemaImportPathFor } from './harness.js';
 
 // Validador de zips del brand kit (SPEC §10, docs/render.md §2):
@@ -116,6 +117,9 @@ export async function syncRegistryFromDb(ctx: WorkerContext): Promise<void> {
     }
   }
   const specDir = path.join(videoPkg, '.kit-validate');
+  // poda de arranque: restos de validaciones interrumpidas (no hay ninguna
+  // validación en vuelo cuando el worker arranca)
+  await fsp.rm(specDir, { recursive: true, force: true }).catch(() => {});
   await fsp.mkdir(specDir, { recursive: true });
   const specPath = path.join(specDir, 'boot-sync.registry-spec.json');
   await fsp.writeFile(specPath, JSON.stringify({ components: [...byRef.values()] }, null, 2));
@@ -353,8 +357,12 @@ export async function handleComponentsValidate(
     tick('contrato');
 
     // ---- c) registry: copia a src/kit + registry.generated.ts (estado
-    // completo: todos los validados más el que se está validando)
+    // completo: todos los validados más el que se está validando). El candado
+    // serializa la mutación del árbol con el bundle del worker de render.
     await publishProgress(55, 'Regenerando el registry del brand kit');
+    const previewPath = path.join(row.path, 'preview.png');
+    const releaseVideoSrc = await videoSrcLock.acquire();
+    try {
     const regRes = await regenerateRegistry(true);
     const regOut = lastJsonLine(regRes.stdout) as {
       ok?: boolean;
@@ -377,7 +385,6 @@ export async function handleComponentsValidate(
 
     // ---- d) render de humo de 60 frames + preview.png
     await publishProgress(70, 'Render de humo de 60 frames');
-    const previewPath = path.join(row.path, 'preview.png');
     try {
       await ensureBrowser();
       // bundle fresco en cada validación: el registry acaba de cambiar y la
@@ -385,6 +392,9 @@ export async function handleComponentsValidate(
       const serveUrl = await bundle({
         entryPoint: path.join(videoPkg, 'src', 'kit-smoke-entry.ts'),
         publicDir: path.join(videoPkg, 'public'),
+        // bajo el workdir: el finally del validador lo barre siempre (sin
+        // outDir, bundle() dejaría un temporal huérfano por validación)
+        outDir: path.join(workdir, 'bundle'),
         webpackOverride,
       });
       const inputProps = {
@@ -427,7 +437,13 @@ export async function handleComponentsValidate(
       // el humo falló con el componente ya copiado al kit: se revierte el
       // registry al estado sin él antes de marcar el fallo
       try {
-        await regenerateRegistry(false);
+        const rollback = await regenerateRegistry(false);
+        if (rollback.code !== 0) {
+          log.error(
+            { stderr: rollback.stderr.slice(0, 500) },
+            'El rollback del registry terminó con error; el boot-sync lo reparará',
+          );
+        }
       } catch (rollbackErr) {
         log.error({ err: rollbackErr }, 'No se pudo revertir el registry tras el fallo de humo');
       }
@@ -435,6 +451,9 @@ export async function handleComponentsValidate(
       return;
     }
     tick('humo (60 frames)');
+    } finally {
+      releaseVideoSrc();
+    }
 
     const totalS = ((Date.now() - startedAt) / 1000).toFixed(1);
     const logText = `Validación correcta · ${phaseTimes.join(' · ')} · total ${totalS} s`;
@@ -444,7 +463,6 @@ export async function handleComponentsValidate(
       .where(eq(components.id, componentId));
     await publishProgress(100, 'Componente validado');
     await ctx.publishEvent({ type: 'inbox_changed' });
-    await fsp.rm(workdir, { recursive: true, force: true });
     log.info({ reference, previewPath }, 'Componente del brand kit validado');
   } catch (err) {
     const message = `Fallo de infraestructura validando el componente: ${errorMessage(err)}`;
@@ -452,6 +470,13 @@ export async function handleComponentsValidate(
     // dentro del procesador attemptsMade cuenta los intentos ANTERIORES
     const isFinal = job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
     if (isFinal) {
+      // el registry puede haber quedado con el componente no validado dentro:
+      // rollback best-effort desde el estado real de la BD, bajo el candado
+      try {
+        await videoSrcLock.run(() => syncRegistryFromDb(ctx));
+      } catch (rollbackErr) {
+        log.error({ err: rollbackErr }, 'No se pudo re-sincronizar el registry tras el fallo');
+      }
       try {
         await failValidation('error inesperado', message);
       } catch (failErr) {
@@ -459,5 +484,13 @@ export async function handleComponentsValidate(
       }
     }
     throw err;
+  } finally {
+    // sin fugas: workdir (harness, bundle de humo, mp4) y spec del registry
+    // se barren en éxito, fallo de negocio y fallo de infraestructura
+    const workRoot = path.join(videoPkg, '.kit-validate');
+    await fsp.rm(path.join(workRoot, componentId), { recursive: true, force: true }).catch(() => {});
+    await fsp
+      .rm(path.join(workRoot, `${componentId}.registry-spec.json`), { force: true })
+      .catch(() => {});
   }
 }

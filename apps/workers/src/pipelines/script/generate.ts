@@ -234,24 +234,28 @@ export async function handleScriptGenerate(
     );
   }
 
-  const seo: Seo = resolveSeo(existingSeo, gen.seo);
-
-  const master: MasterVideoJson = {
-    ...video.master,
-    research,
-    script: { scenes, hook_notes: gen.script.hook_notes },
-    seo,
-  };
-  // escritura y transición en una transacción con candado: si el humano
-  // aprobó el guion mientras el LLM generaba (reescritura lenta), el borrador
-  // nuevo se descarta y el guion aprobado no se pisa
+  // escritura y transición en una transacción con candado y RELECTURA: si el
+  // humano aprobó el guion mientras el LLM generaba, el borrador se descarta;
+  // si eligió título durante la generación, se conserva su seo (los títulos
+  // nuevos invalidarían la elección) y las ediciones de escena frescas
   const applied = await ctx.db.transaction(async (tx) => {
     const [row] = await tx
-      .select({ state: videos.state })
+      .select({ state: videos.state, master: videos.master, titleChosen: videos.titleChosen })
       .from(videos)
       .where(eq(videos.id, videoId))
       .for('update');
     if (!row || (row.state !== 'idea_aprobada' && row.state !== 'guion_borrador')) return false;
+    const freshSeo = row.master.seo;
+    const titlePicked = row.titleChosen !== null || freshSeo?.chosen_idx != null;
+    const seo: Seo = titlePicked && freshSeo ? freshSeo : resolveSeo(freshSeo ?? existingSeo, gen.seo);
+    const freshEdited = (row.master.script?.scenes ?? []).filter((s) => s.edited_by_human);
+    const finalScenes = freshEdited.length > 0 ? mergeHumanEdits(scenes, freshEdited) : scenes;
+    const master: MasterVideoJson = {
+      ...row.master,
+      research,
+      script: { scenes: finalScenes, hook_notes: gen.script.hook_notes },
+      seo,
+    };
     await tx
       .update(videos)
       .set({ master, state: 'guion_borrador', updatedAt: new Date() })

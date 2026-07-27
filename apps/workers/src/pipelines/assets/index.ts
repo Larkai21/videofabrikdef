@@ -30,6 +30,7 @@ import {
   type RenderVideoJob,
 } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
+import { buildAssetEmbedText } from '../../lib/embed-text.js';
 import { closeCost, failCost, openCost } from '../../lib/ledger.js';
 import { cosineSimilarity } from '../../providers/embeddings.js';
 import { generateFluxImage } from '../../providers/flux.js';
@@ -52,6 +53,16 @@ interface PoolEntry {
   cand: BeatCandidate;
   kind: 'clip' | 'image';
   durationMs: number | null;
+  // similitud coseno pura query↔contenido: la que se compara con los umbrales
+  cos: number;
+  // compuesto 0,6·cos + calidad + novedad: solo para ordenar entre parecidos
+  composite: number;
+  // otras identidades del MISMO asset (library:<id> ↔ sourceRef de stock)
+  altRefs: string[];
+}
+
+function identityRefs(entry: PoolEntry): string[] {
+  return [entry.cand.ref, ...entry.altRefs];
 }
 
 function toBeatKind(assetKind: string): 'clip' | 'image' {
@@ -135,6 +146,9 @@ async function libraryCandidates(
         },
         kind: toBeatKind(r.asset.kind),
         durationMs: r.asset.durationMs,
+        cos: Number(r.score),
+        composite: Number(r.score),
+        altRefs: r.asset.sourceRef ? [r.asset.sourceRef] : [],
       },
     }));
 }
@@ -190,7 +204,7 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
     .map((l) => l.entry)
     .filter((e) => !vetoedRefs.has(e.cand.ref));
   const libAssetByRef = new Map(lib.map((l) => [l.entry.cand.ref, l.assetId]));
-  const bestLib = pool[0]?.cand.score ?? 0;
+  const bestLib = pool[0]?.cos ?? 0;
 
   // 2) stock solo si la biblioteca no llega al umbral
   if (bestLib < T_STOCK) {
@@ -227,7 +241,9 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
         logger.warn({ err }, 'Fallo captionando finalistas; se puntúa sin caption');
       }
 
-      // novedad: el clip no debe estar entre los usados recientemente
+      // novedad: el clip no debe estar entre los usados recientemente; el
+      // mapeo sourceRef→asset también da la identidad library:<id> para la
+      // anti-repetición intra-vídeo (mismo asset con dos nombres)
       const refs = finalists.map((f) => f.ref);
       const known = refs.length
         ? await db
@@ -238,13 +254,18 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
       const usedRecentlyByRef = new Set(
         known.filter((k) => deps.recentIds.has(k.id)).map((k) => k.sourceRef),
       );
+      const libraryIdByRef = new Map(
+        known.flatMap((k) => (k.sourceRef ? [[k.sourceRef, k.id] as const] : [])),
+      );
 
-      const texts = finalists.map((f) => `${f.meta.caption ?? f.meta.title} ${queryText}`);
+      // el coseno mide caption↔query: incluir la query en el texto embebido
+      // inflaría la similitud con sus propios términos
+      const texts = finalists.map((f) => String(f.meta.caption ?? f.meta.title ?? ''));
       const vectors = await ctx.embeddings.embed(texts);
       finalists.forEach((finalist, i) => {
         const vec = vectors[i];
-        const cosine = vec ? cosineSimilarity(qVec, vec) : 0;
-        const score = stockScore({
+        const cosine = vec && texts[i] !== '' ? cosineSimilarity(qVec, vec) : 0;
+        const composite = stockScore({
           cosine,
           width: finalist.meta.width,
           height: finalist.meta.height,
@@ -253,16 +274,18 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
           isImage: finalist.meta.kind === 'image',
           usedRecently: usedRecentlyByRef.has(finalist.ref),
         });
-        pool.push(stockToEntry(finalist, score));
+        const libId = libraryIdByRef.get(finalist.ref);
+        pool.push(stockToEntry(finalist, cosine, composite, libId ? [`library:${libId}`] : []));
       });
     }
   }
 
-  // 3) decisión: solo entran candidatos con fit válido (un clip que no cubre
-  // el beat ni con el máximo de loops tampoco sirve como alternativa). Un
-  // asset ya elegido para OTRO beat del mismo vídeo solo repite como elegido
-  // si no queda alternativa con fit (anti-repetición intra-vídeo).
-  pool.sort((a, b) => b.cand.score - a.cand.score);
+  // 3) decisión sobre el COSENO CRUDO (los umbrales están calibrados para
+  // similitud pura; el compuesto 0,6·cos+calidad+novedad solo ordena entre
+  // candidatos parecidos). Solo entran candidatos con fit válido, y un asset
+  // ya elegido para OTRO beat del mismo vídeo solo repite si no hay
+  // alternativa (anti-repetición intra-vídeo por identidad de asset).
+  pool.sort((a, b) => b.cos - a.cos || b.composite - a.composite);
   const fitted: { entry: PoolEntry; fit: Fit }[] = [];
   for (const entry of pool) {
     const fit = computeFit({
@@ -279,7 +302,8 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
     }
     fitted.push({ entry, fit: fit.fit });
   }
-  const pick = fitted.find((f) => !deps.usedRefs.has(f.entry.cand.ref)) ?? fitted[0];
+  const pick =
+    fitted.find((f) => identityRefs(f.entry).every((r) => !deps.usedRefs.has(r))) ?? fitted[0];
   let chosen: PoolEntry | undefined = pick?.entry;
   let chosenFit: Fit | undefined = pick?.fit;
   const rest: PoolEntry[] = fitted.filter((f) => f !== pick).map((f) => f.entry);
@@ -287,16 +311,25 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
   let status: 'auto_ok' | 'review';
   let candidates: BeatCandidate[];
 
-  if (!chosen || chosen.cand.score < T_REV) {
-    // 4) Flux como último recurso → candidato único en revisión
-    const prompt = deps.styleSuffix
+  if (!chosen || chosen.cos < T_REV) {
+    // 4) Flux como último recurso → candidato único en revisión. Si el humano
+    // descartó justo la imagen Flux anterior, la semilla determinista daría
+    // la MISMA imagen: se varía con el motivo del descarte
+    const fluxRef = `flux:${videoId}:${beat.idx}`;
+    const fluxVetoed = vetoedRefs.has(fluxRef);
+    const basePrompt = deps.styleSuffix
       ? `${beat.visualQuery}, ${deps.styleSuffix}`
       : beat.visualQuery;
+    const prompt =
+      fluxVetoed && beat.discardReason
+        ? `${basePrompt}. Variación distinta; evita: ${beat.discardReason}`
+        : basePrompt;
     const flux = await generateFluxImage(db, logger, {
       videoId,
       channelId,
       beatIdx: beat.idx,
       prompt,
+      ...(fluxVetoed ? { seedSalt: beat.discardReason ?? 'descartado' } : {}),
     });
     // el PNG vive bajo la biblioteca (no en tmp) para que la timeline pueda
     // mostrarlo vía /files y la ingesta lo reutilice tal cual se aprobó
@@ -307,7 +340,7 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
     await fs.copyFile(flux.path, fluxPath);
     chosen = {
       cand: {
-        ref: `flux:${videoId}:${beat.idx}`,
+        ref: fluxRef,
         provider: 'flux',
         score: 0,
         thumb_url: `/files/library/assets/${channelId}/flux/${fluxName}`,
@@ -322,11 +355,14 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
       },
       kind: 'image',
       durationMs: null,
+      cos: 0,
+      composite: 0,
+      altRefs: [],
     };
     chosenFit = { mode: 'kenburns' };
     status = 'review';
     candidates = [chosen.cand];
-  } else if (chosen.cand.score >= T_AUTO) {
+  } else if (chosen.cos >= T_AUTO) {
     status = 'auto_ok';
     candidates = [chosen.cand, ...rest.slice(0, ALTERNATES).map((e) => e.cand)];
   } else {
@@ -343,7 +379,8 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
       status,
       candidates,
       fit: chosenFit,
-      chosenScore: chosen.cand.score,
+      // similitud pura, coherente con la barra de la UI y los umbrales
+      chosenScore: chosen.cos,
       chosenOrigin: originLabel(chosen.cand),
       assetId: chosen.cand.provider === 'library' ? (libAssetByRef.get(chosen.cand.ref) ?? null) : null,
       discardReason: null,
@@ -357,20 +394,28 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
     );
     return;
   }
-  deps.usedRefs.add(chosen.cand.ref);
+  for (const ref of identityRefs(chosen)) deps.usedRefs.add(ref);
 }
 
-function stockToEntry(finalist: StockResult, score: number): PoolEntry {
+function stockToEntry(
+  finalist: StockResult,
+  cos: number,
+  composite: number,
+  altRefs: string[],
+): PoolEntry {
   return {
     cand: {
       ref: finalist.ref,
       provider: finalist.provider,
-      score,
+      score: cos,
       thumb_url: finalist.thumb_url,
       meta: { ...finalist.meta },
     },
     kind: finalist.meta.kind,
     durationMs: finalist.meta.kind === 'clip' ? finalist.meta.duration_ms : null,
+    cos,
+    composite,
+    altRefs,
   };
 }
 
@@ -577,6 +622,8 @@ async function ingestChosen(
         channelId: video.channelId,
         beatIdx: beat.idx,
         prompt: (meta.prompt as string | undefined) ?? beat.visualQuery,
+        // misma semilla que la imagen aprobada, aunque llevara sal de descarte
+        ...(typeof meta.seed === 'number' ? { seed: meta.seed } : {}),
       });
       srcPath = regenerated.path;
     }
@@ -660,7 +707,11 @@ async function insertIngestedAsset(
   const caption =
     (meta.caption as string | undefined) ??
     (chosen.provider === 'flux' ? `Imagen generada para: ${beat.visualQuery}` : String(meta.title ?? ''));
-  const [embedding] = await ctx.embeddings.embed([`${caption} ${beat.visualQuery}`]);
+  const tags = buildTags(beat.visualQuery, caption);
+  // texto canónico compartido con backfill y reembed (lib/embed-text.ts)
+  const [embedding] = await ctx.embeddings.embed([
+    buildAssetEmbedText(caption, beat.visualQuery, tags),
+  ]);
 
   const assetId = nanoid();
   await db.insert(assetsTable).values({
@@ -675,7 +726,7 @@ async function insertIngestedAsset(
     durationMs: kind === 'clip' ? probed.durationMs : null,
     width: probed.width,
     height: probed.height,
-    tags: buildTags(beat.visualQuery, caption),
+    tags,
     caption: caption || null,
     originQuery: beat.visualQuery,
     embedding: embedding ?? null,

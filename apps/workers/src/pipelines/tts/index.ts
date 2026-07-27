@@ -98,11 +98,24 @@ async function runSynthesize(ctx: WorkerContext, factory: TtsFactory, job: Job<T
 
   const [channel] = await db.select().from(channels).where(eq(channels.id, video.channelId));
   const voice = channel?.profile?.voice;
-  const voiceId = voice?.voice_id ?? 'es-ES-AlvaroNeural';
   const rate = voice?.rate ?? '-8%';
   const settings = channelSettingsSchema.parse(channel?.settings ?? {});
   // proveedor por canal: profile.voice.provider decide; sin clave cae a edge
   const tts = factory.providerFor(voice?.provider);
+  // si el proveedor pedido degradó (p. ej. elevenlabs sin clave), su voice_id
+  // no existe en el proveedor efectivo: usar la voz neuronal por defecto del
+  // idioma del canal en vez de garantizar el fallo de toda síntesis
+  const fallbackVoice =
+    channel?.profile?.language === 'en' ? 'en-US-AndrewNeural' : 'es-ES-AlvaroNeural';
+  const degradedProvider =
+    voice?.provider !== undefined && tts.name !== 'mock' && tts.name !== voice.provider;
+  const voiceId = degradedProvider ? fallbackVoice : (voice?.voice_id ?? fallbackVoice);
+  if (degradedProvider) {
+    logger.warn(
+      { pedido: voice?.provider, efectivo: tts.name, voz: voiceId },
+      'Proveedor de voz degradado: se usa la voz por defecto del idioma',
+    );
+  }
 
   await ctx.publishEvent({
     type: 'job_progress',

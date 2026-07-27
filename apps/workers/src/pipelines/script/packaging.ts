@@ -91,20 +91,23 @@ export async function handleScriptPackaging(
     },
   });
 
-  const master: MasterVideoJson = {
-    ...video.master,
-    seo: resolveSeo(video.master.seo, gen.seo),
-  };
-
-  // misma transacción con candado que el generate normal: si el estado cambió
-  // mientras el LLM respondía, el paquete se descarta sin pisar nada
+  // transacción con candado y RELECTURA COMPLETA: el snapshot de antes de la
+  // llamada LLM puede estar viejo — si el humano ya eligió título (o hay
+  // guion), el paquete nuevo se descarta en vez de pisar la elección
   const applied = await ctx.db.transaction(async (tx) => {
     const [row] = await tx
-      .select({ state: videos.state })
+      .select({ state: videos.state, master: videos.master, titleChosen: videos.titleChosen })
       .from(videos)
       .where(eq(videos.id, videoId))
       .for('update');
     if (!row || (row.state !== 'idea_aprobada' && row.state !== 'guion_borrador')) return false;
+    if (row.titleChosen !== null || row.master.seo?.chosen_idx != null || row.master.script) {
+      return false;
+    }
+    const master: MasterVideoJson = {
+      ...row.master,
+      seo: resolveSeo(row.master.seo, gen.seo),
+    };
     await tx
       .update(videos)
       .set({ master, state: 'guion_borrador', updatedAt: new Date() })

@@ -22,6 +22,11 @@ export interface FluxParams {
   channelId: string | null;
   beatIdx: number;
   prompt: string;
+  // varía la semilla determinista (p. ej. tras un descarte humano, para no
+  // regenerar la misma imagen)
+  seedSalt?: string;
+  // fuerza una semilla exacta (regeneración idéntica en la ingesta)
+  seed?: number;
 }
 
 export interface FluxImage {
@@ -82,7 +87,7 @@ export async function generateFluxImage(
   logger: pino.Logger,
   params: FluxParams,
 ): Promise<FluxImage> {
-  const seed = mockHash(params.videoId + params.beatIdx);
+  const seed = params.seed ?? mockHash(params.videoId + params.beatIdx + (params.seedSalt ?? ''));
   const apiKey = process.env.FAL_API_KEY;
   // megapíxeles facturados redondeando hacia arriba
   const megapixels = Math.ceil((FLUX_WIDTH * FLUX_HEIGHT) / 1_000_000);

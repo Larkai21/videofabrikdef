@@ -136,7 +136,11 @@ describe('puertas de la API', () => {
 
     const res = await app.inject({ method: 'POST', url: `/videos/${videoId}/approve-script` });
     expect(res.statusCode).toBe(409);
-    expect((res.json() as { error: string }).error).toBe('transición inválida');
+    // puede rechazar por falta de guion (guarda de packaging) o por
+    // transición inválida: ambas protegen la puerta
+    expect(['conflicto de estado', 'transición inválida']).toContain(
+      (res.json() as { error: string }).error,
+    );
 
     const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
     expect(video?.state).toBe('idea_aprobada');

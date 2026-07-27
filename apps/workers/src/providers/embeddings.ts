@@ -196,7 +196,7 @@ class MultilingualE5Embeddings implements EmbeddingsProvider {
       : { backend: 'e5-transformers', model: E5_MODEL_ID, dims: EMBEDDING_DIMS };
   }
 
-  private load(): Promise<((texts: string[]) => Promise<number[][]>) | null> {
+  private async load(): Promise<((texts: string[]) => Promise<number[][]>) | null> {
     this.loadPromise ??= (async () => {
       for (const spec of TRANSFORMERS_MODULES) {
         let mod: TransformersModule;
@@ -229,29 +229,41 @@ class MultilingualE5Embeddings implements EmbeddingsProvider {
             prefix: E5_QUERY_PREFIX,
           });
         } catch (err) {
-          // fallo de descarga/inicialización: degradar, no tumbar el pipeline
+          // fallo de descarga/inicialización (a menudo transitorio: red);
+          // NO se cachea el fallo — el siguiente embed reintenta la carga
           this.logger.warn(
             { err, model: E5_MODEL_ID, paquete: spec },
-            'No se pudo inicializar el modelo de embeddings; se degrada a hash hasta reiniciar',
+            'No se pudo inicializar el modelo de embeddings; se reintentará en la siguiente llamada',
           );
           return null;
         }
       }
       return null;
     })();
-    return this.loadPromise;
+    const loaded = await this.loadPromise;
+    if (!loaded) this.loadPromise = null;
+    return loaded;
   }
 
   async embed(texts: string[]): Promise<number[][]> {
     if (texts.length === 0) return [];
     const embedder = await this.load();
     if (!embedder) {
+      // mezclar espacios vectoriales corrompe TODAS las similitudes: escribir
+      // vectores hash cuando se espera e5 solo se permite de forma explícita
+      if (process.env.EMBEDDINGS_ALLOW_FALLBACK !== 'true') {
+        throw new Error(
+          'Backend de embeddings multilingüe no disponible (EMBEDDINGS_PROVIDER=fastembed). ' +
+            'Instala @huggingface/transformers o exporta EMBEDDINGS_ALLOW_FALLBACK=true para ' +
+            'permitir el hash de desarrollo (los vectores NO serán comparables con e5).',
+        );
+      }
       this.degraded = true;
       if (!this.warned) {
         this.warned = true;
         this.logger.warn(
           { faltan: TRANSFORMERS_MODULES, model: E5_MODEL_ID },
-          'Sin backend de embeddings multilingüe: EMBEDDINGS_PROVIDER=fastembed queda en modo degradado (hash). Instalar @huggingface/transformers y lanzar el job reembed de la cola library',
+          'Modo degradado EXPLÍCITO (EMBEDDINGS_ALLOW_FALLBACK): vectores hash no comparables con e5; lanzar el job reembed tras instalar el modelo',
         );
       }
       return this.hash.embed(texts);

@@ -24,6 +24,7 @@ import {
 } from '@remotion/renderer';
 import type { WorkerContext } from '../../lib/context.js';
 import { env, REPO_ROOT } from '../../lib/env.js';
+import { videoSrcLock } from '../../lib/locks.js';
 import { rewriteMasterMedia } from './media-rewrite.js';
 
 // ESTRATEGIA DE MEDIOS — decidida leyendo @remotion/renderer 4.0.499:
@@ -61,7 +62,13 @@ async function hashTree(
     if (entry.isDirectory()) await hashTree(hash, abs, rel);
     else if (entry.isFile()) {
       hash.update(rel);
-      hash.update(await fsp.readFile(abs));
+      try {
+        hash.update(await fsp.readFile(abs));
+      } catch {
+        // archivo desaparecido entre readdir y readFile (poda del kit en
+        // vuelo): se anota la ausencia; el candado evita el caso normal
+        hash.update('desaparecido');
+      }
     }
   }
 }
@@ -70,30 +77,35 @@ async function hashTree(
 // hash de packages/video/src + fuentes + package.json, cacheado en un
 // directorio gitignoreado. Los renders siguientes reutilizan el bundle.
 async function ensureBundle(ctx: WorkerContext): Promise<string> {
-  const pkgDir = videoPackageDir();
-  const hash = createHash('sha1');
-  await hashTree(hash, path.join(pkgDir, 'src'), 'src');
-  // la composición importa @fabrica/shared: un cambio ahí también invalida
-  const sharedDir = path.dirname(require.resolve('@fabrica/shared'));
-  await hashTree(hash, sharedDir, 'shared/src');
-  const publicDir = path.join(pkgDir, 'public');
-  if (fs.existsSync(publicDir)) await hashTree(hash, publicDir, 'public');
-  hash.update(await fsp.readFile(path.join(pkgDir, 'package.json')));
-  const key = hash.digest('hex').slice(0, 16);
+  // candado compartido con la validación del brand kit: sin él, la
+  // regeneración del registry puede mutar src/kit entre el cálculo del hash
+  // y el bundle, y el marcador perpetuaría un bundle mezclado
+  return videoSrcLock.run(async () => {
+    const pkgDir = videoPackageDir();
+    const hash = createHash('sha1');
+    await hashTree(hash, path.join(pkgDir, 'src'), 'src');
+    // la composición importa @fabrica/shared: un cambio ahí también invalida
+    const sharedDir = path.dirname(require.resolve('@fabrica/shared'));
+    await hashTree(hash, sharedDir, 'shared/src');
+    const publicDir = path.join(pkgDir, 'public');
+    if (fs.existsSync(publicDir)) await hashTree(hash, publicDir, 'public');
+    hash.update(await fsp.readFile(path.join(pkgDir, 'package.json')));
+    const key = hash.digest('hex').slice(0, 16);
 
-  const outDir = path.join(REPO_ROOT, '.turbo', 'remotion-bundle', key);
-  const marker = path.join(outDir, '.bundle-completo');
-  if (fs.existsSync(marker)) return outDir;
-  await fsp.rm(outDir, { recursive: true, force: true });
-  ctx.logger.info({ key }, 'Empaquetando la composición de Remotion');
-  const serveUrl = await bundle({
-    entryPoint: path.join(pkgDir, 'src', 'entry.ts'),
-    publicDir: path.join(pkgDir, 'public'),
-    outDir,
-    webpackOverride,
+    const outDir = path.join(REPO_ROOT, '.turbo', 'remotion-bundle', key);
+    const marker = path.join(outDir, '.bundle-completo');
+    if (fs.existsSync(marker)) return outDir;
+    await fsp.rm(outDir, { recursive: true, force: true });
+    ctx.logger.info({ key }, 'Empaquetando la composición de Remotion');
+    const serveUrl = await bundle({
+      entryPoint: path.join(pkgDir, 'src', 'entry.ts'),
+      publicDir: path.join(pkgDir, 'public'),
+      outDir,
+      webpackOverride,
+    });
+    await fsp.writeFile(marker, key);
+    return serveUrl;
   });
-  await fsp.writeFile(marker, key);
-  return serveUrl;
 }
 
 function errorMessage(err: unknown): string {

@@ -215,6 +215,11 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
       await ctx.enqueuer.enqueue(QUEUES.tts, JOBS.tts.synthesize, { videoId: id });
       return { ok: true as const };
     }
+    // en fase de packaging aún no hay guion: aprobar sin guion encallaría el
+    // vídeo en guion_ok con una síntesis imposible
+    if (!video.master.script) {
+      throw conflict('El vídeo aún no tiene guion; confirma el título y encarga el guion');
+    }
     await transitionVideo(ctx.db, id, 'guion_ok', { expectFrom: 'guion_borrador' });
     await ctx.enqueuer.enqueue(QUEUES.tts, JOBS.tts.synthesize, { videoId: id });
     await ctx.events.publish({ type: 'video_state', video_id: id, state: 'guion_ok' });
@@ -228,6 +233,11 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
     const video = await loadVideo(ctx, id);
     if (video.state !== 'guion_borrador') {
       throw conflict(`La reescritura solo procede en guion_borrador (estado actual: ${video.state})`);
+    }
+    // en fase de packaging no hay guion que reescribir: una reescritura aquí
+    // saltaría la puerta del título y regeneraría el seo elegido
+    if (!video.master.script) {
+      throw conflict('El vídeo aún no tiene guion; confirma el título y encarga el guion');
     }
     await ctx.enqueuer.enqueue(QUEUES.script, JOBS.script.generate, {
       videoId: id,
@@ -246,15 +256,26 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
     if (!target) throw conflict('La incidencia no registra estado previo');
 
     await transitionVideo(ctx.db, id, target, { expectFrom: 'incidencia' });
-    const [channel] = await ctx.db
-      .select({ profile: channels.profile })
-      .from(channels)
-      .where(eq(channels.id, video.channelId))
-      .limit(1);
-    const job = retryJob(target, id, video.master, {
-      packagingFirst: channel?.profile?.flags.packaging_first === true,
-    });
-    if (job) await ctx.enqueuer.enqueue(job.queue, job.job, job.payload);
+    // si la incidencia registró el job exacto que falló, se re-encola tal
+    // cual (una reescritura fallida no debe convertirse en un judge)
+    const recorded = video.incident?.job;
+    if (recorded) {
+      await ctx.enqueuer.enqueue(
+        recorded.queue as QueueName,
+        recorded.name,
+        recorded.data ?? { videoId: id },
+      );
+    } else {
+      const [channel] = await ctx.db
+        .select({ profile: channels.profile })
+        .from(channels)
+        .where(eq(channels.id, video.channelId))
+        .limit(1);
+      const job = retryJob(target, id, video.master, {
+        packagingFirst: channel?.profile?.flags.packaging_first === true,
+      });
+      if (job) await ctx.enqueuer.enqueue(job.queue, job.job, job.payload);
+    }
 
     await ctx.events.publish({ type: 'video_state', video_id: id, state: target });
     await ctx.events.publish({ type: 'inbox_changed' });

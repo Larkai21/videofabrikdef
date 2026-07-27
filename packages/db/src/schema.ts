@@ -123,6 +123,7 @@ export const videos = pgTable(
       message: string;
       suggested_action: 'reintentar' | 'regenerar' | 'descartar' | null;
       queue?: string;
+      job?: { queue: string; name: string; data?: Record<string, unknown> };
     }>(),
     titleChosen: text('title_chosen'),
     // maestro progresivo SIN beats: los beats viven en su tabla y se funden al leer

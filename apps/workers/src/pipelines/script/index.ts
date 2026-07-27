@@ -39,6 +39,13 @@ async function reportFinalFailure(
       message,
       suggested_action: suggested,
       queue: QUEUES.script,
+      // el retry re-encola EXACTAMENTE este job (una reescritura fallida no
+      // debe convertirse en un judge por inferencia desde el master)
+      job: {
+        queue: QUEUES.script,
+        name: job.name,
+        data: job.data as Record<string, unknown>,
+      },
     });
     await ctx.publishEvent({
       type: 'incident',

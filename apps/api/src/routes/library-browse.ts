@@ -151,10 +151,13 @@ export function registerLibraryBrowseRoutes(app: FastifyInstance, ctx: ApiContex
     const [asset] = await ctx.db.select().from(assets).where(eq(assets.id, id)).limit(1);
     if (!asset) throw notFound(`El asset ${id} no existe en la biblioteca`);
 
+    // referencias directas (asset_id) y también dentro de candidates (un
+    // beat con el asset elegido desde biblioteca aún sin ingerir)
+    const candidateNeedle = `%"library:${id}"%`;
     const [ref] = await ctx.db
       .select({ id: beats.id })
       .from(beats)
-      .where(eq(beats.assetId, id))
+      .where(or(eq(beats.assetId, id), sql`${beats.candidates}::text LIKE ${candidateNeedle}`))
       .limit(1);
     if (ref) throw conflict('El asset está referenciado por un vídeo y no se puede borrar');
     if (asset.timesUsed > 0) throw conflict('El asset se ha usado en vídeos y no se puede borrar');
@@ -172,6 +175,13 @@ export function registerLibraryBrowseRoutes(app: FastifyInstance, ctx: ApiContex
 
   app.post('/library/backfill', async () => {
     await ctx.enqueuer.enqueue(QUEUES.library, JOBS.library.backfill, {});
+    return { ok: true as const };
+  });
+
+  // re-embebido completo tras cambiar el modelo de embeddings; el job pausa
+  // los polls de fuentes mientras corre y aborta si el backend no es el real
+  app.post('/library/reembed', async () => {
+    await ctx.enqueuer.enqueue(QUEUES.library, JOBS.library.reembed, {});
     return { ok: true as const };
   });
 }
