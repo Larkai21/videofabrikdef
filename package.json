@@ -1,0 +1,27 @@
+{
+  "name": "fabrica",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "compose:up": "docker compose up -d",
+    "compose:down": "docker compose down",
+    "db:generate": "pnpm --filter @fabrica/db generate",
+    "db:migrate": "pnpm --filter @fabrica/db migrate",
+    "db:seed": "pnpm --filter @fabrica/db seed",
+    "render:smoke": "pnpm --filter @fabrica/video render:smoke"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6",
+    "turbo": "^2.10.7",
+    "typescript": "~5.9.3"
+  }
+}

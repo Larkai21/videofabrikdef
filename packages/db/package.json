@@ -1,0 +1,29 @@
+{
+  "name": "@fabrica/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "generate": "drizzle-kit generate",
+    "migrate": "drizzle-kit migrate",
+    "seed": "tsx src/seed.ts",
+    "studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@fabrica/shared": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.9",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.23.1",
+    "typescript": "~5.9.3"
+  }
+}

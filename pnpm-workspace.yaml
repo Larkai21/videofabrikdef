@@ -1,0 +1,13 @@
+packages:
+  - apps/*
+  - packages/*
+
+onlyBuiltDependencies:
+  - esbuild
+  - msedge-tts
+  - msgpackr-extract
+  - '@tailwindcss/oxide'
+  - onnxruntime-node
+  - fastembed
+  - protobufjs
+  - sharp
