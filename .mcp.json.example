@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "fabrica": {
+      "command": "pnpm",
+      "args": ["--silent", "--filter", "@fabrica/mcp", "start"],
+      "env": {
+        "FABRICA_API_URL": "http://localhost:3001"
+      }
+    }
+  }
+}
