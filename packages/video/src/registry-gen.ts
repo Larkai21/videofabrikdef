@@ -20,6 +20,9 @@ export interface KitRegistryEntry {
   type: ComponentType;
   name: string;
   version: string;
+  // fixed_duration_frames del manifest.json del zip: viaja al registry
+  // generado porque las duraciones fijas NO pueden leerse de BD en render
+  fixed_duration_frames?: number;
 }
 
 const NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
@@ -30,8 +33,31 @@ interface RegistryLine {
   identifier: string;
 }
 
-// Componentes integrados en el repo (S1): siempre presentes en el registry.
-const BUILTINS: Array<{ type: ComponentType; line: RegistryLine; importStmt: string }> = [
+// Duraciones fijas de los integrados (frames a 30 fps). Los componentes leen
+// la suya con useVideoConfig(): la Sequence que los monta mide exactamente esto.
+export const INTRO_BASICA_DURATION_FRAMES = 60;
+export const OUTRO_BASICA_DURATION_FRAMES = 90;
+
+// Componentes integrados en el repo (S1: tema de subtítulos; S3: intro/outro
+// básicos): siempre presentes en el registry.
+const BUILTINS: Array<{
+  type: ComponentType;
+  line: RegistryLine;
+  importStmt: string;
+  fixedDurationFrames?: number;
+}> = [
+  {
+    type: 'intro',
+    line: { ref: 'intro-basica@0.1.0', identifier: 'IntroBasica' },
+    importStmt: "import { IntroBasica } from './themes/IntroBasica';",
+    fixedDurationFrames: INTRO_BASICA_DURATION_FRAMES,
+  },
+  {
+    type: 'outro',
+    line: { ref: 'outro-basica@0.1.0', identifier: 'OutroBasica' },
+    importStmt: "import { OutroBasica } from './themes/OutroBasica';",
+    fixedDurationFrames: OUTRO_BASICA_DURATION_FRAMES,
+  },
   {
     type: 'subtitle_theme',
     line: { ref: 'subtitulos-basicos@0.1.0', identifier: 'SubtitlesBasicos' },
@@ -67,6 +93,14 @@ export function generateRegistrySource(entries: KitRegistryEntry[]): string {
     if (!COMPONENT_TYPES.includes(entry.type)) {
       throw new Error(`Tipo de componente inválido para el registry: '${entry.type}'`);
     }
+    if (
+      entry.fixed_duration_frames !== undefined &&
+      (!Number.isInteger(entry.fixed_duration_frames) || entry.fixed_duration_frames <= 0)
+    ) {
+      throw new Error(
+        `fixed_duration_frames inválido para el registry: '${entry.name}@${entry.version}' → ${entry.fixed_duration_frames}`,
+      );
+    }
     const ref = `${entry.name}@${entry.version}`;
     if (seen.has(ref)) continue;
     seen.add(ref);
@@ -100,6 +134,22 @@ export function generateRegistrySource(entries: KitRegistryEntry[]): string {
     typeBlocks.push(`  ${type}: {\n${inner}\n  },`);
   }
 
+  // metadatos del manifest por ref (hoy solo fixed_duration_frames): las
+  // duraciones fijas no pueden leerse de BD en render, viajan en el registry
+  const metaByRef = new Map<string, number | undefined>();
+  for (const builtin of BUILTINS) metaByRef.set(builtin.line.ref, builtin.fixedDurationFrames);
+  for (const entry of clean) {
+    metaByRef.set(`${entry.name}@${entry.version}`, entry.fixed_duration_frames);
+  }
+  const metaLines = [...metaByRef.keys()]
+    .sort((a, b) => a.localeCompare(b))
+    .map((ref) => {
+      const frames = metaByRef.get(ref);
+      return frames === undefined
+        ? `  '${ref}': {},`
+        : `  '${ref}': { fixed_duration_frames: ${frames} },`;
+    });
+
   return `// GENERADO por packages/video/scripts/generate-registry.ts — NO EDITAR A MANO.
 // Mecanismo (docs/render.md §2): el validador de zips copia cada componente
 // validado desde library/components/<canal>/<tipo>/<nombre>@<versión>/ a
@@ -120,6 +170,16 @@ export const componentRegistry: Partial<
   Record<ComponentType, Record<string, RegisteredComponent>>
 > = {
 ${typeBlocks.join('\n')}
+};
+
+// Metadatos del manifest por ref (fixed_duration_frames de intro/outro/
+// transition): el render no consulta la BD, las duraciones fijas viven aquí.
+export interface KitComponentMeta {
+  fixed_duration_frames?: number;
+}
+
+export const componentMeta: Record<string, KitComponentMeta> = {
+${metaLines.join('\n')}
 };
 
 export function resolveComponent(type: ComponentType, ref: string): RegisteredComponent {

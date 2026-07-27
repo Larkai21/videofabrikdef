@@ -6,11 +6,18 @@ import { bundle } from '@remotion/bundler';
 import { ensureBrowser, renderMedia, selectComposition } from '@remotion/renderer';
 import { makeDemoMaster } from '@fabrica/shared';
 import { webpackOverride } from '../src/bundling';
+import {
+  INTRO_BASICA_DURATION_FRAMES,
+  OUTRO_BASICA_DURATION_FRAMES,
+} from '../src/registry-gen';
 
 // Render de humo autónomo y OFFLINE (pnpm render:smoke): genera medios de
 // color con ffmpeg en public/demo/, monta el maestro de demo compartido y
 // renderiza los frames 0–59 de LongForm a out/smoke.mp4. Sirve de validación
 // del entry, del bundler y de los tres modos de encaje (trim, loop, kenburns).
+// Segunda pasada: el mismo maestro con la intro y la outro integradas activas
+// verifica el montaje del brand kit (durationInFrames = intro + audio + outro,
+// beats desplazados) y renderiza el cruce intro→cuerpo a out/smoke-kit.mp4.
 
 const pkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const demoDir = path.join(pkgDir, 'public', 'demo');
@@ -123,8 +130,65 @@ async function main(): Promise<void> {
   if (size <= 0) {
     throw new Error(`El render de humo produjo un archivo vacío: ${outputLocation}`);
   }
+
+  // ---- segunda pasada: brand kit (intro + outro integradas) montado sobre
+  // el MISMO maestro; el maestro de demo compartido no se toca, solo esta
+  // copia local activa los componentes
+  const masterKit = makeDemoMaster({
+    audioPath: 'demo/silence.wav',
+    clipPath: 'demo/clip-1.mp4',
+    imagePath: 'demo/image.png',
+  });
+  masterKit.brand = {
+    components: {
+      subtitle_theme: masterKit.brand?.components.subtitle_theme ?? 'subtitulos-basicos@0.1.0',
+      intro: 'intro-basica@0.1.0',
+      outro: 'outro-basica@0.1.0',
+    },
+  };
+  const kitComposition = await selectComposition({
+    serveUrl,
+    id: 'LongForm',
+    inputProps: masterKit,
+  });
+  const audioMs = masterKit.audio?.duration_ms ?? 0;
+  const expectedFrames =
+    INTRO_BASICA_DURATION_FRAMES +
+    Math.ceil((audioMs / 1000) * kitComposition.fps) +
+    OUTRO_BASICA_DURATION_FRAMES;
+  if (kitComposition.durationInFrames !== expectedFrames) {
+    throw new Error(
+      `El montaje del brand kit no cuadra: durationInFrames=${kitComposition.durationInFrames}, ` +
+        `esperado intro (${INTRO_BASICA_DURATION_FRAMES}) + audio + outro (${OUTRO_BASICA_DURATION_FRAMES}) = ${expectedFrames}`,
+    );
+  }
+  const kitFrames = INTRO_BASICA_DURATION_FRAMES + 30;
+  const kitOutput = path.join(outDir, 'smoke-kit.mp4');
+  console.log(`Renderizando el cruce intro→cuerpo (frames 0–${kitFrames - 1})…`);
+  await renderMedia({
+    composition: kitComposition,
+    serveUrl,
+    codec: 'h264',
+    crf: 18,
+    pixelFormat: 'yuv420p',
+    audioCodec: 'aac',
+    audioBitrate: '192k',
+    frameRange: [0, kitFrames - 1],
+    inputProps: masterKit,
+    outputLocation: kitOutput,
+    onProgress: ({ progress }) => {
+      if (progress === 1) console.log('Codificación del kit terminada');
+    },
+  });
+  if (!existsSync(kitOutput) || statSync(kitOutput).size <= 0) {
+    throw new Error(`El render de humo del brand kit no produjo ${kitOutput}`);
+  }
+
   const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
-  console.log(`Render de humo correcto: ${outputLocation} (${size} bytes, ${elapsed} s)`);
+  console.log(
+    `Render de humo correcto: ${outputLocation} (${size} bytes) y ${kitOutput} ` +
+      `(${statSync(kitOutput).size} bytes, montaje ${expectedFrames} frames) en ${elapsed} s`,
+  );
 }
 
 main().catch((err) => {

@@ -10,10 +10,20 @@ import { resolveComponent } from './registry.generated';
 
 // Composición envoltorio para el render de humo del validador de zips
 // (components.validate): monta un componente del registry con las props de
-// ejemplo del contrato y renderiza 60 frames. Entry propio
+// ejemplo del contrato y renderiza smoke_frames frames (fixed_duration_frames
+// del manifest si existe, 60 por defecto, tope 300). Entry propio
 // (kit-smoke-entry.ts) para no tocar el Root de producción.
 
 const SMOKE_BACKGROUND = '#12161f';
+
+export const SMOKE_FRAMES_DEFAULT = 60;
+export const SMOKE_FRAMES_MAX = 300;
+
+/** Duración del humo saneada desde inputProps.smoke_frames (1..300). */
+export function smokeDurationInFrames(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return SMOKE_FRAMES_DEFAULT;
+  return Math.min(SMOKE_FRAMES_MAX, Math.max(1, Math.floor(value)));
+}
 
 type SmokeProps = Record<string, unknown>;
 
@@ -51,7 +61,10 @@ export const KitSmokeRoot: React.FC = () => {
         width={1920}
         height={1080}
         fps={30}
-        durationInFrames={60}
+        durationInFrames={SMOKE_FRAMES_DEFAULT}
+        calculateMetadata={({ props }) => ({
+          durationInFrames: smokeDurationInFrames(props.smoke_frames),
+        })}
         defaultProps={{}}
       />
       {/* miniaturas: 1280×720, un solo frame (thumbnail_template) */}

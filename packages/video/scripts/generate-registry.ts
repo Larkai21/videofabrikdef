@@ -30,6 +30,21 @@ const pkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const kitDir = path.join(pkgDir, 'src', 'kit');
 const registryPath = path.join(pkgDir, 'src', 'registry.generated.ts');
 
+// fixed_duration_frames del manifest.json del componente: se copia al mapa de
+// metadatos del registry generado (el render no lee la BD). Lectura tolerante:
+// un manifest ilegible deja al componente sin duración fija, nada más.
+function readFixedDurationFrames(sourceDir: string): number | undefined {
+  try {
+    const raw = JSON.parse(readFileSync(path.join(sourceDir, 'manifest.json'), 'utf8')) as {
+      fixed_duration_frames?: unknown;
+    };
+    const value = raw.fixed_duration_frames;
+    return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function main(): void {
   const specPath = process.argv[2];
   const spec =
@@ -59,7 +74,12 @@ function main(): void {
     const dest = path.join(kitDir, dirName);
     rmSync(dest, { recursive: true, force: true });
     cpSync(sourceDir, dest, { recursive: true });
-    entries.push({ type: component.type, name: component.name, version: component.version });
+    entries.push({
+      type: component.type,
+      name: component.name,
+      version: component.version,
+      fixed_duration_frames: readFixedDurationFrames(sourceDir),
+    });
   }
 
   // poda: directorios del kit que ya no están en el estado deseado

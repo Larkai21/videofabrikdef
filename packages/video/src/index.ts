@@ -10,10 +10,23 @@ export {
   type SubtitleThemeProps,
 } from './themes/SubtitlesBasicos';
 export { ThumbnailTemplate, type ThumbnailTemplateProps } from './ThumbnailTemplate';
+export { IntroBasica, type IntroOutroProps } from './themes/IntroBasica';
+export { OutroBasica } from './themes/OutroBasica';
 export { calculateLongFormMetadata, DEFAULT_DURATION_FRAMES } from './metadata';
 export {
+  beatWindow,
+  computeBrandKitLayout,
+  kitViewFrom,
+  DEFAULT_LOWER_THIRD_FRAMES,
+  DEFAULT_TITLE_CARD_FRAMES,
+  type BrandKitLayout,
+  type KitView,
+} from './brand-kit';
+export {
+  componentMeta,
   componentRegistry,
   resolveComponent,
+  type KitComponentMeta,
   type RegisteredComponent,
 } from './registry.generated';
 export { hashSeed } from './seed';

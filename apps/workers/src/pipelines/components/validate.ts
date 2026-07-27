@@ -20,13 +20,20 @@ import { bundle } from '@remotion/bundler';
 import { ensureBrowser, renderMedia, renderStill, selectComposition } from '@remotion/renderer';
 import type { WorkerContext } from '../../lib/context.js';
 import { videoSrcLock } from '../../lib/locks.js';
-import { buildHarnessSource, buildHarnessTsconfig, schemaImportPathFor } from './harness.js';
+import {
+  buildDeterminismEslintConfig,
+  buildHarnessSource,
+  buildHarnessTsconfig,
+  schemaImportPathFor,
+} from './harness.js';
 
 // Validador de zips del brand kit (SPEC §10, docs/render.md §2):
 //   a) typecheck real (tsc del workspace packages/video + bundle esbuild)
+//      + reglas de determinismo (eslint de packages/video sobre el zip)
 //   b) contrato de props en runtime (schema.parse de las props mínimas)
 //   c) regeneración del registry (copia a src/kit + registry.generated.ts)
-//   d) render de humo de 60 frames + preview.png
+//   d) render de humo (fixed_duration_frames del manifest, 60 por defecto,
+//      tope 300) + preview.png
 // Sin coste externo: no se abren filas del ledger. Los fallos de validación
 // son resultado de negocio (status failed, sin reintentos); solo los errores
 // de infraestructura llegan a los reintentos de BullMQ.
@@ -181,6 +188,7 @@ export async function handleComponentsValidate(
     tsc: path.join(videoPkg, 'node_modules', '.bin', 'tsc'),
     esbuild: path.join(videoPkg, 'node_modules', '.bin', 'esbuild'),
     tsx: path.join(videoPkg, 'node_modules', '.bin', 'tsx'),
+    eslint: path.join(videoPkg, 'node_modules', '.bin', 'eslint'),
   };
   const missingTools = Object.entries(tools)
     .filter(([, bin]) => !fs.existsSync(bin))
@@ -330,6 +338,26 @@ export async function handleComponentsValidate(
     }
     tick('typecheck');
 
+    // ---- a2) determinismo: las MISMAS reglas de eslint de packages/video
+    // (sin Math.random, relojes, timers ni fetch) sobre el código del zip
+    await publishProgress(20, 'Comprobando las reglas de determinismo del render');
+    const eslintConfigPath = path.join(workdir, 'eslint.config.determinismo.mjs');
+    await fsp.writeFile(
+      eslintConfigPath,
+      buildDeterminismEslintConfig(path.join(videoPkg, 'eslint.config.js')),
+    );
+    const lintRes = await run(
+      tools.eslint,
+      ['--config', 'eslint.config.determinismo.mjs', 'component'],
+      workdir,
+    );
+    if (lintRes.code !== 0) {
+      // log EXACTO de eslint
+      await failValidation('determinismo', `${lintRes.stdout}\n${lintRes.stderr}`.trim());
+      return;
+    }
+    tick('determinismo');
+
     // ---- b) contrato de props en runtime (schema.parse del ejemplo mínimo)
     await publishProgress(35, 'Verificando el contrato de props');
     const ctRes = await run(
@@ -383,8 +411,10 @@ export async function handleComponentsValidate(
     }
     tick('registry');
 
-    // ---- d) render de humo de 60 frames + preview.png
-    await publishProgress(70, 'Render de humo de 60 frames');
+    // ---- d) render de humo + preview.png: la duración respeta el
+    // fixed_duration_frames del manifest (60 por defecto, tope 300)
+    const smokeFrames = Math.min(300, Math.max(1, manifest.fixed_duration_frames ?? 60));
+    await publishProgress(70, `Render de humo de ${smokeFrames} frames`);
     try {
       await ensureBrowser();
       // bundle fresco en cada validación: el registry acaba de cambiar y la
@@ -401,6 +431,7 @@ export async function handleComponentsValidate(
         kit_type: manifest.type,
         reference,
         sample_props: sampleProps,
+        smoke_frames: smokeFrames,
       };
       if (manifest.type === 'thumbnail_template') {
         // miniaturas: un solo frame 1280×720 con renderStill
@@ -450,7 +481,7 @@ export async function handleComponentsValidate(
       await failValidation('render de humo', errorMessage(err));
       return;
     }
-    tick('humo (60 frames)');
+    tick(`humo (${smokeFrames} frames)`);
     } finally {
       releaseVideoSrc();
     }

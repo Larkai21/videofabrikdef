@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ComponentManifest } from '@fabrica/shared';
 import {
+  buildDeterminismEslintConfig,
   buildHarnessSource,
   buildHarnessTsconfig,
   contractTsType,
@@ -39,11 +40,9 @@ describe('contractTsType', () => {
     expect(contractTsType('thumbnail_template')).toContain("variant: 'a' | 'b'");
     expect(contractTsType('intro')).toContain('channel_name: string');
     expect(contractTsType('outro')).toContain('channel_name: string');
-  });
-
-  it('devuelve null para tipos sin contrato', () => {
-    expect(contractTsType('title_card')).toBeNull();
-    expect(contractTsType('transition')).toBeNull();
+    // contratos mínimos de S3 (docs/contratos.md §3)
+    expect(contractTsType('title_card')).toBe('{ title: string; fromFrame: number }');
+    expect(contractTsType('transition')).toBe('{ durationInFrames: number }');
   });
 });
 
@@ -57,10 +56,22 @@ describe('buildHarnessSource', () => {
     expect(src).toContain('ComponentType<ContractProps>');
   });
 
-  it('para tipos sin contrato omite la asignación del contrato', () => {
-    const src = buildHarnessSource('title_card', './component/schema');
-    expect(src).not.toContain('ContractProps');
-    expect(src).toContain('aún no tiene contrato mínimo');
+  it('title_card y transition compilan contra su contrato mínimo', () => {
+    const titleCard = buildHarnessSource('title_card', './component/schema');
+    expect(titleCard).toContain('type ContractProps = { title: string; fromFrame: number };');
+    const transition = buildHarnessSource('transition', './component/schema');
+    expect(transition).toContain('type ContractProps = { durationInFrames: number };');
+  });
+});
+
+describe('buildDeterminismEslintConfig', () => {
+  it('importa el eslint.config.js real de packages/video y re-apunta files al zip', () => {
+    const src = buildDeterminismEslintConfig('/repo/packages/video/eslint.config.js');
+    expect(src).toContain("import base from 'file:///repo/packages/video/eslint.config.js';");
+    expect(src).toContain("files: ['component/**/*.ts', 'component/**/*.tsx']");
+    expect(src).toContain('export default base.map');
+    // las entradas sin `files` (ignores, recommended) quedan intactas
+    expect(src).toContain('Array.isArray(entry.files)');
   });
 });
 

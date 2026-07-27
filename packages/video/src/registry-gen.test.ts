@@ -6,8 +6,40 @@ describe('generateRegistrySource', () => {
     const src = generateRegistrySource([]);
     expect(src).toContain("import { SubtitlesBasicos } from './themes/SubtitlesBasicos';");
     expect(src).toContain("'subtitulos-basicos@0.1.0': SubtitlesBasicos");
+    expect(src).toContain("import { IntroBasica } from './themes/IntroBasica';");
+    expect(src).toContain("import { OutroBasica } from './themes/OutroBasica';");
     expect(src).toContain('export function resolveComponent');
     expect(src).not.toContain('./kit/');
+  });
+
+  it('emite el mapa de metadatos con las duraciones fijas de los integrados', () => {
+    const src = generateRegistrySource([]);
+    expect(src).toContain('export const componentMeta');
+    expect(src).toContain("'intro-basica@0.1.0': { fixed_duration_frames: 60 },");
+    expect(src).toContain("'outro-basica@0.1.0': { fixed_duration_frames: 90 },");
+    expect(src).toContain("'subtitulos-basicos@0.1.0': {},");
+  });
+
+  it('propaga fixed_duration_frames del manifest al mapa de metadatos', () => {
+    const src = generateRegistrySource([
+      { type: 'transition', name: 'cortina', version: '1.2.0', fixed_duration_frames: 24 },
+      { type: 'lower_third', name: 'rotulo-a', version: '1.0.0' },
+    ]);
+    expect(src).toContain("'cortina@1.2.0': { fixed_duration_frames: 24 },");
+    expect(src).toContain("'rotulo-a@1.0.0': {},");
+  });
+
+  it('rechaza duraciones fijas que no son enteros positivos', () => {
+    expect(() =>
+      generateRegistrySource([
+        { type: 'intro', name: 'intro-x', version: '1.0.0', fixed_duration_frames: 0 },
+      ]),
+    ).toThrowError(/fixed_duration_frames inválido/);
+    expect(() =>
+      generateRegistrySource([
+        { type: 'intro', name: 'intro-x', version: '1.0.0', fixed_duration_frames: 1.5 },
+      ]),
+    ).toThrowError(/fixed_duration_frames inválido/);
   });
 
   it('emite un import relativo a src/kit y la entrada del mapa por componente', () => {
@@ -42,8 +74,8 @@ describe('generateRegistrySource', () => {
       { type: 'lower_third', name: 'rotulo-a', version: '1.0.0' },
     ]);
     const matches = src.match(/rotulo-a@1\.0\.0/g) ?? [];
-    // una vez en el import y otra en el mapa
-    expect(matches).toHaveLength(2);
+    // una vez en el import, otra en el mapa y otra en componentMeta
+    expect(matches).toHaveLength(3);
   });
 
   it('rechaza nombres o versiones fuera del contrato (protección de ruta)', () => {

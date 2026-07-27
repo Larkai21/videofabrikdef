@@ -88,3 +88,16 @@ export const introOutroPropsSchema = z.object({
   channel_name: z.string(),
   logo: z.string().optional(),
 });
+
+// title_card: rótulo de apertura del hook. La composición garantiza el título
+// elegido y el frame de arranque local de su Sequence.
+export const titleCardPropsSchema = z.object({
+  title: z.string(),
+  fromFrame: z.number(),
+});
+
+// transition: pieza de duración fija entre bloques; recibe los frames que le
+// asigna la composición (fixed_duration_frames del manifest).
+export const transitionPropsSchema = z.object({
+  durationInFrames: z.number(),
+});

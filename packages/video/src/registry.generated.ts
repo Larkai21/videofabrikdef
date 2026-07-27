@@ -10,6 +10,8 @@
 // components.validate o ejecuta scripts/generate-registry.ts con el listado.
 import type React from 'react';
 import type { ComponentType } from '@fabrica/shared';
+import { IntroBasica } from './themes/IntroBasica';
+import { OutroBasica } from './themes/OutroBasica';
 import { SubtitlesBasicos } from './themes/SubtitlesBasicos';
 import Kit_rotulo_ejemplo_1_0_0 from './kit/rotulo-ejemplo@1.0.0/Component';
 
@@ -18,12 +20,31 @@ export type RegisteredComponent = React.ComponentType<Record<string, unknown>>;
 export const componentRegistry: Partial<
   Record<ComponentType, Record<string, RegisteredComponent>>
 > = {
+  intro: {
+    'intro-basica@0.1.0': IntroBasica as unknown as RegisteredComponent,
+  },
+  outro: {
+    'outro-basica@0.1.0': OutroBasica as unknown as RegisteredComponent,
+  },
   lower_third: {
     'rotulo-ejemplo@1.0.0': Kit_rotulo_ejemplo_1_0_0 as unknown as RegisteredComponent,
   },
   subtitle_theme: {
     'subtitulos-basicos@0.1.0': SubtitlesBasicos as unknown as RegisteredComponent,
   },
+};
+
+// Metadatos del manifest por ref (fixed_duration_frames de intro/outro/
+// transition): el render no consulta la BD, las duraciones fijas viven aquí.
+export interface KitComponentMeta {
+  fixed_duration_frames?: number;
+}
+
+export const componentMeta: Record<string, KitComponentMeta> = {
+  'intro-basica@0.1.0': { fixed_duration_frames: 60 },
+  'outro-basica@0.1.0': { fixed_duration_frames: 90 },
+  'rotulo-ejemplo@1.0.0': {},
+  'subtitulos-basicos@0.1.0': {},
 };
 
 export function resolveComponent(type: ComponentType, ref: string): RegisteredComponent {

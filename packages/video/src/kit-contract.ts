@@ -23,15 +23,15 @@ export function samplePropsFor(type: ComponentType): Record<string, unknown> {
     }
     case 'lower_third':
       return { title: 'Canal de ejemplo', subtitle: 'Dato de contexto', fromFrame: 0 };
+    case 'title_card':
+      return { title: 'Titular de prueba', fromFrame: 0 };
+    case 'transition':
+      return { durationInFrames: 30 };
     case 'thumbnail_template':
       return { text: 'Titular de prueba', variant: 'a' };
     case 'intro':
     case 'outro':
       return { channel_name: 'Canal de ejemplo' };
-    // title_card y transition aún no tienen contrato mínimo definido en
-    // docs/contratos.md §3: el schema del zip debe aceptar el objeto vacío.
-    default:
-      return {};
   }
 }
 

@@ -1,13 +1,16 @@
 import type { CalculateMetadataFunction } from 'remotion';
 import type { MasterVideoJson } from '@fabrica/shared';
 import { FPS, masterVideoJsonV1, VIDEO_HEIGHT, VIDEO_WIDTH } from '@fabrica/shared';
+import { computeBrandKitLayout } from './brand-kit';
 
-// Frames por defecto cuando el maestro aún no tiene audio ni beats (player
-// del dashboard con el maestro recién creado).
-export const DEFAULT_DURATION_FRAMES = 300;
+export { DEFAULT_DURATION_FRAMES } from './brand-kit';
 
 // La duración la fija el audio (principio 1 del proyecto): los beats solo son
-// el fallback mientras la voz no existe. fps/tamaño vienen del contrato.
+// el fallback mientras la voz no existe. Con brand kit activo, la intro y la
+// outro SUMAN frames (durationInFrames = intro + audio + outro) sin tocar la
+// ley temporal del audio: computeBrandKitLayout es la única fuente del
+// montaje y la comparten esta función y la propia composición LongForm.
+// fps/tamaño vienen del contrato.
 export const calculateLongFormMetadata: CalculateMetadataFunction<MasterVideoJson> = ({
   props,
 }) => {
@@ -20,18 +23,12 @@ export const calculateLongFormMetadata: CalculateMetadataFunction<MasterVideoJso
     throw new Error(`El maestro no valida contra masterVideoJsonV1: ${detail}`);
   }
   const master = parsed.data;
-  let durationInFrames = DEFAULT_DURATION_FRAMES;
-  if (master.audio) {
-    durationInFrames = Math.ceil((master.audio.duration_ms / 1000) * FPS);
-  } else if (master.beats && master.beats.length > 0) {
-    const last = master.beats[master.beats.length - 1];
-    if (last) durationInFrames = Math.max(1, Math.ceil((last.to_ms / 1000) * FPS));
-  }
+  const layout = computeBrandKitLayout(master);
   return {
     props: master,
     fps: FPS,
     width: VIDEO_WIDTH,
     height: VIDEO_HEIGHT,
-    durationInFrames,
+    durationInFrames: layout.totalFrames,
   };
 };

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import type { ComponentManifest, ComponentType } from '@fabrica/shared';
 
 // Constructores puros del harness de typecheck del validador de zips
@@ -15,6 +16,10 @@ export function contractTsType(type: ComponentType): string | null {
       return '{ cues: unknown[]; currentMs: number; safeArea: { top: number; right: number; bottom: number; left: number } }';
     case 'lower_third':
       return '{ title: string; subtitle?: string; fromFrame: number }';
+    case 'title_card':
+      return '{ title: string; fromFrame: number }';
+    case 'transition':
+      return '{ durationInFrames: number }';
     case 'thumbnail_template':
       return "{ text: string; image_path?: string; variant: 'a' | 'b' }";
     case 'intro':
@@ -70,6 +75,27 @@ const componentAcceptsSchema: ComponentType<SchemaProps> = Component;
 void componentAcceptsSchema;
 
 ${contractBlock}
+`;
+}
+
+/**
+ * Config de eslint generada para la pasada de determinismo sobre el código
+ * del zip (docs/render.md §4): importa el eslint.config.js REAL de
+ * packages/video (misma fuente de reglas, sin duplicarlas) y re-apunta las
+ * entradas con `files` (las reglas de determinismo de src/**) al componente
+ * copiado en el workdir. Se ejecuta con el binario eslint de packages/video.
+ */
+export function buildDeterminismEslintConfig(videoEslintConfigPath: string): string {
+  const configUrl = pathToFileURL(videoEslintConfigPath).href;
+  return `// Config generada por components.validate — NO EDITAR: reutiliza las reglas
+// de determinismo de packages/video/eslint.config.js sobre el zip del kit.
+import base from '${configUrl}';
+
+export default base.map((entry) =>
+  entry !== null && typeof entry === 'object' && Array.isArray(entry.files)
+    ? { ...entry, files: ['component/**/*.ts', 'component/**/*.tsx'] }
+    : entry,
+);
 `;
 }
 

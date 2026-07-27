@@ -5,6 +5,8 @@ import {
   lowerThirdPropsSchema,
   subtitleThemePropsSchema,
   thumbnailTemplatePropsSchema,
+  titleCardPropsSchema,
+  transitionPropsSchema,
 } from '@fabrica/shared';
 import { checkPropsContract, samplePropsFor } from './kit-contract';
 
@@ -17,6 +19,8 @@ describe('samplePropsFor', () => {
     ).not.toThrow();
     expect(() => introOutroPropsSchema.parse(samplePropsFor('intro'))).not.toThrow();
     expect(() => introOutroPropsSchema.parse(samplePropsFor('outro'))).not.toThrow();
+    expect(() => titleCardPropsSchema.parse(samplePropsFor('title_card'))).not.toThrow();
+    expect(() => transitionPropsSchema.parse(samplePropsFor('transition'))).not.toThrow();
   });
 
   it('el ejemplo de subtítulos trae cues del maestro de demo', () => {
@@ -62,8 +66,18 @@ describe('checkPropsContract', () => {
     if (!result.ok) expect(result.reason).toMatch(/export default z\.object/);
   });
 
-  it('los tipos sin contrato mínimo aceptan el objeto vacío', () => {
-    const schema = z.object({ label: z.string().optional() });
-    expect(checkPropsContract(schema, 'title_card')).toEqual({ ok: true });
+  it('title_card acepta un schema del contrato y rechaza props extra requeridas', () => {
+    const ok = z.object({ title: z.string(), fromFrame: z.number() });
+    expect(checkPropsContract(ok, 'title_card')).toEqual({ ok: true });
+    const extra = z.object({ title: z.string(), fromFrame: z.number(), color: z.string() });
+    const result = checkPropsContract(extra, 'title_card');
+    expect(result.ok).toBe(false);
+  });
+
+  it('transition acepta un schema del contrato durationInFrames', () => {
+    const ok = z.object({ durationInFrames: z.number() });
+    expect(checkPropsContract(ok, 'transition')).toEqual({ ok: true });
+    const bad = z.object({ durationInFrames: z.string() });
+    expect(checkPropsContract(bad, 'transition').ok).toBe(false);
   });
 });
