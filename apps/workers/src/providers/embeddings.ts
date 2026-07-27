@@ -1,15 +1,56 @@
+import path from 'node:path';
 import type pino from 'pino';
 import { EMBEDDING_DIMS } from '@fabrica/shared';
+import { REPO_ROOT } from '../lib/env.js';
 
 // Embeddings locales (docs/assets-y-biblioteca.md §1): el MISMO modelo en todo
-// el sistema para que las similitudes sean comparables. 'hash' es un mock
-// determinista sin modelo (desarrollo y tests); 'fastembed' descarga el modelo
-// ONNX a .fastembed_cache la primera vez.
+// el sistema para que las similitudes sean comparables. Guiones en español y
+// queries visuales en inglés → el modelo tiene que ser multilingüe y de
+// EMBEDDING_DIMS (384) dims exactas (las columnas pgvector son vector(384)).
+//
+// Por qué NO usamos la librería `fastembed` 2.1.0 instalada:
+//  - Sus modelos densos de 384 dims (AllMiniLML6V2, BGESmallENV15) son solo
+//    inglés; su único multilingüe (MLE5Large) es de 1024 dims.
+//  - Su modo CUSTOM exige un directorio local (`modelAbsoluteDirPath`), no
+//    descarga por nombre de HF para modelos densos.
+//  - Además su inferencia inyecta siempre `token_type_ids` (los e5 basados en
+//    XLM-RoBERTa no aceptan esa entrada → error de onnxruntime) y hace pooling
+//    CLS, mientras que los e5 exigen mean pooling: los vectores saldrían mal.
+//
+// Backend real elegido: transformers.js (@huggingface/transformers) con el
+// modelo Xenova/multilingual-e5-small (384 dims, multilingüe, mean pooling).
+// La dependencia aún no está instalada: se detecta con import dinámico y, si
+// falta, el proveedor se degrada a 'hash' con un warn claro (regla: el modo
+// degradado nunca rompe el pipeline). 'hash' sigue siendo el mock determinista
+// para desarrollo y tests.
+//
+// Regla del doc §1: cambiar de modelo invalida TODAS las similitudes → al
+// activar el backend real hay que lanzar el job 'reembed' de la cola library
+// (apps/workers/src/pipelines/library/reembed.ts).
 
 export interface EmbeddingsProvider {
+  // clave del proveedor tal y como se configura en EMBEDDINGS_PROVIDER
   readonly name: 'fastembed' | 'hash';
   embed(texts: string[]): Promise<number[][]>;
+  // backend efectivo (tras la primera carga) para logs y verificación
+  describe(): { backend: 'e5-transformers' | 'hash'; model: string; dims: number };
 }
+
+export const E5_MODEL_ID = 'Xenova/multilingual-e5-small';
+
+// Prefijos e5 (model card de intfloat/multilingual-e5-small): TODO texto debe
+// llevar prefijo 'query: ' o 'passage: ', también en textos no ingleses; para
+// tareas simétricas (similitud semántica, no retrieval documento-largo) la
+// model card recomienda 'query: ' en ambos lados. Como la interfaz embed() se
+// usa hoy indistintamente para queries y para captions/títulos (poll, score,
+// assets), aplicamos 'query: ' uniforme: un único espacio coherente. Adoptar
+// asimetría query/passage exigiría tocar los call sites y re-embeber todo.
+export const E5_QUERY_PREFIX = 'query: ';
+export const E5_PASSAGE_PREFIX = 'passage: ';
+
+export const E5_BATCH_SIZE = 16;
+
+const HASH_MODEL_ID = 'hash-ngram-v1';
 
 export function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0;
@@ -26,10 +67,67 @@ export function cosineSimilarity(a: number[], b: number[]): number {
   return denom === 0 ? 0 : dot / denom;
 }
 
+export function l2Normalize(vec: number[]): number[] {
+  const norm = Math.sqrt(vec.reduce((acc, v) => acc + v * v, 0));
+  if (norm === 0) return vec.slice();
+  return vec.map((v) => v / norm);
+}
+
+export function chunk<T>(items: T[], size: number): T[][] {
+  if (size < 1) throw new Error(`Tamaño de lote inválido: ${size}`);
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+export interface BatchedEmbedderOptions {
+  // función cruda del modelo: recibe un lote ya prefijado y devuelve vectores
+  embedBatch: (texts: string[]) => Promise<number[][]>;
+  batchSize: number;
+  dims: number;
+  prefix?: string;
+}
+
+// Envoltorio puro y testeable: prefijo e5 + lotes + verificación de dims +
+// normalización L2 garantizada (aunque el backend ya normalice, renormalizar
+// un vector unitario es inocuo y protege frente a backends que no lo hagan).
+export function createBatchedEmbedder(
+  opts: BatchedEmbedderOptions,
+): (texts: string[]) => Promise<number[][]> {
+  const { embedBatch, batchSize, dims, prefix } = opts;
+  return async (texts: string[]): Promise<number[][]> => {
+    if (texts.length === 0) return [];
+    const prefixed = prefix ? texts.map((t) => `${prefix}${t}`) : texts;
+    const out: number[][] = [];
+    for (const batch of chunk(prefixed, batchSize)) {
+      const vectors = await embedBatch(batch);
+      if (vectors.length !== batch.length) {
+        throw new Error(
+          `El backend de embeddings devolvió ${vectors.length} vectores para un lote de ${batch.length}`,
+        );
+      }
+      for (const vec of vectors) {
+        if (vec.length !== dims) {
+          throw new Error(
+            `El modelo de embeddings devuelve ${vec.length} dims y el sistema exige ${dims} (EMBEDDING_DIMS)`,
+          );
+        }
+        out.push(l2Normalize(vec));
+      }
+    }
+    return out;
+  };
+}
+
 // Bolsa de n-gramas con hashing: determinista, normalizado y con similitud
-// razonable entre textos que comparten vocabulario. Suficiente para modo mock.
+// razonable entre textos que comparten vocabulario. Suficiente para modo mock;
+// NO es multilingüe (ES/EN no comparten tokens → cos ≈ 0 entre idiomas).
 class HashEmbeddings implements EmbeddingsProvider {
   readonly name = 'hash' as const;
+
+  describe(): { backend: 'e5-transformers' | 'hash'; model: string; dims: number } {
+    return { backend: 'hash', model: HASH_MODEL_ID, dims: EMBEDDING_DIMS };
+  }
 
   async embed(texts: string[]): Promise<number[][]> {
     return texts.map((text) => {
@@ -58,50 +156,112 @@ class HashEmbeddings implements EmbeddingsProvider {
   }
 }
 
-class FastEmbedEmbeddings implements EmbeddingsProvider {
+// Forma mínima del módulo transformers.js que usamos (tipado local porque la
+// dependencia es opcional y se resuelve con import dinámico).
+interface FeatureExtractionTensor {
+  tolist(): number[][];
+}
+type FeatureExtractor = (
+  texts: string[],
+  opts: { pooling: 'mean'; normalize: boolean },
+) => Promise<FeatureExtractionTensor>;
+interface TransformersModule {
+  pipeline(task: 'feature-extraction', model: string): Promise<FeatureExtractor>;
+  env?: { cacheDir?: string };
+}
+
+// nombres de paquete a probar, en orden de preferencia (el segundo es el
+// nombre antiguo del mismo proyecto)
+const TRANSFORMERS_MODULES = ['@huggingface/transformers', '@xenova/transformers'];
+
+function embeddingsCacheDir(): string {
+  // el mismo directorio gitignoreado que usaba fastembed
+  return process.env.FASTEMBED_CACHE_DIR ?? path.join(REPO_ROOT, '.fastembed_cache');
+}
+
+// Proveedor real: clave 'fastembed' en EMBEDDINGS_PROVIDER por compatibilidad
+// con el .env existente, backend transformers.js + multilingual-e5-small.
+class MultilingualE5Embeddings implements EmbeddingsProvider {
   readonly name = 'fastembed' as const;
-  private modelPromise: Promise<{
-    embed: (texts: string[], batchSize?: number) => AsyncIterable<number[][]>;
-  }> | null = null;
+  private loadPromise: Promise<((texts: string[]) => Promise<number[][]>) | null> | null = null;
+  private readonly hash = new HashEmbeddings();
+  private degraded = false;
+  private warned = false;
 
   constructor(private logger: pino.Logger) {}
 
-  private async model() {
-    if (!this.modelPromise) {
-      this.modelPromise = (async () => {
-        const { FlagEmbedding, EmbeddingModel } = await import('fastembed');
-        // multilingüe si está disponible en la versión instalada; si no,
-        // el mejor 384-dims disponible. Cambiar de modelo = re-embeber todo.
-        const preferred =
-          (EmbeddingModel as Record<string, string>)['MLE5Small'] ??
-          (EmbeddingModel as Record<string, string>)['ParaphraseMLMiniLML12V2'] ??
-          EmbeddingModel.AllMiniLML6V2;
-        this.logger.info({ model: preferred }, 'Inicializando fastembed');
-        return FlagEmbedding.init({ model: preferred as never });
-      })();
-    }
-    return this.modelPromise;
+  describe(): { backend: 'e5-transformers' | 'hash'; model: string; dims: number } {
+    return this.degraded
+      ? { backend: 'hash', model: HASH_MODEL_ID, dims: EMBEDDING_DIMS }
+      : { backend: 'e5-transformers', model: E5_MODEL_ID, dims: EMBEDDING_DIMS };
+  }
+
+  private load(): Promise<((texts: string[]) => Promise<number[][]>) | null> {
+    this.loadPromise ??= (async () => {
+      for (const spec of TRANSFORMERS_MODULES) {
+        let mod: TransformersModule;
+        try {
+          // especificador variable a propósito: la dependencia es opcional y
+          // no debe romper el typecheck ni el arranque si no está instalada
+          mod = (await import(spec)) as TransformersModule;
+        } catch {
+          continue; // paquete no instalado; probar el siguiente
+        }
+        try {
+          const t0 = Date.now();
+          this.logger.info(
+            { model: E5_MODEL_ID, paquete: spec, cache: embeddingsCacheDir() },
+            'Cargando el modelo de embeddings multilingüe (la primera vez descarga pesos)',
+          );
+          if (mod.env) mod.env.cacheDir = embeddingsCacheDir();
+          const extractor = await mod.pipeline('feature-extraction', E5_MODEL_ID);
+          this.logger.info(
+            { model: E5_MODEL_ID, ms: Date.now() - t0 },
+            'Modelo de embeddings listo',
+          );
+          return createBatchedEmbedder({
+            embedBatch: async (batch) => {
+              const tensor = await extractor(batch, { pooling: 'mean', normalize: true });
+              return tensor.tolist();
+            },
+            batchSize: E5_BATCH_SIZE,
+            dims: EMBEDDING_DIMS,
+            prefix: E5_QUERY_PREFIX,
+          });
+        } catch (err) {
+          // fallo de descarga/inicialización: degradar, no tumbar el pipeline
+          this.logger.warn(
+            { err, model: E5_MODEL_ID, paquete: spec },
+            'No se pudo inicializar el modelo de embeddings; se degrada a hash hasta reiniciar',
+          );
+          return null;
+        }
+      }
+      return null;
+    })();
+    return this.loadPromise;
   }
 
   async embed(texts: string[]): Promise<number[][]> {
-    const model = await this.model();
-    const out: number[][] = [];
-    for await (const batch of model.embed(texts, 16)) {
-      for (const vec of batch) {
-        if (vec.length !== EMBEDDING_DIMS) {
-          throw new Error(
-            `El modelo de embeddings devuelve ${vec.length} dims y el sistema exige ${EMBEDDING_DIMS}`,
-          );
-        }
-        out.push(Array.from(vec));
+    if (texts.length === 0) return [];
+    const embedder = await this.load();
+    if (!embedder) {
+      this.degraded = true;
+      if (!this.warned) {
+        this.warned = true;
+        this.logger.warn(
+          { faltan: TRANSFORMERS_MODULES, model: E5_MODEL_ID },
+          'Sin backend de embeddings multilingüe: EMBEDDINGS_PROVIDER=fastembed queda en modo degradado (hash). Instalar @huggingface/transformers y lanzar el job reembed de la cola library',
+        );
       }
+      return this.hash.embed(texts);
     }
-    return out;
+    return embedder(texts);
   }
 }
 
 export function createEmbeddings(logger: pino.Logger): EmbeddingsProvider {
   const provider = process.env.EMBEDDINGS_PROVIDER ?? 'hash';
-  if (provider === 'fastembed') return new FastEmbedEmbeddings(logger);
+  if (provider === 'fastembed') return new MultilingualE5Embeddings(logger);
   return new HashEmbeddings();
 }

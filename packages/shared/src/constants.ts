@@ -16,10 +16,13 @@ export const BEAT_TARGET_S = 11.5;
 export const BEAT_LAST_MIN_S = 5;
 export const BEAT_LAST_MAX_S = 18;
 
-// Cascada de assets (similitud coseno)
-export const T_AUTO = 0.62;
-export const T_REV = 0.45;
-export const T_STOCK = 0.7;
+// Cascada de assets (similitud coseno). Escala calibrada a ojo para
+// multilingual-e5-small, cuya línea base para pares NO relacionados ronda
+// 0,72–0,78 (con el mock hash la escala era otra). Calibración fina en curso:
+// etiquetar ~50 beats a mano (objetivo <5% de falsos auto_ok).
+export const T_AUTO = 0.86;
+export const T_REV = 0.78;
+export const T_STOCK = 0.88;
 export const ANTI_REPEAT_N = 8;
 export const STOCK_CACHE_TTL_H = 24;
 export const MAX_LOOPS = 3;
@@ -38,8 +41,9 @@ export const CUE_MAX_LINES = 2;
 export const CUE_MIN_S = 1;
 export const CUE_MAX_S = 5;
 
-// Ideación
-export const DEDUPE_COS = 0.9;
+// Ideación (0,95 en la escala de e5: a 0,90 fusionaría historias distintas
+// del mismo tema)
+export const DEDUPE_COS = 0.95;
 export const DEDUPE_WINDOW_DAYS = 14;
 export const IDEA_SCORE_THRESHOLD = 55;
 
