@@ -36,6 +36,14 @@ export const componentManifestV1 = z.object({
 
 export type ComponentManifest = z.infer<typeof componentManifestV1>;
 
+// Tema de subtítulos integrado de S1: único componente del brand kit que
+// existe desde el día 1. Todo maestro nuevo nace con él.
+export const DEFAULT_SUBTITLE_THEME_REF = 'subtitulos-basicos@0.1.0';
+
+export function defaultBrand(): { components: { subtitle_theme: string } } {
+  return { components: { subtitle_theme: DEFAULT_SUBTITLE_THEME_REF } };
+}
+
 // referencia "tipo resuelto" que viaja en master.brand.components: name@version
 export function componentRef(name: string, version: string): string {
   return `${name}@${version}`;

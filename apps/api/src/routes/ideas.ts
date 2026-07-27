@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { ideas, videos } from '@fabrica/db';
 import {
+  defaultBrand,
   ideaStatusSchema,
   JOBS,
   masterVideoJsonV1,
@@ -69,6 +70,9 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
           width: 1920,
           height: 1080,
         },
+        // el registro del brand kit por zips llega en S2; el tema integrado
+        // garantiza que el maestro siempre sea renderizable
+        brand: defaultBrand(),
       });
       await tx.insert(videos).values({
         id: videoId,

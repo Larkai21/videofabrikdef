@@ -199,8 +199,9 @@ async function handleRenderVideo(ctx: WorkerContext, job: Job<RenderVideoJob>): 
       },
     });
 
-    // dos miniaturas con los dos conceptos del paquete SEO
-    const thumbComposition = await selectComposition({ serveUrl, id: 'Thumbnail' });
+    // dos miniaturas con los dos conceptos del paquete SEO. Las inputProps
+    // deben pasar TAMBIÉN por selectComposition: las props que renderiza la
+    // Still son las resueltas ahí (sin esto, ambas salen con las default).
     const variants = [
       { variant: 'a', file: 'thumb_a.jpg' },
       { variant: 'b', file: 'thumb_b.jpg' },
@@ -210,13 +211,19 @@ async function handleRenderVideo(ctx: WorkerContext, job: Job<RenderVideoJob>): 
       if (!item) continue;
       const concept = master.seo.thumbnails[i] ?? master.seo.thumbnails[0];
       const text = concept?.text ?? master.seo.titles[0];
+      const thumbProps = { text, variant: item.variant };
+      const thumbComposition = await selectComposition({
+        serveUrl,
+        id: 'Thumbnail',
+        inputProps: thumbProps,
+      });
       await renderStill({
         composition: thumbComposition,
         serveUrl,
         output: path.join(outDir, item.file),
         imageFormat: 'jpeg',
         jpegQuality: 90,
-        inputProps: { text, variant: item.variant },
+        inputProps: thumbProps,
       });
     }
 
