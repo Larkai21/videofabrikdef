@@ -1,4 +1,4 @@
-import type { Beat, Scene } from '@fabrica/shared';
+import type { Beat, Scene, Segment } from '@fabrica/shared';
 
 // Capítulos de YouTube derivados de escenas↔beats: el inicio de cada sección
 // (hook/body/cta) es el from_ms del primer beat cuyo texto abre esa sección.
@@ -57,6 +57,20 @@ export function computeChapters(scenes: Scene[], beats: Beat[]): Chapter[] {
       label: formatChapterTime(startMs),
       title: SECTION_TITLES[section],
     });
+  }
+  return chapters;
+}
+
+// Capítulos a partir de los segmentos del director de capítulos: títulos
+// reales de subtema. YouTube exige 0:00 y tiempos crecientes; los segmentos ya
+// vienen ordenados y con el primero en 0.
+export function segmentsToChapters(segments: Segment[]): Chapter[] {
+  const chapters: Chapter[] = [];
+  for (const seg of segments) {
+    const start = chapters.length === 0 ? 0 : seg.from_ms;
+    const previous = chapters[chapters.length - 1];
+    if (previous && start <= previous.start_ms) continue;
+    chapters.push({ section: 'body', start_ms: start, label: formatChapterTime(start), title: seg.title });
   }
   return chapters;
 }

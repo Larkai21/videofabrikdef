@@ -25,6 +25,7 @@ export const COST_OPERATIONS = [
   'idea_writeup',
   'profile_synthesis',
   'broll_director',
+  'chapter_director',
   'vlm_caption',
   'tts',
   'search',

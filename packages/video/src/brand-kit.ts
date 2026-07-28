@@ -62,6 +62,8 @@ export interface BrandKitLayout {
   intro: FixedKitSlot | null;
   outro: FixedKitSlot | null;
   titleCard: TitledKitSlot | null;
+  // tarjetas de sección centradas, una por segmento del director de capítulos
+  sectionCards: TitledKitSlot[];
   lowerThird: TitledKitSlot | null;
 }
 
@@ -117,16 +119,35 @@ export function computeBrandKitLayout(
   const bodyEnd = introFrames + baseFrames;
   const title = chosenTitle(master);
 
-  // title_card al inicio del hook (= inicio del cuerpo, ya desplazado)
+  // tarjetas de sección: una por segmento del director de capítulos, centrada,
+  // desde el inicio de cada segmento y acotada para no solaparse con la
+  // siguiente ni salirse del cuerpo. Si hay segmentos NO se pinta la portada
+  // (la primera tarjeta ya abre el vídeo); si no los hay (maestros antiguos),
+  // se mantiene la portada con el título del vídeo al inicio del hook.
   let titleCard: TitledKitSlot | null = null;
+  const sectionCards: TitledKitSlot[] = [];
   const titleCardRef = components?.title_card;
-  if (titleCardRef !== undefined && view.has('title_card', titleCardRef) && title !== null) {
-    const duration = Math.min(
-      overlayFrames(view, titleCardRef, DEFAULT_TITLE_CARD_FRAMES),
-      baseFrames,
-    );
-    if (duration >= 1) {
-      titleCard = { ref: titleCardRef, from: introFrames, durationInFrames: duration, title };
+  const segments = master.segments ?? [];
+  if (titleCardRef !== undefined && view.has('title_card', titleCardRef)) {
+    const cardFrames = overlayFrames(view, titleCardRef, DEFAULT_TITLE_CARD_FRAMES);
+    if (segments.length > 0) {
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i]!;
+        const from = introFrames + msToFrames(seg.from_ms, fps);
+        const nextFrom =
+          i + 1 < segments.length
+            ? introFrames + msToFrames(segments[i + 1]!.from_ms, fps)
+            : bodyEnd;
+        const duration = Math.min(cardFrames, Math.max(0, nextFrom - from), bodyEnd - from);
+        if (duration >= 1 && seg.title.trim() !== '') {
+          sectionCards.push({ ref: titleCardRef, from, durationInFrames: duration, title: seg.title });
+        }
+      }
+    } else if (title !== null) {
+      const duration = Math.min(cardFrames, baseFrames);
+      if (duration >= 1) {
+        titleCard = { ref: titleCardRef, from: introFrames, durationInFrames: duration, title };
+      }
     }
   }
 
@@ -157,8 +178,66 @@ export function computeBrandKitLayout(
     intro: intro ? { ref: intro.ref, from: 0, durationInFrames: introFrames } : null,
     outro: outro ? { ref: outro.ref, from: bodyEnd, durationInFrames: outroFrames } : null,
     titleCard,
+    sectionCards,
     lowerThird,
   };
+}
+
+// Duración de la transición entre beats (frames a 30 fps ≈ 0,4 s). El corte
+// duro se sustituye por un crossfade/wipe centrado en el límite del beat.
+export const TRANSITION_FRAMES = 12;
+
+export interface BrollSeq {
+  beatIdx: number;
+  durationInFrames: number;
+}
+export interface BrollTransition {
+  durationInFrames: number;
+  // 'section' = límite de segmento (transición más marcada); 'cut' = beat normal
+  kind: 'cut' | 'section';
+}
+export interface BrollTrack {
+  sequences: BrollSeq[];
+  // transitions.length === sequences.length - 1
+  transitions: BrollTransition[];
+}
+
+// Pista de b-roll para <TransitionSeries>: cada beat conserva su ventana de
+// audio como parte VISIBLE y las transiciones añaden solape a ambos lados del
+// corte, de modo que el crossfade queda CENTRADO en el límite del beat y la
+// suma total sigue siendo baseFrames (audio y subtítulos, en capas aparte, no
+// se tocan → sincronía intacta). Con un solo beat no hay transición.
+export function computeBrollTrack(
+  beats: Array<{ idx: number; from_ms: number; to_ms: number }>,
+  opts: { fps: number; baseFrames: number; transitionFrames?: number; segmentStartIdxs?: Set<number> },
+): BrollTrack {
+  const n = beats.length;
+  if (n === 0) return { sequences: [], transitions: [] };
+  const lens = beats.map((b, i) =>
+    beatWindow(b, {
+      fps: opts.fps,
+      offsetFrames: 0,
+      isLast: i === n - 1,
+      bodyEndFrames: opts.baseFrames,
+    }).durationInFrames,
+  );
+  if (n === 1) return { sequences: [{ beatIdx: beats[0]!.idx, durationInFrames: lens[0]! }], transitions: [] };
+
+  const D = opts.transitionFrames ?? TRANSITION_FRAMES;
+  const headHalf = Math.floor(D / 2);
+  const tailHalf = D - headHalf; // headHalf + tailHalf = D → total exacto
+  const segStarts = opts.segmentStartIdxs ?? new Set<number>();
+
+  const sequences: BrollSeq[] = beats.map((b, i) => {
+    // seq_0 suma headHalf, seq_last suma tailHalf, intermedios suman D
+    const extra = i === 0 ? headHalf : i === n - 1 ? tailHalf : D;
+    return { beatIdx: b.idx, durationInFrames: lens[i]! + extra };
+  });
+  const transitions: BrollTransition[] = [];
+  for (let i = 1; i < n; i++) {
+    transitions.push({ durationInFrames: D, kind: segStarts.has(beats[i]!.idx) ? 'section' : 'cut' });
+  }
+  return { sequences, transitions };
 }
 
 // Ventana de frames de un beat con el desplazamiento de la intro. El último

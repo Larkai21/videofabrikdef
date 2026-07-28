@@ -1,8 +1,11 @@
 import React from 'react';
 import { AbsoluteFill, Audio, Sequence, useVideoConfig } from 'remotion';
+import { linearTiming, TransitionSeries } from '@remotion/transitions';
+import { fade } from '@remotion/transitions/fade';
+import { slide } from '@remotion/transitions/slide';
 import type { ComponentType as KitType, MasterVideoJson } from '@fabrica/shared';
 import { BeatVisual } from './BeatVisual';
-import { beatWindow, computeBrandKitLayout } from './brand-kit';
+import { computeBrandKitLayout, computeBrollTrack } from './brand-kit';
 import { ensureFontLoaded, FONT_FAMILY } from './fonts';
 import { isRenderableSrc, toSrc } from './media-src';
 import { resolveComponent } from './registry.generated';
@@ -47,6 +50,17 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
   const audioEl = audio && isRenderableSrc(audio.path) ? <Audio src={toSrc(audio.path)} /> : null;
   const subtitlesEl = <Subtitles cues={cues} themeRef={themeRef} />;
 
+  // pista de b-roll con transiciones: solape compensado para que el corte
+  // quede centrado y el total siga siendo baseFrames (audio/subtítulos intactos)
+  const segmentStartIdxs = React.useMemo(
+    () => new Set((master.segments ?? []).map((s) => s.beat_idx)),
+    [master.segments],
+  );
+  const brollTrack = React.useMemo(
+    () => computeBrollTrack(beats, { fps, baseFrames: layout.baseFrames, segmentStartIdxs }),
+    [beats, fps, layout.baseFrames, segmentStartIdxs],
+  );
+
   return (
     <AbsoluteFill style={{ backgroundColor: '#0b0f19', fontFamily: FONT_FAMILY }}>
       {audioEl !== null ? (
@@ -58,28 +72,35 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
           audioEl
         )
       ) : null}
-      {beats.map((beat, i) => {
-        const frameWindow = beatWindow(beat, {
-          fps,
-          offsetFrames: offset,
-          isLast: i === beats.length - 1,
-          bodyEndFrames: bodyEnd,
-        });
-        return (
-          <Sequence
-            key={beat.idx}
-            from={frameWindow.from}
-            durationInFrames={frameWindow.durationInFrames}
-            name={`Beat ${beat.idx}`}
-          >
-            <BeatVisual
-              beat={beat}
-              videoId={master.video.id}
-              durationInFrames={frameWindow.durationInFrames}
-            />
-          </Sequence>
-        );
-      })}
+      {beats.length > 0 ? (
+        <Sequence from={offset} durationInFrames={Math.max(1, bodyEnd - offset)} name="B-roll">
+          <TransitionSeries>
+            {brollTrack.sequences.map((seq, i) => {
+              const beat = beats[i]!;
+              const trans = i > 0 ? brollTrack.transitions[i - 1]! : null;
+              return (
+                <React.Fragment key={seq.beatIdx}>
+                  {trans !== null ? (
+                    <TransitionSeries.Transition
+                      timing={linearTiming({ durationInFrames: trans.durationInFrames })}
+                      presentation={
+                        trans.kind === 'section' ? slide({ direction: 'from-right' }) : fade()
+                      }
+                    />
+                  ) : null}
+                  <TransitionSeries.Sequence durationInFrames={seq.durationInFrames}>
+                    <BeatVisual
+                      beat={beat}
+                      videoId={master.video.id}
+                      durationInFrames={seq.durationInFrames}
+                    />
+                  </TransitionSeries.Sequence>
+                </React.Fragment>
+              );
+            })}
+          </TransitionSeries>
+        </Sequence>
+      ) : null}
       {offset > 0 ? (
         <Sequence from={offset} durationInFrames={Math.max(1, bodyEnd - offset)} name="Subtítulos">
           {subtitlesEl}
@@ -100,6 +121,20 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
           />
         </Sequence>
       ) : null}
+      {layout.sectionCards.map((card, i) => (
+        <Sequence
+          key={`seccion-${i}`}
+          from={card.from}
+          durationInFrames={card.durationInFrames}
+          name={`Sección ${i + 1}`}
+        >
+          <KitSlot
+            type="title_card"
+            refName={card.ref}
+            kitProps={{ title: card.title, fromFrame: 0 }}
+          />
+        </Sequence>
+      ))}
       {layout.lowerThird !== null ? (
         <Sequence
           from={layout.lowerThird.from}

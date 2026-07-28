@@ -124,6 +124,15 @@ export const costsSchema = z.object({
   by_provider: z.record(z.string(), z.number()),
 });
 
+// Segmentos temáticos del vídeo (los produce el director de capítulos): el
+// beat donde empieza cada uno + su tiempo, para la tarjeta de sección centrada
+// y para los capítulos de la descripción de YouTube.
+export const segmentSchema = z.object({
+  title: z.string().min(1),
+  beat_idx: z.number().int().nonnegative(),
+  from_ms: z.number().int().nonnegative(),
+});
+
 export const masterVideoJsonV1 = z.object({
   version: z.literal('1'),
   video: z.object({
@@ -140,6 +149,7 @@ export const masterVideoJsonV1 = z.object({
   audio: audioSchema.optional(),
   cues: z.array(cueSchema).optional(),
   beats: z.array(beatSchema).optional(),
+  segments: z.array(segmentSchema).optional(),
   brand: brandSchema.optional(),
   costs: costsSchema.optional(),
 });
@@ -149,6 +159,7 @@ export type Scene = z.infer<typeof sceneSchema>;
 export type Cue = z.infer<typeof cueSchema>;
 export type Word = z.infer<typeof wordSchema>;
 export type Beat = z.infer<typeof beatSchema>;
+export type Segment = z.infer<typeof segmentSchema>;
 export type BeatAsset = z.infer<typeof beatAssetSchema>;
 export type BeatCandidate = z.infer<typeof candidateSchema>;
 export type Fit = z.infer<typeof fitSchema>;

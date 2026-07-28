@@ -13,7 +13,11 @@ import {
   type RenderableMaster,
   type RenderVideoJob,
 } from '@fabrica/shared';
-import { computeChapters, mergeChaptersIntoDescription } from '@fabrica/video/chapters';
+import {
+  computeChapters,
+  mergeChaptersIntoDescription,
+  segmentsToChapters,
+} from '@fabrica/video/chapters';
 import { webpackOverride } from '@fabrica/video/bundling';
 import { bundle } from '@remotion/bundler';
 import {
@@ -116,7 +120,12 @@ async function writeOutputs(outDir: string, master: RenderableMaster): Promise<v
   const chosenIdx = master.seo.chosen_idx;
   if (chosenIdx === null) throw new Error('Falta elegir título (seo.chosen_idx)');
   const title = master.seo.titles[chosenIdx] ?? master.seo.titles[0];
-  const chapters = computeChapters(master.script.scenes, master.beats);
+  // capítulos reales del director de capítulos si hay ≥2 segmentos; si no,
+  // se derivan de las secciones hook/body/cta (comportamiento anterior)
+  const chapters =
+    master.segments && master.segments.length >= 2
+      ? segmentsToChapters(master.segments)
+      : computeChapters(master.script.scenes, master.beats);
   // sustituye {timestamps} o, si el LLM escribió tiempos literales
   // (estimados, a menudo fuera de la duración real), ese bloque entero
   const description = mergeChaptersIntoDescription(master.seo.description, chapters);

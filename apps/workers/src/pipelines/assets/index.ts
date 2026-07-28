@@ -38,6 +38,7 @@ import { generateFluxImage } from '../../providers/flux.js';
 import { mockHash } from '../../providers/llm.js';
 import { cacheCaption, searchStock, type StockResult } from '../../providers/stock.js';
 import { directBroll } from './broll-director.js';
+import { directChapters } from './chapter-director.js';
 import { computeFit, kenburnsEffect } from './fit.js';
 import { registerAssetsMocks } from './mocks.js';
 import { expandQuery, stockScore } from './score.js';
@@ -884,8 +885,18 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
     });
   }
 
+  // director de capítulos: sobre los beats ya congelados, agrupa el vídeo en
+  // segmentos temáticos con título (tarjeta de sección + capítulos de YouTube)
+  const [channel] = await db.select().from(channels).where(eq(channels.id, video.channelId));
+  const segments = await directChapters(ctx, {
+    videoId,
+    channelId: video.channelId,
+    lang: channel?.profile?.style.stock_query_lang ?? 'en',
+    beats: frozenBeats.map((b) => ({ idx: b.idx, from_ms: b.from_ms, text: b.text })),
+  });
+
   // congelar master.beats: status locked, asset resuelto, sin candidates
-  const newMaster = masterVideoJsonV1.parse({ ...video.master, beats: frozenBeats });
+  const newMaster = masterVideoJsonV1.parse({ ...video.master, beats: frozenBeats, segments });
   await db
     .update(videos)
     .set({ master: newMaster, updatedAt: new Date() })

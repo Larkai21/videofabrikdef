@@ -13,6 +13,7 @@ import type { ComponentType } from '@fabrica/shared';
 import { IntroBasica } from './themes/IntroBasica';
 import { OutroBasica } from './themes/OutroBasica';
 import { SubtitlesBasicos } from './themes/SubtitlesBasicos';
+import { TituloSeccion } from './themes/TituloSeccion';
 import Kit_rotulo_ejemplo_1_0_0 from './kit/rotulo-ejemplo@1.0.0/Component';
 
 export type RegisteredComponent = React.ComponentType<Record<string, unknown>>;
@@ -25,6 +26,9 @@ export const componentRegistry: Partial<
   },
   outro: {
     'outro-basica@0.1.0': OutroBasica as unknown as RegisteredComponent,
+  },
+  title_card: {
+    'titulo-seccion@0.1.0': TituloSeccion as unknown as RegisteredComponent,
   },
   lower_third: {
     'rotulo-ejemplo@1.0.0': Kit_rotulo_ejemplo_1_0_0 as unknown as RegisteredComponent,
@@ -45,6 +49,7 @@ export const componentMeta: Record<string, KitComponentMeta> = {
   'outro-basica@0.1.0': { fixed_duration_frames: 90 },
   'rotulo-ejemplo@1.0.0': {},
   'subtitulos-basicos@0.1.0': {},
+  'titulo-seccion@0.1.0': {},
 };
 
 export function resolveComponent(type: ComponentType, ref: string): RegisteredComponent {

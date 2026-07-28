@@ -3,6 +3,7 @@ import { makeDemoMaster, type MasterVideoJson } from '@fabrica/shared';
 import {
   beatWindow,
   computeBrandKitLayout,
+  computeBrollTrack,
   DEFAULT_DURATION_FRAMES,
   DEFAULT_LOWER_THIRD_FRAMES,
   DEFAULT_TITLE_CARD_FRAMES,
@@ -140,6 +141,32 @@ describe('computeBrandKitLayout', () => {
     });
   });
 
+  it('con segmentos monta una tarjeta de sección por segmento y no la portada', () => {
+    const master = masterWithKit({ title_card: 'portada-test@1.0.0' });
+    master.segments = [
+      { title: 'Uno', beat_idx: 0, from_ms: 0 },
+      { title: 'Dos', beat_idx: 2, from_ms: 23_500 },
+    ];
+    const layout = computeBrandKitLayout(master, testView());
+    // con segmentos la portada única no se pinta
+    expect(layout.titleCard).toBeNull();
+    expect(layout.sectionCards).toEqual([
+      { ref: 'portada-test@1.0.0', from: 0, durationInFrames: DEFAULT_TITLE_CARD_FRAMES, title: 'Uno' },
+      { ref: 'portada-test@1.0.0', from: 705, durationInFrames: DEFAULT_TITLE_CARD_FRAMES, title: 'Dos' },
+    ]);
+  });
+
+  it('la tarjeta de sección no se solapa con la siguiente (duración acotada)', () => {
+    const master = masterWithKit({ title_card: 'portada-test@1.0.0' });
+    // dos segmentos muy juntos: 0 ms y 1000 ms (30 frames) → la primera dura 30
+    master.segments = [
+      { title: 'Uno', beat_idx: 0, from_ms: 0 },
+      { title: 'Dos', beat_idx: 1, from_ms: 1_000 },
+    ];
+    const layout = computeBrandKitLayout(master, testView());
+    expect(layout.sectionCards[0]?.durationInFrames).toBe(30);
+  });
+
   it('monta el lower_third en el arranque del primer beat de sección body', () => {
     const master = masterWithKit({
       intro: 'intro-test@1.0.0',
@@ -173,6 +200,44 @@ describe('computeBrandKitLayout', () => {
     const layout = computeBrandKitLayout(master, testView());
     expect(layout.baseFrames).toBe(DEFAULT_DURATION_FRAMES);
     expect(layout.totalFrames).toBe(DEFAULT_DURATION_FRAMES);
+  });
+});
+
+describe('computeBrollTrack', () => {
+  const demoBeats = [
+    { idx: 0, from_ms: 0, to_ms: 11_000 },
+    { idx: 1, from_ms: 11_000, to_ms: 23_500 },
+    { idx: 2, from_ms: 23_500, to_ms: 33_500 },
+    { idx: 3, from_ms: 33_500, to_ms: 43_000 },
+  ];
+
+  it('la suma de secuencias menos los solapes es exactamente baseFrames (sincronía)', () => {
+    const track = computeBrollTrack(demoBeats, { fps: 30, baseFrames: 1290, transitionFrames: 12 });
+    const seqTotal = track.sequences.reduce((s, x) => s + x.durationInFrames, 0);
+    const transTotal = track.transitions.reduce((s, x) => s + x.durationInFrames, 0);
+    expect(seqTotal - transTotal).toBe(1290);
+    expect(track.transitions).toHaveLength(3);
+  });
+
+  it('un solo beat no lleva transiciones y ocupa todo el cuerpo', () => {
+    const track = computeBrollTrack([{ idx: 0, from_ms: 0, to_ms: 43_000 }], {
+      fps: 30,
+      baseFrames: 1290,
+    });
+    expect(track.transitions).toHaveLength(0);
+    expect(track.sequences[0]?.durationInFrames).toBe(1290);
+  });
+
+  it('marca como sección la transición hacia el beat que abre un segmento', () => {
+    const track = computeBrollTrack(demoBeats, {
+      fps: 30,
+      baseFrames: 1290,
+      segmentStartIdxs: new Set([2]),
+    });
+    // transición i corresponde a la entrada del beat i+1
+    expect(track.transitions[0]?.kind).toBe('cut');
+    expect(track.transitions[1]?.kind).toBe('section'); // entra el beat 2
+    expect(track.transitions[2]?.kind).toBe('cut');
   });
 });
 

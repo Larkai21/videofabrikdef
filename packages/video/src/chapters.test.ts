@@ -6,6 +6,7 @@ import {
   computeChapters,
   formatChapterTime,
   mergeChaptersIntoDescription,
+  segmentsToChapters,
 } from './chapters';
 
 function scene(id: string, section: Scene['section'], text: string): Scene {
@@ -87,6 +88,26 @@ describe('computeChapters', () => {
   it('serializa a texto de descripción m:ss + título', () => {
     const text = chaptersToText(computeChapters(scenes, beats));
     expect(text).toBe('0:00 Introducción\n0:11 Desarrollo\n0:33 Cierre');
+  });
+});
+
+describe('segmentsToChapters', () => {
+  it('convierte segmentos en capítulos con 0:00 al inicio y tiempos crecientes', () => {
+    const chapters = segmentsToChapters([
+      { title: 'Qué es', beat_idx: 0, from_ms: 400 },
+      { title: 'Arquitectura', beat_idx: 3, from_ms: 90_000 },
+      { title: 'Cómo usarlo', beat_idx: 6, from_ms: 320_000 },
+    ]);
+    expect(chapters.map((c) => c.label)).toEqual(['0:00', '1:30', '5:20']);
+    expect(chapters.map((c) => c.title)).toEqual(['Qué es', 'Arquitectura', 'Cómo usarlo']);
+  });
+
+  it('descarta segmentos que no crecen en el tiempo', () => {
+    const chapters = segmentsToChapters([
+      { title: 'A', beat_idx: 0, from_ms: 0 },
+      { title: 'B', beat_idx: 1, from_ms: 0 },
+    ]);
+    expect(chapters).toHaveLength(1);
   });
 });
 

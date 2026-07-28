@@ -63,6 +63,11 @@ const BUILTINS: Array<{
     line: { ref: 'subtitulos-basicos@0.1.0', identifier: 'SubtitlesBasicos' },
     importStmt: "import { SubtitlesBasicos } from './themes/SubtitlesBasicos';",
   },
+  {
+    type: 'title_card',
+    line: { ref: 'titulo-seccion@0.1.0', identifier: 'TituloSeccion' },
+    importStmt: "import { TituloSeccion } from './themes/TituloSeccion';",
+  },
 ];
 
 /** Identificador TS determinista y único para un import de src/kit. */
