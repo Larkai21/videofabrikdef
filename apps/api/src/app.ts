@@ -19,6 +19,7 @@ import { registerInboxRoutes } from './routes/inbox.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerLibraryBrowseRoutes } from './routes/library-browse.js';
 import { registerSettingsRoutes } from './routes/settings.js';
+import { registerSourceRoutes } from './routes/sources.js';
 import { registerStockRoutes } from './routes/stock.js';
 import { registerTimelineRoutes } from './routes/timeline.js';
 import { registerVideoRoutes } from './routes/videos.js';
@@ -70,7 +71,12 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   // solo el dashboard local: reflejar cualquier origen convertiría las rutas
   // de escritura (sin autenticación en el MVP monousuario) en drive-by
   const corsOrigins = allowedOrigins();
-  await app.register(cors, { origin: corsOrigins });
+  // OJO: el default de @fastify/cors es GET,HEAD,POST — sin esta lista los
+  // PUT/DELETE del dashboard mueren en el preflight (ajustes, guion, biblioteca)
+  await app.register(cors, {
+    origin: corsOrigins,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE'],
+  });
 
   // CORS no impide que un POST "simple" cross-origin EJECUTE el handler (solo
   // bloquea leer la respuesta): sin esta guarda cualquier web abierta en el
@@ -125,6 +131,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
   registerChannelRoutes(app, ctx);
   registerIdeaRoutes(app, ctx);
+  registerSourceRoutes(app, ctx);
   registerInboxRoutes(app, ctx);
   registerVideoRoutes(app, ctx);
   registerTimelineRoutes(app, ctx);
