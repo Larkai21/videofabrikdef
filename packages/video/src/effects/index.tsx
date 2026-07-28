@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { defaultDesign, hexToRgba, type DesignTokens } from '@fabrica/shared';
-import { FONT_FAMILY } from '../fonts';
+import { displayText, FONT_FAMILY } from '../fonts';
 
 // Biblioteca de efectos de edición (Fase 3): overlays deterministas que el
 // director de edición coloca en la línea de tiempo para que el vídeo se sienta
@@ -34,12 +34,11 @@ export const TextCallout: React.FC<{ text: string; design?: DesignTokens }> = ({
           marginTop: 130,
           opacity,
           transform: `scale(${0.85 + 0.15 * enter})`,
+          ...displayText(800),
           background: hexToRgba(d.surface, 0.95),
           color: d.foreground,
           border: `2px solid ${d.accent}`,
           fontSize: 46,
-          fontWeight: 800,
-          letterSpacing: '-0.01em',
           padding: '12px 28px',
           borderRadius: 14,
           boxShadow: `0 12px 34px ${hexToRgba('#000000', 0.4)}`,
@@ -95,7 +94,7 @@ export const StatCard: React.FC<{ value: string; label?: string; design?: Design
           boxShadow: `0 20px 60px ${hexToRgba('#000000', 0.5)}`,
         }}
       >
-        <div style={{ fontSize: 130, fontWeight: 800, lineHeight: 1, color: d.accent, letterSpacing: '-0.03em' }}>
+        <div style={{ ...displayText(800), fontSize: 130, lineHeight: 1, color: d.accent, letterSpacing: '-0.03em' }}>
           {display}
         </div>
         {label !== undefined && label.trim() !== '' ? (

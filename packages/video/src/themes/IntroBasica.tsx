@@ -8,7 +8,7 @@ import {
   useVideoConfig,
 } from 'remotion';
 import { defaultDesign, hexToRgba, type DesignTokens } from '@fabrica/shared';
-import { FONT_FAMILY } from '../fonts';
+import { displayText, FONT_FAMILY } from '../fonts';
 
 // Intro integrada 'intro-basica@0.1.0' (contrato introOutroPropsSchema).
 // Duración fija: INTRO_BASICA_DURATION_FRAMES (registry-gen.ts); la Sequence que
@@ -132,10 +132,9 @@ export const IntroBasica: React.FC<IntroOutroProps> = ({ channel_name, logo, des
                 <span
                   key={i}
                   style={{
+                    ...displayText(800),
                     display: 'inline-block',
                     fontSize: 68,
-                    fontWeight: 800,
-                    letterSpacing: '-0.02em',
                     color: d.foreground,
                     opacity: wordSpring,
                     transform: `translateY(${(1 - wordSpring) * 26}px)`,

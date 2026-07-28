@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Img } from 'remotion';
 import { defaultDesign, hexToRgba, type DesignTokens } from '@fabrica/shared';
-import { ensureFontLoaded, FONT_FAMILY } from './fonts';
+import { displayText, ensureFontLoaded, FONT_FAMILY } from './fonts';
 import { isRenderableSrc, toSrc } from './media-src';
 
 // Contrato: thumbnailTemplatePropsSchema en packages/shared (image_path aquí
@@ -62,8 +62,8 @@ export const ThumbnailTemplate: React.FC<ThumbnailTemplateProps> = ({
         />
         <div
           style={{
+            ...displayText(800),
             fontSize: 132,
-            fontWeight: 800,
             lineHeight: 1.04,
             color: d.foreground,
             letterSpacing: -2,

@@ -132,12 +132,15 @@ const ClipMotion: React.FC<{
   children: React.ReactNode;
 }> = ({ seed, durationInFrames, children }) => {
   const frame = useCurrentFrame();
-  const progress = interpolate(frame, [0, Math.max(1, durationInFrames - 1)], [0, 1], {
+  const linear = interpolate(frame, [0, Math.max(1, durationInFrames - 1)], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const zoomProgress = seed % 2 === 0 ? progress : 1 - progress;
-  const scale = 1 + 0.05 * zoomProgress;
+  // ease-out cúbico: el movimiento arranca con más energía y se asienta (menos
+  // "slideshow", más "editado"); dirección de zoom según la semilla
+  const eased = 1 - Math.pow(1 - linear, 3);
+  const zoomProgress = seed % 2 === 0 ? eased : 1 - eased;
+  const scale = 1 + 0.07 * zoomProgress;
   return (
     <AbsoluteFill style={{ overflow: 'hidden' }}>
       <AbsoluteFill style={{ transform: `scale(${scale})` }}>{children}</AbsoluteFill>

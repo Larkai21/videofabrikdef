@@ -1,3 +1,4 @@
+import type React from 'react';
 import { continueRender, delayRender, staticFile } from 'remotion';
 
 // Fuente empaquetada en public/fonts (docs/render.md §4): nunca Google Fonts
@@ -5,6 +6,19 @@ import { continueRender, delayRender, staticFile } from 'remotion';
 // frame renderizado ya use la tipografía correcta. Si la carga falla se sigue
 // con la pila del sistema.
 export const FONT_FAMILY = "'Inter', 'Helvetica Neue', Arial, sans-serif";
+
+// Estilo "display" para titulares: Inter variable trae el eje óptico opsz
+// (14-32); a tamaño grande (opsz 32) las letras tienen más carácter. Así los
+// títulos/intros/callouts usan el corte display SIN empaquetar otra fuente,
+// mientras los subtítulos/cuerpo se quedan en el corte de texto (opsz 14).
+export function displayText(weight = 800): React.CSSProperties {
+  return {
+    fontFamily: FONT_FAMILY,
+    fontWeight: weight,
+    fontVariationSettings: `"opsz" 32, "wght" ${weight}`,
+    letterSpacing: '-0.02em',
+  };
+}
 
 let started = false;
 

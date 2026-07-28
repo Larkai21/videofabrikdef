@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { defaultDesign, hexToRgba, type DesignTokens } from '@fabrica/shared';
-import { FONT_FAMILY } from '../fonts';
+import { displayText, FONT_FAMILY } from '../fonts';
 
 // Tarjeta de sección integrada 'titulo-seccion@0.1.0' (contrato
 // titleCardPropsSchema). SUPERPOSICIÓN centrada sobre el b-roll al entrar cada
@@ -56,10 +56,9 @@ export const TituloSeccion: React.FC<TitleCardProps> = ({ title, design }) => {
       >
         <div
           style={{
+            ...displayText(800),
             fontSize: 68,
-            fontWeight: 800,
             color: d.foreground,
-            letterSpacing: '-0.01em',
             textAlign: 'center',
             lineHeight: 1.1,
             textShadow: '0 3px 16px rgba(0, 0, 0, 0.6)',

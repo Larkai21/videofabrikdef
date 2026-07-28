@@ -1,8 +1,10 @@
 import React from 'react';
 import { AbsoluteFill, Audio, Sequence, useVideoConfig } from 'remotion';
-import { linearTiming, TransitionSeries } from '@remotion/transitions';
+import { linearTiming, TransitionSeries, type TransitionPresentation } from '@remotion/transitions';
 import { fade } from '@remotion/transitions/fade';
 import { slide } from '@remotion/transitions/slide';
+import { wipe } from '@remotion/transitions/wipe';
+import { hashSeed } from './seed';
 import {
   defaultDesign,
   type ComponentType as KitType,
@@ -21,6 +23,19 @@ const FALLBACK_SUBTITLE_THEME = 'subtitulos-basicos@0.1.0';
 
 // volumen de cada SFX built-in bajo la voz (la voz está a −16 LUFS)
 const SFX_VOLUME: Record<string, number> = { whoosh: 0.5, pop: 0.45, riser: 0.4, ding: 0.5 };
+
+// Transición entre planos con variedad determinista: en límites de sección un
+// wipe direccional (cambio de tema marcado); en cortes normales rota entre
+// fundido, slide y wipe. La dirección/tipo derivan de hashSeed → reproducible.
+const DIRS = ['from-left', 'from-right', 'from-top', 'from-bottom'] as const;
+function pickTransition(kind: 'cut' | 'section', i: number, seedBase: string): TransitionPresentation<Record<string, unknown>> {
+  const seed = hashSeed(`${seedBase}:trans:${i}`);
+  const dir = DIRS[seed % 4]!;
+  if (kind === 'section') return wipe({ direction: dir }) as TransitionPresentation<Record<string, unknown>>;
+  const pick = seed % 3;
+  const p = pick === 0 ? fade() : pick === 1 ? slide({ direction: dir }) : wipe({ direction: dir });
+  return p as TransitionPresentation<Record<string, unknown>>;
+}
 
 // Renderiza el overlay de edición que corresponde al cue (callout/stat/quote).
 const EditOverlay: React.FC<{ cue: EffectCue; design: DesignTokens }> = ({ cue, design }) => {
@@ -149,9 +164,7 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
                   {trans !== null ? (
                     <TransitionSeries.Transition
                       timing={linearTiming({ durationInFrames: trans.durationInFrames })}
-                      presentation={
-                        trans.kind === 'section' ? slide({ direction: 'from-right' }) : fade()
-                      }
+                      presentation={pickTransition(trans.kind, i, master.video.id)}
                     />
                   ) : null}
                   <TransitionSeries.Sequence durationInFrames={seq.durationInFrames}>
