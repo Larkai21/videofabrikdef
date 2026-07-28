@@ -15,9 +15,12 @@ import {
   authorComponents,
   deleteComponent,
   fileUrl,
+  generateAvatar,
   getComponentPrompt,
   getComponents,
   putDesign,
+  putProfile,
+  uploadAvatar,
   uploadComponent,
 } from '../lib/api';
 import { useChannel } from '../lib/channel';
@@ -44,6 +47,178 @@ const STATUS_CHIP: Record<ComponentDto['status'], { kind: ChipKind; label: strin
   validated: { kind: 'ok', label: 'Validado' },
   failed: { kind: 'danger', label: 'Fallido' },
 };
+
+// Sugerencia de nombre de canal Personaje+Tópico (p. ej. MilkyGoblinNews).
+function suggestChannelName(characterName: string): string {
+  const cleaned = characterName.replace(/[^\p{L}\p{N}]/gu, '');
+  return cleaned.length > 0 ? `${cleaned}News` : 'MilkyGoblinNews';
+}
+
+// Personaje y avatar del canal: subir o generar con IA el avatar, y editar el
+// nombre + descripción del personaje. El avatar aparece en el header, en las
+// intro/outro y de fondo en la miniatura de los vídeos nuevos.
+function CharacterCard({ channel }: { channel: ChannelDto }) {
+  const { push } = useToasts();
+  const queryClient = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const character = channel.profile?.character ?? { name: 'Milky Goblin', description: '' };
+  const [name, setName] = useState(character.name);
+  const [description, setDescription] = useState(character.description);
+
+  useEffect(() => {
+    const c = channel.profile?.character ?? { name: 'Milky Goblin', description: '' };
+    setName(c.name);
+    setDescription(c.description);
+  }, [channel.id, channel.profile?.character]);
+
+  const invalidateChannels = () =>
+    queryClient.invalidateQueries({ queryKey: ['channels'] });
+
+  const uploadMut = useMutation({
+    mutationFn: (file: File) => uploadAvatar(channel.id, file),
+    onSuccess: () => {
+      void invalidateChannels();
+      push('Avatar actualizado');
+    },
+    onError: (err) =>
+      push(err instanceof Error ? err.message : 'No se pudo subir el avatar', 'danger'),
+  });
+
+  const generateMut = useMutation({
+    mutationFn: () => generateAvatar(channel.id),
+    onSuccess: () => push('Generando el avatar con IA'),
+    onError: (err) =>
+      push(err instanceof Error ? err.message : 'No se pudo generar el avatar', 'danger'),
+  });
+
+  const saveCharacterMut = useMutation({
+    mutationFn: () => {
+      const profile = channel.profile;
+      if (!profile) throw new Error('El canal todavía no tiene perfil aprobado');
+      return putProfile(channel.id, { ...profile, character: { name, description } });
+    },
+    onSuccess: () => {
+      void invalidateChannels();
+      push('Personaje guardado');
+    },
+    onError: (err) =>
+      push(err instanceof Error ? err.message : 'No se pudo guardar el personaje', 'danger'),
+  });
+
+  const dirty = name !== character.name || description !== character.description;
+  const busy = uploadMut.isPending || generateMut.isPending;
+
+  return (
+    <div
+      className="card"
+      style={{ padding: 'var(--pad)', marginBottom: 'var(--sec-gap)', display: 'grid', gap: 14 }}
+    >
+      <div className="head" style={{ fontSize: 14 }}>
+        Personaje del canal
+      </div>
+      <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.55 }}>
+        El avatar del personaje aparece en la barra superior, en la intro/outro y de fondo en la
+        miniatura de los vídeos nuevos. Súbelo o deja que la IA lo genere.
+      </p>
+
+      <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+        {channel.avatar_url ? (
+          <img
+            src={fileUrl(channel.avatar_url)}
+            alt={`Avatar de ${channel.name}`}
+            style={{
+              width: 88,
+              height: 88,
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: '1px solid var(--line)',
+              background: 'var(--bg2)',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: 88,
+              height: 88,
+              borderRadius: '50%',
+              border: '1px dashed var(--line)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--muted)',
+              fontSize: 12,
+              textAlign: 'center',
+              padding: 8,
+            }}
+          >
+            sin avatar
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) uploadMut.mutate(file);
+              if (fileRef.current) fileRef.current.value = '';
+            }}
+          />
+          <Button variant="secondary" disabled={busy} onClick={() => fileRef.current?.click()}>
+            {uploadMut.isPending ? 'Subiendo' : 'Subir avatar'}
+          </Button>
+          <Button variant="primary" disabled={busy} onClick={() => generateMut.mutate()}>
+            {generateMut.isPending ? 'Generando' : 'Generar con IA'}
+          </Button>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: 12,
+        }}
+      >
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span className="muted fs-sm">Nombre del personaje</span>
+          <input
+            className="control"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Milky Goblin"
+            style={{ fontSize: 'var(--fs-sm)' }}
+          />
+        </label>
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span className="muted fs-sm">Descripción</span>
+          <input
+            className="control"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Un duende simpático, mascota del canal"
+            style={{ fontSize: 'var(--fs-sm)' }}
+          />
+        </label>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Button
+          variant="secondary"
+          disabled={!dirty || channel.profile === null || saveCharacterMut.isPending}
+          onClick={() => saveCharacterMut.mutate()}
+        >
+          {saveCharacterMut.isPending ? 'Guardando' : 'Guardar personaje'}
+        </Button>
+        <span className="muted fs-sm">
+          Sugerencia de nombre de canal: <strong>{suggestChannelName(name)}</strong>
+        </span>
+      </div>
+    </div>
+  );
+}
 
 // Etiquetas de cada token de color del design system (orden de edición).
 const DESIGN_TOKEN_LABELS: Array<{ key: keyof Omit<DesignTokens, 'font_family'>; label: string }> = [
@@ -549,6 +724,8 @@ export function Componentes() {
           incorpora en el siguiente build (en desarrollo se recarga sola).
         </p>
       </div>
+
+      {channel !== undefined ? <CharacterCard channel={channel} /> : null}
 
       {channel !== undefined ? <DesignSystemCard channel={channel} /> : null}
 

@@ -135,6 +135,20 @@ export async function putDesign(id: string, design: DesignTokens): Promise<Chann
   return channelDtoSchema.parse(await patch(`/channels/${id}/design`, design));
 }
 
+// avatar/personaje: subida directa; devuelve el canal con avatar_url nuevo
+export async function uploadAvatar(id: string, file: File): Promise<ChannelDto> {
+  const form = new FormData();
+  form.append('file', file);
+  return channelDtoSchema.parse(
+    await request(`/channels/${id}/avatar`, { method: 'POST', body: form }),
+  );
+}
+
+// avatar/personaje: generación con IA (Flux). El resultado llega por SSE.
+export async function generateAvatar(id: string): Promise<void> {
+  await post(`/channels/${id}/avatar/generate`);
+}
+
 // settings del canal (presupuesto, duración objetivo, música de fondo…)
 export async function getSettings(id: string): Promise<ChannelSettings> {
   return channelSettingsSchema.parse(await request(`/channels/${id}/settings`));

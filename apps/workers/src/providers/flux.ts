@@ -82,6 +82,40 @@ async function generateReal(apiKey: string, prompt: string, seed: number): Promi
   return out;
 }
 
+// Avatar/personaje del canal (Fase 5): misma cascada Flux, pero por canal (no
+// por vídeo/beat). La semilla deriva del canal para que sea estable salvo que el
+// humano pida variar (seedSalt). Sin FAL_API_KEY → PNG de color sólido (mock).
+export async function generateAvatarImage(
+  db: Db,
+  logger: pino.Logger,
+  params: { channelId: string; prompt: string; seedSalt?: string },
+): Promise<FluxImage> {
+  const seed = mockHash(`${params.channelId}:avatar:${params.seedSalt ?? ''}`);
+  const apiKey = process.env.FAL_API_KEY;
+  const megapixels = Math.ceil((FLUX_WIDTH * FLUX_HEIGHT) / 1_000_000);
+  const handle = await openCost(db, {
+    videoId: null,
+    channelId: params.channelId,
+    provider: 'fal',
+    operation: 'flux_schnell',
+    meta: { prompt: params.prompt.slice(0, 200), seed, mock: !apiKey, kind: 'avatar' },
+  });
+  try {
+    const filePath = apiKey
+      ? await generateReal(apiKey, params.prompt, seed)
+      : await generateMock(seed);
+    await closeCost(db, handle, {
+      units: megapixels,
+      unitCost: apiKey ? PRICES.fal.flux_schnell_per_megapixel : 0,
+    });
+    logger.info({ channelId: params.channelId, seed, mock: !apiKey }, 'Avatar de canal generado');
+    return { path: filePath, seed };
+  } catch (err) {
+    await failCost(db, handle, err instanceof Error ? err.message : String(err));
+    throw err;
+  }
+}
+
 export async function generateFluxImage(
   db: Db,
   logger: pino.Logger,

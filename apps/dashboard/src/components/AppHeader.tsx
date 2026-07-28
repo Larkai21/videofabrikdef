@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { getInboxFor } from '../lib/api';
+import { fileUrl, getInboxFor } from '../lib/api';
 import { useChannel } from '../lib/channel';
 import { fmtMoney } from '../lib/format';
 import { useHotkeys } from '../lib/hotkeys';
@@ -23,7 +23,7 @@ export function AppHeader() {
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { channels, activeChannelId, setActiveChannel } = useChannel();
+  const { channels, activeChannel, activeChannelId, setActiveChannel } = useChannel();
 
   const { data: inbox } = useQuery({
     queryKey: ['inbox', activeChannelId],
@@ -51,6 +51,21 @@ export function AppHeader() {
         <span className="head" style={{ fontSize: 15 }}>
           Fábrica
         </span>
+        {activeChannel?.avatar_url ? (
+          <img
+            src={fileUrl(activeChannel.avatar_url)}
+            alt={`Avatar de ${activeChannel.name}`}
+            title={activeChannel.profile?.character?.name ?? activeChannel.name}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: '1px solid var(--line)',
+              flexShrink: 0,
+            }}
+          />
+        ) : null}
         {channels !== undefined && channels.length >= 2 ? (
           <select
             className="control"

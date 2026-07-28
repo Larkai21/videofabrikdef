@@ -66,6 +66,20 @@ describe('rewriteMasterMedia', () => {
     expect(master.beats?.[0]?.asset?.path).toBe('/data/library/clips/a.mp4');
   });
 
+  it('reescribe el avatar del canal (brand.avatar_path) a /files sin mutar el original', () => {
+    const master = makeDemoMaster({ audioPath: '/data/outputs/vid-1/audio.wav' });
+    master.brand = {
+      channel_name: 'MilkyGoblinNews',
+      avatar_path: '/data/library/assets/ch/avatar-abc.png',
+      components: { subtitle_theme: 'subtitulos-basicos@0.1.0' },
+    };
+    const rewritten = rewriteMasterMedia(master, opts);
+    expect(rewritten.brand?.avatar_path).toBe(
+      'http://127.0.0.1:3001/files/library/assets/ch/avatar-abc.png',
+    );
+    expect(master.brand?.avatar_path).toBe('/data/library/assets/ch/avatar-abc.png');
+  });
+
   it('reescribe también las rutas de los sub-planos (beat.visuals)', () => {
     const master = makeDemoMaster({ clipPath: '/data/library/clips/a.mp4' });
     master.beats![0]!.visuals = [

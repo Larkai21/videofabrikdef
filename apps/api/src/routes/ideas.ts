@@ -108,7 +108,12 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
       // el vídeo nace con la selección de brand kit del canal; el tema de
       // subtítulos integrado garantiza que el maestro siempre sea renderizable
       const [channel] = await tx
-        .select({ settings: channels.settings, profile: channels.profile, name: channels.name })
+        .select({
+          settings: channels.settings,
+          profile: channels.profile,
+          name: channels.name,
+          avatarPath: channels.avatarPath,
+        })
         .from(channels)
         .where(eq(channels.id, idea.channelId));
       const settings = channelSettingsSchema.parse(channel?.settings ?? {});
@@ -123,9 +128,11 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
           height: 1080,
         },
         brand: {
-          // el render no lee BD: nombre, tokens de diseño y refs viajan congelados
+          // el render no lee BD: nombre, tokens de diseño, avatar y refs congelados
           channel_name: channel?.profile?.identity.name ?? channel?.name ?? '',
           design: channel?.profile?.brand_design ?? defaultDesign(),
+          // avatar del canal (si lo hay): la ruta local se reescribe a /files en el render
+          ...(channel?.avatarPath ? { avatar_path: channel.avatarPath } : {}),
           components: { ...defaultBrand().components, ...settings.brand_components },
         },
       });

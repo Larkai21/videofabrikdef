@@ -19,6 +19,8 @@ export const channelDtoSchema = z.object({
   name: z.string(),
   profile: channelProfileV1.nullable(),
   profile_approved: z.boolean(),
+  // URL /files del avatar/personaje del canal, o null si no tiene
+  avatar_url: z.string().nullable(),
   created_at: z.string(),
 });
 export type ChannelDto = z.infer<typeof channelDtoSchema>;

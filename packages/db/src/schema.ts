@@ -32,6 +32,9 @@ export const channels = pgTable('channels', {
   // derivados del scraping de bootstrap (cadencias, outliers, patrones)
   profileInputs: jsonb('profile_inputs'),
   settings: jsonb('settings').$type<ChannelSettings>(),
+  // ruta local del avatar/personaje del canal (subido o generado con Flux);
+  // se congela en master.brand.avatar_path y se sirve por /files en el render
+  avatarPath: text('avatar_path'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

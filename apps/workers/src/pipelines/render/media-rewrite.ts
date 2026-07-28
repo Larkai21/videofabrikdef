@@ -37,6 +37,10 @@ export function rewriteMasterMedia(
 ): MasterVideoJson {
   const copy = structuredClone(master);
   if (copy.audio) copy.audio.path = rewriteMediaPath(copy.audio.path, opts);
+  // avatar del canal congelado en la marca: intro/outro lo cargan como logo
+  if (copy.brand?.avatar_path) {
+    copy.brand.avatar_path = rewriteMediaPath(copy.brand.avatar_path, opts);
+  }
   for (const beat of copy.beats ?? []) {
     if (beat.asset?.path) beat.asset.path = rewriteMediaPath(beat.asset.path, opts);
     // los sub-planos llevan su propio asset con ruta local: también se reescriben

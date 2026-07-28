@@ -233,12 +233,22 @@ async function handleRenderVideo(ctx: WorkerContext, job: Job<RenderVideoJob>): 
       { variant: 'a', file: 'thumb_a.jpg' },
       { variant: 'b', file: 'thumb_b.jpg' },
     ] as const;
+    // el avatar y los tokens ya reescritos a /files viajan en inputProps
+    const thumbDesign = inputProps.brand?.design;
+    const thumbAvatar = inputProps.brand?.avatar_path;
     for (let i = 0; i < variants.length; i += 1) {
       const item = variants[i];
       if (!item) continue;
       const concept = master.seo.thumbnails[i] ?? master.seo.thumbnails[0];
       const text = concept?.text ?? master.seo.titles[0];
-      const thumbProps = { text, variant: item.variant };
+      // el personaje del canal (si lo hay) aparece de fondo en la miniatura;
+      // los colores salen del design system del canal
+      const thumbProps = {
+        text,
+        variant: item.variant,
+        ...(thumbDesign ? { design: thumbDesign } : {}),
+        ...(thumbAvatar ? { image_path: thumbAvatar } : {}),
+      };
       const thumbComposition = await selectComposition({
         serveUrl,
         id: 'Thumbnail',

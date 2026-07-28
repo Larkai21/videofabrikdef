@@ -19,7 +19,7 @@ export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 
 // nombres de job por cola
 export const JOBS = {
-  sources: { poll: 'poll', bootstrap: 'bootstrap' },
+  sources: { poll: 'poll', bootstrap: 'bootstrap', avatar: 'avatar' },
   ideas: { score: 'score' },
   script: { generate: 'generate', judge: 'judge', refine: 'refine' },
   tts: { synthesize: 'synthesize' },
@@ -38,6 +38,14 @@ export interface SourcesBootstrapJob {
   channelId: string;
   niche: string;
   competitors: string[];
+}
+
+// Generación del avatar/personaje del canal con Flux (Fase 5). Un solo job por
+// canal; escribe library/assets/<canal>/avatar.png y setea channels.avatar_path.
+export interface ChannelAvatarGenerateJob {
+  channelId: string;
+  // pista opcional del humano para variar el resultado
+  seedSalt?: string;
 }
 
 export interface IdeasScoreJob {
