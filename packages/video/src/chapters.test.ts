@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Beat, Scene } from '@fabrica/shared';
 import { makeDemoMaster } from '@fabrica/shared';
-import { chaptersToText, computeChapters, formatChapterTime } from './chapters';
+import {
+  chaptersToText,
+  computeChapters,
+  formatChapterTime,
+  mergeChaptersIntoDescription,
+} from './chapters';
 
 function scene(id: string, section: Scene['section'], text: string): Scene {
   return { id, section, text, visual_query: 'q' };
@@ -82,5 +87,47 @@ describe('computeChapters', () => {
   it('serializa a texto de descripción m:ss + título', () => {
     const text = chaptersToText(computeChapters(scenes, beats));
     expect(text).toBe('0:00 Introducción\n0:11 Desarrollo\n0:33 Cierre');
+  });
+});
+
+describe('mergeChaptersIntoDescription', () => {
+  const chapters = computeChapters(
+    [
+      scene('s1', 'hook', 'Arranque del vídeo con contexto.'),
+      scene('s2', 'body', 'Cuerpo con los datos clave.'),
+      scene('s3', 'cta', 'Cierre con la llamada final.'),
+    ],
+    [
+      beat(0, 0, 10_000, 'Arranque del vídeo con contexto.'),
+      beat(1, 10_000, 20_000, 'Cuerpo con los datos clave.'),
+      beat(2, 20_000, 30_000, 'Cierre con la llamada final.'),
+    ],
+  );
+  const real = '0:00 Introducción\n0:10 Desarrollo\n0:20 Cierre';
+
+  it('sustituye el placeholder {timestamps}', () => {
+    const out = mergeChaptersIntoDescription('Resumen.\n\nCapítulos:\n{timestamps}\n\nGracias.', chapters);
+    expect(out).toBe(`Resumen.\n\nCapítulos:\n${real}\n\nGracias.`);
+  });
+
+  it('sustituye una lista literal de tiempos escrita por el LLM', () => {
+    // gpt-5-mini a veces ignora el placeholder e inventa tiempos que pueden
+    // exceder la duración real del vídeo
+    const out = mergeChaptersIntoDescription(
+      'Resumen. Capítulos:\n00:00 Intro\n02:20 Modelos\n10:50 Descarga\n\nGracias.',
+      chapters,
+    );
+    expect(out).toBe(`Resumen. Capítulos:\n${real}\n\nGracias.`);
+  });
+
+  it('añade un bloque de capítulos si no hay placeholder ni lista', () => {
+    const out = mergeChaptersIntoDescription('Solo un resumen.', chapters);
+    expect(out).toBe(`Solo un resumen.\n\nCapítulos:\n${real}`);
+  });
+
+  it('sin capítulos reales deja la descripción intacta', () => {
+    expect(mergeChaptersIntoDescription('Texto con {timestamps}.', [])).toBe(
+      'Texto con {timestamps}.',
+    );
   });
 });

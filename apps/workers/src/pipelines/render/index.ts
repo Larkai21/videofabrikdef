@@ -13,7 +13,7 @@ import {
   type RenderableMaster,
   type RenderVideoJob,
 } from '@fabrica/shared';
-import { chaptersToText, computeChapters } from '@fabrica/video/chapters';
+import { computeChapters, mergeChaptersIntoDescription } from '@fabrica/video/chapters';
 import { webpackOverride } from '@fabrica/video/bundling';
 import { bundle } from '@remotion/bundler';
 import {
@@ -117,10 +117,9 @@ async function writeOutputs(outDir: string, master: RenderableMaster): Promise<v
   if (chosenIdx === null) throw new Error('Falta elegir título (seo.chosen_idx)');
   const title = master.seo.titles[chosenIdx] ?? master.seo.titles[0];
   const chapters = computeChapters(master.script.scenes, master.beats);
-  const description = master.seo.description.replaceAll(
-    '{timestamps}',
-    chaptersToText(chapters),
-  );
+  // sustituye {timestamps} o, si el LLM escribió tiempos literales
+  // (estimados, a menudo fuera de la duración real), ese bloque entero
+  const description = mergeChaptersIntoDescription(master.seo.description, chapters);
   await fsp.writeFile(path.join(outDir, 'title.txt'), `${title}\n`);
   await fsp.writeFile(path.join(outDir, 'description.txt'), `${description}\n`);
   await fsp.writeFile(path.join(outDir, 'tags.txt'), `${master.seo.tags.join('\n')}\n`);

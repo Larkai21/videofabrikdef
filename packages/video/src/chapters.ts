@@ -72,3 +72,27 @@ export function formatChapterTime(ms: number): string {
 export function chaptersToText(chapters: Chapter[]): string {
   return chapters.map((c) => `${c.label} ${c.title}`).join('\n');
 }
+
+const CHAPTER_LINE = /^\s*\d{1,2}:\d{2}(?::\d{2})?\s+\S/;
+
+// Fusiona los capítulos REALES (derivados del audio) en la descripción del
+// LLM. Contrato: la descripción trae el placeholder {timestamps}. Algunos
+// modelos lo ignoran y escriben una lista literal de tiempos estimados (que
+// pueden exceder la duración real del vídeo): ese bloque se sustituye por los
+// capítulos reales. Sin placeholder ni lista, se añade un bloque «Capítulos:»
+// al final (YouTube exige la lista con 0:00 para activar capítulos).
+export function mergeChaptersIntoDescription(description: string, chapters: Chapter[]): string {
+  const block = chaptersToText(chapters);
+  if (block === '') return description;
+  if (description.includes('{timestamps}')) {
+    return description.replaceAll('{timestamps}', block);
+  }
+  const lines = description.split('\n');
+  const isChapterLine = (line: string | undefined): boolean =>
+    line !== undefined && CHAPTER_LINE.test(line);
+  const start = lines.findIndex((l) => isChapterLine(l));
+  if (start === -1) return `${description.trimEnd()}\n\nCapítulos:\n${block}`;
+  let end = start;
+  while (isChapterLine(lines[end])) end += 1;
+  return [...lines.slice(0, start), block, ...lines.slice(end)].join('\n');
+}
