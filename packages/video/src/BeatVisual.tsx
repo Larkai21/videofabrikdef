@@ -167,8 +167,9 @@ const LoopedClip: React.FC<{
   );
 };
 
-// Visual de un beat según asset.fit.mode: trim (clip con offset), loop (clip
-// repetido con crossfade) o kenburns (imagen con zoom y paneo deterministas).
+// Visual de un beat según asset.fit.mode: trim (clip con offset), stretch (clip
+// algo más corto reproducido una vez a cámara ligeramente lenta), loop (clip
+// repetido con crossfade, último recurso) o kenburns (imagen con zoom/paneo).
 export const BeatVisual: React.FC<BeatVisualProps> = ({ beat, videoId, durationInFrames }) => {
   const { fps } = useVideoConfig();
   const asset = beat.asset;
@@ -200,9 +201,19 @@ export const BeatVisual: React.FC<BeatVisualProps> = ({ beat, videoId, durationI
       />
     );
   }
+  // stretch: una sola pasada ralentizada (playback_rate < 1) que llena el beat
+  // sin reinicios; trim: clip que sobra, recortado con offset. Ambos son un
+  // único OffthreadVideo, la diferencia es el playbackRate.
+  const playbackRate = asset.fit.mode === 'stretch' ? (asset.fit.playback_rate ?? 1) : 1;
   return (
     <AbsoluteFill>
-      <OffthreadVideo src={src} trimBefore={trimBeforeFrames} muted style={COVER_STYLE} />
+      <OffthreadVideo
+        src={src}
+        trimBefore={trimBeforeFrames}
+        playbackRate={playbackRate}
+        muted
+        style={COVER_STYLE}
+      />
     </AbsoluteFill>
   );
 };

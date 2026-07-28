@@ -12,6 +12,24 @@ describe('computeFit', () => {
     expect(result?.fit).toEqual({ mode: 'trim', offset_ms: 0 });
   });
 
+  it('clip algo más corto: una sola pasada ralentizada (stretch)', () => {
+    // 9000/10000 = 0,9 ≥ MIN_PLAYBACK_RATE → estira, no repite
+    const result = computeFit({ kind: 'clip', assetDurationMs: 9_000, beatDurationMs: 10_000 });
+    expect(result?.fit).toEqual({ mode: 'stretch', playback_rate: 0.9, offset_ms: 0 });
+  });
+
+  it('justo en el umbral de ralentización sigue siendo stretch', () => {
+    // 7500/10000 = 0,75 = MIN_PLAYBACK_RATE → stretch (límite inclusivo)
+    const result = computeFit({ kind: 'clip', assetDurationMs: 7_500, beatDurationMs: 10_000 });
+    expect(result?.fit).toEqual({ mode: 'stretch', playback_rate: 0.75, offset_ms: 0 });
+  });
+
+  it('justo por debajo del umbral: bucle en vez de cámara lenta', () => {
+    // 7400/10000 = 0,74 < 0,75 → loop (2×7400 − 300 = 14500 ≥ 10000)
+    const result = computeFit({ kind: 'clip', assetDurationMs: 7_400, beatDurationMs: 10_000 });
+    expect(result?.fit).toEqual({ mode: 'loop', loops: 2 });
+  });
+
   it('clip corto que cubre con dos reproducciones y crossfade', () => {
     // 2×6000 − 300 = 11700 ≥ 10000
     const result = computeFit({ kind: 'clip', assetDurationMs: 6_000, beatDurationMs: 10_000 });

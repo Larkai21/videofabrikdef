@@ -3,7 +3,7 @@
 // LOOP_CROSSFADE_MS entre repeticiones, n reproducciones cubren
 // n·len − (n−1)·crossfade ms. Lógica pura.
 
-import { LOOP_CROSSFADE_MS, MAX_LOOPS, type Fit } from '@fabrica/shared';
+import { LOOP_CROSSFADE_MS, MAX_LOOPS, MIN_PLAYBACK_RATE, type Fit } from '@fabrica/shared';
 
 export interface FitInput {
   kind: 'clip' | 'image';
@@ -33,6 +33,15 @@ export function computeFit(input: FitInput, opts: { clampLoops?: boolean } = {})
     return { fit: { mode: 'trim', offset_ms: Math.floor((len - beat) / 2) } };
   }
 
+  // Clip algo más corto que el beat: una sola pasada ralentizada lo llena sin
+  // reiniciar, mientras la ralentización no baje de MIN_PLAYBACK_RATE (si no,
+  // se notaría como cámara lenta). playback_rate = len/beat < 1.
+  const rate = len / beat;
+  if (rate >= MIN_PLAYBACK_RATE) {
+    return { fit: { mode: 'stretch', playback_rate: rate, offset_ms: 0 } };
+  }
+
+  // Demasiado corto para estirar: bucle con crossfade (último recurso).
   for (let n = 2; n <= MAX_LOOPS; n++) {
     const covered = n * len - (n - 1) * LOOP_CROSSFADE_MS;
     if (covered >= beat) {

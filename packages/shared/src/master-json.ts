@@ -63,9 +63,15 @@ export const audioSchema = z.object({
 });
 
 export const fitSchema = z.object({
-  mode: z.enum(['trim', 'loop', 'kenburns']),
+  // trim: clip ≥ beat, se recorta; stretch: clip algo más corto, una sola
+  // pasada ralentizada (playback_rate < 1); loop: último recurso, repite;
+  // kenburns: imágenes fijas con zoom/paneo.
+  mode: z.enum(['trim', 'stretch', 'loop', 'kenburns']),
   offset_ms: z.number().int().nonnegative().optional(),
   loops: z.number().int().positive().optional(),
+  // solo en 'stretch': factor de reproducción (0 < r < 1) para llenar el beat
+  // en una única pasada sin reiniciar el clip.
+  playback_rate: z.number().positive().optional(),
 });
 
 // `path` y `kind` se rellenan al descargar el asset elegido (extensión

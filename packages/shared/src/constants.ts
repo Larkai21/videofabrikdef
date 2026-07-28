@@ -33,6 +33,10 @@ export const ANTI_REPEAT_N = 8;
 export const STOCK_CACHE_TTL_H = 24;
 export const MAX_LOOPS = 3;
 export const LOOP_CROSSFADE_MS = 300;
+// Ralentización máxima admisible para llenar un beat con una sola pasada del
+// clip (0,75 = el clip puede cubrir hasta 1/0,75 ≈ 1,33× su duración sin que
+// se note como cámara lenta). Por debajo se recurre al bucle.
+export const MIN_PLAYBACK_RATE = 0.75;
 
 // Audio
 export const LOUDNORM_LUFS = -16;
