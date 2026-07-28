@@ -3,15 +3,34 @@ import { AbsoluteFill, Audio, Sequence, useVideoConfig } from 'remotion';
 import { linearTiming, TransitionSeries } from '@remotion/transitions';
 import { fade } from '@remotion/transitions/fade';
 import { slide } from '@remotion/transitions/slide';
-import { defaultDesign, type ComponentType as KitType, type MasterVideoJson } from '@fabrica/shared';
+import {
+  defaultDesign,
+  type ComponentType as KitType,
+  type DesignTokens,
+  type MasterVideoJson,
+} from '@fabrica/shared';
 import { BeatVisual } from './BeatVisual';
-import { computeBrandKitLayout, computeBrollTrack } from './brand-kit';
+import { computeBrandKitLayout, computeBrollTrack, type EffectCue } from './brand-kit';
+import { Ambience, ProgressBar, QuoteCard, StatCard, TextCallout } from './effects';
 import { ensureFontLoaded, FONT_FAMILY } from './fonts';
 import { isRenderableSrc, toSrc } from './media-src';
 import { resolveComponent } from './registry.generated';
 import { Subtitles } from './Subtitles';
 
 const FALLBACK_SUBTITLE_THEME = 'subtitulos-basicos@0.1.0';
+
+// volumen de cada SFX built-in bajo la voz (la voz está a −16 LUFS)
+const SFX_VOLUME: Record<string, number> = { whoosh: 0.5, pop: 0.45, riser: 0.4, ding: 0.5 };
+
+// Renderiza el overlay de edición que corresponde al cue (callout/stat/quote).
+const EditOverlay: React.FC<{ cue: EffectCue; design: DesignTokens }> = ({ cue, design }) => {
+  if (cue.type === 'text_callout') return <TextCallout text={cue.text ?? ''} design={design} />;
+  if (cue.type === 'stat_card') {
+    return <StatCard value={cue.value ?? ''} label={cue.label} design={design} />;
+  }
+  if (cue.type === 'quote_card') return <QuoteCard text={cue.text ?? ''} design={design} />;
+  return null;
+};
 
 // Un componente del brand kit resuelto del registry generado. Se resuelve al
 // renderizar (no al montar el árbol) y solo para slots que el layout ya
@@ -53,8 +72,38 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
   // la extensión del último beat de siempre, ahora restando la outro)
   const bodyEnd = Math.max(offset + 1, totalFrames - layout.outroFrames);
 
+  // línea de tiempo de efectos de edición (director de edición → master.edits)
+  const effects = layout.effects;
+  const highlightKeywords = React.useMemo(
+    () =>
+      effects
+        .filter((e) => e.type === 'keyword_highlight' && e.keyword)
+        .map((e) => e.keyword as string),
+    [effects],
+  );
+  // zoom punch-in por beat: frame LOCAL (dentro del beat) donde arranca el punch
+  const punchByBeat = React.useMemo(() => {
+    const map = new Map<number, number>();
+    const byIdx = new Map(beats.map((b) => [b.idx, b]));
+    for (const e of master.edits ?? []) {
+      if (e.type === 'zoom_punch' && e.beat_idx !== undefined) {
+        const beat = byIdx.get(e.beat_idx);
+        if (beat) {
+          map.set(e.beat_idx, Math.max(0, Math.round(((e.from_ms - beat.from_ms) / 1000) * fps)));
+        }
+      }
+    }
+    return map;
+  }, [master.edits, beats, fps]);
+  const overlayCues = effects.filter(
+    (e) => e.type === 'text_callout' || e.type === 'stat_card' || e.type === 'quote_card',
+  );
+  const sfxCues = effects.filter((e) => e.type === 'sfx' && e.sfx);
+
   const audioEl = audio && isRenderableSrc(audio.path) ? <Audio src={toSrc(audio.path)} /> : null;
-  const subtitlesEl = <Subtitles cues={cues} themeRef={themeRef} design={design} />;
+  const subtitlesEl = (
+    <Subtitles cues={cues} themeRef={themeRef} design={design} highlightKeywords={highlightKeywords} />
+  );
 
   // pista de b-roll con transiciones: solape compensado para que el corte
   // quede centrado y el total siga siendo baseFrames (audio/subtítulos intactos)
@@ -78,6 +127,17 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
           audioEl
         )
       ) : null}
+      {/* capa de SFX: cada cue dispara un efecto de sonido built-in (public/sfx) */}
+      {sfxCues.map((cue, i) => (
+        <Sequence
+          key={`sfx-${i}`}
+          from={cue.from}
+          durationInFrames={cue.durationInFrames}
+          name={`SFX ${cue.sfx}`}
+        >
+          <Audio src={toSrc(`sfx/${cue.sfx}.wav`)} volume={SFX_VOLUME[cue.sfx ?? ''] ?? 0.5} />
+        </Sequence>
+      ))}
       {beats.length > 0 ? (
         <Sequence from={offset} durationInFrames={Math.max(1, bodyEnd - offset)} name="B-roll">
           <TransitionSeries>
@@ -99,12 +159,19 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
                       beat={beat}
                       videoId={master.video.id}
                       durationInFrames={seq.durationInFrames}
+                      punchFromFrame={punchByBeat.get(beat.idx)}
                     />
                   </TransitionSeries.Sequence>
                 </React.Fragment>
               );
             })}
           </TransitionSeries>
+        </Sequence>
+      ) : null}
+      {/* ambiente (viñeta + grano) sobre el b-roll y bajo los subtítulos */}
+      {beats.length > 0 ? (
+        <Sequence from={offset} durationInFrames={Math.max(1, bodyEnd - offset)} name="Ambiente">
+          <Ambience design={design} />
         </Sequence>
       ) : null}
       {offset > 0 ? (
@@ -157,6 +224,19 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
               ...(master.brand?.channel_name ? { subtitle: master.brand.channel_name } : {}),
             }}
           />
+        </Sequence>
+      ) : null}
+      {/* overlays de edición: callouts, tarjetas de dato y citas sobre todo lo
+          demás (bajo intro/outro, que se pintan después y cubren la pantalla) */}
+      {overlayCues.map((cue, i) => (
+        <Sequence key={`fx-${i}`} from={cue.from} durationInFrames={cue.durationInFrames} name={cue.type}>
+          <EditOverlay cue={cue} design={design} />
+        </Sequence>
+      ))}
+      {/* barra de progreso: cubre todo el cuerpo (oculta bajo intro/outro) */}
+      {beats.length > 0 ? (
+        <Sequence from={offset} durationInFrames={Math.max(1, bodyEnd - offset)} name="Progreso">
+          <ProgressBar design={design} />
         </Sequence>
       ) : null}
       {layout.intro !== null ? (

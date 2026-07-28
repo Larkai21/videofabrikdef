@@ -10,6 +10,7 @@ import {
 } from 'remotion';
 import type { Beat } from '@fabrica/shared';
 import { LOOP_CROSSFADE_MS, MAX_LOOPS, SUBVISUAL_CROSSFADE_MS } from '@fabrica/shared';
+import { punchScale } from './effects/punch';
 import { FONT_FAMILY } from './fonts';
 import { isRenderableSrc, toSrc } from './media-src';
 import { hashSeed } from './seed';
@@ -18,6 +19,19 @@ type BeatVisualProps = {
   beat: Beat;
   videoId: string;
   durationInFrames: number;
+  // frame LOCAL donde el director de edición marcó un zoom punch-in (opcional)
+  punchFromFrame?: number;
+};
+
+// Envuelve el visual del beat con el zoom punch-in si el director lo marcó.
+const PunchWrap: React.FC<{ punchFromFrame?: number; children: React.ReactNode }> = ({
+  punchFromFrame,
+  children,
+}) => {
+  const frame = useCurrentFrame();
+  if (punchFromFrame === undefined) return <>{children}</>;
+  const scale = punchScale(frame - punchFromFrame);
+  return <AbsoluteFill style={{ transform: `scale(${scale})` }}>{children}</AbsoluteFill>;
 };
 
 const COVER_STYLE: React.CSSProperties = {
@@ -239,44 +253,53 @@ const isRenderable = (a: Beat['asset']): a is NonNullable<Beat['asset']> =>
 // Visual de un beat. Con varios sub-planos (`beat.visuals`) los tilea dentro de
 // la ventana del beat con un crossfade corto entre ellos (b-roll más ágil sin
 // tocar los cortes de audio). Con uno solo, pinta el asset del beat.
-export const BeatVisual: React.FC<BeatVisualProps> = ({ beat, videoId, durationInFrames }) => {
+export const BeatVisual: React.FC<BeatVisualProps> = ({
+  beat,
+  videoId,
+  durationInFrames,
+  punchFromFrame,
+}) => {
   const { fps } = useVideoConfig();
 
   const visuals = beat.visuals ?? [];
   if (visuals.length > 1) {
     const fade = msToFrames(SUBVISUAL_CROSSFADE_MS, fps);
     return (
-      <AbsoluteFill>
-        {visuals.map((sv, vIdx) => {
-          if (!isRenderable(sv.asset)) return null;
-          const from = msToFrames(sv.from_ms - beat.from_ms, fps);
-          // el último sub-plano se extiende hasta el final de la Sequence del
-          // beat (incluido el solape de la transición) para no dejar hueco
-          const rawEnd =
-            vIdx === visuals.length - 1
-              ? durationInFrames
-              : msToFrames(sv.to_ms - beat.from_ms, fps);
-          const dur = Math.max(1, rawEnd - from);
-          const seed = hashSeed(`${videoId}:${beat.idx}:${vIdx}`);
-          return (
-            <Sequence key={vIdx} from={from} durationInFrames={dur} name={`Plano ${vIdx + 1}`}>
-              <FadeIn fadeFrames={vIdx === 0 ? 0 : fade}>
-                <AssetVisual asset={sv.asset} seed={seed} durationInFrames={dur} fps={fps} />
-              </FadeIn>
-            </Sequence>
-          );
-        })}
-      </AbsoluteFill>
+      <PunchWrap punchFromFrame={punchFromFrame}>
+        <AbsoluteFill>
+          {visuals.map((sv, vIdx) => {
+            if (!isRenderable(sv.asset)) return null;
+            const from = msToFrames(sv.from_ms - beat.from_ms, fps);
+            // el último sub-plano se extiende hasta el final de la Sequence del
+            // beat (incluido el solape de la transición) para no dejar hueco
+            const rawEnd =
+              vIdx === visuals.length - 1
+                ? durationInFrames
+                : msToFrames(sv.to_ms - beat.from_ms, fps);
+            const dur = Math.max(1, rawEnd - from);
+            const seed = hashSeed(`${videoId}:${beat.idx}:${vIdx}`);
+            return (
+              <Sequence key={vIdx} from={from} durationInFrames={dur} name={`Plano ${vIdx + 1}`}>
+                <FadeIn fadeFrames={vIdx === 0 ? 0 : fade}>
+                  <AssetVisual asset={sv.asset} seed={seed} durationInFrames={dur} fps={fps} />
+                </FadeIn>
+              </Sequence>
+            );
+          })}
+        </AbsoluteFill>
+      </PunchWrap>
     );
   }
 
   if (!isRenderable(beat.asset)) return <Placeholder beat={beat} />;
   return (
-    <AssetVisual
-      asset={beat.asset}
-      seed={hashSeed(`${videoId}:${beat.idx}`)}
-      durationInFrames={durationInFrames}
-      fps={fps}
-    />
+    <PunchWrap punchFromFrame={punchFromFrame}>
+      <AssetVisual
+        asset={beat.asset}
+        seed={hashSeed(`${videoId}:${beat.idx}`)}
+        durationInFrames={durationInFrames}
+        fps={fps}
+      />
+    </PunchWrap>
   );
 };

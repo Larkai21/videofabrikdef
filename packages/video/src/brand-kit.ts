@@ -51,6 +51,20 @@ export interface TitledKitSlot extends FixedKitSlot {
   title: string;
 }
 
+// Un efecto de edición situado en la línea de tiempo de frames (ya con el
+// offset de la intro aplicado). Lo produce computeEffectsTrack desde master.edits.
+export interface EffectCue {
+  type: 'zoom_punch' | 'keyword_highlight' | 'text_callout' | 'stat_card' | 'quote_card' | 'sfx';
+  from: number;
+  durationInFrames: number;
+  beatIdx?: number;
+  text?: string;
+  value?: string;
+  label?: string;
+  keyword?: string;
+  sfx?: string;
+}
+
 export interface BrandKitLayout {
   // frames que ocupa la intro (0 si no hay): el offset de beats/audio/cues
   introFrames: number;
@@ -65,6 +79,33 @@ export interface BrandKitLayout {
   // tarjetas de sección centradas, una por segmento del director de capítulos
   sectionCards: TitledKitSlot[];
   lowerThird: TitledKitSlot | null;
+  // efectos de edición (overlays/SFX/punch) ya en frames con el offset de intro
+  effects: EffectCue[];
+}
+
+// Convierte master.edits (ms) a EffectCue[] en frames, aplicando el offset de la
+// intro. Los overlays solo cubren frames existentes → no cambian totalFrames.
+export function computeEffectsTrack(
+  master: MasterVideoJson,
+  fps: number,
+  introFrames: number,
+): EffectCue[] {
+  const edits = master.edits ?? [];
+  return edits.map((e) => {
+    const from = introFrames + msToFrames(e.from_ms, fps);
+    const end = introFrames + msToFrames(e.to_ms, fps);
+    return {
+      type: e.type,
+      from: Math.max(0, from),
+      durationInFrames: Math.max(1, end - from),
+      ...(e.beat_idx !== undefined ? { beatIdx: e.beat_idx } : {}),
+      ...(e.text !== undefined ? { text: e.text } : {}),
+      ...(e.value !== undefined ? { value: e.value } : {}),
+      ...(e.label !== undefined ? { label: e.label } : {}),
+      ...(e.keyword !== undefined ? { keyword: e.keyword } : {}),
+      ...(e.sfx !== undefined ? { sfx: e.sfx } : {}),
+    };
+  });
 }
 
 function msToFrames(ms: number, fps: number): number {
@@ -180,6 +221,7 @@ export function computeBrandKitLayout(
     titleCard,
     sectionCards,
     lowerThird,
+    effects: computeEffectsTrack(master, fps, introFrames),
   };
 }
 
