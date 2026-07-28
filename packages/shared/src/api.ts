@@ -240,6 +240,7 @@ export const libraryAssetDtoSchema = z.object({
   origin_query: z.string().nullable(),
   times_used: z.number(),
   last_video_id: z.string().nullable(),
+  favorite: z.boolean(),
   purge_candidate: z.boolean(),
   created_at: z.string(),
 });

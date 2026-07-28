@@ -230,6 +230,7 @@ export interface LibraryFilters {
   q?: string;
   channel?: string;
   purge?: boolean;
+  favorite?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -240,6 +241,7 @@ export async function getLibrary(filters: LibraryFilters = {}): Promise<LibraryL
   if (filters.q !== undefined && filters.q !== '') params.set('q', filters.q);
   if (filters.channel !== undefined && filters.channel !== '') params.set('channel', filters.channel);
   if (filters.purge === true) params.set('purge', 'true');
+  if (filters.favorite === true) params.set('favorite', 'true');
   if (filters.limit !== undefined) params.set('limit', String(filters.limit));
   if (filters.offset !== undefined) params.set('offset', String(filters.offset));
   const qs = params.toString();
@@ -248,6 +250,12 @@ export async function getLibrary(filters: LibraryFilters = {}): Promise<LibraryL
 
 export async function deleteAsset(id: string): Promise<void> {
   await request(`/library/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+/** Marca/desmarca un asset como favorito; devuelve el nuevo estado. */
+export async function toggleFavorite(id: string): Promise<boolean> {
+  const data = await request(`/library/${encodeURIComponent(id)}/favorite`, { method: 'PATCH' });
+  return (data as { favorite?: unknown }).favorite === true;
 }
 
 export async function requestBackfill(): Promise<void> {

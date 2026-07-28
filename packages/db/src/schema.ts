@@ -198,6 +198,8 @@ export const assets = pgTable(
     embedding: vector('embedding', { dimensions: EMBEDDING_DIMS }),
     timesUsed: integer('times_used').notNull().default(0),
     lastVideoId: text('last_video_id'),
+    // marcado por el humano como favorito en la biblioteca
+    favorite: boolean('favorite').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

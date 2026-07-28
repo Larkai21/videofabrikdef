@@ -46,6 +46,7 @@ import { computeFit, kenburnsEffect } from './fit.js';
 import { registerAssetsMocks } from './mocks.js';
 import { expandQuery, stockScore } from './score.js';
 import { computeSubvisualSpans, wordsInSpan } from './subvisuals.js';
+import { extractCaptionJpeg } from '../library/media.js';
 
 // Worker de assets (docs/assets-y-biblioteca.md): cascada biblioteca →
 // stock → Flux por beat (match) y descarga + ingesta a biblioteca al
@@ -955,6 +956,27 @@ async function insertIngestedAsset(
   };
 }
 
+// Póster de un clip en library/assets/<canal>/thumbs/<id>.jpg (misma convención
+// que thumbUrlFor en la API y el backfill). Solo clips; las imágenes ya son su
+// propio thumb. Best-effort: si ffmpeg falta o falla, la biblioteca cae al
+// placeholder, nunca rompe la ingesta.
+async function ensureClipThumb(
+  ctx: WorkerContext,
+  channelId: string,
+  ingested: IngestedAsset,
+): Promise<void> {
+  if (ingested.kind !== 'clip') return;
+  const thumb = path.join(ctx.libraryDir, 'assets', channelId, 'thumbs', `${ingested.assetId}.jpg`);
+  const exists = await fs.access(thumb).then(() => true, () => false);
+  if (exists) return;
+  await fs.mkdir(path.dirname(thumb), { recursive: true });
+  await extractCaptionJpeg(
+    { filePath: ingested.absPath, visual: 'video', durationMs: ingested.durationMs },
+    thumb,
+    ctx.logger,
+  );
+}
+
 async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise<void> {
   const { videoId } = job.data;
   const { db, logger } = ctx;
@@ -1010,6 +1032,9 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
           assetId: sv.asset_id,
         },
       );
+      // póster para la biblioteca: sin esto los clips de producción salen sin
+      // preview (thumbUrlFor busca thumbs/<id>.jpg). Best-effort, no bloquea.
+      await ensureClipThumb(ctx, video.channelId, ingested);
       // el fit se recalcula SIEMPRE con la duración real del archivo, contra el
       // tramo del SUB-PLANO (no todo el beat)
       const seed = mockHash(`${videoId}${beat.idx}:${vIdx}`);

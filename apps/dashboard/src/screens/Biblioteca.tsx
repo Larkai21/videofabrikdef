@@ -10,7 +10,14 @@ import {
   ThumbPlaceholder,
   type Motivo,
 } from '../components/ui';
-import { ApiError, deleteAsset, fileUrl, getLibrary, requestBackfill } from '../lib/api';
+import {
+  ApiError,
+  deleteAsset,
+  fileUrl,
+  getLibrary,
+  requestBackfill,
+  toggleFavorite,
+} from '../lib/api';
 import { useChannel } from '../lib/channel';
 import { useLive } from '../lib/events';
 import { fmtClock } from '../lib/format';
@@ -49,12 +56,65 @@ function kindLabel(kind: string): string {
   return KIND_LABELS[kind] ?? kind;
 }
 
-function AssetCard({ asset, onOpen }: { asset: LibraryAssetDto; onOpen: () => void }) {
+function FavoriteStar({
+  active,
+  onToggle,
+  size = 22,
+}: {
+  active: boolean;
+  onToggle: () => void;
+  size?: number;
+}) {
   return (
     <button
       type="button"
+      aria-label={active ? 'Quitar de favoritos' : 'Marcar como favorito'}
+      aria-pressed={active}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      style={{
+        border: 'none',
+        background: 'rgba(11,15,25,0.55)',
+        borderRadius: 999,
+        width: size + 10,
+        height: size + 10,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        color: active ? '#ffd166' : 'rgba(255,255,255,0.85)',
+        fontSize: size - 4,
+        lineHeight: 1,
+      }}
+    >
+      {active ? '★' : '☆'}
+    </button>
+  );
+}
+
+function AssetCard({
+  asset,
+  onOpen,
+  onToggleFavorite,
+}: {
+  asset: LibraryAssetDto;
+  onOpen: () => void;
+  onToggleFavorite: () => void;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
       className="card row-hover"
       onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
       style={{
         padding: 10,
         display: 'flex',
@@ -64,23 +124,47 @@ function AssetCard({ asset, onOpen }: { asset: LibraryAssetDto; onOpen: () => vo
         cursor: 'pointer',
       }}
     >
-      {asset.thumb_url !== null ? (
-        <img
-          src={fileUrl(asset.thumb_url)}
-          alt={asset.caption ?? 'Asset de la biblioteca'}
-          loading="lazy"
-          style={{
-            width: '100%',
-            aspectRatio: '16 / 9',
-            objectFit: 'cover',
-            borderRadius: 'var(--r-sm)',
-            border: '1px solid var(--line)',
-            display: 'block',
-          }}
-        />
-      ) : (
-        <ThumbPlaceholder width="100%" note={kindLabel(asset.kind)} />
-      )}
+      <div style={{ position: 'relative' }}>
+        {asset.thumb_url !== null ? (
+          <img
+            src={fileUrl(asset.thumb_url)}
+            alt={asset.caption ?? 'Asset de la biblioteca'}
+            loading="lazy"
+            style={{
+              width: '100%',
+              aspectRatio: '16 / 9',
+              objectFit: 'cover',
+              borderRadius: 'var(--r-sm)',
+              border: '1px solid var(--line)',
+              display: 'block',
+            }}
+          />
+        ) : (
+          <ThumbPlaceholder width="100%" note={kindLabel(asset.kind)} />
+        )}
+        {/* play glyph: indica que el clip se puede reproducir al abrir */}
+        {asset.kind === 'clip' ? (
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'rgba(255,255,255,0.92)',
+              fontSize: 34,
+              textShadow: '0 2px 10px rgba(0,0,0,0.6)',
+              pointerEvents: 'none',
+            }}
+          >
+            ▶
+          </span>
+        ) : null}
+        <span style={{ position: 'absolute', top: 6, right: 6 }}>
+          <FavoriteStar active={asset.favorite} onToggle={onToggleFavorite} size={18} />
+        </span>
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <Chip kind="neutral">{kindLabel(asset.kind)}</Chip>
         {asset.kind === 'clip' && asset.duration_ms !== null ? (
@@ -110,7 +194,7 @@ function AssetCard({ asset, onOpen }: { asset: LibraryAssetDto; onOpen: () => vo
       <span className="mono" style={{ fontSize: 10.5, color: 'var(--fg2)' }}>
         {asset.source} · {asset.license}
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -131,10 +215,12 @@ function AssetDetail({
   asset,
   onClose,
   onAskDelete,
+  onToggleFavorite,
 }: {
   asset: LibraryAssetDto;
   onClose: () => void;
   onAskDelete: () => void;
+  onToggleFavorite: () => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -172,7 +258,23 @@ function AssetDetail({
             overflowY: 'auto',
           }}
         >
-          {asset.thumb_url !== null ? (
+          {asset.kind === 'clip' ? (
+            // reproducción in-app del clip (antes solo había un enlace externo)
+            <video
+              controls
+              preload="metadata"
+              src={fileUrl(asset.url)}
+              {...(asset.thumb_url !== null ? { poster: fileUrl(asset.thumb_url) } : {})}
+              style={{
+                width: '100%',
+                aspectRatio: '16 / 9',
+                borderRadius: 'var(--r-sm)',
+                border: '1px solid var(--line)',
+                background: '#000',
+                display: 'block',
+              }}
+            />
+          ) : asset.thumb_url !== null ? (
             <img
               src={fileUrl(asset.thumb_url)}
               alt={asset.caption ?? 'Asset de la biblioteca'}
@@ -246,6 +348,7 @@ function AssetDetail({
             alignItems: 'center',
           }}
         >
+          <FavoriteStar active={asset.favorite} onToggle={onToggleFavorite} />
           {asset.purge_candidate ? (
             <Button variant="danger" onClick={onAskDelete}>
               Borrar de la biblioteca
@@ -274,6 +377,7 @@ export function Biblioteca() {
   const [kind, setKind] = useState('');
   const [search, setSearch] = useState('');
   const [purgeOnly, setPurgeOnly] = useState(false);
+  const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [limit, setLimit] = useState(PAGE);
   const [selected, setSelected] = useState<LibraryAssetDto | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -282,17 +386,28 @@ export function Biblioteca() {
   const q = useDebounced(search.trim(), 300);
 
   const { data, isPending, isError, refetch } = useQuery({
-    queryKey: ['library', activeChannelId, kind, q, purgeOnly, limit],
+    queryKey: ['library', activeChannelId, kind, q, purgeOnly, favoriteOnly, limit],
     queryFn: () =>
       getLibrary({
         ...(activeChannelId !== null ? { channel: activeChannelId } : {}),
         ...(kind !== '' ? { kind } : {}),
         ...(q !== '' ? { q } : {}),
         ...(purgeOnly ? { purge: true } : {}),
+        ...(favoriteOnly ? { favorite: true } : {}),
         limit,
       }),
     placeholderData: (prev) => prev,
     enabled: activeChannelId !== null,
+  });
+
+  const favoriteMut = useMutation({
+    mutationFn: (id: string) => toggleFavorite(id),
+    onSuccess: (fav, id) => {
+      // refleja el cambio sin recargar y mantiene abierto el detalle
+      setSelected((s) => (s && s.id === id ? { ...s, favorite: fav } : s));
+      void queryClient.invalidateQueries({ queryKey: ['library'] });
+    },
+    onError: () => push('No se pudo actualizar el favorito', 'danger'),
   });
 
   const backfillMut = useMutation({
@@ -346,7 +461,7 @@ export function Biblioteca() {
 
   const assets = data?.assets ?? [];
   const total = data?.total ?? 0;
-  const hasFilters = kind !== '' || q !== '' || purgeOnly;
+  const hasFilters = kind !== '' || q !== '' || purgeOnly || favoriteOnly;
 
   return (
     <div>
@@ -440,6 +555,18 @@ export function Biblioteca() {
               P
             </span>
           </button>
+          <button
+            type="button"
+            className={favoriteOnly ? 'chip chip-ok' : 'chip chip-neutral'}
+            aria-pressed={favoriteOnly}
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              setFavoriteOnly((v) => !v);
+              setLimit(PAGE);
+            }}
+          >
+            ★ Favoritos
+          </button>
         </div>
 
         {isPending ? <div className="muted fs-sm">Cargando la biblioteca</div> : null}
@@ -481,7 +608,12 @@ export function Biblioteca() {
           }}
         >
           {assets.map((asset) => (
-            <AssetCard key={asset.id} asset={asset} onOpen={() => setSelected(asset)} />
+            <AssetCard
+              key={asset.id}
+              asset={asset}
+              onOpen={() => setSelected(asset)}
+              onToggleFavorite={() => favoriteMut.mutate(asset.id)}
+            />
           ))}
         </div>
 
@@ -499,6 +631,7 @@ export function Biblioteca() {
           asset={selected}
           onClose={() => setSelected(null)}
           onAskDelete={() => setConfirmingDelete(true)}
+          onToggleFavorite={() => favoriteMut.mutate(selected.id)}
         />
       ) : null}
 

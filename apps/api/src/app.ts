@@ -75,7 +75,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   // PUT/DELETE del dashboard mueren en el preflight (ajustes, guion, biblioteca)
   await app.register(cors, {
     origin: corsOrigins,
-    methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE'],
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
   });
 
   // CORS no impide que un POST "simple" cross-origin EJECUTE el handler (solo

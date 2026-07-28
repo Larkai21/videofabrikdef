@@ -43,6 +43,7 @@ const listQuerySchema = z.object({
   q: z.string().trim().min(1).optional(),
   channel: z.string().trim().min(1).optional(),
   purge: z.enum(['true', 'false']).optional(),
+  favorite: z.enum(['true', 'false']).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(60),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -108,6 +109,7 @@ export function registerLibraryBrowseRoutes(app: FastifyInstance, ctx: ApiContex
       if (textMatch) conditions.push(textMatch);
     }
     if (query.purge === 'true') conditions.push(purgeCondition(now));
+    if (query.favorite === 'true') conditions.push(eq(assets.favorite, true));
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 
     const rows = await ctx.db
@@ -141,6 +143,7 @@ export function registerLibraryBrowseRoutes(app: FastifyInstance, ctx: ApiContex
         origin_query: asset.originQuery,
         times_used: asset.timesUsed,
         last_video_id: asset.lastVideoId,
+        favorite: asset.favorite,
         purge_candidate:
           asset.timesUsed === 0 && asset.createdAt.getTime() < cutoff.getTime() && !referenced,
         created_at: asset.createdAt.toISOString(),
@@ -175,6 +178,20 @@ export function registerLibraryBrowseRoutes(app: FastifyInstance, ctx: ApiContex
     await fs.rm(thumbDiskPath(ctx.libraryDir, asset), { force: true });
     await ctx.db.delete(assets).where(eq(assets.id, id));
     return { ok: true as const };
+  });
+
+  // marcar/desmarcar favorito (toggle) — el humano curando su biblioteca
+  app.patch('/library/:id/favorite', async (req) => {
+    const { id } = req.params as { id: string };
+    const [asset] = await ctx.db
+      .select({ favorite: assets.favorite })
+      .from(assets)
+      .where(eq(assets.id, id))
+      .limit(1);
+    if (!asset) throw notFound(`El asset ${id} no existe en la biblioteca`);
+    const next = !asset.favorite;
+    await ctx.db.update(assets).set({ favorite: next }).where(eq(assets.id, id));
+    return { favorite: next };
   });
 
   app.post('/library/backfill', async () => {
