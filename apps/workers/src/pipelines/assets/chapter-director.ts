@@ -13,8 +13,13 @@ export interface DirectorBeatLite {
   text: string;
 }
 
-const MIN_SEGMENTS = 3;
-const MAX_SEGMENTS = 6;
+// Nº de segmentos proporcional a la longitud: ~1 cada 4 beats, acotado [2, 6].
+// Un vídeo corto (p. ej. 2 min ≈ 10 beats) no debe llenarse de tarjetas.
+function segmentRange(beatCount: number): { min: number; max: number } {
+  const max = Math.max(2, Math.min(6, Math.round(beatCount / 4)));
+  const min = Math.max(2, max - 2);
+  return { min, max };
+}
 
 export const chapterResultSchema = z.object({
   segments: z
@@ -36,10 +41,11 @@ export interface ChapterParams {
 
 export function buildChapterPrompt(params: ChapterParams): { system: string; user: string } {
   const langName = params.lang === 'en' ? 'inglés' : 'español';
+  const { min, max } = segmentRange(params.beats.length);
   const system = [
     'Eres editor de un canal de YouTube tipo "faceless".',
     'Recibes la narración de un vídeo dividida en beats numerados.',
-    `Agrupa los beats en ${MIN_SEGMENTS}-${MAX_SEGMENTS} segmentos temáticos consecutivos.`,
+    `Agrupa los beats en ${min}-${max} segmentos temáticos consecutivos.`,
     'Reglas:',
     `- Un título corto por segmento (2-5 palabras), en ${langName}, que resuma su subtema.`,
     '- El primer segmento empieza en el beat 0. Los segmentos no se solapan y van en orden.',
@@ -67,10 +73,11 @@ function toSegments(
 ): Segment[] {
   const byIdx = new Map(beats.map((b) => [b.idx, b]));
   const seen = new Set<number>();
+  const max = segmentRange(beats.length).max;
   const clean = raw
     .filter((s) => byIdx.has(s.start_beat_idx) && !seen.has(s.start_beat_idx) && seen.add(s.start_beat_idx))
     .sort((a, b) => a.start_beat_idx - b.start_beat_idx)
-    .slice(0, MAX_SEGMENTS);
+    .slice(0, max);
   const segments: Segment[] = clean.map((s) => ({
     title: s.title.trim(),
     beat_idx: s.start_beat_idx,
@@ -80,7 +87,7 @@ function toSegments(
   const first = beats[0];
   if (first && (segments.length === 0 || segments[0]!.beat_idx !== first.idx)) {
     segments.unshift({ title: segments[0]?.title ?? 'Introducción', beat_idx: first.idx, from_ms: 0 });
-    if (segments.length > MAX_SEGMENTS) segments.length = MAX_SEGMENTS;
+    if (segments.length > max) segments.length = max;
   } else if (segments[0]) {
     segments[0] = { ...segments[0], from_ms: 0 };
   }
