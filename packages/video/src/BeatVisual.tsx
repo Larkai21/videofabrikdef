@@ -109,6 +109,28 @@ const KenBurnsImage: React.FC<{
   );
 };
 
+// Movimiento lento para clips de vídeo: un zoom sutil (1,00→1,05) que da vida
+// al plano sin distraer, más suave que el Ken Burns de las imágenes. Dirección
+// (in/out) determinista por semilla. Determinismo: solo useCurrentFrame.
+const ClipMotion: React.FC<{
+  seed: number;
+  durationInFrames: number;
+  children: React.ReactNode;
+}> = ({ seed, durationInFrames, children }) => {
+  const frame = useCurrentFrame();
+  const progress = interpolate(frame, [0, Math.max(1, durationInFrames - 1)], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const zoomProgress = seed % 2 === 0 ? progress : 1 - progress;
+  const scale = 1 + 0.05 * zoomProgress;
+  return (
+    <AbsoluteFill style={{ overflow: 'hidden' }}>
+      <AbsoluteFill style={{ transform: `scale(${scale})` }}>{children}</AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
 const FadeIn: React.FC<{ fadeFrames: number; children: React.ReactNode }> = ({
   fadeFrames,
   children,
@@ -206,7 +228,7 @@ export const BeatVisual: React.FC<BeatVisualProps> = ({ beat, videoId, durationI
   // único OffthreadVideo, la diferencia es el playbackRate.
   const playbackRate = asset.fit.mode === 'stretch' ? (asset.fit.playback_rate ?? 1) : 1;
   return (
-    <AbsoluteFill>
+    <ClipMotion seed={seed} durationInFrames={durationInFrames}>
       <OffthreadVideo
         src={src}
         trimBefore={trimBeforeFrames}
@@ -214,6 +236,6 @@ export const BeatVisual: React.FC<BeatVisualProps> = ({ beat, videoId, durationI
         muted
         style={COVER_STYLE}
       />
-    </AbsoluteFill>
+    </ClipMotion>
   );
 };
