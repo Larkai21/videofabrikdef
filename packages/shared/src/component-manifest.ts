@@ -99,6 +99,9 @@ export const subtitleThemePropsSchema = z.object({
   cues: z.array(z.unknown()),
   currentMs: z.number(),
   design: designTokensSchema.optional(),
+  // palabras a resaltar (keywords del director de edición); el tema las pinta
+  // con más fuerza cuando se pronuncian
+  highlightKeywords: z.array(z.string()).optional(),
   safeArea: z.object({
     top: z.number(),
     right: z.number(),

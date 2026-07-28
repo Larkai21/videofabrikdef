@@ -15,7 +15,7 @@ import type { ComponentManifest, ComponentType } from '@fabrica/shared';
 export function contractTsType(type: ComponentType): string | null {
   switch (type) {
     case 'subtitle_theme':
-      return '{ cues: unknown[]; currentMs: number; design?: DesignTokens; safeArea: { top: number; right: number; bottom: number; left: number } }';
+      return '{ cues: unknown[]; currentMs: number; design?: DesignTokens; highlightKeywords?: string[]; safeArea: { top: number; right: number; bottom: number; left: number } }';
     case 'lower_third':
       return '{ title: string; subtitle?: string; fromFrame: number; design?: DesignTokens }';
     case 'title_card':

@@ -20,6 +20,7 @@ export function samplePropsFor(type: ComponentType): Record<string, unknown> {
         cues: master.cues ?? [],
         currentMs: 600,
         design,
+        highlightKeywords: ['ejemplo'],
         // mismos valores que SAFE_AREA de Subtitles.tsx (duplicados a
         // propósito: este módulo no importa React)
         safeArea: { top: 90, right: 160, bottom: 120, left: 160 },

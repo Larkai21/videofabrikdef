@@ -11,8 +11,16 @@ export type SubtitleThemeProps = {
   cues: unknown[];
   currentMs: number;
   design?: DesignTokens;
+  // keywords a resaltar cuando se pronuncian (del director de edición)
+  highlightKeywords?: string[];
   safeArea: { top: number; right: number; bottom: number; left: number };
 };
+
+// normaliza una palabra para comparar keywords (minúsculas, sin puntuación/acentos)
+function normalizeWord(w: string): string {
+  // NFD separa los acentos y el filtro final los quita junto con la puntuación
+  return w.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '');
+}
 
 // Reparte las palabras del cue en como máximo CUE_MAX_LINES líneas
 // equilibradas por caracteres. Determinista por cue: las líneas no dependen
@@ -74,9 +82,11 @@ export const SubtitlesBasicos: React.FC<SubtitleThemeProps> = ({
   cues,
   currentMs,
   design,
+  highlightKeywords,
   safeArea,
 }) => {
   const d = design ?? defaultDesign();
+  const highlightSet = new Set((highlightKeywords ?? []).map((k) => normalizeWord(k)));
   const typedCues = cues as Cue[];
   const active = typedCues.find((c) => currentMs >= c.from_ms && currentMs < c.to_ms);
   if (!active) return null;
@@ -111,11 +121,24 @@ export const SubtitlesBasicos: React.FC<SubtitleThemeProps> = ({
                 <span
                   key={wi}
                   style={{
-                    color: wordColor(word, currentMs, d),
+                    // keyword resaltada (del director): acento + más peso y
+                    // escala cuando ya se ha pronunciado
+                    color:
+                      highlightSet.has(normalizeWord(word.w)) && currentMs >= word.from_ms
+                        ? d.accent
+                        : wordColor(word, currentMs, d),
+                    fontWeight:
+                      highlightSet.has(normalizeWord(word.w)) && currentMs >= word.from_ms
+                        ? 800
+                        : undefined,
                     // scale por palabra: transform en inline-block para no
                     // descolocar la línea; el pop no altera el flujo del texto
                     display: 'inline-block',
-                    transform: `scale(${wordScale(word, currentMs)})`,
+                    transform: `scale(${
+                      (highlightSet.has(normalizeWord(word.w)) && currentMs >= word.from_ms
+                        ? 1.12
+                        : 1) * wordScale(word, currentMs)
+                    })`,
                   }}
                 >
                   {word.w}
