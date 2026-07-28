@@ -16,6 +16,7 @@ import {
 import {
   ANTI_REPEAT_N,
   JOBS,
+  MAX_LOOPS,
   PRICES,
   QUEUES,
   T_AUTO,
@@ -36,7 +37,9 @@ import { cosineSimilarity } from '../../providers/embeddings.js';
 import { generateFluxImage } from '../../providers/flux.js';
 import { mockHash } from '../../providers/llm.js';
 import { cacheCaption, searchStock, type StockResult } from '../../providers/stock.js';
+import { directBroll } from './broll-director.js';
 import { computeFit, kenburnsEffect } from './fit.js';
+import { registerAssetsMocks } from './mocks.js';
 import { expandQuery, stockScore } from './score.js';
 
 // Worker de assets (docs/assets-y-biblioteca.md): cascada biblioteca →
@@ -46,6 +49,12 @@ import { expandQuery, stockScore } from './score.js';
 const LIB_CANDIDATES = 6;
 const STOCK_FINALISTS = 8;
 const ALTERNATES = 4;
+// margen de coseno dentro del cual se prefiere el clip que cubre el beat en una
+// sola pasada (evita bucles) frente al de coseno ligeramente mayor
+const PICK_COS_MARGIN = 0.04;
+// coseno de contenido por encima del cual dos clips se consideran "el mismo
+// plano" y no deben caer en beats contiguos aunque sean refs distintos
+const ADJACENT_DEDUPE_COS = 0.9;
 
 type BeatRow = typeof beatsTable.$inferSelect;
 
@@ -59,6 +68,9 @@ interface PoolEntry {
   composite: number;
   // otras identidades del MISMO asset (library:<id> ↔ sourceRef de stock)
   altRefs: string[];
+  // embedding del contenido (caption/tags): para no repetir el mismo plano en
+  // beats contiguos. Vacío si no se conoce.
+  vec: number[];
 }
 
 function identityRefs(entry: PoolEntry): string[] {
@@ -149,6 +161,7 @@ async function libraryCandidates(
         cos: Number(r.score),
         composite: Number(r.score),
         altRefs: r.asset.sourceRef ? [r.asset.sourceRef] : [],
+        vec: r.asset.embedding ?? [],
       },
     }));
 }
@@ -161,6 +174,39 @@ interface MatchDeps {
   recentIds: Set<string>;
   // refs ya elegidas en este vídeo (otros beats): anti-repetición intra-vídeo
   usedRefs: Set<string>;
+  // embedding del contenido elegido en el beat anterior (para no repetir plano
+  // en beats contiguos); mutable, lo actualiza matchBeat tras cada elección
+  prevVec: number[] | null;
+}
+
+// Penalización de encaje: 0 para una sola pasada (trim/stretch/kenburns),
+// nº de repeticiones para loop. Menor es mejor.
+function loopPenalty(fit: Fit): number {
+  return fit.mode === 'loop' ? (fit.loops ?? MAX_LOOPS) : 0;
+}
+
+// Elige el candidato: entre los que están dentro de PICK_COS_MARGIN del mejor
+// coseno disponible, prefiere el que no repite plano del beat anterior y el que
+// cubre el beat sin bucle; fuera de esa banda manda el coseno. Nunca sacrifica
+// relevancia más allá del margen.
+function selectPick(
+  fitted: { entry: PoolEntry; fit: Fit }[],
+  usedRefs: Set<string>,
+  prevVec: number[] | null,
+): { entry: PoolEntry; fit: Fit } | undefined {
+  if (fitted.length === 0) return undefined;
+  const fresh = fitted.filter((f) => identityRefs(f.entry).every((r) => !usedRefs.has(r)));
+  const base = fresh.length > 0 ? fresh : fitted;
+  const bestCos = base[0]?.entry.cos ?? 0; // fitted ya viene ordenado por coseno
+  const band = base.filter((f) => bestCos - f.entry.cos <= PICK_COS_MARGIN);
+  const isAdjacent = (e: PoolEntry): boolean =>
+    prevVec !== null && e.vec.length > 0 && cosineSimilarity(prevVec, e.vec) > ADJACENT_DEDUPE_COS;
+  const notAdjacent = band.filter((f) => !isAdjacent(f.entry));
+  const contenders = notAdjacent.length > 0 ? notAdjacent : band;
+  // dentro de la banda: primero sin bucle, luego mayor coseno
+  return [...contenders].sort(
+    (a, b) => loopPenalty(a.fit) - loopPenalty(b.fit) || b.entry.cos - a.entry.cos,
+  )[0];
 }
 
 // Intercalado por proveedor y tipo: sin esto los finalistas salen por orden
@@ -275,7 +321,9 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
           usedRecently: usedRecentlyByRef.has(finalist.ref),
         });
         const libId = libraryIdByRef.get(finalist.ref);
-        pool.push(stockToEntry(finalist, cosine, composite, libId ? [`library:${libId}`] : []));
+        pool.push(
+          stockToEntry(finalist, cosine, composite, libId ? [`library:${libId}`] : [], vec ?? []),
+        );
       });
     }
   }
@@ -302,8 +350,7 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
     }
     fitted.push({ entry, fit: fit.fit });
   }
-  const pick =
-    fitted.find((f) => identityRefs(f.entry).every((r) => !deps.usedRefs.has(r))) ?? fitted[0];
+  const pick = selectPick(fitted, deps.usedRefs, deps.prevVec);
   let chosen: PoolEntry | undefined = pick?.entry;
   let chosenFit: Fit | undefined = pick?.fit;
   const rest: PoolEntry[] = fitted.filter((f) => f !== pick).map((f) => f.entry);
@@ -358,6 +405,7 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
       cos: 0,
       composite: 0,
       altRefs: [],
+      vec: [],
     };
     chosenFit = { mode: 'kenburns' };
     status = 'review';
@@ -395,6 +443,8 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
     return;
   }
   for (const ref of identityRefs(chosen)) deps.usedRefs.add(ref);
+  // memoria para el beat siguiente: evita repetir el mismo plano en contiguos
+  deps.prevVec = chosen.vec.length > 0 ? chosen.vec : null;
 }
 
 function stockToEntry(
@@ -402,6 +452,7 @@ function stockToEntry(
   cos: number,
   composite: number,
   altRefs: string[],
+  vec: number[],
 ): PoolEntry {
   return {
     cand: {
@@ -416,6 +467,7 @@ function stockToEntry(
     cos,
     composite,
     altRefs,
+    vec,
   };
 }
 
@@ -447,6 +499,30 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
   const beatRows = fullRun ? allRows : allRows.filter((b) => targetIdxs.has(b.idx));
   if (beatRows.length === 0) throw new Error('El vídeo no tiene beats que matchear');
 
+  // Director de b-roll: en un run completo, una consulta visual concreta por
+  // beat (pegada a su narración y distinta de la de sus vecinos) que sustituye
+  // a la de escena repetida. En re-match parcial se conserva la ya diversificada
+  // del beat. Los beats bloqueados por el humano no se tocan.
+  if (fullRun) {
+    const toDirect = beatRows.filter((b) => b.status !== 'locked');
+    if (toDirect.length > 0) {
+      const queries = await directBroll(ctx, {
+        videoId,
+        channelId: video.channelId,
+        lang: channel?.profile?.style.stock_query_lang ?? 'en',
+        styleSuffix,
+        beats: toDirect.map((b) => ({ idx: b.idx, text: b.text, sceneQuery: b.visualQuery })),
+      });
+      for (const b of toDirect) {
+        const q = queries.get(b.idx);
+        if (q && q !== b.visualQuery) {
+          b.visualQuery = q; // la fila en memoria alimenta matchBeat
+          await db.update(beatsTable).set({ visualQuery: q }).where(eq(beatsTable.id, b.id));
+        }
+      }
+    }
+  }
+
   // anti-repetición intra-vídeo: cuentan como usados los elegidos de los
   // beats que NO se van a re-matchear (bloqueados siempre; y en un re-match
   // parcial, también el resto). En un run completo no se siembra con los
@@ -467,6 +543,7 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
     styleSuffix,
     recentIds,
     usedRefs,
+    prevVec: null,
   };
   for (let i = 0; i < beatRows.length; i++) {
     const beat = beatRows[i];
@@ -829,6 +906,7 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
 }
 
 export async function registerAssetsWorkers(ctx: WorkerContext): Promise<Worker[]> {
+  registerAssetsMocks();
   const worker = new Worker<AssetsMatchJob | AssetsIngestJob>(
     QUEUES.assets,
     async (job) => {
