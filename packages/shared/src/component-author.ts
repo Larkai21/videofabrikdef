@@ -82,6 +82,10 @@ ${designLines}
 - eslint con \`@typescript-eslint/no-unused-vars\` en error: NO declares imports,
   constantes, props destructuradas ni variables que no uses. Importa de 'remotion'
   SOLO lo que uses. No declares FIXED_DURATION_FRAMES ni fps si no los usas.
+- CAUSA DE FALLO MÁS COMÚN — no la repitas: al desestructurar \`useVideoConfig()\`
+  extrae SOLO los campos que uses (p. ej. \`const { durationInFrames } = useVideoConfig();\`),
+  NUNCA \`fps\`, \`width\` o \`height\` si no los usas. Igual con las props: desestructura
+  solo las que uses (pero el schema SÍ debe declarar todas las del contrato).
 - El componente se monta dentro de una Sequence de la duración correcta; NO crees
   tu propia <Sequence>. Lee la duración con useVideoConfig() si la necesitas.
 - Determinismo: nada de Math.random, Date.now, new Date(), performance.now, fetch,

@@ -530,7 +530,27 @@ function ComponentCard({ component: c, note, busy, onActivate, onDelete }: Compo
         <div className="muted fs-sm">{note.detail ?? `Validando (${note.progress} %)`}</div>
       ) : null}
 
-      {c.preview_url !== null ? (
+      {c.preview_video_url !== null ? (
+        // preview animada en bucle (mp4 del render de humo); si falla, el
+        // póster es el still de un frame medio
+        <video
+          src={fileUrl(c.preview_video_url)}
+          poster={c.preview_url !== null ? fileUrl(c.preview_url) : undefined}
+          muted
+          autoPlay
+          loop
+          playsInline
+          style={{
+            width: '100%',
+            maxWidth: 420,
+            aspectRatio: '16 / 9',
+            objectFit: 'cover',
+            borderRadius: 'var(--r)',
+            border: '1px solid var(--line)',
+            background: 'var(--bg2)',
+          }}
+        />
+      ) : c.preview_url !== null ? (
         <img
           src={fileUrl(c.preview_url)}
           alt={`Preview de ${c.name}@${c.version}`}

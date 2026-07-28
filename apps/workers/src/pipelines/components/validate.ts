@@ -412,6 +412,9 @@ export async function handleComponentsValidate(
     // serializa la mutación del árbol con el bundle del worker de render.
     await publishProgress(55, 'Regenerando el registry del brand kit');
     const previewPath = path.join(row.path, 'preview.png');
+    // preview animada: el mp4 de humo se conserva junto al png para que el
+    // dashboard muestre la animación en bucle (no una caja vacía en frame 0)
+    const previewVideoPath = path.join(row.path, 'preview.mp4');
     const releaseVideoSrc = await videoSrcLock.acquire();
     try {
     const regRes = await regenerateRegistry(true);
@@ -468,6 +471,7 @@ export async function handleComponentsValidate(
         });
       } else {
         const composition = await selectComposition({ serveUrl, id: 'KitSmoke', inputProps });
+        const smokeMp4 = path.join(workdir, 'smoke.mp4');
         await renderMedia({
           composition,
           serveUrl,
@@ -476,16 +480,19 @@ export async function handleComponentsValidate(
           pixelFormat: 'yuv420p',
           concurrency: 2,
           inputProps,
-          outputLocation: path.join(workdir, 'smoke.mp4'),
+          outputLocation: smokeMp4,
         });
+        // still en un frame MEDIO (las entradas empiezan en opacidad 0: el
+        // frame 0 saldría negro); y se conserva el mp4 como preview animada
         await renderStill({
           composition,
           serveUrl,
-          frame: 0,
+          frame: Math.floor(smokeFrames / 2),
           output: previewPath,
           imageFormat: 'png',
           inputProps,
         });
+        await fsp.copyFile(smokeMp4, previewVideoPath);
       }
     } catch (err) {
       // el humo falló con el componente ya copiado al kit: se revierte el

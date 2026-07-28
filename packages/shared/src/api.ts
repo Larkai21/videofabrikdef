@@ -233,6 +233,9 @@ export const componentDtoSchema = z.object({
   status: z.enum(['pending', 'validated', 'failed']),
   log: z.string().nullable(),
   preview_url: z.string().nullable(),
+  // preview animada (mp4 del render de humo) para verla en bucle; null en
+  // miniaturas (still) o si aún no está validado
+  preview_video_url: z.string().nullable(),
   active: z.boolean(),
   created_at: z.string(),
 });

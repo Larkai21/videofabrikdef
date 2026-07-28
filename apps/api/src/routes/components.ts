@@ -42,6 +42,12 @@ function refOf(row: ComponentRow): string {
 }
 
 function toDto(row: ComponentRow, settings: ChannelSettings): ComponentDto {
+  // preview animada: el validador escribe preview.mp4 junto a preview.png para
+  // los componentes animados (no las miniaturas, que son un still)
+  const previewVideoUrl =
+    row.previewPath !== null && row.type !== 'thumbnail_template'
+      ? toFileUrl(path.join(path.dirname(row.previewPath), 'preview.mp4'))
+      : null;
   return componentDtoSchema.parse({
     id: row.id,
     channel_id: row.channelId,
@@ -52,6 +58,7 @@ function toDto(row: ComponentRow, settings: ChannelSettings): ComponentDto {
     log: row.log,
     // el dashboard consume URLs /files, nunca rutas de disco
     preview_url: row.previewPath !== null ? toFileUrl(row.previewPath) : null,
+    preview_video_url: previewVideoUrl,
     active: settings.brand_components[row.type] === refOf(row),
     created_at: row.createdAt.toISOString(),
   });
