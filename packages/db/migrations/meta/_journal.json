@@ -43,6 +43,13 @@
       "when": 1785251636950,
       "tag": "0005_colorful_deathbird",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785277621559,
+      "tag": "0006_chunky_rogue",
+      "breakpoints": true
     }
   ]
 }

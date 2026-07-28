@@ -13,6 +13,7 @@ import { allowedOrigins } from './lib/origins.js';
 import { createRedisEventBus, type EventBus } from './lib/events.js';
 import { registerChannelRoutes } from './routes/channels.js';
 import { registerComponentRoutes } from './routes/components.js';
+import { registerCostRoutes } from './routes/costs.js';
 import { registerEventRoutes } from './routes/events.js';
 import { registerIdeaRoutes } from './routes/ideas.js';
 import { registerInboxRoutes } from './routes/inbox.js';
@@ -140,6 +141,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   registerLibraryBrowseRoutes(app, ctx);
   registerSettingsRoutes(app, ctx);
   registerComponentRoutes(app, ctx);
+  registerCostRoutes(app, ctx);
   registerYoutubeRoutes(app, ctx);
   registerEventRoutes(app, ctx);
 

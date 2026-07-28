@@ -246,7 +246,12 @@ export const costLedger = pgTable(
     meta: jsonb('meta'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('cost_ledger_video_idx').on(t.videoId)],
+  (t) => [
+    index('cost_ledger_video_idx').on(t.videoId),
+    // panel de costes: agregados por mes y por canal-mes
+    index('cost_ledger_created_idx').on(t.createdAt),
+    index('cost_ledger_channel_created_idx').on(t.channelId, t.createdAt),
+  ],
 );
 
 export const stockCache = pgTable(

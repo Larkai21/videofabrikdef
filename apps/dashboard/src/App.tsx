@@ -5,6 +5,7 @@ import { Ajustes } from './screens/Ajustes';
 import { Bandeja } from './screens/Bandeja';
 import { Biblioteca } from './screens/Biblioteca';
 import { Componentes } from './screens/Componentes';
+import { Costes } from './screens/Costes';
 import { Entrega } from './screens/Entrega';
 import { Guion } from './screens/Guion';
 import { Ideas } from './screens/Ideas';
@@ -53,6 +54,7 @@ export function App() {
         <Route path="/videos/:id/entrega" element={<Entrega />} />
         <Route path="/biblioteca" element={<Biblioteca />} />
         <Route path="/componentes" element={<Componentes />} />
+        <Route path="/costes" element={<Costes />} />
         <Route path="/ajustes" element={<Ajustes />} />
       </Routes>
     </div>

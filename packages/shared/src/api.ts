@@ -14,6 +14,19 @@ export const wizardRequestSchema = z.object({
 });
 export type WizardRequest = z.infer<typeof wizardRequestSchema>;
 
+// Panel de costes: desglose del ledger por proveedor y por operación.
+export const costBreakdownRowSchema = z.object({
+  key: z.string(),
+  cost_usd: z.number(),
+  calls: z.number(),
+});
+export const costsDtoSchema = z.object({
+  total_usd: z.number(),
+  by_provider: z.array(costBreakdownRowSchema),
+  by_operation: z.array(costBreakdownRowSchema),
+});
+export type CostsDto = z.infer<typeof costsDtoSchema>;
+
 export const channelDtoSchema = z.object({
   id: z.string(),
   name: z.string(),

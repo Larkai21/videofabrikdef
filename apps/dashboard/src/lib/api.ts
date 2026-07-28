@@ -99,6 +99,22 @@ export async function getInbox(): Promise<InboxDto> {
   return inboxDtoSchema.parse(await request('/inbox'));
 }
 
+// ---- costes ----
+import { costsDtoSchema, type CostsDto } from '@fabrica/shared';
+
+export async function getCosts(filters: {
+  channel?: string | null;
+  video?: string;
+  month?: string;
+} = {}): Promise<CostsDto> {
+  const params = new URLSearchParams();
+  if (filters.channel) params.set('channel', filters.channel);
+  if (filters.video) params.set('video', filters.video);
+  if (filters.month) params.set('month', filters.month);
+  const qs = params.toString();
+  return costsDtoSchema.parse(await request(qs === '' ? '/costs' : `/costs?${qs}`));
+}
+
 // ---- canales ----
 
 export async function getChannels(): Promise<ChannelDto[]> {

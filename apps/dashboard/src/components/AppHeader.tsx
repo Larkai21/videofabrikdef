@@ -14,6 +14,7 @@ const NAV = [
   { label: 'Publicados', to: '/#publicados' },
   { label: 'Biblioteca', to: '/biblioteca' },
   { label: 'Brand kit', to: '/componentes' },
+  { label: 'Costes', to: '/costes' },
   { label: 'Ajustes', to: '/ajustes' },
 ];
 

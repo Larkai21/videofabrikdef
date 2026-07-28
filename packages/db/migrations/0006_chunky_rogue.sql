@@ -1,0 +1,2 @@
+CREATE INDEX "cost_ledger_created_idx" ON "cost_ledger" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "cost_ledger_channel_created_idx" ON "cost_ledger" USING btree ("channel_id","created_at");
