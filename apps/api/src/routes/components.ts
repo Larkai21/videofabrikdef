@@ -9,9 +9,11 @@ import { nanoid } from 'nanoid';
 import { and, eq, ne, sql } from 'drizzle-orm';
 import { channels, components, videos } from '@fabrica/db';
 import {
+  buildComponentPrompt,
   channelSettingsSchema,
   componentDtoSchema,
   componentManifestV1,
+  componentTypeSchema,
   JOBS,
   QUEUES,
   type ChannelSettings,
@@ -216,6 +218,31 @@ export function registerComponentRoutes(app: FastifyInstance, ctx: ApiContext): 
       .where(eq(components.channelId, channel))
       .orderBy(components.type, components.name, components.version);
     return { components: rows.map((row) => toDto(row, settings)) };
+  });
+
+  // prompt de diseño (SPEC §10): genera el "prompt-contrato" por tipo con los
+  // tokens de marca del canal, para diseñar el componente con Claude Design.
+  app.get('/components/prompt', async (req) => {
+    const { channel, type } = req.query as { channel?: string; type?: string };
+    if (!channel) throw badRequest('Falta el parámetro channel');
+    const parsedType = componentTypeSchema.safeParse(type);
+    if (!parsedType.success) throw badRequest('Tipo de componente inválido');
+    const [channelRow] = await ctx.db
+      .select()
+      .from(channels)
+      .where(eq(channels.id, channel))
+      .limit(1);
+    if (!channelRow) throw notFound(`El canal ${channel} no existe`);
+    const profile = channelRow.profile;
+    const prompt = buildComponentPrompt(parsedType.data, {
+      channel_name: profile?.identity.name ?? channelRow.name,
+      ...(profile?.identity.tone ? { tone: profile.identity.tone } : {}),
+      ...(profile?.style.visual_prompt_suffix
+        ? { visual_prompt_suffix: profile.style.visual_prompt_suffix }
+        : {}),
+      language: profile?.language === 'en' ? 'en' : 'es',
+    });
+    return { type: parsedType.data, prompt };
   });
 
   // ---- activar: solo componentes validados; actualiza settings.brand_components

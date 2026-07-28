@@ -6,6 +6,7 @@ import {
   activateComponent,
   deleteComponent,
   fileUrl,
+  getComponentPrompt,
   getComponents,
   uploadComponent,
 } from '../lib/api';
@@ -33,6 +34,53 @@ const STATUS_CHIP: Record<ComponentDto['status'], { kind: ChipKind; label: strin
   validated: { kind: 'ok', label: 'Validado' },
   failed: { kind: 'danger', label: 'Fallido' },
 };
+
+// Diseñar con Claude: elige un tipo y copia el "prompt-contrato" (tokens de
+// marca + props exactas + reglas de Remotion) para pegarlo en Claude Design.
+function DesignPromptCard({ channelId }: { channelId: string }) {
+  const { push } = useToasts();
+  const [type, setType] = useState<ComponentType>('intro');
+  const copyMut = useMutation({
+    mutationFn: async () => {
+      const prompt = await getComponentPrompt(channelId, type);
+      await navigator.clipboard.writeText(prompt);
+    },
+    onSuccess: () => push(`Prompt de ${TYPE_LABELS[type].toLowerCase()} copiado`),
+    onError: () => push('No se pudo generar el prompt', 'danger'),
+  });
+  return (
+    <div
+      className="card"
+      style={{ padding: 'var(--pad)', marginBottom: 'var(--sec-gap)', display: 'grid', gap: 10 }}
+    >
+      <div className="head" style={{ fontSize: 14 }}>
+        Diseñar un componente con Claude
+      </div>
+      <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.55 }}>
+        Copia un prompt listo para pegar en Claude Design con los tokens de tu canal, la interfaz
+        exacta de props del tipo y las reglas de render; te devolverá los tres ficheros del zip.
+      </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select
+          className="control"
+          aria-label="Tipo de componente"
+          value={type}
+          style={{ width: 'auto', fontSize: 'var(--fs-sm)' }}
+          onChange={(e) => setType(e.target.value as ComponentType)}
+        >
+          {COMPONENT_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {TYPE_LABELS[t]}
+            </option>
+          ))}
+        </select>
+        <Button variant="secondary" disabled={copyMut.isPending} onClick={() => copyMut.mutate()}>
+          Copiar prompt de diseño
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 interface ComponentCardProps {
   component: ComponentDto;
@@ -253,6 +301,8 @@ export function Componentes() {
           incorpora en el siguiente build (en desarrollo se recarga sola).
         </p>
       </div>
+
+      {channelId !== null ? <DesignPromptCard channelId={channelId} /> : null}
 
       {channelsPending || (channelId !== null && componentsQ.isPending) ? (
         <div className="muted fs-sm">Cargando el brand kit</div>

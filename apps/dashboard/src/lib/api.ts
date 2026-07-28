@@ -269,6 +269,17 @@ export async function getComponents(channelId: string): Promise<ComponentDto[]> 
   return componentDtoSchema.array().parse(unwrapList(data, 'components'));
 }
 
+// Prompt de diseño (SPEC §10): el "prompt-contrato" por tipo para diseñar el
+// componente con Claude Design, con los tokens de marca del canal.
+export async function getComponentPrompt(channelId: string, type: string): Promise<string> {
+  const data = await request(
+    `/components/prompt?channel=${encodeURIComponent(channelId)}&type=${encodeURIComponent(type)}`,
+  );
+  const prompt = (data as { prompt?: unknown }).prompt;
+  if (typeof prompt !== 'string') throw new Error('Respuesta de prompt inválida');
+  return prompt;
+}
+
 export async function uploadComponent(input: { file: File; channelId: string }): Promise<void> {
   const form = new FormData();
   form.append('file', input.file);
