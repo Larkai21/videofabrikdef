@@ -16,14 +16,36 @@ export interface JobNote {
   detail?: string;
 }
 
+export interface SourcePollNote {
+  source_id: string;
+  kind: string;
+  channel_id: string | null;
+  items: number;
+  nuevos: number;
+  error?: string;
+  // reloj del cliente: el radar filtra por «desde que pulsé buscar»
+  at: number;
+}
+
 interface LiveState {
   // progreso de render por vídeo (0–100)
   renderProgress: Record<string, number>;
   // última nota de progreso de job por vídeo
   jobNotes: Record<string, JobNote>;
+  // feed de polls de fuentes (radar de ideas), acotado a los últimos 100
+  sourcePolls: SourcePollNote[];
+  // último scoring por canal: cuántas ideas nuevas dejó y cuándo
+  ideasScored: Record<string, { nuevas: number; at: number }>;
 }
 
-const LiveContext = createContext<LiveState>({ renderProgress: {}, jobNotes: {} });
+const EMPTY_LIVE: LiveState = {
+  renderProgress: {},
+  jobNotes: {},
+  sourcePolls: [],
+  ideasScored: {},
+};
+
+const LiveContext = createContext<LiveState>(EMPTY_LIVE);
 
 /**
  * Abre el EventSource a GET /events y traduce cada evento en invalidaciones de
@@ -32,7 +54,7 @@ const LiveContext = createContext<LiveState>({ renderProgress: {}, jobNotes: {} 
 export function EventsProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const { push } = useToasts();
-  const [live, setLive] = useState<LiveState>({ renderProgress: {}, jobNotes: {} });
+  const [live, setLive] = useState<LiveState>(EMPTY_LIVE);
 
   useEffect(() => {
     const source = new EventSource(`${API_URL}/events`);
@@ -91,6 +113,34 @@ export function EventsProvider({ children }: { children: ReactNode }) {
         }
         case 'ideas_updated': {
           void queryClient.invalidateQueries({ queryKey: ['ideas'] });
+          if (event.nuevas !== undefined) {
+            const nuevas = event.nuevas;
+            setLive((prev) => ({
+              ...prev,
+              ideasScored: {
+                ...prev.ideasScored,
+                [event.channel_id]: { nuevas, at: Date.now() },
+              },
+            }));
+          }
+          break;
+        }
+        case 'source_poll': {
+          setLive((prev) => ({
+            ...prev,
+            sourcePolls: [
+              ...prev.sourcePolls.slice(-99),
+              {
+                source_id: event.source_id,
+                kind: event.kind,
+                channel_id: event.channel_id,
+                items: event.items,
+                nuevos: event.nuevos,
+                ...(event.error !== undefined ? { error: event.error } : {}),
+                at: Date.now(),
+              },
+            ],
+          }));
           break;
         }
         case 'inbox_changed': {

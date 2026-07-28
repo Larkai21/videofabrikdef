@@ -355,6 +355,22 @@ export async function publishToYoutube(videoId: string): Promise<{ publish_at: s
   return { publish_at: typeof publishAt === 'string' ? publishAt : null };
 }
 
+// ---- radar de ideas (búsqueda manual + orden del ranking) ----
+import { sourceDtoSchema, type SourceDto } from '@fabrica/shared';
+
+export async function getSources(channel: string): Promise<SourceDto[]> {
+  const data = await request(`/sources?channel=${encodeURIComponent(channel)}`);
+  return sourceDtoSchema.array().parse(data);
+}
+
+export async function pollSources(channel: string): Promise<{ enqueued: number }> {
+  return (await post('/sources/poll', { channel })) as { enqueued: number };
+}
+
+export async function orderIdeas(channel: string, ids: string[]): Promise<void> {
+  await put('/ideas/order', { channel, ids });
+}
+
 // ---- entregables en disco ----
 
 /** URL de descarga del MP4 final (attachment: el navegador abre el diálogo de guardado). */

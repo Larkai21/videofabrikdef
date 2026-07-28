@@ -7,6 +7,7 @@ import { useLive } from '../lib/events';
 import { fmtMoney } from '../lib/format';
 import { useHotkeys } from '../lib/hotkeys';
 import { useSearch } from '../lib/search';
+import { Radar } from '../components/Radar';
 import { Button, Chip, EmptyState, ProgressBar, ThumbPlaceholder, type ChipKind } from '../components/ui';
 
 const STATE_CHIP: Record<VideoState, { label: string; kind: ChipKind }> = {
@@ -92,6 +93,9 @@ export function Bandeja() {
 
   return (
     <div className="wrap-1160" style={{ padding: 'calc(var(--pad) * 2) 26px 72px' }}>
+      {/* de la búsqueda al vídeo: buscar fuentes, ordenar el ranking, generar */}
+      {activeChannelId !== null ? <Radar channelId={activeChannelId} /> : null}
+
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 'var(--pad)' }}>
         <h1 className="head" style={{ fontSize: 26, letterSpacing: '-0.02em', margin: 0 }}>
           Te espera
@@ -351,7 +355,7 @@ export function Bandeja() {
             style={{ display: 'flex', justifyContent: 'space-between' }}
           >
             <span>
-              {inbox?.month_videos ?? 0} vídeos
+              {inbox?.month_videos ?? 0} {(inbox?.month_videos ?? 0) === 1 ? 'vídeo' : 'vídeos'}
               {inbox !== undefined && inbox.month_videos > 0
                 ? ` · ${fmtMoney(perVideo)} cada uno`
                 : ''}

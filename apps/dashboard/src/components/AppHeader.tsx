@@ -112,7 +112,8 @@ export function AppHeader() {
         </div>
         {inbox !== undefined ? (
           <CostBadge>
-            {fmtMoney(inbox.month_cost_usd)} · {inbox.month_videos} vídeos
+            {fmtMoney(inbox.month_cost_usd)} · {inbox.month_videos}{' '}
+            {inbox.month_videos === 1 ? 'vídeo' : 'vídeos'}
           </CostBadge>
         ) : null}
         {/* tema y densidad viven en Ajustes → Interfaz: el subbar del mock
