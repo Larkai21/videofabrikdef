@@ -177,7 +177,14 @@ export function Bandeja() {
 
       <div
         id="en-curso"
-        style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 'var(--pad)' }}
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          gap: 12,
+          marginBottom: 'var(--pad)',
+          // que el ancla no quede bajo la cabecera fija al desplazarse
+          scrollMarginTop: 'calc(var(--row) * 2 + 24px)',
+        }}
       >
         <h2 className="head" style={{ fontSize: 17, margin: 0 }}>
           En curso
@@ -278,6 +285,7 @@ export function Bandeja() {
           gridTemplateColumns: '1.4fr 1fr',
           gap: 'var(--gap)',
           alignItems: 'start',
+          scrollMarginTop: 'calc(var(--row) * 2 + 24px)',
         }}
       >
         <div style={{ display: 'grid', gap: 'var(--gap)' }}>
