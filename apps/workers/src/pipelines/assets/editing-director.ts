@@ -62,9 +62,11 @@ function beatOf(beats: DirectorBeat[], idx: number): DirectorBeat | undefined {
 
 // ---- capa de reglas (determinista) -----------------------------------------
 
-// cifras "destacables": porcentajes o números de 2+ dígitos (evita "1", "un 2").
-// (el % no lleva \b final: '%' es no-palabra y rompería el límite tras el signo)
-const NUMBER_RE = /\d[\d.,]*\s?%|\b\d{2,}(?:[.,]\d+)?\b/;
+// cifras "destacables": %, multiplicadores (10x), magnitudes (2 millones / 500
+// mil / 3M) y números de 2+ dígitos. Los números escritos con letra ("dos
+// millones") los capta la capa IA. El % no lleva \b final ('%' es no-palabra).
+const NUMBER_RE =
+  /\d[\d.,]*\s?%|\b\d[\d.,]*\s?x\b|\b\d[\d.,]*\s?(?:mil|millones|millón|billones|k|m|b)\b|\b\d{2,}(?:[.,]\d+)?\b/i;
 
 export function ruleEdits(params: EditingParams): Edit[] {
   const edits: Edit[] = [];
@@ -82,9 +84,19 @@ export function ruleEdits(params: EditingParams): Edit[] {
     });
   }
 
-  // whoosh en cada inicio de sección (salvo la apertura)
+  // whoosh + zoom_punch al entrar cada sección (salvo la apertura): marca cada
+  // cambio de tema con energía (más punches, que es la seña del "editado")
   for (const ms of segmentStartMs.slice(1)) {
     edits.push({ type: 'sfx', from_ms: ms, to_ms: ms + 700, sfx: 'whoosh' });
+    const beat = beats.find((b) => ms >= b.from_ms && ms < b.to_ms);
+    if (beat) {
+      edits.push({
+        type: 'zoom_punch',
+        from_ms: beat.from_ms,
+        to_ms: Math.min(beat.to_ms, beat.from_ms + DUR_MS.zoom_punch!),
+        beat_idx: beat.idx,
+      });
+    }
   }
 
   // zoom_punch en beats de escenas marcadas con emphasis
@@ -108,7 +120,7 @@ export function ruleEdits(params: EditingParams): Edit[] {
   for (const beat of beats) {
     const m = beat.text.match(NUMBER_RE);
     if (!m) continue;
-    const value = m[0].replace(/\s/g, '');
+    const value = m[0].replace(/\s+/g, ' ').trim();
     const at = findWordMs(cues, m[0].replace(/[^\d]/g, '').slice(0, 6), beat.from_ms, beat.to_ms);
     const fromMs = at?.from_ms ?? beat.from_ms;
     edits.push({
@@ -161,27 +173,36 @@ const editingResultSchema = z.object({
 
 function buildEditingPrompt(params: EditingParams): { system: string; user: string } {
   const langName = params.lang === 'en' ? 'inglés' : 'español';
+  const lastIdx = params.beats.length > 0 ? params.beats[params.beats.length - 1]!.idx : 0;
   const system = [
     'Eres editor de vídeo de un canal de YouTube tipo "faceless".',
     'Recibes la narración por beats numerados. Elige los MOMENTOS más potentes',
     'para superponer un efecto que enganche, sin recargar (máximo ~1 cada 2-3 beats).',
     'Tipos:',
     '- "callout": una etiqueta de 2-5 palabras que refuerza la idea clave del beat.',
-    '- "stat": una cifra impactante mencionada en el beat (value, p. ej. "70%") + label corto.',
+    '- "stat": una cifra impactante mencionada en el beat (value, p. ej. "70%" o "2 millones") + label corto. INCLUYE también cifras escritas con letra.',
     '- "quote": una frase textual breve y citable del beat (text).',
+    // gancho: reforzar la promesa al abrir y el payoff al cerrar
+    `- OBLIGATORIO: un "callout" en el beat ${params.beats[0]?.idx ?? 0} que enuncie la PROMESA del vídeo (el gancho), y otro "callout" en el beat ${lastIdx} con el PAYOFF/conclusión.`,
     `Textos en ${langName}, muy cortos, sin comillas. Máximo 6 momentos.`,
     'Devuelve JSON: { "moments": [ { "beat_idx", "type", "text"?, "value"?, "label"?, "keyword"? } ] }.',
   ].join('\n');
   const user = [
+    params.title ? `Título del vídeo: ${params.title}` : '',
+    params.hookNotes ? `Gancho (promesa/payoff): ${params.hookNotes}` : '',
+    '',
     'Beats (idx · narración):',
     ...params.beats.map((b) => `${b.idx} · ${b.text.replace(/\s+/g, ' ').trim().slice(0, 180)}`),
-  ].join('\n');
+  ]
+    .filter((l) => l !== '')
+    .join('\n');
   return { system, user };
 }
 
 function momentsToEdits(
   moments: z.infer<typeof editingResultSchema>['moments'],
   beats: DirectorBeat[],
+  cues: Cue[],
 ): Edit[] {
   const edits: Edit[] = [];
   for (const m of moments) {
@@ -189,24 +210,31 @@ function momentsToEdits(
     if (!beat) continue;
     const type = m.type === 'callout' ? 'text_callout' : m.type === 'stat' ? 'stat_card' : 'quote_card';
     const dur = DUR_MS[type] ?? 2500;
-    const toMs = Math.min(beat.to_ms, beat.from_ms + dur);
+    // anclar al instante en que se dice la keyword o la 1ª palabra del texto,
+    // no al inicio del beat (el overlay cae sobre la frase → se siente editado)
+    const anchor = m.keyword ?? m.text ?? m.value ?? '';
+    const firstWord = anchor.split(/\s+/)[0] ?? '';
+    const at = findWordMs(cues, firstWord, beat.from_ms, beat.to_ms)?.from_ms ?? beat.from_ms;
+    const toMs = Math.min(beat.to_ms, at + dur);
     if (type === 'text_callout' && m.text) {
-      edits.push({ type, from_ms: beat.from_ms, to_ms: toMs, beat_idx: beat.idx, text: m.text });
+      edits.push({ type, from_ms: at, to_ms: toMs, beat_idx: beat.idx, text: m.text });
     } else if (type === 'stat_card' && m.value) {
       edits.push({
         type,
-        from_ms: beat.from_ms,
+        from_ms: at,
         to_ms: toMs,
         beat_idx: beat.idx,
         value: m.value,
         ...(m.label ? { label: m.label } : {}),
       });
     } else if (type === 'quote_card' && m.text) {
-      edits.push({ type, from_ms: beat.from_ms, to_ms: toMs, beat_idx: beat.idx, text: m.text });
+      edits.push({ type, from_ms: at, to_ms: toMs, beat_idx: beat.idx, text: m.text });
+    } else {
+      continue; // momento sin texto/valor válido: no genera edit ni pop
     }
-    // un pop acompaña al overlay
-    if (edits.length > 0 && edits[edits.length - 1]!.type !== 'sfx') {
-      edits.push({ type: 'sfx', from_ms: beat.from_ms, to_ms: beat.from_ms + 400, sfx: 'pop' });
+    // pop solo en callouts y tarjetas de dato (en citas resultaba repetitivo)
+    if (type === 'text_callout' || type === 'stat_card') {
+      edits.push({ type: 'sfx', from_ms: at, to_ms: at + 400, sfx: 'pop' });
     }
   }
   return edits;
@@ -279,7 +307,7 @@ export async function directEdits(ctx: WorkerContext, params: EditingParams): Pr
       schema: editingResultSchema,
       mockContext: { beats: params.beats },
     });
-    aiEdits = momentsToEdits(data.moments, params.beats);
+    aiEdits = momentsToEdits(data.moments, params.beats, params.cues);
   } catch (err) {
     ctx.logger.warn(
       { err, videoId: params.videoId },

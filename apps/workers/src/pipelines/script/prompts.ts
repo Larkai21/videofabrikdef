@@ -57,6 +57,7 @@ export function scriptSystem(profile: ChannelProfile, targetWords: number): stri
     'El hook (primera escena) abre con un gancho concreto en la primera frase, sin rodeos.',
     'Anclaje visual: nombra sustantivos CONCRETOS y filmables cuando cambies de sujeto (p. ej. "una biblioteca", "una nave industrial", "un centro de datos"), para que el b-roll pueda ilustrar cada idea; evita abstracciones ("la confianza", "el impacto") como único apoyo visual de una frase.',
     `visual_query: 3-8 palabras concretas y filmables, en ${profile.style.stock_query_lang === 'en' ? 'inglés' : 'español'} (p. ej. "server room aisle cold blue lights").`,
+    'emphasis: pon emphasis=true en las 2-4 escenas MÁS importantes (giro, dato clave, conclusión); el editor las realza con un zoom. No abuses: la mayoría de escenas van sin emphasis.',
     'Salida JSON: { script: { scenes: [{id, section: hook|body|cta, text, visual_query, emphasis?}], hook_notes }, seo: { titles, description, tags, thumbnails } }.',
     'hook_notes: qué promesa abre el vídeo y cómo se paga al final.',
     `seo.titles: exactamente 3 títulos de 70 caracteres máximo, cada uno aplicando uno de estos patrones: ${patterns || 'los del nicho'}. Sin promesas que el guion no pague.`,

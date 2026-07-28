@@ -52,6 +52,27 @@ describe('ruleEdits', () => {
     expect(edits.some((e) => e.type === 'sfx' && e.sfx === 'ding')).toBe(true);
   });
 
+  it('el inicio de sección con beat dispara whoosh + zoom_punch', () => {
+    const edits = ruleEdits(
+      params({
+        beats: [
+          { idx: 0, from_ms: 0, to_ms: 12_000, text: 'a' },
+          { idx: 1, from_ms: 12_000, to_ms: 24_000, text: 'b' },
+        ],
+        segmentStartMs: [0, 12_000],
+      }),
+    );
+    expect(edits.some((e) => e.type === 'sfx' && e.sfx === 'whoosh' && e.from_ms === 12_000)).toBe(true);
+    expect(edits.some((e) => e.type === 'zoom_punch' && e.beat_idx === 1)).toBe(true);
+  });
+
+  it('detecta cifras con unidad/multiplicador (2 millones, 10x) para el stat', () => {
+    const a = ruleEdits(params({ beats: [{ idx: 0, from_ms: 0, to_ms: 12_000, text: 'ya son 2 millones de usuarios' }] }));
+    expect(a.find((e) => e.type === 'stat_card')?.value).toBe('2 millones');
+    const b = ruleEdits(params({ beats: [{ idx: 0, from_ms: 0, to_ms: 12_000, text: 'es 10x más rápido' }] }));
+    expect(b.find((e) => e.type === 'stat_card')?.value).toBe('10x');
+  });
+
   it('un tag del SEO pronunciado se resalta como keyword', () => {
     const edits = ruleEdits(
       params({
