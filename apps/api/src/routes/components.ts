@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { createWriteStream } from 'node:fs';
+import { createWriteStream, existsSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -43,11 +43,14 @@ function refOf(row: ComponentRow): string {
 
 function toDto(row: ComponentRow, settings: ChannelSettings): ComponentDto {
   // preview animada: el validador escribe preview.mp4 junto a preview.png para
-  // los componentes animados (no las miniaturas, que son un still)
-  const previewVideoUrl =
+  // los componentes animados (no las miniaturas). Solo se expone si EXISTE en
+  // disco (los validados antes de esta función no lo tienen → regenerar preview).
+  const previewVideoPath =
     row.previewPath !== null && row.type !== 'thumbnail_template'
-      ? toFileUrl(path.join(path.dirname(row.previewPath), 'preview.mp4'))
+      ? path.join(path.dirname(row.previewPath), 'preview.mp4')
       : null;
+  const previewVideoUrl =
+    previewVideoPath !== null && existsSync(previewVideoPath) ? toFileUrl(previewVideoPath) : null;
   return componentDtoSchema.parse({
     id: row.id,
     channel_id: row.channelId,
@@ -284,6 +287,19 @@ export function registerComponentRoutes(app: FastifyInstance, ctx: ApiContext): 
     }
     await ctx.events.publish({ type: 'inbox_changed' });
     return { ok: true as const, enqueued: types };
+  });
+
+  // ---- regenerar preview: re-encola la validación de un componente existente
+  // (útil para los validados antes de la preview animada: regenera preview.mp4
+  // + still de frame medio sin re-subir el zip).
+  app.post('/components/:id/revalidate', async (req) => {
+    const { id } = req.params as { id: string };
+    const [row] = await ctx.db.select().from(components).where(eq(components.id, id)).limit(1);
+    if (!row) throw notFound(`El componente ${id} no existe`);
+    const payload: ComponentsValidateJob = { componentId: id };
+    await ctx.enqueuer.enqueue(QUEUES.components, JOBS.components.validate, payload);
+    await ctx.events.publish({ type: 'inbox_changed' });
+    return { ok: true as const };
   });
 
   // ---- activar: solo componentes validados; actualiza settings.brand_components

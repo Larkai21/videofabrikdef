@@ -20,6 +20,7 @@ import {
   getComponents,
   putDesign,
   putProfile,
+  revalidateComponent,
   uploadAvatar,
   uploadComponent,
 } from '../lib/api';
@@ -511,9 +512,17 @@ interface ComponentCardProps {
   busy: boolean;
   onActivate: (id: string) => void;
   onDelete: (id: string) => void;
+  onRevalidate: (id: string) => void;
 }
 
-function ComponentCard({ component: c, note, busy, onActivate, onDelete }: ComponentCardProps) {
+function ComponentCard({
+  component: c,
+  note,
+  busy,
+  onActivate,
+  onDelete,
+  onRevalidate,
+}: ComponentCardProps) {
   const status = STATUS_CHIP[c.status];
   const showNote = c.status === 'pending' && note !== undefined && note.queue === 'components';
   return (
@@ -598,6 +607,11 @@ function ComponentCard({ component: c, note, busy, onActivate, onDelete }: Compo
             Activar
           </Button>
         ) : null}
+        {c.status === 'validated' && c.preview_video_url === null ? (
+          <Button variant="secondary" disabled={busy} onClick={() => onRevalidate(c.id)}>
+            Regenerar preview
+          </Button>
+        ) : null}
         {!c.active ? (
           <Button variant="danger-ghost" disabled={busy} onClick={() => onDelete(c.id)}>
             Quitar
@@ -672,6 +686,16 @@ export function Componentes() {
       push(err instanceof Error ? err.message : 'No se pudo eliminar el componente', 'danger'),
   });
 
+  const revalidateMut = useMutation({
+    mutationFn: revalidateComponent,
+    onSuccess: () => {
+      void invalidate();
+      push('Regenerando la preview');
+    },
+    onError: (err) =>
+      push(err instanceof Error ? err.message : 'No se pudo regenerar la preview', 'danger'),
+  });
+
   useHotkeys((e) => {
     if (e.key === 's' && channelId !== null && !uploading) {
       e.preventDefault();
@@ -685,7 +709,7 @@ export function Componentes() {
     if (fileRef.current !== null) fileRef.current.value = '';
   };
 
-  const busy = activateMut.isPending || deleteMut.isPending;
+  const busy = activateMut.isPending || deleteMut.isPending || revalidateMut.isPending;
   const componentsByType = new Map<ComponentType, ComponentDto[]>();
   for (const c of componentsQ.data ?? []) {
     const type = c.type as ComponentType;
@@ -797,6 +821,7 @@ export function Componentes() {
                     busy={busy}
                     onActivate={(id) => activateMut.mutate(id)}
                     onDelete={(id) => deleteMut.mutate(id)}
+                    onRevalidate={(id) => revalidateMut.mutate(id)}
                   />
                 ))}
               </div>

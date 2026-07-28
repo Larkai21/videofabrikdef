@@ -334,6 +334,12 @@ export async function deleteComponent(id: string): Promise<void> {
   await request(`/components/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
+// Regenera la preview (mp4 animado + still de frame medio) de un componente ya
+// validado, re-encolando su validación.
+export async function revalidateComponent(id: string): Promise<void> {
+  await post(`/components/${encodeURIComponent(id)}/revalidate`);
+}
+
 // Autoría por IA (Fase 4): encola la generación de uno o todos los tipos.
 // Sin type (o 'all') genera todas las animaciones que la composición monta.
 export async function authorComponents(
