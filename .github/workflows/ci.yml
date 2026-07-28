@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: fabrica
+          POSTGRES_PASSWORD: fabrica
+          POSTGRES_DB: fabrica
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fabrica"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      # los tests de API/workers hablan con Postgres (createDb usa DATABASE_URL)
+      DATABASE_URL: postgres://fabrica:fabrica@localhost:5432/fabrica
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # esquema al día antes de los tests que tocan la BD
+      - run: pnpm --filter @fabrica/db migrate
+      - run: pnpm turbo run typecheck lint test

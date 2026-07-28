@@ -30,6 +30,9 @@ function stubEnqueuer(): { calls: EnqueueCall[]; enqueuer: Enqueuer } {
       async enqueue(queue, job, payload) {
         calls.push({ queue, job, payload });
       },
+      async counts() {
+        return {};
+      },
       async close() {},
     },
   };

@@ -96,6 +96,18 @@ export function Bandeja() {
       {/* de la búsqueda al vídeo: buscar fuentes, ordenar el ranking, generar */}
       {activeChannelId !== null ? <Radar channelId={activeChannelId} /> : null}
 
+      {/* aviso de fuentes caídas: el funnel de ideas se seca en silencio */}
+      {inbox !== undefined && inbox.stale_sources.length > 0 ? (
+        <div className="banner" style={{ marginBottom: 'var(--pad)' }}>
+          {inbox.stale_sources.length === 1
+            ? `Fuente caída: ${inbox.stale_sources[0]!.label} (${inbox.stale_sources[0]!.failures} fallos). Revísala en Ajustes.`
+            : `${inbox.stale_sources.length} fuentes de scraping caídas (${inbox.stale_sources
+                .map((s) => s.label)
+                .slice(0, 3)
+                .join(', ')}${inbox.stale_sources.length > 3 ? '…' : ''}). Revísalas en Ajustes.`}
+        </div>
+      ) : null}
+
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 'var(--pad)' }}>
         <h1 className="head" style={{ fontSize: 26, letterSpacing: '-0.02em', margin: 0 }}>
           Te espera

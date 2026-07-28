@@ -131,6 +131,9 @@ export const inboxDtoSchema = z.object({
   month_cost_usd: z.number(),
   month_videos: z.number(),
   month_budget_usd: z.number(),
+  // fuentes de scraping caídas (fallos consecutivos): el funnel de ideas se seca
+  // en silencio si no se avisa
+  stale_sources: z.array(z.object({ id: z.string(), label: z.string(), failures: z.number() })),
 });
 export type InboxDto = z.infer<typeof inboxDtoSchema>;
 

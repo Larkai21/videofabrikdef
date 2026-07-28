@@ -15,6 +15,7 @@ import { registerChannelRoutes } from './routes/channels.js';
 import { registerComponentRoutes } from './routes/components.js';
 import { registerCostRoutes } from './routes/costs.js';
 import { registerEventRoutes } from './routes/events.js';
+import { registerHealthRoutes } from './routes/health.js';
 import { registerIdeaRoutes } from './routes/ideas.js';
 import { registerInboxRoutes } from './routes/inbox.js';
 import { registerLibraryRoutes } from './routes/library.js';
@@ -144,6 +145,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   registerCostRoutes(app, ctx);
   registerYoutubeRoutes(app, ctx);
   registerEventRoutes(app, ctx);
+  registerHealthRoutes(app, ctx);
 
   app.addHook('onClose', async () => {
     if (ownsEnqueuer) await enqueuer.close();

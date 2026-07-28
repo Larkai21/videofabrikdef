@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { beats, channels, costLedger, ideas, videos } from '@fabrica/db';
+import { beats, channels, costLedger, ideas, sources, videos } from '@fabrica/db';
 import {
   channelSettingsSchema,
   type InboxDto,
@@ -18,6 +18,9 @@ const inboxQuerySchema = z.object({
 
 type Gate = InboxDto['gates'][number];
 type Running = InboxDto['running'][number];
+
+// fuentes con este nº de fallos consecutivos se consideran "caídas"
+const STALE_SOURCE_FAILURES = 3;
 
 const RUNNING_STATES: VideoState[] = [
   'idea_aprobada',
@@ -199,6 +202,20 @@ export function registerInboxRoutes(app: FastifyInstance, ctx: ApiContext): void
       0,
     );
 
+    // fuentes de scraping caídas: fallos consecutivos altos en fuentes activas
+    const staleRows = await ctx.db
+      .select({ id: sources.id, label: sources.label, url: sources.url, failures: sources.consecutiveFailures })
+      .from(sources)
+      .where(
+        and(
+          eq(sources.enabled, true),
+          gte(sources.consecutiveFailures, STALE_SOURCE_FAILURES),
+          ...(channel !== undefined ? [eq(sources.channelId, channel)] : []),
+        ),
+      )
+      .orderBy(desc(sources.consecutiveFailures))
+      .limit(20);
+
     return {
       gates,
       running,
@@ -206,6 +223,11 @@ export function registerInboxRoutes(app: FastifyInstance, ctx: ApiContext): void
       month_cost_usd: Number(costRow?.total ?? 0),
       month_videos: Number(countRow?.n ?? 0),
       month_budget_usd: monthBudget,
+      stale_sources: staleRows.map((s) => ({
+        id: s.id,
+        label: s.label ?? s.url,
+        failures: s.failures,
+      })),
     };
   });
 }
