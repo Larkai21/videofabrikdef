@@ -39,6 +39,10 @@ export function rewriteMasterMedia(
   if (copy.audio) copy.audio.path = rewriteMediaPath(copy.audio.path, opts);
   for (const beat of copy.beats ?? []) {
     if (beat.asset?.path) beat.asset.path = rewriteMediaPath(beat.asset.path, opts);
+    // los sub-planos llevan su propio asset con ruta local: también se reescriben
+    for (const sv of beat.visuals ?? []) {
+      if (sv.asset?.path) sv.asset.path = rewriteMediaPath(sv.asset.path, opts);
+    }
   }
   return copy;
 }

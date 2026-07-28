@@ -65,4 +65,31 @@ describe('rewriteMasterMedia', () => {
     expect(master.audio?.path).toBe('/data/outputs/vid-1/audio.wav');
     expect(master.beats?.[0]?.asset?.path).toBe('/data/library/clips/a.mp4');
   });
+
+  it('reescribe también las rutas de los sub-planos (beat.visuals)', () => {
+    const master = makeDemoMaster({ clipPath: '/data/library/clips/a.mp4' });
+    master.beats![0]!.visuals = [
+      {
+        from_ms: 0,
+        to_ms: 4000,
+        visual_query: 'x',
+        asset: { id: 's1', kind: 'image', path: '/data/library/images/s1.png', fit: { mode: 'kenburns' } },
+      },
+      {
+        from_ms: 4000,
+        to_ms: 8000,
+        visual_query: 'y',
+        asset: { id: 's2', kind: 'clip', path: '/data/library/clips/s2.mp4', fit: { mode: 'trim', offset_ms: 0 } },
+      },
+    ];
+    const rewritten = rewriteMasterMedia(master, opts);
+    expect(rewritten.beats?.[0]?.visuals?.[0]?.asset?.path).toBe(
+      'http://127.0.0.1:3001/files/library/images/s1.png',
+    );
+    expect(rewritten.beats?.[0]?.visuals?.[1]?.asset?.path).toBe(
+      'http://127.0.0.1:3001/files/library/clips/s2.mp4',
+    );
+    // original intacto
+    expect(master.beats?.[0]?.visuals?.[0]?.asset?.path).toBe('/data/library/images/s1.png');
+  });
 });
