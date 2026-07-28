@@ -688,6 +688,40 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
     });
   }
 
+  // Directores de capítulos y de EDICIÓN: sobre los beats (timings de la ley del
+  // audio) + cues + guion calculan segmentos y la línea de efectos ANTES de la
+  // curación, para que la timeline del dashboard los muestre y el humano pueda
+  // revisarlos/ajustar antes de aprobar. No dependen de los assets (se anclan a
+  // ms) → estables aunque se cambie el clip de un beat. Solo en run completo.
+  if (fullRun) {
+    const lang = channel?.profile?.language === 'en' ? 'en' : 'es';
+    const segments = await directChapters(ctx, {
+      videoId,
+      channelId: video.channelId,
+      lang,
+      beats: allRows.map((b) => ({ idx: b.idx, from_ms: b.fromMs, text: b.text })),
+    });
+    const edits = await directEdits(ctx, {
+      videoId,
+      channelId: video.channelId,
+      lang,
+      beats: allRows.map((b) => ({ idx: b.idx, from_ms: b.fromMs, to_ms: b.toMs, text: b.text })),
+      cues: video.master.cues ?? [],
+      scenes: video.master.script?.scenes ?? [],
+      segmentStartMs: segments.map((s) => s.from_ms),
+      seoTags: video.master.seo?.tags ?? [],
+      ...(video.master.script?.hook_notes ? { hookNotes: video.master.script.hook_notes } : {}),
+      ...(video.master.seo ? { title: video.master.seo.titles[video.master.seo.chosen_idx ?? 0] } : {}),
+    });
+    await db
+      .update(videos)
+      .set({
+        master: masterVideoJsonV1.parse({ ...video.master, segments, edits }),
+        updatedAt: new Date(),
+      })
+      .where(eq(videos.id, videoId));
+  }
+
   if (fullRun && video.state === 'audio') {
     await transitionVideo(db, videoId, 'assets', { expectFrom: 'audio' });
     await ctx.publishEvent({ type: 'video_state', video_id: videoId, state: 'assets' });
@@ -1087,31 +1121,11 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
     });
   }
 
-  // director de capítulos: sobre los beats ya congelados, agrupa el vídeo en
-  // segmentos temáticos con título (tarjeta de sección + capítulos de YouTube)
-  const [channel] = await db.select().from(channels).where(eq(channels.id, video.channelId));
-  const segments = await directChapters(ctx, {
-    videoId,
-    channelId: video.channelId,
-    // los títulos son texto EN PANTALLA: van en el idioma del contenido
-    // (profile.language), no en el de las búsquedas de stock (stock_query_lang)
-    lang: channel?.profile?.language === 'en' ? 'en' : 'es',
-    beats: frozenBeats.map((b) => ({ idx: b.idx, from_ms: b.from_ms, text: b.text })),
-  });
-
-  // director de edición: sobre beats/cues/segmentos ya congelados, coloca los
-  // efectos (punch-ins, keyword, tarjetas de dato, callouts, citas, SFX) que
-  // hacen que el vídeo se sienta editado. No cambia los cortes (principio 1).
-  const edits = await directEdits(ctx, {
-    videoId,
-    channelId: video.channelId,
-    lang: channel?.profile?.language === 'en' ? 'en' : 'es',
-    beats: frozenBeats.map((b) => ({ idx: b.idx, from_ms: b.from_ms, to_ms: b.to_ms, text: b.text })),
-    cues: video.master.cues ?? [],
-    scenes: video.master.script?.scenes ?? [],
-    segmentStartMs: segments.map((s) => s.from_ms),
-    seoTags: video.master.seo?.tags ?? [],
-  });
+  // segmentos y edits ya los calcularon los directores en runMatch (para que
+  // la timeline del dashboard los muestre durante la curación); aquí se
+  // conservan tal cual al congelar. Fallback [] por si el maestro es antiguo.
+  const segments = video.master.segments ?? [];
+  const edits = video.master.edits ?? [];
 
   // congelar master.beats: status locked, asset resuelto, sin candidates
   const newMaster = masterVideoJsonV1.parse({ ...video.master, beats: frozenBeats, segments, edits });

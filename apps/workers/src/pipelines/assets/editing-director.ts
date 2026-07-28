@@ -25,6 +25,9 @@ export interface EditingParams {
   scenes: Scene[];
   segmentStartMs: number[]; // from_ms de cada segmento (para whoosh de sección)
   seoTags: string[];
+  // señales del hook para el callout de apertura/cierre (Fase 2)
+  hookNotes?: string;
+  title?: string;
 }
 
 function normalize(w: string): string {
