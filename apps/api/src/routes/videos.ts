@@ -189,6 +189,27 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
     return { ok: true as const };
   });
 
+  // Editar la auto-edición: quitar efectos (callouts, punches, tarjetas, SFX)
+  // durante la curación. master.edits es mutable hasta que ingest lo congela;
+  // solo en estado 'assets' (los directores ya lo calcularon en el match).
+  app.patch('/videos/:id/edits', async (req) => {
+    const { id } = req.params as { id: string };
+    const body = z.object({ remove: z.array(z.number().int().nonnegative()) }).parse(req.body);
+    const video = await loadVideo(ctx, id);
+    if (video.state !== 'assets') {
+      throw conflict(`Los efectos solo se editan durante la curación (estado actual: ${video.state})`);
+    }
+    const edits = video.master.edits ?? [];
+    const remove = new Set(body.remove);
+    const next = edits.filter((_, i) => !remove.has(i));
+    await ctx.db
+      .update(videos)
+      .set({ master: { ...video.master, edits: next }, updatedAt: new Date() })
+      .where(eq(videos.id, id));
+    await ctx.events.publish({ type: 'inbox_changed' });
+    return { ok: true as const, edits: next };
+  });
+
   app.post('/videos/:id/title', async (req) => {
     const { id } = req.params as { id: string };
     const body = titleChoiceRequestSchema.parse(req.body);

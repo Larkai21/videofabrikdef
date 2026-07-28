@@ -51,6 +51,7 @@ export function registerTimelineRoutes(app: FastifyInstance, ctx: ApiContext): v
       beats: rows.map((r) =>
         beatRowToTimelineDto(r, r.assetId ? assetFiles.get(r.assetId) : undefined),
       ),
+      edits: video.master.edits ?? [],
     };
   });
 

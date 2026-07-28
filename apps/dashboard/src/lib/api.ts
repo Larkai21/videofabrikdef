@@ -241,6 +241,11 @@ export async function approveTimeline(id: string): Promise<void> {
   await post(`/videos/${id}/approve-timeline`);
 }
 
+// Quita efectos de edición (por índice) durante la curación; devuelve los que quedan.
+export async function removeEdits(id: string, remove: number[]): Promise<void> {
+  await patch(`/videos/${encodeURIComponent(id)}/edits`, { remove });
+}
+
 export async function searchStock(
   q: string,
   videoId?: string,

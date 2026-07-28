@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { channelProfileV1 } from './channel-profile.js';
-import { beatSchema, candidateSchema, masterVideoJsonV1 } from './master-json.js';
+import { beatSchema, candidateSchema, editSchema, masterVideoJsonV1 } from './master-json.js';
 import { beatStatusSchema, ideaStatusSchema, videoStateSchema } from './states.js';
 
 // DTOs de la API interna (docs/contratos.md §4). Contrato fijo entre
@@ -180,6 +180,8 @@ export const timelineDtoSchema = z.object({
   audio_url: z.string().nullable(),
   duration_ms: z.number(),
   beats: z.array(timelineBeatDtoSchema),
+  // efectos de edición (director) para revisar/quitar en la curación
+  edits: z.array(editSchema),
 });
 export type TimelineDto = z.infer<typeof timelineDtoSchema>;
 

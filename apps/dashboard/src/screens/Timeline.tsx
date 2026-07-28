@@ -8,6 +8,7 @@ import {
   approveTimeline,
   beatAction,
   getTimeline,
+  removeEdits,
   getVideo,
   searchStock,
   uploadToLibrary,
@@ -18,6 +19,16 @@ import { loadLongForm, PlayerBoundary } from '../lib/longform';
 import { useToasts } from '../lib/toasts';
 
 const FPS = 30;
+
+// Etiquetas de los efectos de edición para el panel de curación.
+const EDIT_LABELS: Record<string, string> = {
+  zoom_punch: 'Zoom',
+  keyword_highlight: 'Keyword',
+  text_callout: 'Callout',
+  stat_card: 'Tarjeta de dato',
+  quote_card: 'Cita',
+  sfx: 'Sonido',
+};
 
 // Motivos de descarte de un clip, copiados del mock.
 const MOTIVOS_BEAT: Motivo[] = [
@@ -169,6 +180,8 @@ export function Timeline() {
   const video = videoQ.data;
   const master = video?.master;
   const beats = useMemo(() => tlQ.data?.beats ?? [], [tlQ.data]);
+  const edits = tlQ.data?.edits ?? [];
+  const tlState = tlQ.data?.state;
 
   const durationMs =
     tlQ.data?.duration_ms ??
@@ -279,6 +292,15 @@ export function Timeline() {
       void navigate('/');
     },
     onError: (err) => push(err instanceof Error ? err.message : 'No se pudo aprobar la timeline', 'danger'),
+  });
+
+  const removeEditMut = useMutation({
+    mutationFn: (index: number) => removeEdits(id, [index]),
+    onSuccess: () => {
+      invalidate();
+      push('Efecto quitado');
+    },
+    onError: (err) => push(err instanceof Error ? err.message : 'No se pudo quitar el efecto', 'danger'),
   });
 
   const uploadMut = useMutation({
@@ -563,6 +585,49 @@ export function Timeline() {
               </span>
             </div>
           </div>
+
+          {/* Efectos de edición (auto): revisables y se pueden quitar antes de aprobar */}
+          {edits.length > 0 ? (
+            <div className="card" style={{ padding: 'var(--pad)', marginBottom: 'var(--gap)' }}>
+              <div className="muted fs-sm" style={{ marginBottom: 8 }}>
+                Efectos de edición · {edits.length} · se ven en la preview; quítalos si sobran
+              </div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {edits.map((e, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      justifyContent: 'space-between',
+                      fontSize: 'var(--fs-sm)',
+                    }}
+                  >
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span className="mono muted">{fmtClock(e.from_ms)}</span>{' '}
+                      <strong>{EDIT_LABELS[e.type] ?? e.type}</strong>
+                      {e.text ?? e.value ?? e.keyword ?? e.sfx ? (
+                        <span className="muted"> · {e.text ?? e.value ?? e.keyword ?? e.sfx}</span>
+                      ) : null}
+                    </span>
+                    <Button
+                      variant="danger-ghost"
+                      disabled={tlState !== 'assets' || removeEditMut.isPending}
+                      onClick={() => removeEditMut.mutate(i)}
+                    >
+                      Quitar
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              {tlState !== 'assets' ? (
+                <div className="muted fs-sm" style={{ marginTop: 8 }}>
+                  Los efectos ya se congelaron (solo se editan durante la curación).
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           {/* Pista de clips */}
           <div className="card" style={{ padding: 'var(--pad)' }}>
