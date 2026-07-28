@@ -7,6 +7,7 @@ import {
   canTransition,
   channelProfileV1,
   COMPONENT_TYPES,
+  editSchema,
   componentAuthorOutputSchema,
   componentManifestV1,
   defaultDesign,
@@ -89,6 +90,32 @@ describe('ComponentManifest v1', () => {
       version: '1.2.0',
     });
     expect(parseComponentRef('sin-version')).toBeNull();
+  });
+});
+
+describe('Edits (director de edición)', () => {
+  it('acepta un edit válido y rechaza un tipo desconocido', () => {
+    expect(() =>
+      editSchema.parse({ type: 'stat_card', from_ms: 1000, to_ms: 3000, value: '70%' }),
+    ).not.toThrow();
+    expect(editSchema.safeParse({ type: 'nope', from_ms: 0, to_ms: 1 }).success).toBe(false);
+  });
+
+  it('edits es opcional: el maestro parsea con y sin ellos, y no bloquea el render', () => {
+    const master = makeDemoMaster({
+      audioPath: '/tmp/a.wav',
+      clipPath: '/tmp/c.mp4',
+      imagePath: '/tmp/i.png',
+    });
+    // sin edits, un maestro completo sigue siendo renderizable
+    expect(renderableMasterV1.safeParse(master).success).toBe(true);
+    // con edits válidos también
+    const withEdits = {
+      ...master,
+      edits: [{ type: 'sfx' as const, from_ms: 0, to_ms: 500, sfx: 'whoosh' as const }],
+    };
+    expect(masterVideoJsonV1.safeParse(withEdits).success).toBe(true);
+    expect(renderableMasterV1.safeParse(withEdits).success).toBe(true);
   });
 });
 

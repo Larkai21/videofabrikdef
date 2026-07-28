@@ -4,6 +4,7 @@ import {
   beatWindow,
   computeBrandKitLayout,
   computeBrollTrack,
+  computeEffectsTrack,
   DEFAULT_DURATION_FRAMES,
   DEFAULT_LOWER_THIRD_FRAMES,
   DEFAULT_TITLE_CARD_FRAMES,
@@ -200,6 +201,31 @@ describe('computeBrandKitLayout', () => {
     const layout = computeBrandKitLayout(master, testView());
     expect(layout.baseFrames).toBe(DEFAULT_DURATION_FRAMES);
     expect(layout.totalFrames).toBe(DEFAULT_DURATION_FRAMES);
+  });
+});
+
+describe('computeEffectsTrack', () => {
+  it('convierte edits (ms) a frames aplicando el offset de la intro', () => {
+    const master = makeDemoMaster({ audioPath: 'demo/silence.wav' });
+    master.edits = [
+      { type: 'stat_card', from_ms: 2000, to_ms: 4000, beat_idx: 0, value: '70%', label: 'x' },
+      { type: 'sfx', from_ms: 0, to_ms: 1000, sfx: 'riser' },
+    ];
+    // offset de intro = 80 frames (intro-basica), 30 fps
+    const effects = computeEffectsTrack(master, 30, 80);
+    expect(effects[0]).toEqual({
+      type: 'stat_card',
+      from: 80 + 60, // 2000 ms → 60 frames + offset
+      durationInFrames: 60, // 2000 ms de duración → 60 frames
+      beatIdx: 0,
+      value: '70%',
+      label: 'x',
+    });
+    expect(effects[1]).toEqual({ type: 'sfx', from: 80, durationInFrames: 30, sfx: 'riser' });
+  });
+
+  it('sin edits devuelve una pista vacía', () => {
+    expect(computeEffectsTrack(makeDemoMaster(), 30, 0)).toEqual([]);
   });
 });
 

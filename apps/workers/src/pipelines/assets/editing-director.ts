@@ -60,9 +60,10 @@ function beatOf(beats: DirectorBeat[], idx: number): DirectorBeat | undefined {
 // ---- capa de reglas (determinista) -----------------------------------------
 
 // cifras "destacables": porcentajes o números de 2+ dígitos (evita "1", "un 2").
-const NUMBER_RE = /\b(\d[\d.,]*\s?%|\d{2,}[\d.,]*)\b/;
+// (el % no lleva \b final: '%' es no-palabra y rompería el límite tras el signo)
+const NUMBER_RE = /\d[\d.,]*\s?%|\b\d{2,}(?:[.,]\d+)?\b/;
 
-function ruleEdits(params: EditingParams): Edit[] {
+export function ruleEdits(params: EditingParams): Edit[] {
   const edits: Edit[] = [];
   const { beats, cues, scenes, segmentStartMs, seoTags } = params;
 
