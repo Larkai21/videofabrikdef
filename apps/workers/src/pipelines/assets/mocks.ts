@@ -1,6 +1,7 @@
 import { registerMockOp } from '../../providers/llm.js';
 import type { DirectorBeat } from './broll-director.js';
 import type { DirectorBeatLite } from './chapter-director.js';
+import type { DirectorBeat as EditingBeat } from './editing-director.js';
 
 // Mock determinista del director de b-roll: por cada beat devuelve la consulta
 // de escena enriquecida con una palabra clave de su narración, de modo que
@@ -67,7 +68,24 @@ export function buildMockChapters(mockContext: Record<string, unknown>): {
   return { segments };
 }
 
+// Mock del director de edición: propone un callout con la primera keyword útil
+// de algunos beats (uno de cada tres) para imitar la selección de momentos.
+export function buildMockEditing(mockContext: Record<string, unknown>): {
+  moments: { beat_idx: number; type: 'callout' | 'stat' | 'quote'; text?: string; keyword?: string }[];
+} {
+  const beats = Array.isArray(mockContext.beats) ? (mockContext.beats as EditingBeat[]) : [];
+  const moments: { beat_idx: number; type: 'callout'; text: string }[] = [];
+  for (let i = 1; i < beats.length; i += 3) {
+    const beat = beats[i]!;
+    const kws = keywordsOf(beat.text ?? '', new Set(), 2);
+    if (kws.length > 0) moments.push({ beat_idx: beat.idx, type: 'callout', text: kws.join(' ') });
+    if (moments.length >= 4) break;
+  }
+  return { moments };
+}
+
 export function registerAssetsMocks(): void {
   registerMockOp('broll_director', ({ mockContext }) => buildMockBroll(mockContext));
   registerMockOp('chapter_director', ({ mockContext }) => buildMockChapters(mockContext));
+  registerMockOp('editing_director', ({ mockContext }) => buildMockEditing(mockContext));
 }

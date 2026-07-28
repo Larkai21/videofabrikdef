@@ -26,6 +26,7 @@ export const COST_OPERATIONS = [
   'profile_synthesis',
   'broll_director',
   'chapter_director',
+  'editing_director',
   'vlm_caption',
   'component_author',
   'thumbnail_brief',

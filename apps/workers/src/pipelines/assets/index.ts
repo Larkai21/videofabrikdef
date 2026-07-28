@@ -42,6 +42,7 @@ import { mockHash } from '../../providers/llm.js';
 import { cacheCaption, searchStock, type StockResult } from '../../providers/stock.js';
 import { directBroll } from './broll-director.js';
 import { directChapters } from './chapter-director.js';
+import { directEdits } from './editing-director.js';
 import { computeFit, kenburnsEffect } from './fit.js';
 import { registerAssetsMocks } from './mocks.js';
 import { expandQuery, stockScore } from './score.js';
@@ -1098,8 +1099,22 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
     beats: frozenBeats.map((b) => ({ idx: b.idx, from_ms: b.from_ms, text: b.text })),
   });
 
+  // director de edición: sobre beats/cues/segmentos ya congelados, coloca los
+  // efectos (punch-ins, keyword, tarjetas de dato, callouts, citas, SFX) que
+  // hacen que el vídeo se sienta editado. No cambia los cortes (principio 1).
+  const edits = await directEdits(ctx, {
+    videoId,
+    channelId: video.channelId,
+    lang: channel?.profile?.language === 'en' ? 'en' : 'es',
+    beats: frozenBeats.map((b) => ({ idx: b.idx, from_ms: b.from_ms, to_ms: b.to_ms, text: b.text })),
+    cues: video.master.cues ?? [],
+    scenes: video.master.script?.scenes ?? [],
+    segmentStartMs: segments.map((s) => s.from_ms),
+    seoTags: video.master.seo?.tags ?? [],
+  });
+
   // congelar master.beats: status locked, asset resuelto, sin candidates
-  const newMaster = masterVideoJsonV1.parse({ ...video.master, beats: frozenBeats, segments });
+  const newMaster = masterVideoJsonV1.parse({ ...video.master, beats: frozenBeats, segments, edits });
   await db
     .update(videos)
     .set({ master: newMaster, updatedAt: new Date() })

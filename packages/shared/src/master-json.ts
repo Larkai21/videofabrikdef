@@ -170,6 +170,42 @@ export const segmentSchema = z.object({
   from_ms: z.number().int().nonnegative(),
 });
 
+// Línea de tiempo de EDICIÓN (la produce el director de edición): efectos
+// anclados en ms sobre la ley temporal del audio (nunca cambian los cortes,
+// principio 1). Opcional → no afecta al render de maestros antiguos.
+export const EDIT_TYPES = [
+  'zoom_punch',
+  'keyword_highlight',
+  'text_callout',
+  'stat_card',
+  'quote_card',
+  'sfx',
+] as const;
+export const editTypeSchema = z.enum(EDIT_TYPES);
+export type EditType = z.infer<typeof editTypeSchema>;
+
+export const SFX_NAMES = ['whoosh', 'pop', 'riser', 'ding'] as const;
+export const sfxNameSchema = z.enum(SFX_NAMES);
+
+export const editSchema = z.object({
+  type: editTypeSchema,
+  from_ms: z.number().int().nonnegative(),
+  to_ms: z.number().int().nonnegative(),
+  // beat al que se ancla (zoom_punch necesita saber en qué beat escalar)
+  beat_idx: z.number().int().nonnegative().optional(),
+  // palabra clave (keyword_highlight) o texto de callout/quote (text_callout/quote_card)
+  keyword: z.string().optional(),
+  text: z.string().optional(),
+  // tarjeta de dato: cifra + etiqueta
+  value: z.string().optional(),
+  label: z.string().optional(),
+  // efecto de sonido a disparar (built-in de public/sfx)
+  sfx: sfxNameSchema.optional(),
+  // variación determinista si hiciera falta
+  seed: z.number().optional(),
+});
+export type Edit = z.infer<typeof editSchema>;
+
 export const masterVideoJsonV1 = z.object({
   version: z.literal('1'),
   video: z.object({
@@ -187,6 +223,8 @@ export const masterVideoJsonV1 = z.object({
   cues: z.array(cueSchema).optional(),
   beats: z.array(beatSchema).optional(),
   segments: z.array(segmentSchema).optional(),
+  // línea de tiempo de efectos de edición (director de edición); opcional
+  edits: z.array(editSchema).optional(),
   brand: brandSchema.optional(),
   costs: costsSchema.optional(),
 });
