@@ -9,6 +9,7 @@ import type { ApiContext } from './lib/context.js';
 import { createBullEnqueuer, type Enqueuer } from './lib/enqueuer.js';
 import { env, loadEnv, resolveDataDir } from './lib/env.js';
 import { HttpError } from './lib/errors.js';
+import { allowedOrigins } from './lib/origins.js';
 import { createRedisEventBus, type EventBus } from './lib/events.js';
 import { registerChannelRoutes } from './routes/channels.js';
 import { registerComponentRoutes } from './routes/components.js';
@@ -68,11 +69,20 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
   // solo el dashboard local: reflejar cualquier origen convertiría las rutas
   // de escritura (sin autenticación en el MVP monousuario) en drive-by
-  const corsOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:5173,http://127.0.0.1:5173')
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean);
+  const corsOrigins = allowedOrigins();
   await app.register(cors, { origin: corsOrigins });
+
+  // CORS no impide que un POST "simple" cross-origin EJECUTE el handler (solo
+  // bloquea leer la respuesta): sin esta guarda cualquier web abierta en el
+  // navegador podría disparar escrituras (p. ej. /reveal) a ciegas. Las
+  // peticiones sin Origin (curl, MCP, same-origin) pasan.
+  app.addHook('onRequest', async (req, reply) => {
+    const { origin } = req.headers;
+    const writes = req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS';
+    if (writes && origin !== undefined && !corsOrigins.includes(origin)) {
+      return reply.code(403).send({ error: 'origen no permitido' });
+    }
+  });
   await app.register(multipart, { limits: { fileSize: 512 * 1024 * 1024 } });
   await app.register(fastifyStatic, {
     root: outputsDir,
