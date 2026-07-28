@@ -101,6 +101,9 @@ export interface ComponentsValidateJob {
   // si lo escribió la IA (components.author): al validar OK se auto-activa
   // para su tipo en el canal, sin intervención humana
   autoActivate?: boolean;
+  // nº de intento de autoría (presente solo si vino de la IA): habilita la
+  // auto-reparación al fallar la validación (re-autoría con el error)
+  authorAttempt?: number;
 }
 
 // Autoría por IA de un componente del brand kit (Fase 4): el worker pide a la
@@ -109,6 +112,14 @@ export interface ComponentsValidateJob {
 export interface ComponentsAuthorJob {
   channelId: string;
   type: ComponentType;
+  // nº de intento (0 = primero). En reparaciones sube y trae el contexto del fallo.
+  attempt?: number;
+  // contexto de auto-reparación: ficheros previos + log del fallo para corregir
+  repairContext?: {
+    prevSchemaTs: string;
+    prevComponentTsx: string;
+    failureLog: string;
+  };
 }
 
 export interface LibraryBackfillJob {

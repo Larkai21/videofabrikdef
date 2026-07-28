@@ -119,6 +119,31 @@ Responde SOLO con un objeto JSON con exactamente estas claves:
 No incluyas manifest.json (lo genera el sistema) ni markdown ni comentarios fuera del JSON.`;
 }
 
+// Prompt de auto-reparación: dados los dos ficheros previos y el LOG EXACTO del
+// fallo de validación (typecheck/eslint/contrato), pide corregir SOLO ese error
+// conservando el resto. Devuelve el mismo esquema de salida.
+export function buildComponentRepairPrompt(
+  type: ComponentType,
+  repair: { prevSchemaTs: string; prevComponentTsx: string; failureLog: string },
+): string {
+  return `Eres ingeniero de componentes de vídeo con Remotion. Tu componente de tipo "${type}" FALLÓ la validación. Corrige SOLO el error indicado, sin cambiar nada más ni el contrato de props.
+
+## Error de validación (log EXACTO)
+${repair.failureLog.slice(0, 2000)}
+
+## schema.ts actual
+\`\`\`ts
+${repair.prevSchemaTs}\`\`\`
+
+## Component.tsx actual
+\`\`\`tsx
+${repair.prevComponentTsx}\`\`\`
+
+Reglas: sin variables/imports/props sin usar (eslint estricto: al desestructurar useVideoConfig extrae solo lo que uses); determinismo (solo useCurrentFrame, nada de Math.random/Date.now/fetch/timers); export default; schema.ts export default z.object({...}).
+
+Responde SOLO con el JSON: { "name", "component_version", "fixed_duration_frames"?, "schema_ts", "component_tsx" }.`;
+}
+
 // ---- Plantillas deterministas (mock y referencia) -------------------------
 // Componentes self-contained (solo importan react/remotion). Leen `design` con
 // fallback y muestran el avatar (logo/image_path) cuando existe. Sin literales

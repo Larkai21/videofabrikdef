@@ -4,6 +4,7 @@ import {
   authoredComponentName,
   authoredTemplateOutput,
   buildComponentAuthorPrompt,
+  buildComponentRepairPrompt,
   canTransition,
   channelProfileV1,
   COMPONENT_TYPES,
@@ -228,6 +229,19 @@ describe('Autoría de componentes por IA', () => {
     expect(prompt).toContain('fixed_duration_frames');
     expect(prompt).toContain('schema_ts');
     expect(prompt).toContain('component_tsx');
+  });
+
+  it('el prompt de reparación incluye el log del fallo, los ficheros y el formato JSON', () => {
+    const p = buildComponentRepairPrompt('intro', {
+      prevSchemaTs: 'export default zObjeto',
+      prevComponentTsx: 'const X = 1;',
+      failureLog: "[determinismo] 'fps' is assigned a value but never used",
+    });
+    expect(p).toContain('FALLÓ la validación');
+    expect(p).toContain('never used'); // el log exacto del fallo
+    expect(p).toContain('export default zObjeto'); // el schema previo
+    expect(p).toContain('const X = 1;'); // el componente previo
+    expect(p).toContain('schema_ts');
   });
 
   it('el lote de "generar todas" excluye transition (no se monta hoy)', () => {

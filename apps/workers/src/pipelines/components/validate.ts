@@ -11,8 +11,10 @@ import {
   channelSettingsSchema,
   componentManifestV1,
   componentTypeSchema,
+  JOBS,
   QUEUES,
   type ComponentManifest,
+  type ComponentsAuthorJob,
   type ComponentsValidateJob,
   type ComponentType,
 } from '@fabrica/shared';
@@ -43,6 +45,8 @@ const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
 
 const MAX_LOG_CHARS = 8_000;
+// intentos de auto-reparación de componentes de IA (author↔validate acotado)
+const MAX_REPAIR_ATTEMPTS = 2;
 
 function videoPackageDir(): string {
   // igual que el worker de render: localiza packages/video via el subpath
@@ -197,13 +201,43 @@ export async function handleComponentsValidate(
       detail.length > MAX_LOG_CHARS
         ? `${detail.slice(0, MAX_LOG_CHARS)}\n… (log recortado)`
         : detail;
+    // auto-reparación: si el componente lo escribió la IA y quedan intentos, en
+    // vez de fallar en firme se re-encola la autoría pasándole el error exacto
+    // para que lo corrija (bucle acotado author↔validate; cola concurrencia-1).
+    const attempt = job.data.authorAttempt;
+    const canRepair = attempt !== undefined && attempt < MAX_REPAIR_ATTEMPTS;
     await ctx.db
       .update(components)
-      .set({ status: 'failed', log: `[${phase}]\n${trimmed}`, previewPath: null })
+      .set({
+        status: 'failed',
+        log: canRepair
+          ? `[${phase}] auto-reparando (intento ${attempt! + 1}/${MAX_REPAIR_ATTEMPTS})\n${trimmed}`
+          : `[${phase}]\n${trimmed}`,
+        previewPath: null,
+      })
       .where(eq(components.id, componentId));
+    if (canRepair) {
+      try {
+        const [prevSchemaTs, prevComponentTsx] = await Promise.all([
+          fsp.readFile(path.join(row.path, 'schema.ts'), 'utf8'),
+          fsp.readFile(path.join(row.path, 'Component.tsx'), 'utf8'),
+        ]);
+        const payload: ComponentsAuthorJob = {
+          channelId: row.channelId,
+          type: row.type as ComponentType,
+          attempt: attempt! + 1,
+          repairContext: { prevSchemaTs, prevComponentTsx, failureLog: `[${phase}]\n${trimmed}` },
+        };
+        await ctx.queues.components.add(JOBS.components.author, payload);
+        log.warn({ phase, attempt }, 'Validación fallida; auto-reparación encolada');
+      } catch (err) {
+        log.error({ err }, 'No se pudo encolar la auto-reparación; queda fallido');
+      }
+    } else {
+      log.warn({ phase }, 'Validación de componente fallida');
+    }
     await publishProgress(100, `Validación fallida: ${phase}`);
     await ctx.publishEvent({ type: 'inbox_changed' });
-    log.warn({ phase }, 'Validación de componente fallida');
   };
 
   const videoPkg = videoPackageDir();

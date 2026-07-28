@@ -7,6 +7,7 @@ import { channels, components } from '@fabrica/db';
 import {
   authoredComponentName,
   buildComponentAuthorPrompt,
+  buildComponentRepairPrompt,
   componentAuthorOutputSchema,
   authoredTemplateOutput,
   componentManifestV1,
@@ -51,8 +52,9 @@ export async function handleComponentsAuthor(
   ctx: WorkerContext,
   job: Job<ComponentsAuthorJob>,
 ): Promise<void> {
-  const { channelId, type } = job.data;
-  const log = ctx.logger.child({ channelId, type, queue: QUEUES.components, op: 'author' });
+  const { channelId, type, repairContext } = job.data;
+  const attempt = job.data.attempt ?? 0;
+  const log = ctx.logger.child({ channelId, type, attempt, queue: QUEUES.components, op: 'author' });
 
   const [channel] = await ctx.db
     .select({ name: channels.name, profile: channels.profile })
@@ -74,10 +76,14 @@ export async function handleComponentsAuthor(
     language: profile?.language === 'en' ? 'en' : 'es',
   };
 
-  const prompt = buildComponentAuthorPrompt(type, tokens, {
-    design: design as unknown as Record<string, string>,
-    ...(profile?.character ? { character: profile.character } : {}),
-  });
+  // auto-reparación: si venimos de un fallo, se pide corregir el error exacto;
+  // si no, es la autoría normal
+  const prompt = repairContext
+    ? buildComponentRepairPrompt(type, repairContext)
+    : buildComponentAuthorPrompt(type, tokens, {
+        design: design as unknown as Record<string, string>,
+        ...(profile?.character ? { character: profile.character } : {}),
+      });
 
   // fila de progreso de la cola components: el dashboard la escucha por SSE
   const publishProgress = async (progress: number, detail: string, componentId: string) => {
@@ -146,15 +152,16 @@ export async function handleComponentsAuthor(
     path: destDir,
     manifest,
     status: 'pending',
-    log: 'Generado por IA; validación en marcha',
+    log: attempt > 0 ? `Generado por IA (reparación ${attempt}); validando` : 'Generado por IA; validación en marcha',
     previewPath: null,
   });
 
   await publishProgress(5, 'Componente generado por IA; validando', componentId);
-  const payload: ComponentsValidateJob = { componentId, autoActivate: true };
+  // authorAttempt habilita la auto-reparación al fallar la validación
+  const payload: ComponentsValidateJob = { componentId, autoActivate: true, authorAttempt: attempt };
   await ctx.queues.components.add(JOBS.components.validate, payload);
   await ctx.publishEvent({ type: 'inbox_changed' });
-  log.info({ reference: `${name}@${version}`, componentId }, 'Componente autorizado por IA; a validar');
+  log.info({ reference: `${name}@${version}`, componentId, attempt }, 'Componente autorizado por IA; a validar');
 }
 
 // Modo mock: la operación 'component_author' devuelve la plantilla determinista
