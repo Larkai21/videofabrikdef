@@ -1,4 +1,5 @@
 export * from './constants.js';
+export * from './design.js';
 export * from './states.js';
 export * from './channel-profile.js';
 export * from './master-json.js';

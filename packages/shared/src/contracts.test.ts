@@ -3,7 +3,10 @@ import {
   canTransition,
   channelProfileV1,
   componentManifestV1,
+  defaultDesign,
+  designTokensSchema,
   demoProfile,
+  hexToRgba,
   makeDemoMaster,
   masterVideoJsonV1,
   parseComponentRef,
@@ -109,5 +112,42 @@ describe('Máquina de estados', () => {
 
   it('hecho es terminal', () => {
     expect(VIDEO_TRANSITIONS.hecho).toHaveLength(0);
+  });
+});
+
+describe('DesignTokens', () => {
+  it('defaultDesign es un conjunto de tokens válido', () => {
+    expect(() => designTokensSchema.parse(defaultDesign())).not.toThrow();
+  });
+
+  it('rechaza colores que no son hex', () => {
+    expect(designTokensSchema.safeParse({ ...defaultDesign(), accent: 'rojo' }).success).toBe(false);
+    expect(designTokensSchema.safeParse({ ...defaultDesign(), background: '#12' }).success).toBe(
+      false,
+    );
+  });
+
+  it('acepta hex de 3 y 6 dígitos', () => {
+    expect(designTokensSchema.safeParse({ ...defaultDesign(), accent: '#abc' }).success).toBe(true);
+    expect(designTokensSchema.safeParse({ ...defaultDesign(), accent: '#aabbcc' }).success).toBe(
+      true,
+    );
+  });
+
+  it('el perfil de canal admite brand_design opcional', () => {
+    expect(() =>
+      channelProfileV1.parse({ ...demoProfile, brand_design: defaultDesign() }),
+    ).not.toThrow();
+    // sin brand_design sigue siendo válido (fallback a defaultDesign en el render)
+    expect(channelProfileV1.safeParse(demoProfile).success).toBe(true);
+  });
+
+  it('hexToRgba expande #rgb y aplica el alpha acotado', () => {
+    expect(hexToRgba('#000000', 0.5)).toBe('rgba(0, 0, 0, 0.5)');
+    expect(hexToRgba('#fff', 1)).toBe('rgba(255, 255, 255, 1)');
+    expect(hexToRgba('#7aa2ff', 0.16)).toBe('rgba(122, 162, 255, 0.16)');
+    // alpha fuera de rango se recorta a [0, 1]
+    expect(hexToRgba('#000', 2)).toBe('rgba(0, 0, 0, 1)');
+    expect(hexToRgba('#000', -1)).toBe('rgba(0, 0, 0, 0)');
   });
 });

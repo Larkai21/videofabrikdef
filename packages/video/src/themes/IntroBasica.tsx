@@ -1,5 +1,6 @@
 import React from 'react';
-import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import { defaultDesign, type DesignTokens } from '@fabrica/shared';
 import { FONT_FAMILY } from '../fonts';
 
 // Intro integrada 'intro-basica@0.1.0' (contrato introOutroPropsSchema en
@@ -11,11 +12,13 @@ import { FONT_FAMILY } from '../fonts';
 export type IntroOutroProps = {
   channel_name: string;
   logo?: string;
+  design?: DesignTokens;
 };
 
-export const IntroBasica: React.FC<IntroOutroProps> = ({ channel_name }) => {
+export const IntroBasica: React.FC<IntroOutroProps> = ({ channel_name, logo, design }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
+  const d = design ?? defaultDesign();
   const appear = interpolate(frame, [0, 16], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -32,16 +35,28 @@ export const IntroBasica: React.FC<IntroOutroProps> = ({ channel_name }) => {
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: '#0b0f19',
+        backgroundColor: d.background,
         justifyContent: 'center',
         alignItems: 'center',
         fontFamily: FONT_FAMILY,
       }}
     >
       <div style={{ opacity, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22 }}>
-        <div style={{ width: barWidth, height: 6, borderRadius: 3, background: '#7aa2ff' }} />
+        {logo ? (
+          <Img
+            src={logo}
+            style={{
+              width: 180,
+              height: 180,
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: `4px solid ${d.accent}`,
+            }}
+          />
+        ) : null}
+        <div style={{ width: barWidth, height: 6, borderRadius: 3, background: d.accent }} />
         {channel_name.length > 0 ? (
-          <div style={{ fontSize: 64, fontWeight: 700, color: '#f4f6fb', letterSpacing: 0.5 }}>
+          <div style={{ fontSize: 64, fontWeight: 700, color: d.foreground, letterSpacing: 0.5 }}>
             {channel_name}
           </div>
         ) : null}

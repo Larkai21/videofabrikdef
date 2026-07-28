@@ -1,5 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, Img } from 'remotion';
+import { defaultDesign, hexToRgba, type DesignTokens } from '@fabrica/shared';
 import { ensureFontLoaded, FONT_FAMILY } from './fonts';
 import { isRenderableSrc, toSrc } from './media-src';
 
@@ -9,25 +10,24 @@ export type ThumbnailTemplateProps = {
   text: string;
   image_path?: string;
   variant: 'a' | 'b';
-};
-
-const ACCENTS: Record<ThumbnailTemplateProps['variant'], string> = {
-  a: '#ffd166',
-  b: '#4cc9f0',
+  design?: DesignTokens;
 };
 
 // Miniatura 1280×720: fondo oscuro, texto enorme (≤4 palabras) y acento de
-// marca. La variante cambia acento y posición para el test A/B.
+// marca. La variante cambia posición y el foco del degradado para el test A/B;
+// el color de acento y el fondo salen de los tokens de diseño del canal.
 export const ThumbnailTemplate: React.FC<ThumbnailTemplateProps> = ({
   text,
   image_path,
   variant,
+  design,
 }) => {
   ensureFontLoaded();
-  const accent = ACCENTS[variant];
+  const d = design ?? defaultDesign();
+  const glow = hexToRgba(d.accent, 0.16);
   const hasImage = Boolean(image_path && isRenderableSrc(image_path));
   return (
-    <AbsoluteFill style={{ backgroundColor: '#0d1117', fontFamily: FONT_FAMILY }}>
+    <AbsoluteFill style={{ backgroundColor: d.background, fontFamily: FONT_FAMILY }}>
       {hasImage && image_path ? (
         <AbsoluteFill>
           <Img
@@ -40,8 +40,8 @@ export const ThumbnailTemplate: React.FC<ThumbnailTemplateProps> = ({
         style={{
           background:
             variant === 'a'
-              ? 'radial-gradient(circle at 20% 80%, rgba(255, 209, 102, 0.16), transparent 55%)'
-              : 'radial-gradient(circle at 80% 20%, rgba(76, 201, 240, 0.16), transparent 55%)',
+              ? `radial-gradient(circle at 20% 80%, ${glow}, transparent 55%)`
+              : `radial-gradient(circle at 80% 20%, ${glow}, transparent 55%)`,
         }}
       />
       <AbsoluteFill
@@ -54,7 +54,7 @@ export const ThumbnailTemplate: React.FC<ThumbnailTemplateProps> = ({
           style={{
             width: 180,
             height: 14,
-            backgroundColor: accent,
+            backgroundColor: d.accent,
             borderRadius: 7,
             marginBottom: 28,
             marginTop: variant === 'a' ? 0 : 24,
@@ -65,7 +65,7 @@ export const ThumbnailTemplate: React.FC<ThumbnailTemplateProps> = ({
             fontSize: 132,
             fontWeight: 800,
             lineHeight: 1.04,
-            color: '#ffffff',
+            color: d.foreground,
             letterSpacing: -2,
             textShadow: '0 6px 30px rgba(0, 0, 0, 0.8)',
             maxWidth: 1000,

@@ -5,6 +5,7 @@ import { channels } from '@fabrica/db';
 import {
   channelProfileV1,
   channelSettingsSchema,
+  designTokensSchema,
   JOBS,
   QUEUES,
   wizardRequestSchema,
@@ -12,7 +13,7 @@ import {
   type SourcesBootstrapJob,
 } from '@fabrica/shared';
 import type { ApiContext } from '../lib/context.js';
-import { notFound } from '../lib/errors.js';
+import { conflict, notFound } from '../lib/errors.js';
 
 type ChannelRow = typeof channels.$inferSelect;
 
@@ -69,6 +70,32 @@ export function registerChannelRoutes(app: FastifyInstance, ctx: ApiContext): vo
     const [row] = await ctx.db
       .update(channels)
       .set({ profile, profileApproved: true })
+      .where(eq(channels.id, id))
+      .returning();
+    if (!row) throw notFound(`Canal ${id} no existe`);
+    return channelDto(row);
+  });
+
+  // Design system: guarda solo los tokens de color/tipografía dentro del perfil
+  // sin obligar al dashboard a reenviar el perfil completo. Los vídeos NUEVOS
+  // congelan estos tokens en master.brand.design al aprobar la idea (ideas.ts);
+  // los ya existentes no cambian (el render no lee BD).
+  app.patch('/channels/:id/design', async (req) => {
+    const { id } = req.params as { id: string };
+    const design = designTokensSchema.parse(req.body);
+    const [current] = await ctx.db
+      .select({ profile: channels.profile })
+      .from(channels)
+      .where(eq(channels.id, id))
+      .limit(1);
+    if (!current) throw notFound(`Canal ${id} no existe`);
+    if (!current.profile) {
+      throw conflict('El canal todavía no tiene un perfil aprobado');
+    }
+    const profile = channelProfileV1.parse({ ...current.profile, brand_design: design });
+    const [row] = await ctx.db
+      .update(channels)
+      .set({ profile })
       .where(eq(channels.id, id))
       .returning();
     if (!row) throw notFound(`Canal ${id} no existe`);

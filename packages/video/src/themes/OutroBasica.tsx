@@ -1,5 +1,6 @@
 import React from 'react';
-import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import { defaultDesign } from '@fabrica/shared';
 import { FONT_FAMILY } from '../fonts';
 import type { IntroOutroProps } from './IntroBasica';
 
@@ -7,9 +8,10 @@ import type { IntroOutroProps } from './IntroBasica';
 // Duración fija OUTRO_BASICA_DURATION_FRAMES (registry-gen.ts); se monta tras
 // el último beat. Determinismo: solo useCurrentFrame, sin relojes ni red.
 
-export const OutroBasica: React.FC<IntroOutroProps> = ({ channel_name }) => {
+export const OutroBasica: React.FC<IntroOutroProps> = ({ channel_name, logo, design }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
+  const d = design ?? defaultDesign();
   const appear = interpolate(frame, [0, 18], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -26,7 +28,7 @@ export const OutroBasica: React.FC<IntroOutroProps> = ({ channel_name }) => {
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: '#0b0f19',
+        backgroundColor: d.background,
         justifyContent: 'center',
         alignItems: 'center',
         fontFamily: FONT_FAMILY,
@@ -43,11 +45,24 @@ export const OutroBasica: React.FC<IntroOutroProps> = ({ channel_name }) => {
           textAlign: 'center',
         }}
       >
-        <div style={{ fontSize: 58, fontWeight: 700, color: '#f4f6fb' }}>Gracias por ver</div>
-        {channel_name.length > 0 ? (
-          <div style={{ fontSize: 30, fontWeight: 400, color: '#aab6cc' }}>{channel_name}</div>
+        {logo ? (
+          <Img
+            src={logo}
+            style={{
+              width: 140,
+              height: 140,
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: `4px solid ${d.accent}`,
+              marginBottom: 6,
+            }}
+          />
         ) : null}
-        <div style={{ fontSize: 24, fontWeight: 400, color: '#7aa2ff' }}>
+        <div style={{ fontSize: 58, fontWeight: 700, color: d.foreground }}>Gracias por ver</div>
+        {channel_name.length > 0 ? (
+          <div style={{ fontSize: 30, fontWeight: 400, color: d.muted }}>{channel_name}</div>
+        ) : null}
+        <div style={{ fontSize: 24, fontWeight: 400, color: d.accent }}>
           Suscríbete para el próximo vídeo
         </div>
       </div>

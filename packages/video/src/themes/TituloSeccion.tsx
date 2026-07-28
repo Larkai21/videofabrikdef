@@ -1,5 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import { defaultDesign, hexToRgba, type DesignTokens } from '@fabrica/shared';
 import { FONT_FAMILY } from '../fonts';
 
 // Tarjeta de sección integrada 'titulo-seccion@0.1.0' (contrato
@@ -11,11 +12,13 @@ import { FONT_FAMILY } from '../fonts';
 export type TitleCardProps = {
   title: string;
   fromFrame: number;
+  design?: DesignTokens;
 };
 
-export const TituloSeccion: React.FC<TitleCardProps> = ({ title }) => {
+export const TituloSeccion: React.FC<TitleCardProps> = ({ title, design }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
+  const d = design ?? defaultDesign();
   if (title.trim() === '') return null;
 
   const appear = interpolate(frame, [0, 14], [0, 1], {
@@ -52,7 +55,7 @@ export const TituloSeccion: React.FC<TitleCardProps> = ({ title }) => {
           gap: 18,
           padding: '28px 48px',
           borderRadius: 16,
-          background: 'rgba(11, 15, 25, 0.62)',
+          background: hexToRgba(d.background, 0.62),
           backdropFilter: 'blur(6px)',
           boxShadow: '0 18px 60px rgba(0, 0, 0, 0.45)',
           maxWidth: 1200,
@@ -62,7 +65,7 @@ export const TituloSeccion: React.FC<TitleCardProps> = ({ title }) => {
           style={{
             fontSize: 68,
             fontWeight: 700,
-            color: '#f4f6fb',
+            color: d.foreground,
             letterSpacing: 0.3,
             textAlign: 'center',
             lineHeight: 1.1,
@@ -71,7 +74,7 @@ export const TituloSeccion: React.FC<TitleCardProps> = ({ title }) => {
         >
           {title}
         </div>
-        <div style={{ width: barWidth, height: 5, borderRadius: 3, background: '#7aa2ff' }} />
+        <div style={{ width: barWidth, height: 5, borderRadius: 3, background: d.accent }} />
       </div>
     </AbsoluteFill>
   );

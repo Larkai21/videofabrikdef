@@ -6,6 +6,7 @@ import { channels, ideas, videos } from '@fabrica/db';
 import {
   channelSettingsSchema,
   defaultBrand,
+  defaultDesign,
   ideasOrderRequestSchema,
   ideaStatusSchema,
   JOBS,
@@ -122,8 +123,9 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
           height: 1080,
         },
         brand: {
-          // el render no lee BD: el nombre visible viaja congelado en el maestro
+          // el render no lee BD: nombre, tokens de diseño y refs viajan congelados
           channel_name: channel?.profile?.identity.name ?? channel?.name ?? '',
+          design: channel?.profile?.brand_design ?? defaultDesign(),
           components: { ...defaultBrand().components, ...settings.brand_components },
         },
       });

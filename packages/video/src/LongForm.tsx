@@ -3,7 +3,7 @@ import { AbsoluteFill, Audio, Sequence, useVideoConfig } from 'remotion';
 import { linearTiming, TransitionSeries } from '@remotion/transitions';
 import { fade } from '@remotion/transitions/fade';
 import { slide } from '@remotion/transitions/slide';
-import type { ComponentType as KitType, MasterVideoJson } from '@fabrica/shared';
+import { defaultDesign, type ComponentType as KitType, type MasterVideoJson } from '@fabrica/shared';
 import { BeatVisual } from './BeatVisual';
 import { computeBrandKitLayout, computeBrollTrack } from './brand-kit';
 import { ensureFontLoaded, FONT_FAMILY } from './fonts';
@@ -41,6 +41,12 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
   const cues = master.cues ?? [];
   const audio = master.audio;
   const themeRef = master.brand?.components.subtitle_theme ?? FALLBACK_SUBTITLE_THEME;
+  // tokens de diseño del canal (colores/tipografía); fallback a la paleta base
+  const design = master.brand?.design ?? defaultDesign();
+  const avatar =
+    master.brand?.avatar_path && isRenderableSrc(master.brand.avatar_path)
+      ? toSrc(master.brand.avatar_path)
+      : undefined;
   const layout = React.useMemo(() => computeBrandKitLayout(master), [master]);
   const offset = layout.introFrames;
   // fin del cuerpo relativo a la duración real de la composición (igual que
@@ -48,7 +54,7 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
   const bodyEnd = Math.max(offset + 1, totalFrames - layout.outroFrames);
 
   const audioEl = audio && isRenderableSrc(audio.path) ? <Audio src={toSrc(audio.path)} /> : null;
-  const subtitlesEl = <Subtitles cues={cues} themeRef={themeRef} />;
+  const subtitlesEl = <Subtitles cues={cues} themeRef={themeRef} design={design} />;
 
   // pista de b-roll con transiciones: solape compensado para que el corte
   // quede centrado y el total siga siendo baseFrames (audio/subtítulos intactos)
@@ -62,7 +68,7 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
   );
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#0b0f19', fontFamily: FONT_FAMILY }}>
+    <AbsoluteFill style={{ backgroundColor: design.background, fontFamily: FONT_FAMILY }}>
       {audioEl !== null ? (
         offset > 0 ? (
           <Sequence from={offset} name="Voz">
@@ -117,7 +123,7 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
           <KitSlot
             type="title_card"
             refName={layout.titleCard.ref}
-            kitProps={{ title: layout.titleCard.title, fromFrame: 0 }}
+            kitProps={{ title: layout.titleCard.title, fromFrame: 0, design }}
           />
         </Sequence>
       ) : null}
@@ -131,7 +137,7 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
           <KitSlot
             type="title_card"
             refName={card.ref}
-            kitProps={{ title: card.title, fromFrame: 0 }}
+            kitProps={{ title: card.title, fromFrame: 0, design }}
           />
         </Sequence>
       ))}
@@ -147,6 +153,7 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
             kitProps={{
               title: layout.lowerThird.title,
               fromFrame: 0,
+              design,
               ...(master.brand?.channel_name ? { subtitle: master.brand.channel_name } : {}),
             }}
           />
@@ -157,7 +164,11 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
           <KitSlot
             type="intro"
             refName={layout.intro.ref}
-            kitProps={{ channel_name: master.brand?.channel_name ?? '' }}
+            kitProps={{
+              channel_name: master.brand?.channel_name ?? '',
+              design,
+              ...(avatar ? { logo: avatar } : {}),
+            }}
           />
         </Sequence>
       ) : null}
@@ -170,7 +181,11 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
           <KitSlot
             type="outro"
             refName={layout.outro.ref}
-            kitProps={{ channel_name: master.brand?.channel_name ?? '' }}
+            kitProps={{
+              channel_name: master.brand?.channel_name ?? '',
+              design,
+              ...(avatar ? { logo: avatar } : {}),
+            }}
           />
         </Sequence>
       ) : null}

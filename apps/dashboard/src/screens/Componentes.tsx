@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
-import { COMPONENT_TYPES, type ComponentDto, type ComponentType } from '@fabrica/shared';
+import { useEffect, useRef, useState } from 'react';
+import {
+  COMPONENT_TYPES,
+  defaultDesign,
+  designTokensSchema,
+  type ChannelDto,
+  type ComponentDto,
+  type ComponentType,
+  type DesignTokens,
+} from '@fabrica/shared';
 import { Button, Chip, EmptyState, type ChipKind } from '../components/ui';
 import {
   activateComponent,
@@ -8,6 +16,7 @@ import {
   fileUrl,
   getComponentPrompt,
   getComponents,
+  putDesign,
   uploadComponent,
 } from '../lib/api';
 import { useChannel } from '../lib/channel';
@@ -34,6 +43,200 @@ const STATUS_CHIP: Record<ComponentDto['status'], { kind: ChipKind; label: strin
   validated: { kind: 'ok', label: 'Validado' },
   failed: { kind: 'danger', label: 'Fallido' },
 };
+
+// Etiquetas de cada token de color del design system (orden de edición).
+const DESIGN_TOKEN_LABELS: Array<{ key: keyof Omit<DesignTokens, 'font_family'>; label: string }> = [
+  { key: 'background', label: 'Fondo' },
+  { key: 'surface', label: 'Superficie' },
+  { key: 'foreground', label: 'Texto' },
+  { key: 'muted', label: 'Texto atenuado' },
+  { key: 'accent', label: 'Acento' },
+  { key: 'accent_fg', label: 'Texto sobre acento' },
+];
+
+const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+// Design system del canal: campos de color + tipografía editables a mano. Los
+// cambios se guardan en el perfil y los vídeos NUEVOS los congelan en
+// master.brand.design; las animaciones (integradas y las creadas por IA) los
+// leen, así que editar un color se ve sin regenerar nada.
+function DesignSystemCard({ channel }: { channel: ChannelDto }) {
+  const { push } = useToasts();
+  const queryClient = useQueryClient();
+  const saved = channel.profile?.brand_design ?? defaultDesign();
+  const [draft, setDraft] = useState<DesignTokens>(saved);
+
+  // si cambia el canal activo, recarga el borrador con sus tokens guardados
+  useEffect(() => {
+    setDraft(channel.profile?.brand_design ?? defaultDesign());
+  }, [channel.id, channel.profile?.brand_design]);
+
+  const saveMut = useMutation({
+    mutationFn: () => putDesign(channel.id, designTokensSchema.parse(draft)),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['channels'] });
+      push('Design system guardado');
+    },
+    onError: (err) =>
+      push(err instanceof Error ? err.message : 'No se pudo guardar el design system', 'danger'),
+  });
+
+  const dirty = DESIGN_TOKEN_LABELS.some(({ key }) => draft[key] !== saved[key]) ||
+    draft.font_family !== saved.font_family;
+  const allValid = DESIGN_TOKEN_LABELS.every(({ key }) => HEX_RE.test(draft[key]));
+
+  const setToken = (key: keyof DesignTokens, value: string) =>
+    setDraft((d) => ({ ...d, [key]: value }));
+
+  return (
+    <div
+      className="card"
+      style={{ padding: 'var(--pad)', marginBottom: 'var(--sec-gap)', display: 'grid', gap: 14 }}
+    >
+      <div className="head" style={{ fontSize: 14 }}>
+        Design system
+      </div>
+      <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.55 }}>
+        Colores y tipografía del canal. Se aplican al instante a las animaciones (subtítulos,
+        intro, outro, tarjetas y miniatura) de los vídeos nuevos, sin regenerar nada.
+      </p>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+          gap: 12,
+        }}
+      >
+        {DESIGN_TOKEN_LABELS.map(({ key, label }) => {
+          const value = draft[key];
+          const valid = HEX_RE.test(value);
+          return (
+            <label key={key} style={{ display: 'grid', gap: 6 }}>
+              <span className="muted fs-sm">{label}</span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="color"
+                  aria-label={`${label} (selector)`}
+                  value={valid ? (value.length === 4 ? expandHex(value) : value) : '#000000'}
+                  onChange={(e) => setToken(key, e.target.value)}
+                  style={{
+                    width: 40,
+                    height: 34,
+                    padding: 0,
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--r)',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                  }}
+                />
+                <input
+                  className="control mono"
+                  aria-label={`${label} (hex)`}
+                  value={value}
+                  spellCheck={false}
+                  onChange={(e) => setToken(key, e.target.value.trim())}
+                  style={{
+                    fontSize: 'var(--fs-sm)',
+                    borderColor: valid ? undefined : 'var(--danger, #e5484d)',
+                  }}
+                />
+              </div>
+            </label>
+          );
+        })}
+
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span className="muted fs-sm">Tipografía</span>
+          <select
+            className="control"
+            aria-label="Tipografía"
+            value={draft.font_family}
+            onChange={(e) => setToken('font_family', e.target.value)}
+            style={{ fontSize: 'var(--fs-sm)' }}
+          >
+            <option value="Inter">Inter</option>
+          </select>
+        </label>
+      </div>
+
+      {/* vista previa en vivo de la paleta */}
+      <div
+        style={{
+          borderRadius: 'var(--r)',
+          border: '1px solid var(--line)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            background: draft.background,
+            padding: 20,
+            display: 'grid',
+            gap: 12,
+            fontFamily: draft.font_family,
+          }}
+        >
+          <div style={{ color: draft.foreground, fontSize: 22, fontWeight: 700 }}>
+            {channel.name}
+          </div>
+          <div style={{ color: draft.muted, fontSize: 14 }}>Texto secundario de ejemplo</div>
+          <div style={{ width: 160, height: 6, borderRadius: 3, background: draft.accent }} />
+          <div
+            style={{
+              background: draft.surface,
+              borderRadius: 'var(--r)',
+              padding: '12px 14px',
+              display: 'flex',
+              gap: 10,
+              alignItems: 'center',
+            }}
+          >
+            <span style={{ color: draft.foreground, fontSize: 14 }}>Tarjeta sobre superficie</span>
+            <span
+              style={{
+                marginLeft: 'auto',
+                background: draft.accent,
+                color: draft.accent_fg,
+                fontSize: 13,
+                fontWeight: 600,
+                padding: '4px 10px',
+                borderRadius: 999,
+              }}
+            >
+              Acento
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Button
+          variant="primary"
+          disabled={!dirty || !allValid || saveMut.isPending}
+          onClick={() => saveMut.mutate()}
+        >
+          {saveMut.isPending ? 'Guardando' : 'Guardar design system'}
+        </Button>
+        {dirty ? (
+          <Button variant="secondary" disabled={saveMut.isPending} onClick={() => setDraft(saved)}>
+            Descartar cambios
+          </Button>
+        ) : null}
+        {!allValid ? (
+          <span className="muted fs-sm">Revisa los colores: usa formato #rgb o #rrggbb.</span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// Expande #rgb → #rrggbb para el <input type="color"> (que solo acepta 6 díg.).
+function expandHex(hex: string): string {
+  const h = hex.replace('#', '');
+  return `#${h.split('').map((c) => c + c).join('')}`;
+}
 
 // Diseñar con Claude: elige un tipo y copia el "prompt-contrato" (tokens de
 // marca + props exactas + reglas de Remotion) para pegarlo en Claude Design.
@@ -301,6 +504,8 @@ export function Componentes() {
           incorpora en el siguiente build (en desarrollo se recarga sola).
         </p>
       </div>
+
+      {channel !== undefined ? <DesignSystemCard channel={channel} /> : null}
 
       {channelId !== null ? <DesignPromptCard channelId={channelId} /> : null}
 

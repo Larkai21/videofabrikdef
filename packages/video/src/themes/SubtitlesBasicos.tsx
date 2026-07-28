@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, interpolate } from 'remotion';
-import type { Cue, Word } from '@fabrica/shared';
-import { CUE_MAX_LINES } from '@fabrica/shared';
+import type { Cue, DesignTokens, Word } from '@fabrica/shared';
+import { CUE_MAX_LINES, defaultDesign } from '@fabrica/shared';
 import { FONT_FAMILY } from '../fonts';
 
 // Contrato de props de un tema de subtítulos: subtitleThemePropsSchema en
@@ -10,6 +10,7 @@ import { FONT_FAMILY } from '../fonts';
 export type SubtitleThemeProps = {
   cues: unknown[];
   currentMs: number;
+  design?: DesignTokens;
   safeArea: { top: number; right: number; bottom: number; left: number };
 };
 
@@ -34,10 +35,13 @@ export function splitCueLines(words: Word[]): Word[][] {
   return [words.slice(0, cut), words.slice(cut)];
 }
 
-function wordColor(word: Word, currentMs: number): string {
-  if (currentMs >= word.from_ms && currentMs < word.to_ms) return '#ffd166';
-  if (currentMs >= word.to_ms) return '#ffffff';
-  return 'rgba(255, 255, 255, 0.55)';
+// Colores del karaoke derivados de los tokens del canal: la palabra que suena
+// usa el acento de marca; las ya dichas, el color de texto principal; las que
+// faltan, el color atenuado.
+function wordColor(word: Word, currentMs: number, d: DesignTokens): string {
+  if (currentMs >= word.from_ms && currentMs < word.to_ms) return d.accent;
+  if (currentMs >= word.to_ms) return d.foreground;
+  return d.muted;
 }
 
 // Pop sutil de la palabra al pronunciarse: sube a 1,12x en ~120 ms y vuelve a
@@ -69,8 +73,10 @@ function cueEnter(cue: Cue, currentMs: number): { opacity: number; translateY: n
 export const SubtitlesBasicos: React.FC<SubtitleThemeProps> = ({
   cues,
   currentMs,
+  design,
   safeArea,
 }) => {
+  const d = design ?? defaultDesign();
   const typedCues = cues as Cue[];
   const active = typedCues.find((c) => currentMs >= c.from_ms && currentMs < c.to_ms);
   if (!active) return null;
@@ -105,7 +111,7 @@ export const SubtitlesBasicos: React.FC<SubtitleThemeProps> = ({
                 <span
                   key={wi}
                   style={{
-                    color: wordColor(word, currentMs),
+                    color: wordColor(word, currentMs, d),
                     // scale por palabra: transform en inline-block para no
                     // descolocar la línea; el pop no altera el flujo del texto
                     display: 'inline-block',
@@ -119,7 +125,7 @@ export const SubtitlesBasicos: React.FC<SubtitleThemeProps> = ({
             </div>
           ))
         ) : (
-          <div style={{ color: '#ffffff' }}>{active.text}</div>
+          <div style={{ color: d.foreground }}>{active.text}</div>
         )}
       </div>
     </AbsoluteFill>

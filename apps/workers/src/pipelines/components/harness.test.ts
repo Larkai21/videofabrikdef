@@ -41,8 +41,11 @@ describe('contractTsType', () => {
     expect(contractTsType('intro')).toContain('channel_name: string');
     expect(contractTsType('outro')).toContain('channel_name: string');
     // contratos mínimos de S3 (docs/contratos.md §3)
-    expect(contractTsType('title_card')).toBe('{ title: string; fromFrame: number }');
-    expect(contractTsType('transition')).toBe('{ durationInFrames: number }');
+    expect(contractTsType('title_card')).toBe('{ title: string; fromFrame: number; design?: DesignTokens }');
+    expect(contractTsType('transition')).toBe('{ durationInFrames: number; design?: DesignTokens }');
+    // todos los contratos exponen los tokens de diseño del canal
+    expect(contractTsType('lower_third')).toContain('design?: DesignTokens');
+    expect(contractTsType('subtitle_theme')).toContain('design?: DesignTokens');
   });
 });
 
@@ -52,15 +55,17 @@ describe('buildHarnessSource', () => {
     expect(src).toContain("import Component from './component/Component';");
     expect(src).toContain("import schema from './component/schema';");
     expect(src).toContain('const zodSchema: z.ZodType = schema;');
-    expect(src).toContain('type ContractProps = { title: string; subtitle?: string; fromFrame: number };');
+    expect(src).toContain('type ContractProps = { title: string; subtitle?: string; fromFrame: number; design?: DesignTokens };');
     expect(src).toContain('ComponentType<ContractProps>');
+    // el harness importa el tipo de tokens de diseño para el contrato
+    expect(src).toContain("import type { DesignTokens } from '@fabrica/shared';");
   });
 
   it('title_card y transition compilan contra su contrato mínimo', () => {
     const titleCard = buildHarnessSource('title_card', './component/schema');
-    expect(titleCard).toContain('type ContractProps = { title: string; fromFrame: number };');
+    expect(titleCard).toContain('type ContractProps = { title: string; fromFrame: number; design?: DesignTokens };');
     const transition = buildHarnessSource('transition', './component/schema');
-    expect(transition).toContain('type ContractProps = { durationInFrames: number };');
+    expect(transition).toContain('type ContractProps = { durationInFrames: number; design?: DesignTokens };');
   });
 });
 

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { designTokensSchema } from './design.js';
 
 // ComponentManifest v1 (docs/contratos.md §3) — manifest.json dentro del zip
 // del brand kit. Validación al subir: unzip → typecheck contra el contrato →
@@ -79,9 +80,12 @@ export function parseComponentRef(ref: string): { name: string; version: string 
 
 // Contratos de props mínimos por tipo (docs/contratos.md §3). El zip aporta su
 // schema.ts concreto; estos son los campos que la composición garantiza pasar.
+// `design` (tokens de color/tipografía) se pasa a TODOS los componentes para
+// que respeten el design system del canal; es opcional para compatibilidad.
 export const subtitleThemePropsSchema = z.object({
   cues: z.array(z.unknown()),
   currentMs: z.number(),
+  design: designTokensSchema.optional(),
   safeArea: z.object({
     top: z.number(),
     right: z.number(),
@@ -94,6 +98,7 @@ export const lowerThirdPropsSchema = z.object({
   title: z.string(),
   subtitle: z.string().optional(),
   fromFrame: z.number(),
+  design: designTokensSchema.optional(),
 });
 
 export const thumbnailTemplatePropsSchema = z.object({
@@ -101,11 +106,14 @@ export const thumbnailTemplatePropsSchema = z.object({
   // opcional: la plantilla integrada de S1 compone sin imagen de fondo
   image_path: z.string().optional(),
   variant: z.enum(['a', 'b']),
+  design: designTokensSchema.optional(),
 });
 
 export const introOutroPropsSchema = z.object({
   channel_name: z.string(),
+  // avatar/personaje del canal (URL); las animaciones lo muestran si existe
   logo: z.string().optional(),
+  design: designTokensSchema.optional(),
 });
 
 // title_card: rótulo de apertura del hook. La composición garantiza el título
@@ -113,10 +121,12 @@ export const introOutroPropsSchema = z.object({
 export const titleCardPropsSchema = z.object({
   title: z.string(),
   fromFrame: z.number(),
+  design: designTokensSchema.optional(),
 });
 
 // transition: pieza de duración fija entre bloques; recibe los frames que le
 // asigna la composición (fixed_duration_frames del manifest).
 export const transitionPropsSchema = z.object({
   durationInFrames: z.number(),
+  design: designTokensSchema.optional(),
 });

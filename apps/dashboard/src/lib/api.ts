@@ -21,6 +21,7 @@ import {
   channelSettingsSchema,
   type ChannelSettings,
   type ChannelSettingsUpdate,
+  type DesignTokens,
 } from '@fabrica/shared';
 
 export const API_URL: string =
@@ -72,6 +73,14 @@ function put(path: string, body: unknown): Promise<unknown> {
   });
 }
 
+function patch(path: string, body: unknown): Promise<unknown> {
+  return request(path, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 // La API puede devolver la lista directamente o envuelta en { <key>: [...] }.
 function unwrapList(data: unknown, key: string): unknown[] {
   if (Array.isArray(data)) return data;
@@ -118,6 +127,12 @@ export async function putProfile(
 ): Promise<void> {
   // la API recibe el perfil como cuerpo y marca profile_approved al guardarlo
   await put(`/channels/${id}/profile`, profile);
+}
+
+// design system: guarda solo los tokens (colores/tipografía) del canal y
+// devuelve el canal actualizado
+export async function putDesign(id: string, design: DesignTokens): Promise<ChannelDto> {
+  return channelDtoSchema.parse(await patch(`/channels/${id}/design`, design));
 }
 
 // settings del canal (presupuesto, duración objetivo, música de fondo…)

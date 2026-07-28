@@ -1,4 +1,4 @@
-import { makeDemoMaster, type ComponentType } from '@fabrica/shared';
+import { defaultDesign, makeDemoMaster, type ComponentType } from '@fabrica/shared';
 
 // Contrato de props mínimo por tipo de componente del brand kit
 // (docs/contratos.md §3). El zip aporta su schema.ts concreto; aquí se
@@ -8,6 +8,9 @@ import { makeDemoMaster, type ComponentType } from '@fabrica/shared';
 
 /** Props de ejemplo del contrato mínimo para un tipo dado. */
 export function samplePropsFor(type: ComponentType): Record<string, unknown> {
+  // los tokens de diseño del canal viajan a TODOS los componentes (opcionales
+  // en el contrato, pero el schema del zip debe aceptarlos si los declara)
+  const design = defaultDesign();
   switch (type) {
     case 'subtitle_theme': {
       // cues reales del maestro de demo compartido (misma fuente que el
@@ -16,22 +19,23 @@ export function samplePropsFor(type: ComponentType): Record<string, unknown> {
       return {
         cues: master.cues ?? [],
         currentMs: 600,
+        design,
         // mismos valores que SAFE_AREA de Subtitles.tsx (duplicados a
         // propósito: este módulo no importa React)
         safeArea: { top: 90, right: 160, bottom: 120, left: 160 },
       };
     }
     case 'lower_third':
-      return { title: 'Canal de ejemplo', subtitle: 'Dato de contexto', fromFrame: 0 };
+      return { title: 'Canal de ejemplo', subtitle: 'Dato de contexto', fromFrame: 0, design };
     case 'title_card':
-      return { title: 'Titular de prueba', fromFrame: 0 };
+      return { title: 'Titular de prueba', fromFrame: 0, design };
     case 'transition':
-      return { durationInFrames: 30 };
+      return { durationInFrames: 30, design };
     case 'thumbnail_template':
-      return { text: 'Titular de prueba', variant: 'a' };
+      return { text: 'Titular de prueba', variant: 'a', design };
     case 'intro':
     case 'outro':
-      return { channel_name: 'Canal de ejemplo' };
+      return { channel_name: 'Canal de ejemplo', design };
   }
 }
 

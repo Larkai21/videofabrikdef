@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { designTokensSchema } from './design.js';
 import { beatStatusSchema } from './states.js';
 
 // MasterVideoJson v1 (docs/contratos.md §2). El maestro se construye por fases:
@@ -139,6 +140,10 @@ export const storedSubvisualSchema = z.object({
 export const brandSchema = z.object({
   // nombre visible del canal para intro/outro/rótulos (el render no lee BD)
   channel_name: z.string().optional(),
+  // tokens de diseño congelados (colores/tipografía); el render no lee BD
+  design: designTokensSchema.optional(),
+  // avatar/personaje del canal (URL /files ya reescrita en el render)
+  avatar_path: z.string().optional(),
   // valores "tipo@versión" resueltos por el registry generado
   components: z.object({
     intro: z.string().optional(),

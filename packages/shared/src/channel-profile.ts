@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { designTokensSchema } from './design.js';
 
 // ChannelProfile v1 (docs/contratos.md §1). Se sintetiza en el wizard,
 // el humano lo edita y aprueba, y se inyecta como contexto en todo lo generado.
@@ -11,6 +12,15 @@ export const channelProfileV1 = z.object({
     audience: z.string(),
     tone: z.array(z.string()),
   }),
+  // personaje/mascota del canal (nombre + descripción) para el avatar y la marca
+  character: z
+    .object({
+      name: z.string(),
+      description: z.string(),
+    })
+    .optional(),
+  // design system editable (colores + tipografía); si falta, se usa defaultDesign()
+  brand_design: designTokensSchema.optional(),
   language: z.enum(['es', 'en']),
   pillars: z.array(
     z.object({

@@ -9,22 +9,24 @@ import type { ComponentManifest, ComponentType } from '@fabrica/shared';
 /**
  * Tipo TS del contrato mínimo de props por tipo de componente
  * (docs/contratos.md §3). null = tipo sin contrato mínimo definido.
+ * Todos los tipos con contrato reciben además `design?: DesignTokens` (los
+ * tokens de color/tipografía del canal), por eso el harness importa el tipo.
  */
 export function contractTsType(type: ComponentType): string | null {
   switch (type) {
     case 'subtitle_theme':
-      return '{ cues: unknown[]; currentMs: number; safeArea: { top: number; right: number; bottom: number; left: number } }';
+      return '{ cues: unknown[]; currentMs: number; design?: DesignTokens; safeArea: { top: number; right: number; bottom: number; left: number } }';
     case 'lower_third':
-      return '{ title: string; subtitle?: string; fromFrame: number }';
+      return '{ title: string; subtitle?: string; fromFrame: number; design?: DesignTokens }';
     case 'title_card':
-      return '{ title: string; fromFrame: number }';
+      return '{ title: string; fromFrame: number; design?: DesignTokens }';
     case 'transition':
-      return '{ durationInFrames: number }';
+      return '{ durationInFrames: number; design?: DesignTokens }';
     case 'thumbnail_template':
-      return "{ text: string; image_path?: string; variant: 'a' | 'b' }";
+      return "{ text: string; image_path?: string; variant: 'a' | 'b'; design?: DesignTokens }";
     case 'intro':
     case 'outro':
-      return '{ channel_name: string; logo?: string }';
+      return '{ channel_name: string; logo?: string; design?: DesignTokens }';
     default:
       return null;
   }
@@ -62,8 +64,11 @@ void componentAcceptsContract;`;
 // el contrato de props, compilado con el tsconfig de packages/video.
 import type { ComponentType } from 'react';
 import type { z } from 'zod';
+import type { DesignTokens } from '@fabrica/shared';
 import Component from './component/Component';
 import schema from '${schemaImportPath}';
+
+void (undefined as unknown as DesignTokens);
 
 // schema.ts debe exportar por defecto un esquema Zod
 const zodSchema: z.ZodType = schema;
