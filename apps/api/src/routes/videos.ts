@@ -1,3 +1,8 @@
+import { execFile } from 'node:child_process';
+import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
+import path from 'node:path';
+import { promisify } from 'node:util';
 import type { FastifyInstance } from 'fastify';
 import { asc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
@@ -290,5 +295,57 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
   app.post('/videos/:id/publish', async (req) => {
     const { id } = req.params as { id: string };
     return publishVideo(ctx, id);
+  });
+
+  // Descarga del MP4 final como attachment. /files sirve inline (el player lo
+  // necesita); esta ruta fuerza el diálogo de guardado del navegador.
+  // loadVideo valida el id contra la BD antes de tocar el disco.
+  app.get('/videos/:id/download', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const video = await loadVideo(ctx, id);
+    if (video.state !== 'hecho') throw conflict('El vídeo aún no está renderizado');
+    const filePath = path.join(ctx.outputsDir, id, 'video.mp4');
+    const info = await stat(filePath).catch(() => null);
+    if (info === null || !info.isFile()) throw notFound(`No hay video.mp4 en outputs/${id}`);
+    const slug = (video.titleChosen ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase()
+      .slice(0, 80);
+    return reply
+      .header('content-type', 'video/mp4')
+      .header('content-length', info.size)
+      .header('content-disposition', `attachment; filename="${slug === '' ? id : slug}.mp4"`)
+      .send(createReadStream(filePath));
+  });
+
+  // Abre la carpeta de entregables en el gestor de archivos del SISTEMA DONDE
+  // CORRE LA API (en el MVP, la misma máquina que el navegador). En un VPS sin
+  // entorno gráfico responde 409; el aviso del dashboard remite a la ruta en
+  // disco, que sigue visible en la tarjeta.
+  app.post('/videos/:id/reveal', async (req) => {
+    const { id } = req.params as { id: string };
+    await loadVideo(ctx, id);
+    const dir = path.join(ctx.outputsDir, id);
+    const info = await stat(dir).catch(() => null);
+    if (info === null || !info.isDirectory()) throw notFound(`Aún no existe outputs/${id}`);
+    const opener =
+      process.platform === 'darwin'
+        ? 'open'
+        : process.platform === 'win32'
+          ? 'explorer'
+          : 'xdg-open';
+    try {
+      // sin timeout, un xdg-open mal cableado deja la petición colgada
+      await promisify(execFile)(opener, [dir], { timeout: 5_000 });
+    } catch {
+      // explorer.exe sale con código 1 aunque abra la ventana (nodejs/node#14967)
+      if (process.platform !== 'win32') {
+        throw conflict('No se pudo abrir la carpeta en este sistema; usa la ruta mostrada');
+      }
+    }
+    return { ok: true };
   });
 }

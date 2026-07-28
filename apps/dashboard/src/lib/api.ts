@@ -355,6 +355,18 @@ export async function publishToYoutube(videoId: string): Promise<{ publish_at: s
   return { publish_at: typeof publishAt === 'string' ? publishAt : null };
 }
 
+// ---- entregables en disco ----
+
+/** URL de descarga del MP4 final (attachment: el navegador abre el diálogo de guardado). */
+export function videoDownloadUrl(videoId: string): string {
+  return `${API_URL}/videos/${encodeURIComponent(videoId)}/download`;
+}
+
+/** Abre outputs/<id> en el gestor de archivos de la máquina donde corre la API. */
+export async function revealVideoFolder(videoId: string): Promise<void> {
+  await post(`/videos/${encodeURIComponent(videoId)}/reveal`);
+}
+
 // ---- multicanal ----
 // Variantes con canal de getInbox/getIdeas: las firmas originales quedan
 // intactas (Entrega.tsx pasa getInbox como queryFn directa). Aceptan null

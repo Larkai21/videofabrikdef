@@ -11,6 +11,8 @@ import {
   getVideo,
   getYoutubeStatus,
   publishToYoutube,
+  revealVideoFolder,
+  videoDownloadUrl,
 } from '../lib/api';
 import { useLive } from '../lib/events';
 import { fmtMoney } from '../lib/format';
@@ -119,6 +121,18 @@ export function Entrega() {
         err instanceof ApiError && err.detail !== undefined
           ? err.detail
           : 'No se pudo encolar la subida',
+        'danger',
+      ),
+  });
+
+  const revealMut = useMutation({
+    mutationFn: () => revealVideoFolder(id),
+    onSuccess: () => push('Carpeta abierta en el gestor de archivos'),
+    onError: (err) =>
+      push(
+        err instanceof ApiError && err.detail !== undefined
+          ? err.detail
+          : 'No se pudo abrir la carpeta',
         'danger',
       ),
   });
@@ -372,6 +386,34 @@ export function Entrega() {
           <div className="card" style={{ padding: 'var(--pad)' }}>
             <div className="step-label" style={{ marginBottom: 8 }}>
               Carpeta en disco
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+              {/* target _blank: si la API responde error JSON, se pinta en una
+                  pestaña desechable en vez de reemplazar la SPA (en éxito el
+                  attachment descarga y Chrome cierra la pestaña solo) */}
+              <a
+                className="btn btn-primary"
+                style={{
+                  textDecoration: 'none',
+                  ...(video.state !== 'hecho' ? { opacity: 0.55, pointerEvents: 'none' } : {}),
+                }}
+                href={video.state === 'hecho' ? videoDownloadUrl(id) : undefined}
+                target="_blank"
+                rel="noreferrer"
+                aria-disabled={video.state !== 'hecho'}
+                onClick={(e) => {
+                  if (video.state !== 'hecho') e.preventDefault();
+                }}
+              >
+                Guardar el MP4
+              </a>
+              <Button
+                variant="secondary"
+                disabled={revealMut.isPending}
+                onClick={() => revealMut.mutate()}
+              >
+                Abrir la carpeta
+              </Button>
             </div>
             <div
               className="mono fs-sm"
