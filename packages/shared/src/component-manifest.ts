@@ -49,17 +49,30 @@ export const componentManifestV1 = z.object({
 export type ComponentManifest = z.infer<typeof componentManifestV1>;
 
 // Componentes integrados desde el día 1 (no requieren zip). Todo maestro nuevo
-// nace con ellos: el tema de subtítulos y la tarjeta de sección centrada.
+// nace con ellos: intro/outro cinematográficas, tema de subtítulos, tarjeta de
+// sección y rótulo inferior. Así cada vídeo estrena las animaciones sin config.
 export const DEFAULT_SUBTITLE_THEME_REF = 'subtitulos-basicos@0.1.0';
 export const DEFAULT_TITLE_CARD_REF = 'titulo-seccion@0.1.0';
+export const DEFAULT_INTRO_REF = 'intro-basica@0.1.0';
+export const DEFAULT_OUTRO_REF = 'outro-basica@0.1.0';
+export const DEFAULT_LOWER_THIRD_REF = 'rotulo-basico@0.1.0';
 
 export function defaultBrand(): {
-  components: { subtitle_theme: string; title_card: string };
+  components: {
+    subtitle_theme: string;
+    title_card: string;
+    intro: string;
+    outro: string;
+    lower_third: string;
+  };
 } {
   return {
     components: {
       subtitle_theme: DEFAULT_SUBTITLE_THEME_REF,
       title_card: DEFAULT_TITLE_CARD_REF,
+      intro: DEFAULT_INTRO_REF,
+      outro: DEFAULT_OUTRO_REF,
+      lower_third: DEFAULT_LOWER_THIRD_REF,
     },
   };
 }

@@ -15,7 +15,7 @@ describe('generateRegistrySource', () => {
   it('emite el mapa de metadatos con las duraciones fijas de los integrados', () => {
     const src = generateRegistrySource([]);
     expect(src).toContain('export const componentMeta');
-    expect(src).toContain("'intro-basica@0.1.0': { fixed_duration_frames: 60 },");
+    expect(src).toContain("'intro-basica@0.1.0': { fixed_duration_frames: 80 },");
     expect(src).toContain("'outro-basica@0.1.0': { fixed_duration_frames: 90 },");
     expect(src).toContain("'subtitulos-basicos@0.1.0': {},");
   });

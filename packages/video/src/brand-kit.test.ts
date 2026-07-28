@@ -122,9 +122,9 @@ describe('computeBrandKitLayout', () => {
     const layout = computeBrandKitLayout(
       masterWithKit({ intro: 'intro-basica@0.1.0', outro: 'outro-basica@0.1.0' }),
     );
-    expect(layout.introFrames).toBe(60);
+    expect(layout.introFrames).toBe(80);
     expect(layout.outroFrames).toBe(90);
-    expect(layout.totalFrames).toBe(60 + BASE_FRAMES + 90);
+    expect(layout.totalFrames).toBe(80 + BASE_FRAMES + 90);
   });
 
   it('monta el title_card al inicio del hook con el título elegido', () => {

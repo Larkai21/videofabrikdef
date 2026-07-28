@@ -35,7 +35,7 @@ interface RegistryLine {
 
 // Duraciones fijas de los integrados (frames a 30 fps). Los componentes leen
 // la suya con useVideoConfig(): la Sequence que los monta mide exactamente esto.
-export const INTRO_BASICA_DURATION_FRAMES = 60;
+export const INTRO_BASICA_DURATION_FRAMES = 80;
 export const OUTRO_BASICA_DURATION_FRAMES = 90;
 
 // Componentes integrados en el repo (S1: tema de subtítulos; S3: intro/outro
@@ -67,6 +67,11 @@ const BUILTINS: Array<{
     type: 'title_card',
     line: { ref: 'titulo-seccion@0.1.0', identifier: 'TituloSeccion' },
     importStmt: "import { TituloSeccion } from './themes/TituloSeccion';",
+  },
+  {
+    type: 'lower_third',
+    line: { ref: 'rotulo-basico@0.1.0', identifier: 'RotuloBasico' },
+    importStmt: "import { RotuloBasico } from './themes/RotuloBasico';",
   },
 ];
 

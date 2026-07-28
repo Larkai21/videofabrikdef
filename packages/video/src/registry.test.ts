@@ -27,7 +27,7 @@ describe('resolveComponent', () => {
 
 describe('componentMeta', () => {
   it('publica las duraciones fijas de los integrados (nunca se leen de BD)', () => {
-    expect(componentMeta['intro-basica@0.1.0']).toEqual({ fixed_duration_frames: 60 });
+    expect(componentMeta['intro-basica@0.1.0']).toEqual({ fixed_duration_frames: 80 });
     expect(componentMeta['outro-basica@0.1.0']).toEqual({ fixed_duration_frames: 90 });
     expect(componentMeta['subtitulos-basicos@0.1.0']).toEqual({});
   });
