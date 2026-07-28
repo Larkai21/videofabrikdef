@@ -349,7 +349,9 @@ export function Timeline() {
     const k = e.key.toLowerCase();
     if (k === 'a') {
       e.preventDefault();
-      if (sel !== undefined && sel.status !== 'locked') {
+      // sin la guarda de vuelo, pulsar rápido re-aprueba el mismo beat con
+      // datos rancios (la query aún no refleja el locked)
+      if (sel !== undefined && sel.status !== 'locked' && !actionMut.isPending) {
         actionMut.mutate({ idx: sel.idx, action: 'approve' });
       }
     } else if (e.key === ' ') {
