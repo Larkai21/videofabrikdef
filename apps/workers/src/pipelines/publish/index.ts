@@ -220,15 +220,19 @@ async function handlePublishUpload(ctx: WorkerContext, job: Job<PublishUploadJob
     throw err;
   }
 
-  // miniatura A (thumbnails.set: 50 unidades del pool general). El vídeo ya
-  // está subido: un fallo aquí no debe re-subirlo, se registra y se sigue.
-  const thumbPath = path.join(outDir, 'thumb_a.jpg');
+  // miniatura oficial (thumbnails.set: 50 unidades del pool general). Gana la
+  // subida por el humano (thumb_custom.*, generada a partir del brief); si no,
+  // la auto-generada thumb_a.jpg. Un fallo aquí no re-sube el vídeo.
+  const custom = (await fsp.readdir(outDir).catch(() => [])).find((e) =>
+    /^thumb_custom\.(png|jpg|jpeg|webp)$/i.test(e),
+  );
+  const thumbPath = path.join(outDir, custom ?? 'thumb_a.jpg');
   let thumbOk = false;
   try {
     await fsp.access(thumbPath);
     thumbOk = true;
   } catch {
-    log.warn('No hay thumb_a.jpg; el vídeo queda con la miniatura automática');
+    log.warn('No hay miniatura (thumb_custom/thumb_a); el vídeo queda con la automática de YouTube');
   }
   if (thumbOk) {
     const thumbCost = await openCost(ctx.db, {

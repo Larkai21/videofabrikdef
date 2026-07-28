@@ -21,7 +21,7 @@ export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 export const JOBS = {
   sources: { poll: 'poll', bootstrap: 'bootstrap', avatar: 'avatar' },
   ideas: { score: 'score' },
-  script: { generate: 'generate', judge: 'judge', refine: 'refine' },
+  script: { generate: 'generate', judge: 'judge', refine: 'refine', thumbnailBrief: 'thumbnail-brief' },
   tts: { synthesize: 'synthesize' },
   assets: { match: 'match', ingest: 'ingest' },
   render: { video: 'video' },
@@ -69,6 +69,13 @@ export interface ScriptRefineJob {
   videoId: string;
   patchTargets: string[];
   reasons: string[];
+}
+
+// Brief de miniatura de alta conversión (LLM): escribe outputs/<id>/
+// thumbnail-brief.json con {brief (ES), prompt (EN)} para que el humano genere y
+// suba la miniatura. Se encola al terminar el render y bajo demanda desde Entrega.
+export interface ThumbnailBriefJob {
+  videoId: string;
 }
 
 export interface TtsSynthesizeJob {

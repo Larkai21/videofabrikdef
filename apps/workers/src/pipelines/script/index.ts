@@ -6,6 +6,7 @@ import {
   QUEUES,
   type ScriptJudgeJob,
   type ScriptRefineJob,
+  type ThumbnailBriefJob,
 } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
 import { handleScriptGenerate } from './generate.js';
@@ -13,6 +14,7 @@ import { handleScriptJudge } from './judge.js';
 import { registerScriptMocks } from './mocks.js';
 import { handleScriptPackaging, type ScriptGenerateJobExt } from './packaging.js';
 import { handleScriptRefine } from './refine.js';
+import { handleThumbnailBrief, registerThumbnailBriefMock } from './thumbnail-brief.js';
 
 // una salida LLM inválida se arregla regenerando; un fallo de red, reintentando
 function isLlmValidationError(err: unknown): boolean {
@@ -62,6 +64,7 @@ async function reportFinalFailure(
 
 export async function registerScriptWorkers(ctx: WorkerContext): Promise<Worker[]> {
   registerScriptMocks();
+  registerThumbnailBriefMock();
 
   const worker = new Worker(
     QUEUES.script,
@@ -79,6 +82,8 @@ export async function registerScriptWorkers(ctx: WorkerContext): Promise<Worker[
           return handleScriptJudge(ctx, job.data as ScriptJudgeJob);
         case JOBS.script.refine:
           return handleScriptRefine(ctx, job.data as ScriptRefineJob);
+        case JOBS.script.thumbnailBrief:
+          return handleThumbnailBrief(ctx, job.data as ThumbnailBriefJob);
         default:
           ctx.logger.warn({ name: job.name }, 'Job desconocido en la cola script');
       }

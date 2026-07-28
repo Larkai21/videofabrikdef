@@ -28,6 +28,7 @@ export const COST_OPERATIONS = [
   'chapter_director',
   'vlm_caption',
   'component_author',
+  'thumbnail_brief',
   'tts',
   'search',
   'flux_schnell',

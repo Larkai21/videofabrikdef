@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
-import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { createReadStream, createWriteStream } from 'node:fs';
+import { mkdir, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { promisify } from 'node:util';
 import type { FastifyInstance } from 'fastify';
 import { asc, eq, inArray } from 'drizzle-orm';
@@ -14,6 +15,7 @@ import {
   titleChoiceRequestSchema,
   type MasterVideoJson,
   type QueueName,
+  type ThumbnailBriefJob,
   type VideoDetailDto,
   type VideoState,
 } from '@fabrica/shared';
@@ -24,6 +26,28 @@ import { masterWithFileUrls } from '../lib/master.js';
 import { publishVideo } from './youtube.js';
 
 type VideoRow = typeof videos.$inferSelect;
+
+const THUMB_UPLOAD_EXTS: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+};
+
+// URL /files de la miniatura oficial: la subida por el humano (thumb_custom.*)
+// gana; si no, la auto-generada thumb_a.jpg; null si aún no hay ninguna.
+async function officialThumbnailUrl(outputsDir: string, id: string): Promise<string | null> {
+  const dir = path.join(outputsDir, id);
+  let entries: string[] = [];
+  try {
+    entries = await readdir(dir);
+  } catch {
+    return null;
+  }
+  const custom = entries.find((e) => /^thumb_custom\.(png|jpg|jpeg|webp)$/i.test(e));
+  if (custom) return `/files/outputs/${id}/${custom}`;
+  if (entries.includes('thumb_a.jpg')) return `/files/outputs/${id}/thumb_a.jpg`;
+  return null;
+}
 
 async function loadVideo(ctx: ApiContext, id: string): Promise<VideoRow> {
   const [row] = await ctx.db.select().from(videos).where(eq(videos.id, id)).limit(1);
@@ -127,6 +151,7 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
       title_chosen: video.titleChosen ?? null,
       master: masterWithFileUrls(master),
       costs_total: video.costsTotal,
+      thumbnail_url: await officialThumbnailUrl(ctx.outputsDir, id),
       youtube: video.youtube ?? null,
       incident: video.incident
         ? { message: video.incident.message, suggested_action: video.incident.suggested_action }
@@ -347,5 +372,48 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
       }
     }
     return { ok: true };
+  });
+
+  // Brief de miniatura de alta conversión: encola el job LLM que escribe
+  // outputs/<id>/thumbnail-brief.json (descripción ES + prompt EN). El vídeo
+  // debe estar renderizado (existe la carpeta de salida).
+  app.post('/videos/:id/thumbnail-brief', async (req) => {
+    const { id } = req.params as { id: string };
+    const video = await loadVideo(ctx, id);
+    if (video.state !== 'hecho') throw conflict('El vídeo aún no está renderizado');
+    const payload: ThumbnailBriefJob = { videoId: id };
+    await ctx.enqueuer.enqueue(QUEUES.script, JOBS.script.thumbnailBrief, payload);
+    return { ok: true as const };
+  });
+
+  // Subida de la miniatura definitiva (la genera el humano a partir del brief).
+  // Pasa a ser la miniatura OFICIAL: outputs/<id>/thumb_custom.<ext> — la usa la
+  // subida a YouTube y se muestra en Entrega por delante de las auto-generadas.
+  app.post('/videos/:id/thumbnail', async (req) => {
+    const { id } = req.params as { id: string };
+    const video = await loadVideo(ctx, id);
+    if (video.state !== 'hecho') throw conflict('El vídeo aún no está renderizado');
+    const dir = path.join(ctx.outputsDir, id);
+    await mkdir(dir, { recursive: true });
+
+    let saved: string | null = null;
+    for await (const part of req.parts()) {
+      if (part.type === 'file') {
+        const ext = THUMB_UPLOAD_EXTS[part.mimetype];
+        if (ext === undefined) throw badRequest('La miniatura debe ser PNG, JPG o WebP');
+        // una sola miniatura personalizada: se limpian las anteriores
+        for (const e of await readdir(dir).catch(() => [])) {
+          if (/^thumb_custom\.(png|jpg|jpeg|webp)$/i.test(e)) {
+            await rm(path.join(dir, e), { force: true }).catch(() => {});
+          }
+        }
+        saved = path.join(dir, `thumb_custom.${ext}`);
+        await pipeline(part.file, createWriteStream(saved));
+      }
+    }
+    if (saved === null) throw badRequest('Falta el archivo de imagen en el multipart');
+
+    await ctx.events.publish({ type: 'inbox_changed' });
+    return { ok: true as const, thumbnail_url: `/files/outputs/${id}/${path.basename(saved)}` };
   });
 }

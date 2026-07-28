@@ -12,6 +12,7 @@ import {
   renderableMasterV1,
   type RenderableMaster,
   type RenderVideoJob,
+  type ThumbnailBriefJob,
 } from '@fabrica/shared';
 import {
   computeChapters,
@@ -279,6 +280,11 @@ async function handleRenderVideo(ctx: WorkerContext, job: Job<RenderVideoJob>): 
       total_frames: composition.durationInFrames,
     });
     await ctx.publishEvent({ type: 'video_state', video_id: videoId, state: 'hecho' });
+    // brief de miniatura de alta conversión: se genera aparte (LLM) y se escribe
+    // outputs/<id>/thumbnail-brief.json; no bloquea la entrega del vídeo
+    await ctx.queues.script.add(JOBS.script.thumbnailBrief, {
+      videoId,
+    } satisfies ThumbnailBriefJob);
     log.info({ outDir }, 'Render terminado y entregables escritos');
   } catch (err) {
     const message = `Fallo en el render: ${errorMessage(err)}`;

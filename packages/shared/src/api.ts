@@ -128,6 +128,9 @@ export const videoDetailDtoSchema = z.object({
   title_chosen: z.string().nullable(),
   master: masterVideoJsonV1,
   costs_total: z.number(),
+  // URL /files de la miniatura OFICIAL: la subida por el humano (thumb_custom.*)
+  // si existe, si no la auto-generada (thumb_a.jpg), o null si aún no hay
+  thumbnail_url: z.string().nullable(),
   youtube: youtubePublicationSchema.nullable(),
   incident: z
     .object({
@@ -139,6 +142,16 @@ export const videoDetailDtoSchema = z.object({
   updated_at: z.string(),
 });
 export type VideoDetailDto = z.infer<typeof videoDetailDtoSchema>;
+
+// Brief de miniatura de alta conversión: descripción detallada en español de
+// cómo debería ser la imagen (para que el humano la genere) + un prompt en
+// inglés listo para pegar en un generador de imágenes. Se persiste como
+// outputs/<id>/thumbnail-brief.json.
+export const thumbnailBriefSchema = z.object({
+  brief: z.string(),
+  prompt: z.string(),
+});
+export type ThumbnailBrief = z.infer<typeof thumbnailBriefSchema>;
 
 export const timelineBeatDtoSchema = beatSchema.extend({
   discard_reason: z.string().nullable().optional(),

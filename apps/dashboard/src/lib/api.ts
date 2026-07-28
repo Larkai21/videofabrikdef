@@ -3,8 +3,10 @@ import {
   inboxDtoSchema,
   ideaDtoSchema,
   stockSearchResultSchema,
+  thumbnailBriefSchema,
   timelineDtoSchema,
   videoDetailDtoSchema,
+  type ThumbnailBrief,
   type BeatActionRequest,
   type ChannelDto,
   type ChannelProfile,
@@ -443,6 +445,37 @@ export function videoDownloadUrl(videoId: string): string {
 /** Abre outputs/<id> en el gestor de archivos de la máquina donde corre la API. */
 export async function revealVideoFolder(videoId: string): Promise<void> {
   await post(`/videos/${encodeURIComponent(videoId)}/reveal`);
+}
+
+// ---- miniatura: brief de alta conversión + subida ----
+
+// Lee el brief ya generado (outputs/<id>/thumbnail-brief.json). null si aún no
+// existe (nunca se generó o el vídeo es previo a la función).
+export async function getThumbnailBrief(videoId: string): Promise<ThumbnailBrief | null> {
+  const res = await fetch(fileUrl(`/files/outputs/${videoId}/thumbnail-brief.json`));
+  if (!res.ok) return null;
+  try {
+    return thumbnailBriefSchema.parse(await res.json());
+  } catch {
+    return null;
+  }
+}
+
+// Encola la (re)generación del brief de miniatura.
+export async function requestThumbnailBrief(videoId: string): Promise<void> {
+  await post(`/videos/${encodeURIComponent(videoId)}/thumbnail-brief`);
+}
+
+// Sube la miniatura definitiva; pasa a ser la oficial. Devuelve su URL /files.
+export async function uploadThumbnail(videoId: string, file: File): Promise<string> {
+  const form = new FormData();
+  form.append('file', file);
+  const data = await request(`/videos/${encodeURIComponent(videoId)}/thumbnail`, {
+    method: 'POST',
+    body: form,
+  });
+  const url = (data as { thumbnail_url?: unknown }).thumbnail_url;
+  return typeof url === 'string' ? url : '';
 }
 
 // ---- multicanal ----
