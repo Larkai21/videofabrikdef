@@ -93,6 +93,20 @@ export const candidateSchema = z.object({
   meta: z.record(z.string(), z.unknown()).optional(),
 });
 
+// Sub-plano: un corte visual DENTRO del beat, para variar el b-roll más rápido
+// (biblioteca en «bibliotecas», nave en «industria»). `keyword` es la palabra
+// que ancla el corte (opcional: sin ella el tramo va por idea, no por palabra).
+// Cuando un beat tiene varios `visuals`, esa lista manda; `beat.asset` refleja
+// el primero (compatibilidad con dashboard/miniaturas). Los cortes NO cambian
+// los límites del beat (principio 1): solo su contenido interno.
+export const subvisualSchema = z.object({
+  from_ms: z.number().int().nonnegative(),
+  to_ms: z.number().int().nonnegative(),
+  visual_query: z.string(),
+  keyword: z.string().optional(),
+  asset: beatAssetSchema.optional(),
+});
+
 export const beatSchema = z.object({
   idx: z.number().int().nonnegative(),
   from_ms: z.number().int().nonnegative(),
@@ -102,6 +116,24 @@ export const beatSchema = z.object({
   status: beatStatusSchema,
   asset: beatAssetSchema.optional(),
   candidates: z.array(candidateSchema).optional(),
+  // sub-planos internos (1..MAX_VISUALS_PER_BEAT); ausente = 1 plano (asset)
+  visuals: z.array(subvisualSchema).optional(),
+});
+
+// Forma PERSISTIDA de un sub-plano durante la curación (tabla beats): como el
+// beat pero por sub-plano (candidatos + elegido). Al ingerir se congela en
+// `subvisualSchema` (con `asset` resuelto) dentro del máster.
+export const storedSubvisualSchema = z.object({
+  from_ms: z.number().int().nonnegative(),
+  to_ms: z.number().int().nonnegative(),
+  visual_query: z.string(),
+  keyword: z.string().optional(),
+  status: beatStatusSchema,
+  candidates: z.array(candidateSchema),
+  fit: fitSchema.nullable(),
+  chosen_origin: z.string().nullable(),
+  chosen_score: z.number().nullable(),
+  asset_id: z.string().nullable(),
 });
 
 export const brandSchema = z.object({
@@ -159,6 +191,8 @@ export type Scene = z.infer<typeof sceneSchema>;
 export type Cue = z.infer<typeof cueSchema>;
 export type Word = z.infer<typeof wordSchema>;
 export type Beat = z.infer<typeof beatSchema>;
+export type Subvisual = z.infer<typeof subvisualSchema>;
+export type StoredSubvisual = z.infer<typeof storedSubvisualSchema>;
 export type Segment = z.infer<typeof segmentSchema>;
 export type BeatAsset = z.infer<typeof beatAssetSchema>;
 export type BeatCandidate = z.infer<typeof candidateSchema>;

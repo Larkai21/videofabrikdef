@@ -1,13 +1,14 @@
 import { z } from 'zod';
+import { MAX_VISUALS_PER_BEAT } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
 import { ledgeredLlmJson } from '../ideas/llm-call.js';
 import { expandQuery } from './score.js';
 
-// Director de b-roll: en una sola llamada LLM produce una consulta visual
-// CONCRETA por beat, pegada a lo que se dice en ese beat (no al tema de la
-// escena), y distinta de la de sus vecinos. Sustituye a la visual_query
-// heredada de la escena, que se repetía en todos los beats de una misma
-// escena → clips casi idénticos seguidos y poco relacionados con el diálogo.
+// Director de b-roll: en una sola llamada LLM produce, POR BEAT, entre 1 y 3
+// "cortes" visuales. Un corte si el beat es una sola idea visual; varios,
+// anclados a palabras concretas de la narración (keyword), cuando el texto salta
+// entre sujetos filmables distintos (p. ej. «bibliotecas» → «industria»). Así el
+// b-roll cambia dentro del beat sin tocar los cortes de audio (principio 1).
 
 export interface DirectorBeat {
   idx: number;
@@ -17,11 +18,25 @@ export interface DirectorBeat {
   sceneQuery: string;
 }
 
+// Un corte visual dentro de un beat. `keyword` (opcional) es la palabra de la
+// narración donde debe entrar el plano; sin ella, el corte va por idea.
+export interface DirectorCut {
+  keyword?: string;
+  visual_query: string;
+}
+
 export const brollResultSchema = z.object({
   beats: z.array(
     z.object({
       idx: z.number().int().nonnegative(),
-      visual_query: z.string().min(1),
+      visuals: z
+        .array(
+          z.object({
+            keyword: z.string().optional(),
+            visual_query: z.string().min(1),
+          }),
+        )
+        .min(1),
     }),
   ),
 });
@@ -44,17 +59,20 @@ export function buildDirectorPrompt(params: DirectorParams): { system: string; u
   const system = [
     'Eres director de b-roll de un canal de YouTube tipo "faceless".',
     'Recibes la narración de un vídeo dividida en beats (trozos de 8-15 s).',
-    'Para CADA beat devuelve una única consulta de archivo (stock) que ilustre',
-    'visualmente lo que se DICE en ese beat concreto, no el tema general.',
-    'Reglas:',
+    'Para CADA beat decides cuántos PLANOS mostrar, de 1 a ' + MAX_VISUALS_PER_BEAT + ':',
+    '- 1 plano si el beat trata de una sola idea visual.',
+    '- 2 o 3 planos si la narración salta entre sujetos filmables DISTINTOS; cada',
+    '  plano se ancla a la palabra exacta de la narración donde debe entrar (keyword).',
+    'Sé conservador: menos es más; no trocees una sola idea.',
+    'Cada plano: una consulta de archivo (stock) que ilustre lo que se DICE ahí.',
+    'Reglas de la consulta:',
     `- 3-6 palabras concretas y filmables, en ${langName}.`,
     '- Escenas y objetos concretos, nunca conceptos abstractos ni texto en pantalla.',
-    '- Beats consecutivos deben ser VISUALMENTE DISTINTOS entre sí (no repitas el',
-    '  mismo sujeto o encuadre en beats seguidos; varía lugar, plano o acción).',
-    '- Mantén coherencia con el tema del vídeo, pero prioriza el matiz de cada beat.',
+    '- Planos consecutivos (dentro y entre beats) VISUALMENTE DISTINTOS.',
+    '- keyword: una palabra EXACTA tal cual aparece en la narración del beat (o vacío).',
     styleLine,
-    'Devuelve JSON: { "beats": [ { "idx": number, "visual_query": string } ] },',
-    'exactamente un objeto por beat recibido, con el mismo idx.',
+    'Devuelve JSON: { "beats": [ { "idx": number, "visuals": [ { "keyword"?: string,',
+    '"visual_query": string } ] } ] }, un objeto por beat recibido con el mismo idx.',
   ].join('\n');
 
   const user = [
@@ -67,14 +85,14 @@ export function buildDirectorPrompt(params: DirectorParams): { system: string; u
   return { system, user };
 }
 
-// Devuelve idx→visual_query. Ante cualquier fallo del LLM se cae con gracia a
-// la consulta de escena (expandida) para no bloquear el pipeline.
+// Devuelve idx→cortes[]. Ante cualquier fallo del LLM se cae con gracia a un
+// único corte con la consulta de escena (expandida) para no bloquear el pipeline.
 export async function directBroll(
   ctx: WorkerContext,
   params: DirectorParams,
-): Promise<Map<number, string>> {
-  const fallback = new Map<number, string>(
-    params.beats.map((b) => [b.idx, expandQuery(b.sceneQuery, b.text)]),
+): Promise<Map<number, DirectorCut[]>> {
+  const fallback = new Map<number, DirectorCut[]>(
+    params.beats.map((b) => [b.idx, [{ visual_query: expandQuery(b.sceneQuery, b.text) }]]),
   );
   if (params.beats.length === 0) return fallback;
 
@@ -100,8 +118,15 @@ export async function directBroll(
 
   const out = new Map(fallback);
   for (const b of data.beats) {
-    const q = b.visual_query.trim();
-    if (out.has(b.idx) && q !== '') out.set(b.idx, q);
+    if (!out.has(b.idx)) continue;
+    const cuts: DirectorCut[] = b.visuals
+      .map((v) => ({
+        ...(v.keyword && v.keyword.trim() !== '' ? { keyword: v.keyword.trim() } : {}),
+        visual_query: v.visual_query.trim(),
+      }))
+      .filter((v) => v.visual_query !== '')
+      .slice(0, MAX_VISUALS_PER_BEAT);
+    if (cuts.length > 0) out.set(b.idx, cuts);
   }
   return out;
 }

@@ -12,27 +12,39 @@ const STOP = new Set([
 ]);
 
 function firstKeyword(text: string, avoid: Set<string>): string | null {
+  return keywordsOf(text, avoid, 1)[0] ?? null;
+}
+
+// Palabras originales (con su forma tal cual en el texto) útiles como keyword.
+function keywordsOf(text: string, avoid: Set<string>, limit: number): string[] {
+  const out: string[] = [];
   for (const raw of text.split(/\s+/)) {
-    const token = raw
-      .toLowerCase()
-      .normalize('NFKD')
-      .replace(/[^\p{L}\p{N}]/gu, '');
-    if (token.length >= 4 && !STOP.has(token) && !avoid.has(token)) return token;
+    const norm = raw.toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}]/gu, '');
+    const clean = raw.replace(/[^\p{L}\p{N}]/gu, '');
+    if (norm.length >= 4 && !STOP.has(norm) && !avoid.has(norm)) {
+      avoid.add(norm);
+      out.push(clean);
+      if (out.length >= limit) break;
+    }
   }
-  return null;
+  return out;
 }
 
 export function buildMockBroll(mockContext: Record<string, unknown>): {
-  beats: { idx: number; visual_query: string }[];
+  beats: { idx: number; visuals: { keyword?: string; visual_query: string }[] }[];
 } {
   const beats = Array.isArray(mockContext.beats) ? (mockContext.beats as DirectorBeat[]) : [];
   const used = new Set<string>();
   return {
     beats: beats.map((b) => {
-      const kw = firstKeyword(b.text ?? '', used);
-      if (kw) used.add(kw);
       const base = b.sceneQuery ?? 'b-roll';
-      return { idx: b.idx, visual_query: kw ? `${base} ${kw}` : `${base} ${b.idx}` };
+      // hasta 2 keywords → hasta 2 sub-planos anclados; imita el corte por palabra
+      const kws = keywordsOf(b.text ?? '', used, 2);
+      if (kws.length === 0) return { idx: b.idx, visuals: [{ visual_query: `${base} ${b.idx}` }] };
+      return {
+        idx: b.idx,
+        visuals: kws.map((kw) => ({ keyword: kw, visual_query: `${base} ${kw.toLowerCase()}` })),
+      };
     }),
   };
 }

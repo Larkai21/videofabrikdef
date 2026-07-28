@@ -1,0 +1,1 @@
+ALTER TABLE "beats" ADD COLUMN "visuals" jsonb;

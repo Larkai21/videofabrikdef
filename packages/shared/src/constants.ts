@@ -33,6 +33,13 @@ export const ANTI_REPEAT_N = 8;
 export const STOCK_CACHE_TTL_H = 24;
 export const MAX_LOOPS = 3;
 export const LOOP_CROSSFADE_MS = 300;
+// Sub-planos: cortes visuales dentro de un beat (b-roll más ágil). Tope por
+// beat y duración máxima de una imagen fija en pantalla (los clips, dinámicos,
+// no tienen tope y llenan su tramo).
+export const MAX_VISUALS_PER_BEAT = 3;
+export const IMAGE_MAX_S = 5;
+// crossfade corto entre sub-planos dentro de un beat
+export const SUBVISUAL_CROSSFADE_MS = 200;
 // Ralentización máxima admisible para llenar un beat con una sola pasada del
 // clip (0,75 = el clip puede cubrir hasta 1/0,75 ≈ 1,33× su duración sin que
 // se note como cámara lenta). Por debajo se recurre al bucle.
@@ -42,7 +49,10 @@ export const MIN_PLAYBACK_RATE = 0.75;
 export const LOUDNORM_LUFS = -16;
 export const LOUDNORM_TRUE_PEAK = -1.5;
 export const SCENE_GAP_MS = 300;
-export const SECTION_GAP_MS = 450;
+export const SECTION_GAP_MS = 600;
+// pausa entre frases dentro de una escena (respiración; la síntesis pasa a ser
+// por frase para poder insertarla). Menor que el hueco entre escenas.
+export const PAUSE_SENTENCE_MS = 180;
 
 // Subtítulos
 export const CUE_MAX_CHARS = 32;

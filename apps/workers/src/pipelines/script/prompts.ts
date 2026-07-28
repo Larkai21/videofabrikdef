@@ -51,6 +51,11 @@ export function scriptSystem(profile: ChannelProfile, targetWords: number): stri
     'Reglas factuales: el guion NO puede introducir cifras ni afirmaciones fuertes que no estén en research.claims; si falta un dato, formúlalo sin cifra o omítelo.',
     `Duración: ~${targetWords} palabras en total (tolerancia ±10%). Escenas de 40-70 palabras.`,
     'Estructura: 1 escena hook, varias body, 1 cta. Ids estables tipo sc-hook, sc-body-1, sc-cta.',
+    // oficio de guion: ritmo y sustantivos visuales concretos (el b-roll se
+    // ancla a esas palabras). La puntuación gobierna las pausas del TTS.
+    'Ritmo: alterna frases cortas y medias; evita frases largas encadenadas. Puntuación limpia (puntos y comas) para marcar respiraciones naturales; una idea por frase.',
+    'El hook (primera escena) abre con un gancho concreto en la primera frase, sin rodeos.',
+    'Anclaje visual: nombra sustantivos CONCRETOS y filmables cuando cambies de sujeto (p. ej. "una biblioteca", "una nave industrial", "un centro de datos"), para que el b-roll pueda ilustrar cada idea; evita abstracciones ("la confianza", "el impacto") como único apoyo visual de una frase.',
     `visual_query: 3-8 palabras concretas y filmables, en ${profile.style.stock_query_lang === 'en' ? 'inglés' : 'español'} (p. ej. "server room aisle cold blue lights").`,
     'Salida JSON: { script: { scenes: [{id, section: hook|body|cta, text, visual_query, emphasis?}], hook_notes }, seo: { titles, description, tags, thumbnails } }.',
     'hook_notes: qué promesa abre el vídeo y cómo se paga al final.',

@@ -38,14 +38,25 @@ describe('buildDirectorPrompt', () => {
 });
 
 describe('buildMockBroll', () => {
-  it('devuelve una consulta por beat, distinta entre beats de la misma escena', () => {
+  it('devuelve 1-3 sub-planos por beat, cada uno con consulta no vacía', () => {
     const result = buildMockBroll({ beats: BEATS });
     expect(brollResultSchema.parse(result)).toBeTruthy();
     expect(result.beats).toHaveLength(3);
-    // beats 1 y 2 comparten sceneQuery pero deben salir distintos
-    expect(result.beats[1]!.visual_query).not.toBe(result.beats[2]!.visual_query);
-    // conserva los idx
+    for (const b of result.beats) {
+      expect(b.visuals.length).toBeGreaterThanOrEqual(1);
+      expect(b.visuals.length).toBeLessThanOrEqual(3);
+      for (const v of b.visuals) expect(v.visual_query.length).toBeGreaterThan(0);
+    }
     expect(result.beats.map((b) => b.idx)).toEqual([0, 1, 2]);
+  });
+
+  it('ancla sub-planos a palabras de la narración (keyword)', () => {
+    const result = buildMockBroll({
+      beats: [{ idx: 0, text: 'bibliotecas y la industria en riesgo', sceneQuery: 'libros antiguos' }],
+    });
+    const kws = result.beats[0]!.visuals.map((v) => v.keyword);
+    expect(kws).toContain('bibliotecas');
+    expect(kws).toContain('industria');
   });
 
   it('sin beats devuelve lista vacía válida', () => {

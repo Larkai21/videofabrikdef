@@ -9,7 +9,7 @@ import {
   useVideoConfig,
 } from 'remotion';
 import type { Beat } from '@fabrica/shared';
-import { LOOP_CROSSFADE_MS, MAX_LOOPS } from '@fabrica/shared';
+import { LOOP_CROSSFADE_MS, MAX_LOOPS, SUBVISUAL_CROSSFADE_MS } from '@fabrica/shared';
 import { FONT_FAMILY } from './fonts';
 import { isRenderableSrc, toSrc } from './media-src';
 import { hashSeed } from './seed';
@@ -189,27 +189,21 @@ const LoopedClip: React.FC<{
   );
 };
 
-// Visual de un beat según asset.fit.mode: trim (clip con offset), stretch (clip
-// algo más corto reproducido una vez a cámara ligeramente lenta), loop (clip
-// repetido con crossfade, último recurso) o kenburns (imagen con zoom/paneo).
-export const BeatVisual: React.FC<BeatVisualProps> = ({ beat, videoId, durationInFrames }) => {
-  const { fps } = useVideoConfig();
-  const asset = beat.asset;
-  if (!asset?.path || !asset.kind || !isRenderableSrc(asset.path)) {
-    return <Placeholder beat={beat} />;
-  }
-  const src = toSrc(asset.path);
-  const seed = hashSeed(`${videoId}:${beat.idx}`);
+// Render de UN asset según fit.mode: trim (clip con offset), stretch (clip algo
+// más corto a cámara ligeramente lenta), loop (clip repetido, último recurso) o
+// kenburns (imagen con zoom/paneo). Sirve tanto para el beat entero como para
+// un sub-plano.
+const AssetVisual: React.FC<{
+  asset: NonNullable<Beat['asset']>;
+  seed: number;
+  durationInFrames: number;
+  fps: number;
+}> = ({ asset, seed, durationInFrames, fps }) => {
+  const src = toSrc(asset.path!);
   const trimBeforeFrames = msToFrames(asset.fit.offset_ms ?? 0, fps);
-
   if (asset.kind === 'image') {
     return (
-      <KenBurnsImage
-        src={src}
-        seed={seed}
-        durationInFrames={durationInFrames}
-        effect={asset.effect}
-      />
+      <KenBurnsImage src={src} seed={seed} durationInFrames={durationInFrames} effect={asset.effect} />
     );
   }
   if (asset.fit.mode === 'loop') {
@@ -223,9 +217,8 @@ export const BeatVisual: React.FC<BeatVisualProps> = ({ beat, videoId, durationI
       />
     );
   }
-  // stretch: una sola pasada ralentizada (playback_rate < 1) que llena el beat
-  // sin reinicios; trim: clip que sobra, recortado con offset. Ambos son un
-  // único OffthreadVideo, la diferencia es el playbackRate.
+  // stretch: una sola pasada ralentizada (playback_rate < 1) que llena el tramo
+  // sin reinicios; trim: clip que sobra, recortado con offset.
   const playbackRate = asset.fit.mode === 'stretch' ? (asset.fit.playback_rate ?? 1) : 1;
   return (
     <ClipMotion seed={seed} durationInFrames={durationInFrames}>
@@ -237,5 +230,53 @@ export const BeatVisual: React.FC<BeatVisualProps> = ({ beat, videoId, durationI
         style={COVER_STYLE}
       />
     </ClipMotion>
+  );
+};
+
+const isRenderable = (a: Beat['asset']): a is NonNullable<Beat['asset']> =>
+  !!a?.path && !!a.kind && isRenderableSrc(a.path);
+
+// Visual de un beat. Con varios sub-planos (`beat.visuals`) los tilea dentro de
+// la ventana del beat con un crossfade corto entre ellos (b-roll más ágil sin
+// tocar los cortes de audio). Con uno solo, pinta el asset del beat.
+export const BeatVisual: React.FC<BeatVisualProps> = ({ beat, videoId, durationInFrames }) => {
+  const { fps } = useVideoConfig();
+
+  const visuals = beat.visuals ?? [];
+  if (visuals.length > 1) {
+    const fade = msToFrames(SUBVISUAL_CROSSFADE_MS, fps);
+    return (
+      <AbsoluteFill>
+        {visuals.map((sv, vIdx) => {
+          if (!isRenderable(sv.asset)) return null;
+          const from = msToFrames(sv.from_ms - beat.from_ms, fps);
+          // el último sub-plano se extiende hasta el final de la Sequence del
+          // beat (incluido el solape de la transición) para no dejar hueco
+          const rawEnd =
+            vIdx === visuals.length - 1
+              ? durationInFrames
+              : msToFrames(sv.to_ms - beat.from_ms, fps);
+          const dur = Math.max(1, rawEnd - from);
+          const seed = hashSeed(`${videoId}:${beat.idx}:${vIdx}`);
+          return (
+            <Sequence key={vIdx} from={from} durationInFrames={dur} name={`Plano ${vIdx + 1}`}>
+              <FadeIn fadeFrames={vIdx === 0 ? 0 : fade}>
+                <AssetVisual asset={sv.asset} seed={seed} durationInFrames={dur} fps={fps} />
+              </FadeIn>
+            </Sequence>
+          );
+        })}
+      </AbsoluteFill>
+    );
+  }
+
+  if (!isRenderable(beat.asset)) return <Placeholder beat={beat} />;
+  return (
+    <AssetVisual
+      asset={beat.asset}
+      seed={hashSeed(`${videoId}:${beat.idx}`)}
+      durationInFrames={durationInFrames}
+      fps={fps}
+    />
   );
 };

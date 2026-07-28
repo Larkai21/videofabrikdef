@@ -17,6 +17,7 @@ import type {
   ComponentManifest,
   Fit,
   MasterVideoJson,
+  StoredSubvisual,
 } from '@fabrica/shared';
 import { EMBEDDING_DIMS } from '@fabrica/shared';
 
@@ -168,6 +169,10 @@ export const beats = pgTable(
     chosenScore: doublePrecision('chosen_score'),
     chosenOrigin: text('chosen_origin'),
     candidates: jsonb('candidates').$type<BeatCandidate[]>(),
+    // sub-planos resueltos (1..N): el b-roll cambia dentro del beat. El plano
+    // principal (visuals[0]) también rellena assetId/fit/candidates arriba, para
+    // que la timeline (curación a nivel de beat) siga leyendo esos campos.
+    visuals: jsonb('visuals').$type<StoredSubvisual[]>(),
     discardReason: text('discard_reason'),
   },
   (t) => [uniqueIndex('beats_video_idx_idx').on(t.videoId, t.idx)],

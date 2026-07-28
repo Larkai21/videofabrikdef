@@ -15,8 +15,10 @@ import {
 } from '@fabrica/db';
 import {
   ANTI_REPEAT_N,
+  IMAGE_MAX_S,
   JOBS,
   MAX_LOOPS,
+  MAX_VISUALS_PER_BEAT,
   PRICES,
   QUEUES,
   T_AUTO,
@@ -29,6 +31,7 @@ import {
   type BeatCandidate,
   type Fit,
   type RenderVideoJob,
+  type StoredSubvisual,
 } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
 import { buildAssetEmbedText } from '../../lib/embed-text.js';
@@ -42,6 +45,7 @@ import { directChapters } from './chapter-director.js';
 import { computeFit, kenburnsEffect } from './fit.js';
 import { registerAssetsMocks } from './mocks.js';
 import { expandQuery, stockScore } from './score.js';
+import { computeSubvisualSpans, wordsInSpan } from './subvisuals.js';
 
 // Worker de assets (docs/assets-y-biblioteca.md): cascada biblioteca →
 // stock → Flux por beat (match) y descarga + ingesta a biblioteca al
@@ -232,18 +236,28 @@ function interleaveByProvider(results: StockResult[]): StockResult[] {
   return out;
 }
 
-async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
+interface ResolvedVisual {
+  chosen: PoolEntry;
+  fit: Fit;
+  status: 'auto_ok' | 'review';
+  candidates: BeatCandidate[];
+  libAssetId: string | null;
+}
+
+// Resuelve UNA consulta (un sub-plano) por la cascada biblioteca→stock→Flux y
+// devuelve el elegido con su fit/estado. Muta usedRefs/prevVec (anti-repetición
+// intra-vídeo y anti-parecido contiguo, ahora entre sub-planos). No escribe BD.
+async function resolveOneVisual(
+  deps: MatchDeps,
+  args: { beatIdx: number; vIdx: number; query: string; spanMs: number; vetoedRefs: Set<string> },
+): Promise<ResolvedVisual> {
   const { ctx, videoId, channelId } = deps;
   const { db, logger } = ctx;
-  const beatMs = beat.toMs - beat.fromMs;
-  const queryText = expandQuery(beat.visualQuery, beat.text);
+  const beatMs = args.spanMs;
+  const queryText = args.query;
+  const vetoedRefs = args.vetoedRefs;
   const [qVec] = await ctx.embeddings.embed([queryText]);
   if (!qVec) throw new Error('No se pudo calcular el embedding de la query');
-
-  // el clip que el humano descartó con motivo no debe volver a proponerse
-  const vetoedRefs = new Set<string>(
-    beat.discardReason && beat.candidates?.length ? [beat.candidates[0]!.ref] : [],
-  );
 
   // 1) biblioteca (canal + shared, anti-repeat)
   const lib = await libraryCandidates(db, channelId, qVec, deps.recentIds);
@@ -344,7 +358,7 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
     });
     if (!fit) {
       logger.info(
-        { videoId, beatIdx: beat.idx, ref: entry.cand.ref },
+        { videoId, beatIdx: args.beatIdx, ref: entry.cand.ref },
         'Candidato descartado: no cubre el beat ni con el máximo de loops',
       );
       continue;
@@ -360,30 +374,24 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
   let candidates: BeatCandidate[];
 
   if (!chosen || chosen.cos < T_REV) {
-    // 4) Flux como último recurso → candidato único en revisión. Si el humano
-    // descartó justo la imagen Flux anterior, la semilla determinista daría
-    // la MISMA imagen: se varía con el motivo del descarte
-    const fluxRef = `flux:${videoId}:${beat.idx}`;
+    // 4) Flux como último recurso → candidato único en revisión. La clave lleva
+    // el índice de sub-plano para no colisionar entre planos del mismo beat.
+    const fluxRef = `flux:${videoId}:${args.beatIdx}:${args.vIdx}`;
     const fluxVetoed = vetoedRefs.has(fluxRef);
-    const basePrompt = deps.styleSuffix
-      ? `${beat.visualQuery}, ${deps.styleSuffix}`
-      : beat.visualQuery;
-    const prompt =
-      fluxVetoed && beat.discardReason
-        ? `${basePrompt}. Variación distinta; evita: ${beat.discardReason}`
-        : basePrompt;
+    const basePrompt = deps.styleSuffix ? `${queryText}, ${deps.styleSuffix}` : queryText;
+    const prompt = fluxVetoed ? `${basePrompt}. Variación distinta.` : basePrompt;
     const flux = await generateFluxImage(db, logger, {
       videoId,
       channelId,
-      beatIdx: beat.idx,
+      beatIdx: args.beatIdx,
       prompt,
-      ...(fluxVetoed ? { seedSalt: beat.discardReason ?? 'descartado' } : {}),
+      ...(fluxVetoed ? { seedSalt: `${args.vIdx}` } : {}),
     });
     // el PNG vive bajo la biblioteca (no en tmp) para que la timeline pueda
     // mostrarlo vía /files y la ingesta lo reutilice tal cual se aprobó
     const fluxDir = path.join(deps.ctx.libraryDir, 'assets', channelId, 'flux');
     await fs.mkdir(fluxDir, { recursive: true });
-    const fluxName = `${videoId}-${beat.idx}.png`;
+    const fluxName = `${videoId}-${args.beatIdx}-${args.vIdx}.png`;
     const fluxPath = path.join(fluxDir, fluxName);
     await fs.copyFile(flux.path, fluxPath);
     chosen = {
@@ -392,14 +400,7 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
         provider: 'flux',
         score: 0,
         thumb_url: `/files/library/assets/${channelId}/flux/${fluxName}`,
-        meta: {
-          path: fluxPath,
-          width: 1280,
-          height: 720,
-          kind: 'image',
-          seed: flux.seed,
-          prompt,
-        },
+        meta: { path: fluxPath, width: 1280, height: 720, kind: 'image', seed: flux.seed, prompt },
       },
       kind: 'image',
       durationMs: null,
@@ -419,19 +420,127 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
     candidates = [chosen.cand, ...rest.slice(0, ALTERNATES).map((e) => e.cand)];
   }
 
-  // convención compartida con la API: el elegido va PRIMERO en candidates.
-  // La escritura respeta el candado humano: si el beat pasó a locked mientras
-  // el matching trabajaba, la elección de la máquina se descarta.
+  for (const ref of identityRefs(chosen)) deps.usedRefs.add(ref);
+  // memoria para el sub-plano siguiente: evita repetir el mismo plano seguido
+  deps.prevVec = chosen.vec.length > 0 ? chosen.vec : null;
+
+  return {
+    chosen,
+    fit: chosenFit!,
+    status,
+    candidates,
+    libAssetId: chosen.cand.provider === 'library' ? (libAssetByRef.get(chosen.cand.ref) ?? null) : null,
+  };
+}
+
+// Matchea un beat: resuelve sus sub-planos (1..N), aplica el tope de imágenes
+// (una imagen fija no supera IMAGE_MAX_S; los clips llenan su tramo) y persiste.
+// El plano principal (visuals[0]) también rellena assetId/fit/candidates para
+// que la timeline (curación a nivel de beat) siga funcionando igual.
+async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
+  const { ctx, videoId } = deps;
+  const { db, logger } = ctx;
+
+  // tramos de sub-plano: de beat.visuals (director) o uno solo (todo el beat)
+  const spans =
+    beat.visuals && beat.visuals.length > 0
+      ? beat.visuals.map((v) => ({
+          from_ms: v.from_ms,
+          to_ms: v.to_ms,
+          visual_query: v.visual_query,
+          ...(v.keyword ? { keyword: v.keyword } : {}),
+        }))
+      : [
+          {
+            from_ms: beat.fromMs,
+            to_ms: beat.toMs,
+            visual_query: expandQuery(beat.visualQuery, beat.text),
+          },
+        ];
+
+  // veto de descarte: solo aplica al plano principal (el que el humano descartó)
+  const vetoedRefs = new Set<string>(
+    beat.discardReason && beat.candidates?.length ? [beat.candidates[0]!.ref] : [],
+  );
+
+  const resolved: { span: (typeof spans)[number]; res: ResolvedVisual }[] = [];
+  for (let vIdx = 0; vIdx < spans.length; vIdx++) {
+    const span = spans[vIdx]!;
+    const res = await resolveOneVisual(deps, {
+      beatIdx: beat.idx,
+      vIdx,
+      query: span.visual_query,
+      spanMs: span.to_ms - span.from_ms,
+      vetoedRefs: vIdx === 0 ? vetoedRefs : new Set<string>(),
+    });
+    resolved.push({ span, res });
+  }
+
+  // tope de imágenes: una imagen fija cuyo tramo supere IMAGE_MAX_S se parte en
+  // varias imágenes distintas de ≤IMAGE_MAX_S (sin pasar de MAX_VISUALS_PER_BEAT).
+  // Los clips (dinámicos) quedan exentos y llenan su tramo.
+  const imageMaxMs = IMAGE_MAX_S * 1000;
+  const capped: { span: (typeof spans)[number]; res: ResolvedVisual }[] = [];
+  for (const rv of resolved) {
+    const durMs = rv.span.to_ms - rv.span.from_ms;
+    const budget = MAX_VISUALS_PER_BEAT - capped.length;
+    if (rv.res.chosen.kind === 'image' && durMs > imageMaxMs && budget > 1) {
+      const parts = Math.min(Math.ceil(durMs / imageMaxMs), budget);
+      const step = Math.round(durMs / parts);
+      for (let k = 0; k < parts; k++) {
+        const from_ms = rv.span.from_ms + k * step;
+        const to_ms = k === parts - 1 ? rv.span.to_ms : rv.span.from_ms + (k + 1) * step;
+        if (k === 0) {
+          capped.push({ span: { ...rv.span, from_ms, to_ms }, res: rv.res });
+        } else {
+          // usedRefs ya contiene la imagen previa → sale otra distinta
+          const extra = await resolveOneVisual(deps, {
+            beatIdx: beat.idx,
+            vIdx: capped.length,
+            query: rv.span.visual_query,
+            spanMs: to_ms - from_ms,
+            vetoedRefs: new Set<string>(),
+          });
+          capped.push({ span: { ...rv.span, from_ms, to_ms }, res: extra });
+        }
+      }
+    } else {
+      capped.push(rv);
+    }
+    if (capped.length >= MAX_VISUALS_PER_BEAT) break;
+  }
+
+  const storedVisuals: StoredSubvisual[] = capped.map(({ span, res }) => ({
+    from_ms: span.from_ms,
+    to_ms: span.to_ms,
+    visual_query: span.visual_query,
+    ...(span.keyword ? { keyword: span.keyword } : {}),
+    status: res.status,
+    candidates: res.candidates,
+    fit: res.fit,
+    chosen_origin: originLabel(res.candidates[0]!),
+    chosen_score: res.chosen.cos,
+    asset_id: res.libAssetId,
+  }));
+
+  // el beat necesita revisión humana si CUALQUIER sub-plano no es auto_ok
+  const primary = capped[0]!.res;
+  const beatStatus: 'auto_ok' | 'review' = capped.every((c) => c.res.status === 'auto_ok')
+    ? 'auto_ok'
+    : 'review';
+
+  // convención compartida con la API: el elegido del plano principal va PRIMERO
+  // en candidates. La escritura respeta el candado humano.
   const updated = await ctx.db
     .update(beatsTable)
     .set({
-      status,
-      candidates,
-      fit: chosenFit,
-      // similitud pura, coherente con la barra de la UI y los umbrales
-      chosenScore: chosen.cos,
-      chosenOrigin: originLabel(chosen.cand),
-      assetId: chosen.cand.provider === 'library' ? (libAssetByRef.get(chosen.cand.ref) ?? null) : null,
+      status: beatStatus,
+      candidates: primary.candidates,
+      fit: primary.fit,
+      chosenScore: primary.chosen.cos,
+      chosenOrigin: originLabel(primary.candidates[0]!),
+      assetId: primary.libAssetId,
+      visuals: storedVisuals,
       discardReason: null,
     })
     .where(and(eq(beatsTable.id, beat.id), ne(beatsTable.status, 'locked')))
@@ -441,11 +550,7 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
       { videoId, beatIdx: beat.idx },
       'Matching descartado: el humano bloqueó el beat durante el proceso',
     );
-    return;
   }
-  for (const ref of identityRefs(chosen)) deps.usedRefs.add(ref);
-  // memoria para el beat siguiente: evita repetir el mismo plano en contiguos
-  deps.prevVec = chosen.vec.length > 0 ? chosen.vec : null;
 }
 
 function stockToEntry(
@@ -507,19 +612,39 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
   if (fullRun) {
     const toDirect = beatRows.filter((b) => b.status !== 'locked');
     if (toDirect.length > 0) {
-      const queries = await directBroll(ctx, {
+      const cutsByIdx = await directBroll(ctx, {
         videoId,
         channelId: video.channelId,
         lang: channel?.profile?.style.stock_query_lang ?? 'en',
         styleSuffix,
         beats: toDirect.map((b) => ({ idx: b.idx, text: b.text, sceneQuery: b.visualQuery })),
       });
+      const cues = video.master.cues;
       for (const b of toDirect) {
-        const q = queries.get(b.idx);
-        if (q && q !== b.visualQuery) {
-          b.visualQuery = q; // la fila en memoria alimenta matchBeat
-          await db.update(beatsTable).set({ visualQuery: q }).where(eq(beatsTable.id, b.id));
-        }
+        const cuts = cutsByIdx.get(b.idx);
+        if (!cuts || cuts.length === 0) continue;
+        // sub-planos: anclar cada corte a la palabra de la narración (cues)
+        const words = wordsInSpan(cues, b.fromMs, b.toMs);
+        const spans = computeSubvisualSpans({ from_ms: b.fromMs, to_ms: b.toMs }, words, cuts);
+        // se persisten SIN resolver (candidates:[], fit:null); matchBeat resuelve
+        const stored: StoredSubvisual[] = spans.map((s) => ({
+          from_ms: s.from_ms,
+          to_ms: s.to_ms,
+          visual_query: s.visual_query,
+          ...(s.keyword ? { keyword: s.keyword } : {}),
+          status: 'pending' as const,
+          candidates: [],
+          fit: null,
+          chosen_origin: null,
+          chosen_score: null,
+          asset_id: null,
+        }));
+        b.visuals = stored; // la fila en memoria alimenta matchBeat
+        b.visualQuery = spans[0]!.visual_query; // principal, para compat/timeline
+        await db
+          .update(beatsTable)
+          .set({ visuals: stored, visualQuery: b.visualQuery })
+          .where(eq(beatsTable.id, b.id));
       }
     }
   }
@@ -628,18 +753,27 @@ interface IngestedAsset {
   durationMs: number | null;
 }
 
+// Objetivo de ingesta: un plano concreto (beat o sub-plano) con su candidato
+// elegido. Reemplaza al BeatRow completo para poder ingerir varios por beat.
+interface IngestTarget {
+  beatIdx: number;
+  visualQuery: string;
+  candidates: BeatCandidate[] | null;
+  assetId: string | null;
+}
+
 async function ingestChosen(
   ctx: WorkerContext,
   video: { id: string; channelId: string },
-  beat: BeatRow,
+  target: IngestTarget,
 ): Promise<IngestedAsset> {
   const { db, logger } = ctx;
-  const chosen = beat.candidates?.[0];
+  const chosen = target.candidates?.[0];
 
   // biblioteca: contabilizar uso, sin descarga
-  if (beat.assetId || chosen?.provider === 'library') {
-    const assetId = beat.assetId ?? chosen?.ref.replace('library:', '');
-    if (!assetId) throw new Error(`El beat ${beat.idx} no tiene asset de biblioteca resoluble`);
+  if (target.assetId || chosen?.provider === 'library') {
+    const assetId = target.assetId ?? chosen?.ref.replace('library:', '');
+    if (!assetId) throw new Error(`El beat ${target.beatIdx} no tiene asset de biblioteca resoluble`);
     const [row] = await db.select().from(assetsTable).where(eq(assetsTable.id, assetId));
     if (!row) throw new Error(`Asset de biblioteca no encontrado: ${assetId}`);
     if (row.lastVideoId !== video.id) {
@@ -656,7 +790,7 @@ async function ingestChosen(
     };
   }
 
-  if (!chosen) throw new Error(`El beat ${beat.idx} no tiene candidato elegido`);
+  if (!chosen) throw new Error(`El beat ${target.beatIdx} no tiene candidato elegido`);
   const meta = (chosen.meta ?? {}) as Record<string, unknown>;
   const kind = (meta.kind as 'clip' | 'image' | undefined) ?? (chosen.provider === 'flux' ? 'image' : 'clip');
 
@@ -698,8 +832,8 @@ async function ingestChosen(
       const regenerated = await generateFluxImage(db, logger, {
         videoId: video.id,
         channelId: video.channelId,
-        beatIdx: beat.idx,
-        prompt: (meta.prompt as string | undefined) ?? beat.visualQuery,
+        beatIdx: target.beatIdx,
+        prompt: (meta.prompt as string | undefined) ?? target.visualQuery,
         // misma semilla que la imagen aprobada, aunque llevara sal de descarte
         ...(typeof meta.seed === 'number' ? { seed: meta.seed } : {}),
       });
@@ -718,7 +852,7 @@ async function ingestChosen(
 
   try {
     const probed = await probeMedia(destPath);
-    return await insertIngestedAsset(ctx, video, beat, chosen, {
+    return await insertIngestedAsset(ctx, video, target, chosen, {
       kind,
       destPath,
       source,
@@ -776,7 +910,7 @@ interface IngestFileInfo {
 async function insertIngestedAsset(
   ctx: WorkerContext,
   video: { id: string; channelId: string },
-  beat: BeatRow,
+  target: { beatIdx: number; visualQuery: string },
   chosen: BeatCandidate,
   info: IngestFileInfo,
 ): Promise<IngestedAsset> {
@@ -784,11 +918,11 @@ async function insertIngestedAsset(
   const { kind, destPath, source, license, probed, meta } = info;
   const caption =
     (meta.caption as string | undefined) ??
-    (chosen.provider === 'flux' ? `Imagen generada para: ${beat.visualQuery}` : String(meta.title ?? ''));
-  const tags = buildTags(beat.visualQuery, caption);
+    (chosen.provider === 'flux' ? `Imagen generada para: ${target.visualQuery}` : String(meta.title ?? ''));
+  const tags = buildTags(target.visualQuery, caption);
   // texto canónico compartido con backfill y reembed (lib/embed-text.ts)
   const [embedding] = await ctx.embeddings.embed([
-    buildAssetEmbedText(caption, beat.visualQuery, tags),
+    buildAssetEmbedText(caption, target.visualQuery, tags),
   ]);
 
   const assetId = nanoid();
@@ -806,12 +940,12 @@ async function insertIngestedAsset(
     height: probed.height,
     tags,
     caption: caption || null,
-    originQuery: beat.visualQuery,
+    originQuery: target.visualQuery,
     embedding: embedding ?? null,
     timesUsed: 1,
     lastVideoId: video.id,
   });
-  logger.info({ videoId: video.id, beatIdx: beat.idx, assetId, source, codec: probed.codec }, 'Asset ingerido en biblioteca');
+  logger.info({ videoId: video.id, beatIdx: target.beatIdx, assetId, source, codec: probed.codec }, 'Asset ingerido en biblioteca');
 
   return {
     assetId,
@@ -844,20 +978,66 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
     const beat = beatRows[i];
     if (!beat) continue;
 
-    const ingested = await ingestChosen(ctx, { id: videoId, channelId: video.channelId }, beat);
+    // planos a ingerir: los sub-planos resueltos, o uno solo (compat) desde
+    // los campos principales del beat si no hay `visuals`.
+    const planos: StoredSubvisual[] =
+      beat.visuals && beat.visuals.length > 0
+        ? beat.visuals
+        : [
+            {
+              from_ms: beat.fromMs,
+              to_ms: beat.toMs,
+              visual_query: beat.visualQuery,
+              status: 'locked',
+              candidates: beat.candidates ?? [],
+              fit: beat.fit ?? null,
+              chosen_origin: beat.chosenOrigin ?? null,
+              chosen_score: beat.chosenScore ?? null,
+              asset_id: beat.assetId ?? null,
+            },
+          ];
 
-    // el fit se recalcula SIEMPRE con la duración real del archivo
-    const seed = mockHash(videoId + beat.idx);
-    const fitResult = computeFit(
-      { kind: ingested.kind, assetDurationMs: ingested.durationMs, beatDurationMs: beat.toMs - beat.fromMs },
-      { clampLoops: true },
-    );
-    const fit: Fit = fitResult?.fit ?? { mode: 'kenburns' };
-    const effect = fit.mode === 'kenburns' ? kenburnsEffect(seed) : undefined;
+    const frozenVisuals: NonNullable<Beat['visuals']> = [];
+    for (let vIdx = 0; vIdx < planos.length; vIdx++) {
+      const sv = planos[vIdx]!;
+      const ingested = await ingestChosen(
+        ctx,
+        { id: videoId, channelId: video.channelId },
+        {
+          beatIdx: beat.idx,
+          visualQuery: sv.visual_query,
+          candidates: sv.candidates,
+          assetId: sv.asset_id,
+        },
+      );
+      // el fit se recalcula SIEMPRE con la duración real del archivo, contra el
+      // tramo del SUB-PLANO (no todo el beat)
+      const seed = mockHash(`${videoId}${beat.idx}:${vIdx}`);
+      const fitResult = computeFit(
+        { kind: ingested.kind, assetDurationMs: ingested.durationMs, beatDurationMs: sv.to_ms - sv.from_ms },
+        { clampLoops: true },
+      );
+      const fit: Fit = fitResult?.fit ?? { mode: 'kenburns' };
+      const effect = fit.mode === 'kenburns' ? kenburnsEffect(seed) : undefined;
+      frozenVisuals.push({
+        from_ms: sv.from_ms,
+        to_ms: sv.to_ms,
+        visual_query: sv.visual_query,
+        ...(sv.keyword ? { keyword: sv.keyword } : {}),
+        asset: {
+          id: ingested.assetId,
+          path: ingested.absPath,
+          kind: ingested.kind,
+          fit,
+          ...(effect ? { effect } : {}),
+        },
+      });
+    }
 
+    const primary = frozenVisuals[0]!;
     await db
       .update(beatsTable)
-      .set({ status: 'locked', assetId: ingested.assetId, fit, candidates: null })
+      .set({ status: 'locked', assetId: primary.asset!.id, fit: primary.asset!.fit, candidates: null })
       .where(eq(beatsTable.id, beat.id));
 
     frozenBeats.push({
@@ -867,13 +1047,9 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
       text: beat.text,
       visual_query: beat.visualQuery,
       status: 'locked',
-      asset: {
-        id: ingested.assetId,
-        path: ingested.absPath,
-        kind: ingested.kind,
-        fit,
-        ...(effect ? { effect } : {}),
-      },
+      asset: primary.asset,
+      // solo se persiste `visuals` si hay más de un plano (compat: 1 plano = como antes)
+      ...(frozenVisuals.length > 1 ? { visuals: frozenVisuals } : {}),
     });
 
     await ctx.publishEvent({
