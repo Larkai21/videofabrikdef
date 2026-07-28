@@ -1,11 +1,12 @@
 import type { FastifyInstance } from 'fastify';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { channels, ideas, videos } from '@fabrica/db';
 import {
   channelSettingsSchema,
   defaultBrand,
+  ideasOrderRequestSchema,
   ideaStatusSchema,
   JOBS,
   masterVideoJsonV1,
@@ -28,6 +29,7 @@ function ideaDto(row: IdeaRow): IdeaDto {
     why_now: row.whyNow ?? null,
     score: row.score,
     status: ideaStatusSchema.parse(row.status),
+    manual_rank: row.manualRank ?? null,
     source_refs: row.sourceRefs ?? [],
     created_at: row.createdAt.toISOString(),
   };
@@ -52,8 +54,39 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
           ? and(eq(ideas.status, status), eq(ideas.channelId, channel))
           : eq(ideas.status, status),
       )
-      .orderBy(desc(ideas.score));
+      // el orden manual del humano manda; sin él, el score preestablecido
+      .orderBy(sql`${ideas.manualRank} asc nulls last`, desc(ideas.score));
     return rows.map(ideaDto);
+  });
+
+  // Reordenación manual del radar: la lista llega completa y en orden; a cada
+  // id se le asigna su posición y el resto de ideas quedan detrás (rank null).
+  app.put('/ideas/order', async (req) => {
+    const body = ideasOrderRequestSchema.parse(req.body);
+    const rows = await ctx.db
+      .select({ id: ideas.id })
+      .from(ideas)
+      .where(and(eq(ideas.channelId, body.channel), eq(ideas.status, 'new')));
+    const known = new Set(rows.map((r) => r.id));
+    for (const id of body.ids) {
+      if (!known.has(id)) throw notFound(`La idea ${id} no está en el ranking del canal`);
+    }
+    await ctx.db.transaction(async (tx) => {
+      // se limpia el orden anterior para que borrar/aprobar no deje huecos raros
+      await tx
+        .update(ideas)
+        .set({ manualRank: null })
+        .where(and(eq(ideas.channelId, body.channel), eq(ideas.status, 'new')));
+      for (const [i, id] of body.ids.entries()) {
+        // acotado a canal + estado: si la idea se aprobó/descartó entre la
+        // validación y aquí (TOCTOU), el update no la toca
+        await tx
+          .update(ideas)
+          .set({ manualRank: i })
+          .where(and(eq(ideas.id, id), eq(ideas.channelId, body.channel), eq(ideas.status, 'new')));
+      }
+    });
+    return { ok: true as const };
   });
 
   app.post('/ideas/:id/approve', async (req) => {
@@ -67,7 +100,8 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
 
       await tx
         .update(ideas)
-        .set({ status: 'approved', decidedAt: new Date() })
+        // el rank manual pertenece al ranking: no viaja con la idea decidida
+        .set({ status: 'approved', manualRank: null, decidedAt: new Date() })
         .where(eq(ideas.id, id));
 
       // el vídeo nace con la selección de brand kit del canal; el tema de
@@ -127,6 +161,7 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
       .update(ideas)
       .set({
         status: 'discarded',
+        manualRank: null,
         discardReason: body?.reason ?? null,
         decidedAt: new Date(),
       })

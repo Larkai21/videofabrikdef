@@ -92,6 +92,8 @@ export const ideas = pgTable(
     score: doublePrecision('score').notNull().default(0),
     scoreParts: jsonb('score_parts'),
     status: text('status').notNull().default('new'), // new|approved|discarded|snoozed
+    // orden manual del radar: null = ordena el score; el humano manda si existe
+    manualRank: integer('manual_rank'),
     discardReason: text('discard_reason'),
     sourceRefs: jsonb('source_refs')
       .$type<{ url: string; title?: string; domain?: string }[]>()

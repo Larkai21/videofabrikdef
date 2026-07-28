@@ -35,9 +35,22 @@ export const fabricaEventSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('ideas_updated'),
     channel_id: z.string(),
+    // ideas nuevas que dejó el último scoring (0 = ranking sin cambios)
+    nuevas: z.number().int().min(0).optional(),
   }),
   z.object({
     type: z.literal('inbox_changed'),
+  }),
+  // un poll de fuente terminó: alimenta el feed en vivo del radar de ideas
+  z.object({
+    type: z.literal('source_poll'),
+    source_id: z.string(),
+    kind: z.string(),
+    // null = fuente compartida entre canales
+    channel_id: z.string().nullable(),
+    items: z.number().int().min(0),
+    nuevos: z.number().int().min(0),
+    error: z.string().optional(),
   }),
 ]);
 

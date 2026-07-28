@@ -5,8 +5,10 @@ import {
   DEDUPE_COS,
   DEDUPE_WINDOW_DAYS,
   JOBS,
+  SUPPORTED_SOURCE_KINDS,
   type IdeasScoreJob,
   type SourcePollJob,
+  type SupportedSourceKind,
 } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
 import { parseArxiv } from './fetchers/arxiv.js';
@@ -21,16 +23,10 @@ import {
   type NormalizedItem,
 } from './normalize.js';
 
-export type SupportedKind = 'hn' | 'arxiv' | 'news' | 'rss' | 'youtube';
+export type SupportedKind = SupportedSourceKind;
 
-// github y web requieren Playwright y reddit requiere OAuth: quedan fuera de S1.
-export const SUPPORTED_KINDS: ReadonlySet<string> = new Set([
-  'hn',
-  'arxiv',
-  'news',
-  'rss',
-  'youtube',
-]);
+// La lista canónica vive en shared (la API la usa para filtrar el radar).
+export const SUPPORTED_KINDS: ReadonlySet<string> = new Set(SUPPORTED_SOURCE_KINDS);
 
 const UNHEALTHY_THRESHOLD = 5;
 const SCORE_DEBOUNCE_MS = 30_000;
@@ -135,17 +131,30 @@ async function enqueueScoreJobs(ctx: WorkerContext, channelId: string | null): P
     ? [channelId]
     : (await ctx.db.select({ id: channels.id }).from(channels)).map((r) => r.id);
   for (const id of channelIds) {
-    // jobId estable + delay: las ráfagas de varios polls se funden en un solo
-    // score. BullMQ prohíbe ':' en ids custom, de ahí el separador '-'.
+    // deduplication con ttl (y NO jobId fijo): las ráfagas de polls se funden
+    // en un score, pero un add mientras otro score está ACTIVO crea job nuevo.
+    // Con jobId estable, BullMQ lo descartaría en silencio y lo recién
+    // insertado quedaría sin puntuar hasta el siguiente poll con material.
     await ctx.queues.ideas.add(
       JOBS.ideas.score,
       { channelId: id } satisfies IdeasScoreJob,
-      { jobId: `score-${id}`, delay: SCORE_DEBOUNCE_MS, removeOnComplete: true, removeOnFail: true },
+      {
+        deduplication: { id: `score-${id}`, ttl: SCORE_DEBOUNCE_MS },
+        delay: SCORE_DEBOUNCE_MS,
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
     );
   }
 }
 
-export async function handleSourcePoll(ctx: WorkerContext, data: SourcePollJob): Promise<void> {
+export async function handleSourcePoll(
+  ctx: WorkerContext,
+  data: SourcePollJob,
+  // intentos de BullMQ: el evento de fallo solo se publica en el último para
+  // no ensuciar el feed del radar con cada reintento
+  attempt?: { made: number; total: number },
+): Promise<void> {
   const [source] = await ctx.db.select().from(sources).where(eq(sources.id, data.sourceId));
   if (!source) {
     ctx.logger.warn({ sourceId: data.sourceId }, 'Poll de una fuente inexistente; se ignora');
@@ -179,6 +188,15 @@ export async function handleSourcePoll(ctx: WorkerContext, data: SourcePollJob):
       },
       'Poll de fuente completado',
     );
+    // feed en vivo del radar de ideas en la bandeja
+    await ctx.publishEvent({
+      type: 'source_poll',
+      source_id: source.id,
+      kind: source.kind,
+      channel_id: source.channelId,
+      items: items.length,
+      nuevos: inserted.length,
+    });
     if (inserted.length > 0) await enqueueScoreJobs(ctx, source.channelId);
   } catch (err) {
     const failures = source.consecutiveFailures + 1;
@@ -186,6 +204,19 @@ export async function handleSourcePoll(ctx: WorkerContext, data: SourcePollJob):
       .update(sources)
       .set({ consecutiveFailures: failures })
       .where(eq(sources.id, source.id));
+    // attemptsMade cuenta intentos ANTERIORES dentro del procesador
+    const isFinalAttempt = attempt === undefined || attempt.made + 1 >= attempt.total;
+    if (isFinalAttempt) {
+      await ctx.publishEvent({
+        type: 'source_poll',
+        source_id: source.id,
+        kind: source.kind,
+        channel_id: source.channelId,
+        items: 0,
+        nuevos: 0,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
     if (failures >= UNHEALTHY_THRESHOLD) {
       ctx.logger.warn(
         { sourceId: source.id, failures },

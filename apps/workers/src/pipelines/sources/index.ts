@@ -23,7 +23,10 @@ export async function registerSourcesWorkers(ctx: WorkerContext): Promise<Worker
     QUEUES.sources,
     async (job) => {
       if (job.name === JOBS.sources.poll) {
-        return handleSourcePoll(ctx, job.data as SourcePollJob);
+        return handleSourcePoll(ctx, job.data as SourcePollJob, {
+          made: job.attemptsMade,
+          total: job.opts.attempts ?? 1,
+        });
       }
       if (job.name === JOBS.sources.bootstrap) {
         return handleBootstrap(ctx, job.data as SourcesBootstrapJob);

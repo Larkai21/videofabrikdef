@@ -9,6 +9,12 @@ export const VIDEO_HEIGHT = 1080;
 // Embeddings — el MISMO modelo en todo el sistema; cambiarlo = re-embeber todo
 export const EMBEDDING_DIMS = 384;
 
+// Fuentes de ideas con fetcher implementado (github y web requieren Playwright,
+// reddit requiere OAuth: quedan fuera del MVP). La API filtra con esta lista lo
+// que enseña y encola el radar; los workers, lo que procesan.
+export const SUPPORTED_SOURCE_KINDS = ['hn', 'arxiv', 'news', 'rss', 'youtube'] as const;
+export type SupportedSourceKind = (typeof SUPPORTED_SOURCE_KINDS)[number];
+
 // Beats (segundos)
 export const BEAT_MIN_S = 8;
 export const BEAT_MAX_S = 15;

@@ -32,6 +32,8 @@ export const ideaDtoSchema = z.object({
   why_now: z.string().nullable(),
   score: z.number(),
   status: ideaStatusSchema,
+  // orden manual del radar (null = ordena el score)
+  manual_rank: z.number().int().nullable(),
   source_refs: z.array(
     z.object({
       url: z.string(),
@@ -42,6 +44,24 @@ export const ideaDtoSchema = z.object({
   created_at: z.string(),
 });
 export type IdeaDto = z.infer<typeof ideaDtoSchema>;
+
+// Fuente de ideas visible en el radar de la bandeja.
+export const sourceDtoSchema = z.object({
+  id: z.string(),
+  kind: z.string(),
+  label: z.string(),
+  enabled: z.boolean(),
+  consecutive_failures: z.number().int(),
+  last_fetched_at: z.string().nullable(),
+});
+export type SourceDto = z.infer<typeof sourceDtoSchema>;
+
+// Reordenación manual del ranking: lista COMPLETA de ids visibles, en orden.
+export const ideasOrderRequestSchema = z.object({
+  channel: z.string().min(1),
+  ids: z.array(z.string().min(1)).min(1).max(50),
+});
+export type IdeasOrderRequest = z.infer<typeof ideasOrderRequestSchema>;
 
 export const youtubePublicationSchema = z.object({
   // estado de la publicación, SEPARADO de la máquina de estados del vídeo

@@ -69,6 +69,8 @@ export async function handleIdeasScore(ctx: WorkerContext, data: IdeasScoreJob):
   const profile = channel.profile;
   if (!profile) {
     ctx.logger.warn({ channelId }, 'Canal sin perfil; no se puntúan ideas hasta completar el wizard');
+    // cierre para el radar: sin este evento la búsqueda se queda «puntuando»
+    await ctx.publishEvent({ type: 'ideas_updated', channel_id: channelId, nuevas: 0 });
     return;
   }
   const settings = channelSettingsSchema.parse(channel.settings ?? {});
@@ -102,6 +104,7 @@ export async function handleIdeasScore(ctx: WorkerContext, data: IdeasScoreJob):
 
   if (rows.length === 0) {
     ctx.logger.info({ channelId }, 'Sin items en la ventana de 14 días; nada que puntuar');
+    await ctx.publishEvent({ type: 'ideas_updated', channel_id: channelId, nuevas: 0 });
     return;
   }
 
@@ -257,8 +260,10 @@ export async function handleIdeasScore(ctx: WorkerContext, data: IdeasScoreJob):
     'Scoring de clusters completado',
   );
 
+  // siempre, con el recuento: el radar de la bandeja necesita el cierre
+  // («0 ideas nuevas» también es una respuesta)
+  await ctx.publishEvent({ type: 'ideas_updated', channel_id: channelId, nuevas: inserted });
   if (inserted > 0) {
-    await ctx.publishEvent({ type: 'ideas_updated', channel_id: channelId });
     await ctx.publishEvent({ type: 'inbox_changed' });
   }
 }
