@@ -49,6 +49,12 @@ describe('buildMusicMixFilter', () => {
     expect(filter).toContain('normalize=0');
   });
 
+  it('la música baja bajo la voz (ducking por sidechaincompress)', () => {
+    const filter = buildMusicMixFilter(10_000);
+    expect(filter).toContain('asplit=2');
+    expect(filter).toContain('sidechaincompress=');
+  });
+
   it('con voz más corta que el fade el inicio del fade no es negativo', () => {
     expect(buildMusicMixFilter(1_000)).toContain('afade=t=out:st=0.000');
   });

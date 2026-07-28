@@ -32,14 +32,20 @@ export function pickMusicTrack<T extends { id: string }>(videoId: string, tracks
 // Cadena de filtros de la mezcla, pura para poder testearla:
 // - la pista entra en bucle (-stream_loop -1) y amix con duration=first la
 //   corta EXACTAMENTE al final de la voz
-// - volume=-22dB bajo la voz, fade out de 2 s al final
+// - volume=-22dB base, fade out de 2 s al final
+// - DUCKING: sidechaincompress con la voz como cadena lateral → cuando hay voz
+//   la música baja sola y respira en los silencios (suena profesional en vez de
+//   un lecho plano). La voz se divide (asplit) en la mezcla y la cadena lateral.
 // - normalize=0 en amix para no atenuar la voz al mezclar
 export function buildMusicMixFilter(voiceDurationMs: number): string {
   const fadeStartS = Math.max(0, voiceDurationMs / 1000 - MUSIC_FADE_S);
   return [
+    `[0:a]asplit=2[voz][sc]`,
     `[1:a]aformat=sample_rates=44100:channel_layouts=mono,volume=${MUSIC_GAIN_DB}dB,` +
       `afade=t=out:st=${fadeStartS.toFixed(3)}:d=${MUSIC_FADE_S}[bg]`,
-    `[0:a][bg]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[mix]`,
+    // umbral/ratio suaves: baja ~6-8 dB bajo la voz, ataque rápido, release lento
+    `[bg][sc]sidechaincompress=threshold=0.03:ratio=6:attack=20:release=350:makeup=1[bgduck]`,
+    `[voz][bgduck]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[mix]`,
   ].join(';');
 }
 

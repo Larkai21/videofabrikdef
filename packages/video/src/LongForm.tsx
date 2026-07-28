@@ -21,8 +21,10 @@ import { Subtitles } from './Subtitles';
 
 const FALLBACK_SUBTITLE_THEME = 'subtitulos-basicos@0.1.0';
 
-// volumen de cada SFX built-in bajo la voz (la voz está a −16 LUFS)
-const SFX_VOLUME: Record<string, number> = { whoosh: 0.5, pop: 0.45, riser: 0.4, ding: 0.5 };
+// volumen de cada SFX built-in, nivelado para una sonoridad PERCIBIDA pareja
+// bajo la voz (−16 LUFS): el whoosh es ruido (se oye fuerte → más bajo), el
+// riser/ding son tonos (se perciben flojos → un pelín más altos). Todos sutiles.
+const SFX_VOLUME: Record<string, number> = { whoosh: 0.38, pop: 0.5, riser: 0.5, ding: 0.5 };
 
 // Transición entre planos con variedad determinista: en límites de sección un
 // wipe direccional (cambio de tema marcado); en cortes normales rota entre
