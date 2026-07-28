@@ -96,26 +96,39 @@ export async function handleComponentsAuthor(
     });
   };
 
-  const authored = await ledgeredLlmJson(ctx, {
-    channelId,
-    op: 'component_author',
-    system:
-      'Eres un diseñador de componentes de vídeo con Remotion. Devuelves SOLO un objeto JSON válido con los ficheros pedidos.',
-    user: prompt,
-    schema: componentAuthorOutputSchema,
-    // el mock deriva la plantilla determinista a partir del tipo
-    mockContext: { type },
-  });
+  // fallback: si la llamada al LLM lanza (JSON inválido, red, esquema), se usa la
+  // plantilla determinista → SIEMPRE se produce un componente válido en vez de no
+  // crear nada (que antes dejaba al usuario sin fila, sin incidencia y sin feedback).
+  let authored;
+  try {
+    authored = await ledgeredLlmJson(ctx, {
+      channelId,
+      op: 'component_author',
+      system:
+        'Eres un diseñador de componentes de vídeo con Remotion. Devuelves SOLO un objeto JSON válido con los ficheros pedidos.',
+      user: prompt,
+      schema: componentAuthorOutputSchema,
+      // el mock deriva la plantilla determinista a partir del tipo
+      mockContext: { type },
+    });
+  } catch (err) {
+    log.warn({ err }, 'La IA falló al escribir el componente; se usa la plantilla determinista');
+    authored = authoredTemplateOutput(type);
+  }
 
   // el worker es la autoridad sobre nombre/versión (evita colisiones y permite
-  // re-generar); el fixed_duration lo aporta la IA/plantilla
+  // re-generar); el fixed_duration lo aporta la IA/plantilla (null→undefined)
   const name = authoredComponentName(type);
   const version = await nextVersion(ctx, name);
+  const fixedDuration = authored.fixed_duration_frames ?? undefined;
 
-  if (TYPES_NEEDING_FIXED.includes(type) && authored.fixed_duration_frames === undefined) {
-    log.warn('La IA no devolvió fixed_duration_frames para un tipo que lo exige; se descarta');
-    throw new Error(`El tipo ${type} exige fixed_duration_frames y la IA no lo devolvió`);
+  // un tipo que exige duración fija sin ella: cae a la plantilla (que sí la trae)
+  let source = authored;
+  if (TYPES_NEEDING_FIXED.includes(type) && fixedDuration === undefined) {
+    log.warn('La IA no devolvió fixed_duration_frames para un tipo que lo exige; plantilla');
+    source = authoredTemplateOutput(type);
   }
+  const fixed = source.fixed_duration_frames ?? undefined;
 
   const manifest: ComponentManifest = componentManifestV1.parse({
     version: '1',
@@ -124,9 +137,7 @@ export async function handleComponentsAuthor(
     component_version: version,
     props_schema: './schema.ts',
     assets: [],
-    ...(authored.fixed_duration_frames !== undefined
-      ? { fixed_duration_frames: authored.fixed_duration_frames }
-      : {}),
+    ...(fixed !== undefined ? { fixed_duration_frames: fixed } : {}),
   });
 
   const destDir = path.join(
@@ -139,8 +150,8 @@ export async function handleComponentsAuthor(
   await fsp.rm(destDir, { recursive: true, force: true });
   await fsp.mkdir(destDir, { recursive: true });
   await fsp.writeFile(path.join(destDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
-  await fsp.writeFile(path.join(destDir, 'schema.ts'), authored.schema_ts);
-  await fsp.writeFile(path.join(destDir, 'Component.tsx'), authored.component_tsx);
+  await fsp.writeFile(path.join(destDir, 'schema.ts'), source.schema_ts);
+  await fsp.writeFile(path.join(destDir, 'Component.tsx'), source.component_tsx);
 
   const componentId = nanoid();
   await ctx.db.insert(components).values({

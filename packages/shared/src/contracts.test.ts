@@ -231,6 +231,27 @@ describe('Autoría de componentes por IA', () => {
     expect(prompt).toContain('component_tsx');
   });
 
+  it('los tipos sin duración fija NO piden fixed_duration_frames ni emiten null', () => {
+    for (const t of ['title_card', 'lower_third', 'subtitle_theme', 'thumbnail_template'] as const) {
+      const p = buildComponentAuthorPrompt(t, { channel_name: 'X', language: 'es' });
+      // el bug: el ejemplo emitía "fixed_duration_frames": null y el schema
+      // .optional() lo rechazaba → el LLM fallaba antes de crear la fila
+      expect(p).not.toContain('"fixed_duration_frames"');
+      expect(p).not.toContain('"fixed_duration_frames": null');
+    }
+    // los de duración fija SÍ la piden (con un número, no null)
+    expect(buildComponentAuthorPrompt('intro', { channel_name: 'X', language: 'es' })).toMatch(
+      /"fixed_duration_frames": \d+/,
+    );
+  });
+
+  it('el schema de salida tolera fixed_duration_frames null (nullish)', () => {
+    const base = authoredTemplateOutput('title_card');
+    expect(
+      componentAuthorOutputSchema.safeParse({ ...base, fixed_duration_frames: null }).success,
+    ).toBe(true);
+  });
+
   it('el prompt de reparación incluye el log del fallo, los ficheros y el formato JSON', () => {
     const p = buildComponentRepairPrompt('intro', {
       prevSchemaTs: 'export default zObjeto',

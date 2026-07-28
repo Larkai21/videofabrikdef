@@ -40,6 +40,9 @@ export async function registerComponentsWorkers(ctx: WorkerContext): Promise<Wor
   );
   worker.on('failed', (job, err) => {
     ctx.logger.error({ job: job?.id, err: err.message }, 'Job de componentes fallido');
+    // refresca el dashboard aunque el fallo no dejara fila (p. ej. autoría que
+    // reventó antes del insert): el operador ve que algo pasó
+    void ctx.publishEvent({ type: 'inbox_changed' });
   });
   return [worker];
 }

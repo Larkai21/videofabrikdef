@@ -19,7 +19,9 @@ const SEMVER_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 export const componentAuthorOutputSchema = z.object({
   name: z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
   component_version: z.string().regex(SEMVER_RE),
-  fixed_duration_frames: z.number().int().positive().optional(),
+  // .nullish(): tolera que el LLM mande null en los tipos sin duración fija
+  // (el consumidor normaliza null→undefined). Evita que un null tumbe el parse.
+  fixed_duration_frames: z.number().int().positive().nullish(),
   schema_ts: z.string().min(1),
   component_tsx: z.string().min(1),
 });
@@ -108,15 +110,20 @@ Component.tsx:
 ${ref.component_tsx}\`\`\`
 
 ## 7. Formato de salida (OBLIGATORIO)
-Responde SOLO con un objeto JSON con exactamente estas claves:
+Responde SOLO con un objeto JSON con exactamente estas claves${
+    ['intro', 'outro', 'transition'].includes(type) ? '' : ' (SIN fixed_duration_frames)'
+  }:
 {
   "name": "<kebab-case>",
   "component_version": "0.1.0",
-  ${['intro', 'outro', 'transition'].includes(type) ? `"fixed_duration_frames": ${ref.fixed_duration_frames ?? 90},` : '"fixed_duration_frames": null,'}
-  "schema_ts": "<contenido COMPLETO de schema.ts: export default z.object({...})>",
+${['intro', 'outro', 'transition'].includes(type) ? `  "fixed_duration_frames": ${ref.fixed_duration_frames ?? 90},\n` : ''}  "schema_ts": "<contenido COMPLETO de schema.ts: export default z.object({...})>",
   "component_tsx": "<contenido COMPLETO de Component.tsx: export default del componente>"
 }
-No incluyas manifest.json (lo genera el sistema) ni markdown ni comentarios fuera del JSON.`;
+No incluyas manifest.json (lo genera el sistema) ni markdown ni comentarios fuera del JSON. NO añadas claves extra${
+    ['intro', 'outro', 'transition'].includes(type)
+      ? ''
+      : ' ni fixed_duration_frames (este tipo no la lleva)'
+  }.`;
 }
 
 // Prompt de auto-reparación: dados los dos ficheros previos y el LOG EXACTO del
