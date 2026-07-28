@@ -891,7 +891,9 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
   const segments = await directChapters(ctx, {
     videoId,
     channelId: video.channelId,
-    lang: channel?.profile?.style.stock_query_lang ?? 'en',
+    // los títulos son texto EN PANTALLA: van en el idioma del contenido
+    // (profile.language), no en el de las búsquedas de stock (stock_query_lang)
+    lang: channel?.profile?.language === 'en' ? 'en' : 'es',
     beats: frozenBeats.map((b) => ({ idx: b.idx, from_ms: b.from_ms, text: b.text })),
   });
 
