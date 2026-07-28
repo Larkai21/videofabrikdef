@@ -27,6 +27,7 @@ export const COST_OPERATIONS = [
   'broll_director',
   'chapter_director',
   'vlm_caption',
+  'component_author',
   'tts',
   'search',
   'flux_schnell',

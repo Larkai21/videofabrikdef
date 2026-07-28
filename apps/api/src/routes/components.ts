@@ -9,6 +9,7 @@ import { nanoid } from 'nanoid';
 import { and, eq, ne, sql } from 'drizzle-orm';
 import { channels, components, videos } from '@fabrica/db';
 import {
+  AUTHOR_ALL_TYPES,
   buildComponentPrompt,
   channelSettingsSchema,
   componentDtoSchema,
@@ -18,7 +19,9 @@ import {
   QUEUES,
   type ChannelSettings,
   type ComponentDto,
+  type ComponentsAuthorJob,
   type ComponentsValidateJob,
+  type ComponentType,
 } from '@fabrica/shared';
 import type { ApiContext } from '../lib/context.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
@@ -243,6 +246,37 @@ export function registerComponentRoutes(app: FastifyInstance, ctx: ApiContext): 
       language: profile?.language === 'en' ? 'en' : 'es',
     });
     return { type: parsedType.data, prompt };
+  });
+
+  // ---- autoría por IA (Fase 4): encola components.author para uno o todos los
+  // tipos; el worker escribe los ficheros, valida y auto-activa al terminar.
+  app.post('/components/author', async (req) => {
+    const body = (req.body ?? {}) as { channel?: string; channel_id?: string; type?: string };
+    const channelId = body.channel ?? body.channel_id;
+    if (!channelId) throw badRequest('Falta el parámetro channel');
+    const [channelRow] = await ctx.db
+      .select({ id: channels.id })
+      .from(channels)
+      .where(eq(channels.id, channelId))
+      .limit(1);
+    if (!channelRow) throw notFound(`El canal ${channelId} no existe`);
+
+    // sin type (o type='all') se generan todos los tipos que la composición monta
+    let types: ComponentType[];
+    if (body.type === undefined || body.type === 'all') {
+      types = AUTHOR_ALL_TYPES;
+    } else {
+      const parsed = componentTypeSchema.safeParse(body.type);
+      if (!parsed.success) throw badRequest('Tipo de componente inválido');
+      types = [parsed.data];
+    }
+
+    for (const type of types) {
+      const payload: ComponentsAuthorJob = { channelId, type };
+      await ctx.enqueuer.enqueue(QUEUES.components, JOBS.components.author, payload);
+    }
+    await ctx.events.publish({ type: 'inbox_changed' });
+    return { ok: true as const, enqueued: types };
   });
 
   // ---- activar: solo componentes validados; actualiza settings.brand_components

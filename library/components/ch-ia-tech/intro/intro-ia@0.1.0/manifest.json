@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "type": "intro",
+  "name": "intro-ia",
+  "component_version": "0.1.0",
+  "props_schema": "./schema.ts",
+  "fixed_duration_frames": 90,
+  "assets": []
+}

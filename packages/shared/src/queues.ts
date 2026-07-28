@@ -1,6 +1,8 @@
 // Colas BullMQ y contratos de sus payloads. La cola solo transporta trabajo:
 // todo estado de negocio vive en Postgres. Jobs idempotentes y reanudables.
 
+import type { ComponentType } from './component-manifest.js';
+
 export const QUEUES = {
   sources: 'sources',
   ideas: 'ideas',
@@ -23,7 +25,7 @@ export const JOBS = {
   tts: { synthesize: 'synthesize' },
   assets: { match: 'match', ingest: 'ingest' },
   render: { video: 'video' },
-  components: { validate: 'validate' },
+  components: { validate: 'validate', author: 'author' },
   library: { backfill: 'backfill', purgeScan: 'purge-scan', reembed: 'reembed' },
   publish: { upload: 'upload' },
 } as const;
@@ -81,6 +83,17 @@ export interface RenderVideoJob {
 
 export interface ComponentsValidateJob {
   componentId: string;
+  // si lo escribió la IA (components.author): al validar OK se auto-activa
+  // para su tipo en el canal, sin intervención humana
+  autoActivate?: boolean;
+}
+
+// Autoría por IA de un componente del brand kit (Fase 4): el worker pide a la
+// LLM los tres ficheros del zip (manifest/schema/component), los escribe bajo
+// library/components/ y encola components.validate con autoActivate.
+export interface ComponentsAuthorJob {
+  channelId: string;
+  type: ComponentType;
 }
 
 export interface LibraryBackfillJob {

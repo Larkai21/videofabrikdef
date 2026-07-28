@@ -6,8 +6,9 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import type { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { components } from '@fabrica/db';
+import { channels, components } from '@fabrica/db';
 import {
+  channelSettingsSchema,
   componentManifestV1,
   componentTypeSchema,
   QUEUES,
@@ -139,6 +140,28 @@ export async function syncRegistryFromDb(ctx: WorkerContext): Promise<void> {
   } else {
     ctx.logger.info({ componentes: byRef.size }, 'Registry del brand kit sincronizado desde la BD');
   }
+}
+
+// Activa un componente para su tipo en el canal (settings.brand_components).
+// Espejo de POST /components/:id/activate, para la auto-activación del worker.
+async function activateForChannel(
+  ctx: WorkerContext,
+  channelId: string,
+  type: ComponentType,
+  reference: string,
+): Promise<void> {
+  const [channelRow] = await ctx.db
+    .select({ settings: channels.settings })
+    .from(channels)
+    .where(eq(channels.id, channelId))
+    .limit(1);
+  if (!channelRow) return;
+  const current = channelSettingsSchema.parse(channelRow.settings ?? {});
+  const merged = channelSettingsSchema.parse({
+    ...current,
+    brand_components: { ...current.brand_components, [type]: reference },
+  });
+  await ctx.db.update(channels).set({ settings: merged }).where(eq(channels.id, channelId));
 }
 
 export async function handleComponentsValidate(
@@ -492,6 +515,19 @@ export async function handleComponentsValidate(
       .update(components)
       .set({ status: 'validated', log: logText, previewPath })
       .where(eq(components.id, componentId));
+
+    // auto-activación (components.author): un componente escrito por la IA se
+    // activa para su tipo en cuanto valida, sin intervención humana. La subida
+    // manual de zips NO trae autoActivate: la activa el humano desde el kit.
+    if (job.data.autoActivate === true) {
+      try {
+        await activateForChannel(ctx, row.channelId, row.type as ComponentType, reference);
+        log.info({ reference }, 'Componente de IA activado automáticamente');
+      } catch (err) {
+        log.warn({ err, reference }, 'No se pudo auto-activar el componente de IA');
+      }
+    }
+
     await publishProgress(100, 'Componente validado');
     await ctx.publishEvent({ type: 'inbox_changed' });
     log.info({ reference, previewPath }, 'Componente del brand kit validado');

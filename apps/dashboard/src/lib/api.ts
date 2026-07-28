@@ -318,6 +318,20 @@ export async function deleteComponent(id: string): Promise<void> {
   await request(`/components/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
+// Autoría por IA (Fase 4): encola la generación de uno o todos los tipos.
+// Sin type (o 'all') genera todas las animaciones que la composición monta.
+export async function authorComponents(
+  channelId: string,
+  type?: string,
+): Promise<{ enqueued: string[] }> {
+  const data = await post('/components/author', {
+    channel: channelId,
+    ...(type !== undefined ? { type } : {}),
+  });
+  const enqueued = (data as { enqueued?: unknown }).enqueued;
+  return { enqueued: Array.isArray(enqueued) ? (enqueued as string[]) : [] };
+}
+
 // ---- publicación en YouTube (S3) ----
 // El estado de la publicación de un vídeo llega dentro de videoDetailDtoSchema
 // (campo youtube, esquema de shared). Los endpoints de conexión OAuth aún no

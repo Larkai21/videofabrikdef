@@ -5,6 +5,7 @@ export * from './channel-profile.js';
 export * from './master-json.js';
 export * from './component-manifest.js';
 export * from './component-prompt.js';
+export * from './component-author.js';
 export * from './queues.js';
 export * from './cost.js';
 export * from './events.js';

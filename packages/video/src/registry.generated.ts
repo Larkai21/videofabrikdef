@@ -14,6 +14,7 @@ import { IntroBasica } from './themes/IntroBasica';
 import { OutroBasica } from './themes/OutroBasica';
 import { SubtitlesBasicos } from './themes/SubtitlesBasicos';
 import { TituloSeccion } from './themes/TituloSeccion';
+import Kit_intro_ia_0_1_0 from './kit/intro-ia@0.1.0/Component';
 import Kit_rotulo_ejemplo_1_0_0 from './kit/rotulo-ejemplo@1.0.0/Component';
 
 export type RegisteredComponent = React.ComponentType<Record<string, unknown>>;
@@ -23,6 +24,7 @@ export const componentRegistry: Partial<
 > = {
   intro: {
     'intro-basica@0.1.0': IntroBasica as unknown as RegisteredComponent,
+    'intro-ia@0.1.0': Kit_intro_ia_0_1_0 as unknown as RegisteredComponent,
   },
   outro: {
     'outro-basica@0.1.0': OutroBasica as unknown as RegisteredComponent,
@@ -46,6 +48,7 @@ export interface KitComponentMeta {
 
 export const componentMeta: Record<string, KitComponentMeta> = {
   'intro-basica@0.1.0': { fixed_duration_frames: 60 },
+  'intro-ia@0.1.0': { fixed_duration_frames: 90 },
   'outro-basica@0.1.0': { fixed_duration_frames: 90 },
   'rotulo-ejemplo@1.0.0': {},
   'subtitulos-basicos@0.1.0': {},

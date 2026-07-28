@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AUTHOR_ALL_TYPES,
+  authoredComponentName,
+  authoredTemplateOutput,
+  buildComponentAuthorPrompt,
   canTransition,
   channelProfileV1,
+  COMPONENT_TYPES,
+  componentAuthorOutputSchema,
   componentManifestV1,
   defaultDesign,
   designTokensSchema,
@@ -149,5 +155,57 @@ describe('DesignTokens', () => {
     // alpha fuera de rango se recorta a [0, 1]
     expect(hexToRgba('#000', 2)).toBe('rgba(0, 0, 0, 1)');
     expect(hexToRgba('#000', -1)).toBe('rgba(0, 0, 0, 0)');
+  });
+});
+
+describe('Autoría de componentes por IA', () => {
+  it('la plantilla de cada tipo cumple el esquema de salida', () => {
+    for (const type of COMPONENT_TYPES) {
+      const out = authoredTemplateOutput(type);
+      expect(() => componentAuthorOutputSchema.parse(out)).not.toThrow();
+      // export default + lectura de tokens (FALLBACK/design) en el componente
+      expect(out.component_tsx).toContain('export default');
+      expect(out.component_tsx).toContain('design');
+      expect(out.schema_ts).toContain('export default');
+      expect(out.name).toBe(authoredComponentName(type));
+    }
+  });
+
+  it('intro/outro/transition traen fixed_duration_frames; muestran el avatar', () => {
+    for (const type of ['intro', 'outro', 'transition'] as const) {
+      expect(authoredTemplateOutput(type).fixed_duration_frames).toBeGreaterThan(0);
+    }
+    // intro y outro pintan el logo (avatar del canal)
+    expect(authoredTemplateOutput('intro').component_tsx).toContain('logo');
+    expect(authoredTemplateOutput('outro').component_tsx).toContain('logo');
+    expect(authoredTemplateOutput('thumbnail_template').component_tsx).toContain('image_path');
+  });
+
+  it('las plantillas no usan APIs no deterministas', () => {
+    const banned = ['Math.random', 'Date.now', 'setTimeout', 'setInterval', 'fetch(', 'new Date('];
+    for (const type of COMPONENT_TYPES) {
+      const src = authoredTemplateOutput(type).component_tsx;
+      for (const term of banned) expect(src).not.toContain(term);
+    }
+  });
+
+  it('el prompt de autoría incluye el contrato de props, el design y el avatar', () => {
+    const prompt = buildComponentAuthorPrompt(
+      'intro',
+      { channel_name: 'MilkyGoblinNews', language: 'es' },
+      { design: defaultDesign() as unknown as Record<string, string>, character: { name: 'Milky Goblin', description: 'duende lechoso' } },
+    );
+    expect(prompt).toContain('channel_name');
+    expect(prompt).toContain('design');
+    expect(prompt).toContain('Milky Goblin');
+    expect(prompt).toContain('fixed_duration_frames');
+    expect(prompt).toContain('schema_ts');
+    expect(prompt).toContain('component_tsx');
+  });
+
+  it('el lote de "generar todas" excluye transition (no se monta hoy)', () => {
+    expect(AUTHOR_ALL_TYPES).not.toContain('transition');
+    expect(AUTHOR_ALL_TYPES).toContain('intro');
+    expect(AUTHOR_ALL_TYPES).toContain('subtitle_theme');
   });
 });

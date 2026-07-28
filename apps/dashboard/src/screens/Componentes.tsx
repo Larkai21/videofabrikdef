@@ -12,6 +12,7 @@ import {
 import { Button, Chip, EmptyState, type ChipKind } from '../components/ui';
 import {
   activateComponent,
+  authorComponents,
   deleteComponent,
   fileUrl,
   getComponentPrompt,
@@ -238,11 +239,26 @@ function expandHex(hex: string): string {
   return `#${h.split('').map((c) => c + c).join('')}`;
 }
 
-// Diseñar con Claude: elige un tipo y copia el "prompt-contrato" (tokens de
-// marca + props exactas + reglas de Remotion) para pegarlo en Claude Design.
+// Animaciones con IA: la IA (Claude) escribe TODAS las animaciones del brand
+// kit leyendo el design system del canal y mostrando el avatar. El flujo manual
+// (copiar el prompt-contrato para Claude Design y subir el zip) queda como
+// alternativa avanzada.
 function DesignPromptCard({ channelId }: { channelId: string }) {
   const { push } = useToasts();
+  const queryClient = useQueryClient();
   const [type, setType] = useState<ComponentType>('intro');
+
+  const authorMut = useMutation({
+    mutationFn: (t?: string) => authorComponents(channelId, t),
+    onSuccess: (res) => {
+      void queryClient.invalidateQueries({ queryKey: ['componentes'] });
+      const n = res.enqueued.length;
+      push(n > 1 ? `Generando ${n} animaciones con IA` : 'Generando la animación con IA');
+    },
+    onError: (err) =>
+      push(err instanceof Error ? err.message : 'No se pudieron generar las animaciones', 'danger'),
+  });
+
   const copyMut = useMutation({
     mutationFn: async () => {
       const prompt = await getComponentPrompt(channelId, type);
@@ -251,19 +267,27 @@ function DesignPromptCard({ channelId }: { channelId: string }) {
     onSuccess: () => push(`Prompt de ${TYPE_LABELS[type].toLowerCase()} copiado`),
     onError: () => push('No se pudo generar el prompt', 'danger'),
   });
+
+  const busy = authorMut.isPending;
+
   return (
     <div
       className="card"
-      style={{ padding: 'var(--pad)', marginBottom: 'var(--sec-gap)', display: 'grid', gap: 10 }}
+      style={{ padding: 'var(--pad)', marginBottom: 'var(--sec-gap)', display: 'grid', gap: 12 }}
     >
       <div className="head" style={{ fontSize: 14 }}>
-        Diseñar un componente con Claude
+        Animaciones con IA
       </div>
       <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.55 }}>
-        Copia un prompt listo para pegar en Claude Design con los tokens de tu canal, la interfaz
-        exacta de props del tipo y las reglas de render; te devolverá los tres ficheros del zip.
+        La IA escribe las animaciones del brand kit (intro, outro, tarjetas, rótulos, subtítulos y
+        miniatura) leyendo tu design system y mostrando el avatar del canal. Cada una se valida
+        (typecheck, determinismo, contrato y render de humo) y se activa sola al pasar.
       </p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Button variant="primary" disabled={busy} onClick={() => authorMut.mutate(undefined)}>
+          {busy ? 'Generando' : 'Generar todas con IA'}
+        </Button>
+        <span className="muted fs-sm">o un tipo concreto:</span>
         <select
           className="control"
           aria-label="Tipo de componente"
@@ -277,10 +301,31 @@ function DesignPromptCard({ channelId }: { channelId: string }) {
             </option>
           ))}
         </select>
-        <Button variant="secondary" disabled={copyMut.isPending} onClick={() => copyMut.mutate()}>
-          Copiar prompt de diseño
+        <Button variant="secondary" disabled={busy} onClick={() => authorMut.mutate(type)}>
+          Generar {TYPE_LABELS[type].toLowerCase()}
         </Button>
       </div>
+
+      <details>
+        <summary className="muted fs-sm" style={{ cursor: 'pointer' }}>
+          Diseñarlo a mano con Claude Design (avanzado)
+        </summary>
+        <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+          <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.55 }}>
+            Copia el prompt-contrato (tokens del canal + props exactas + reglas de render), pégalo
+            en Claude Design y sube el zip resultante.
+          </p>
+          <div>
+            <Button
+              variant="secondary"
+              disabled={copyMut.isPending}
+              onClick={() => copyMut.mutate()}
+            >
+              Copiar prompt de {TYPE_LABELS[type].toLowerCase()}
+            </Button>
+          </div>
+        </div>
+      </details>
     </div>
   );
 }
