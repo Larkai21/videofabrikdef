@@ -330,6 +330,11 @@ export async function activateComponent(id: string): Promise<void> {
   await post(`/components/${encodeURIComponent(id)}/activate`);
 }
 
+// activa un componente INTEGRADO (built-in) por ref para el canal
+export async function activateBuiltin(channel: string, type: string, ref: string): Promise<void> {
+  await post('/components/activate-ref', { channel, type, ref });
+}
+
 export async function deleteComponent(id: string): Promise<void> {
   await request(`/components/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }

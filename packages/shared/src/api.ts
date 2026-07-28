@@ -237,6 +237,9 @@ export const componentDtoSchema = z.object({
   // miniaturas (still) o si aún no está validado
   preview_video_url: z.string().nullable(),
   active: z.boolean(),
+  // componente integrado (no subido por zip): no se puede borrar y se activa
+  // por ref; su id es 'builtin:<ref>'
+  builtin: z.boolean().default(false),
   created_at: z.string(),
 });
 export type ComponentDto = z.infer<typeof componentDtoSchema>;

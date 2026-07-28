@@ -11,6 +11,7 @@ import {
 } from '@fabrica/shared';
 import { Button, Chip, EmptyState, type ChipKind } from '../components/ui';
 import {
+  activateBuiltin,
   activateComponent,
   authorComponents,
   deleteComponent,
@@ -511,6 +512,7 @@ interface ComponentCardProps {
   note?: JobNote;
   busy: boolean;
   onActivate: (id: string) => void;
+  onActivateRef: (type: string, ref: string) => void;
   onDelete: (id: string) => void;
   onRevalidate: (id: string) => void;
 }
@@ -520,6 +522,7 @@ function ComponentCard({
   note,
   busy,
   onActivate,
+  onActivateRef,
   onDelete,
   onRevalidate,
 }: ComponentCardProps) {
@@ -531,7 +534,7 @@ function ComponentCard({
         <span className="mono" style={{ fontSize: 'var(--fs-sm)' }}>
           {c.name}@{c.version}
         </span>
-        <Chip kind={status.kind}>{status.label}</Chip>
+        {c.builtin ? <Chip kind="neutral">Integrado</Chip> : <Chip kind={status.kind}>{status.label}</Chip>}
         {c.active ? <Chip kind="ok">Activo</Chip> : null}
       </div>
 
@@ -603,16 +606,28 @@ function ComponentCard({
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {c.status === 'validated' && !c.active ? (
-          <Button variant="primary" disabled={busy} onClick={() => onActivate(c.id)}>
+          <Button
+            variant="primary"
+            disabled={busy}
+            onClick={() =>
+              c.builtin ? onActivateRef(c.type, `${c.name}@${c.version}`) : onActivate(c.id)
+            }
+          >
             Activar
           </Button>
         ) : null}
-        {c.status === 'validated' && c.preview_video_url === null ? (
+        {!c.builtin && c.status === 'validated' && c.preview_video_url === null ? (
           <Button variant="secondary" disabled={busy} onClick={() => onRevalidate(c.id)}>
             Regenerar preview
           </Button>
         ) : null}
-        {!c.active ? (
+        {c.builtin ? (
+          c.active ? (
+            <span className="muted fs-sm" style={{ alignSelf: 'center' }}>
+              En uso en los vídeos nuevos del canal
+            </span>
+          ) : null
+        ) : !c.active ? (
           <Button variant="danger-ghost" disabled={busy} onClick={() => onDelete(c.id)}>
             Quitar
           </Button>
@@ -696,6 +711,17 @@ export function Componentes() {
       push(err instanceof Error ? err.message : 'No se pudo regenerar la preview', 'danger'),
   });
 
+  const activateRefMut = useMutation({
+    mutationFn: ({ type, ref }: { type: string; ref: string }) =>
+      activateBuiltin(channelId as string, type, ref),
+    onSuccess: () => {
+      void invalidate();
+      push('Componente integrado activado para el canal');
+    },
+    onError: (err) =>
+      push(err instanceof Error ? err.message : 'No se pudo activar el integrado', 'danger'),
+  });
+
   useHotkeys((e) => {
     if (e.key === 's' && channelId !== null && !uploading) {
       e.preventDefault();
@@ -709,7 +735,8 @@ export function Componentes() {
     if (fileRef.current !== null) fileRef.current.value = '';
   };
 
-  const busy = activateMut.isPending || deleteMut.isPending || revalidateMut.isPending;
+  const busy =
+    activateMut.isPending || deleteMut.isPending || revalidateMut.isPending || activateRefMut.isPending;
   const componentsByType = new Map<ComponentType, ComponentDto[]>();
   for (const c of componentsQ.data ?? []) {
     const type = c.type as ComponentType;
@@ -820,6 +847,7 @@ export function Componentes() {
                     note={jobNotes[c.id]}
                     busy={busy}
                     onActivate={(id) => activateMut.mutate(id)}
+                    onActivateRef={(type, ref) => activateRefMut.mutate({ type, ref })}
                     onDelete={(id) => deleteMut.mutate(id)}
                     onRevalidate={(id) => revalidateMut.mutate(id)}
                   />

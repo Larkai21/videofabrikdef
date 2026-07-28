@@ -57,6 +57,27 @@ export const DEFAULT_INTRO_REF = 'intro-basica@0.1.0';
 export const DEFAULT_OUTRO_REF = 'outro-basica@0.1.0';
 export const DEFAULT_LOWER_THIRD_REF = 'rotulo-basico@0.1.0';
 
+// Componentes integrados (no requieren zip): fuente de verdad para listarlos y
+// elegirlos en el Brand kit. Los refs coinciden con BUILTINS de
+// packages/video/src/registry-gen.ts (constantes estables). fixed_duration_frames
+// solo en intro/outro (lo necesita el render y la siembra de previews).
+export interface BuiltinKitComponent {
+  type: ComponentType;
+  ref: string;
+  name: string;
+  version: string;
+  label: string;
+  fixed_duration_frames?: number;
+}
+
+export const BUILTIN_KIT_COMPONENTS: BuiltinKitComponent[] = [
+  { type: 'intro', ref: DEFAULT_INTRO_REF, name: 'intro-basica', version: '0.1.0', label: 'Intro cinematográfica', fixed_duration_frames: 80 },
+  { type: 'outro', ref: DEFAULT_OUTRO_REF, name: 'outro-basica', version: '0.1.0', label: 'Outro con CTA', fixed_duration_frames: 90 },
+  { type: 'title_card', ref: DEFAULT_TITLE_CARD_REF, name: 'titulo-seccion', version: '0.1.0', label: 'Tarjeta de sección' },
+  { type: 'lower_third', ref: DEFAULT_LOWER_THIRD_REF, name: 'rotulo-basico', version: '0.1.0', label: 'Rótulo inferior' },
+  { type: 'subtitle_theme', ref: DEFAULT_SUBTITLE_THEME_REF, name: 'subtitulos-basicos', version: '0.1.0', label: 'Subtítulos karaoke' },
+];
+
 export function defaultBrand(): {
   components: {
     subtitle_theme: string;

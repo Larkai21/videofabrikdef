@@ -10,6 +10,7 @@ import { and, eq, ne, sql } from 'drizzle-orm';
 import { channels, components, videos } from '@fabrica/db';
 import {
   AUTHOR_ALL_TYPES,
+  BUILTIN_KIT_COMPONENTS,
   buildComponentPrompt,
   channelSettingsSchema,
   componentDtoSchema,
@@ -63,7 +64,33 @@ function toDto(row: ComponentRow, settings: ChannelSettings): ComponentDto {
     preview_url: row.previewPath !== null ? toFileUrl(row.previewPath) : null,
     preview_video_url: previewVideoUrl,
     active: settings.brand_components[row.type] === refOf(row),
+    builtin: false,
     created_at: row.createdAt.toISOString(),
+  });
+}
+
+// DTOs sintéticos de los componentes integrados (no viven en BD): se listan y se
+// pueden activar por ref. La preview sale de library/builtin-previews/<ref>/ si
+// se sembró (scripts/seed-builtin-previews.ts); si no, null.
+function builtinDtos(settings: ChannelSettings, libraryDir: string): ComponentDto[] {
+  return BUILTIN_KIT_COMPONENTS.map((b) => {
+    const dir = path.join(libraryDir, 'builtin-previews', `${b.name}@${b.version}`);
+    const png = path.join(dir, 'preview.png');
+    const mp4 = path.join(dir, 'preview.mp4');
+    return componentDtoSchema.parse({
+      id: `builtin:${b.ref}`,
+      channel_id: '',
+      type: b.type,
+      name: b.name,
+      version: b.version,
+      status: 'validated' as const,
+      log: b.label,
+      preview_url: existsSync(png) ? toFileUrl(png) : null,
+      preview_video_url: existsSync(mp4) ? toFileUrl(mp4) : null,
+      active: settings.brand_components[b.type] === b.ref,
+      builtin: true,
+      created_at: new Date(0).toISOString(),
+    });
   });
 }
 
@@ -230,7 +257,10 @@ export function registerComponentRoutes(app: FastifyInstance, ctx: ApiContext): 
       .from(components)
       .where(eq(components.channelId, channel))
       .orderBy(components.type, components.name, components.version);
-    return { components: rows.map((row) => toDto(row, settings)) };
+    // integrados primero (siempre disponibles) + los del canal subidos/IA
+    return {
+      components: [...builtinDtos(settings, ctx.libraryDir), ...rows.map((row) => toDto(row, settings))],
+    };
   });
 
   // prompt de diseño (SPEC §10): genera el "prompt-contrato" por tipo con los
@@ -322,6 +352,33 @@ export function registerComponentRoutes(app: FastifyInstance, ctx: ApiContext): 
       brand_components: { ...current.brand_components, [row.type]: refOf(row) },
     });
     await ctx.db.update(channels).set({ settings: merged }).where(eq(channels.id, row.channelId));
+    await ctx.events.publish({ type: 'inbox_changed' });
+    return { ok: true as const };
+  });
+
+  // ---- activar por ref: para los componentes INTEGRADOS (no tienen fila en BD).
+  // Valida que el ref sea un integrado de ese tipo y fija brand_components[type].
+  app.post('/components/activate-ref', async (req) => {
+    const body = (req.body ?? {}) as { channel?: string; type?: string; ref?: string };
+    const { channel: channelId, ref } = body;
+    if (!channelId || !ref) throw badRequest('Faltan channel y ref');
+    const builtin = BUILTIN_KIT_COMPONENTS.find((b) => b.ref === ref);
+    if (!builtin) throw badRequest('ref no corresponde a un componente integrado');
+    if (body.type !== undefined && body.type !== builtin.type) {
+      throw badRequest('El tipo no coincide con el ref');
+    }
+    const [channelRow] = await ctx.db
+      .select()
+      .from(channels)
+      .where(eq(channels.id, channelId))
+      .limit(1);
+    if (!channelRow) throw notFound(`El canal ${channelId} no existe`);
+    const current = channelSettingsSchema.parse(channelRow.settings ?? {});
+    const merged = channelSettingsSchema.parse({
+      ...current,
+      brand_components: { ...current.brand_components, [builtin.type]: ref },
+    });
+    await ctx.db.update(channels).set({ settings: merged }).where(eq(channels.id, channelId));
     await ctx.events.publish({ type: 'inbox_changed' });
     return { ok: true as const };
   });
