@@ -134,6 +134,18 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
       e.type === 'kinetic_text' ||
       e.type === 'stat_odometer',
   );
+  // Coordinación capítulos ↔ edición: una tarjeta de sección y un overlay de
+  // contenido (callout/cifra/kinetic) que coincidan en el tiempo chocarían en
+  // pantalla (ambos centrados). El overlay es específico del momento y manda:
+  // se omite la tarjeta de sección solapada. Los efectos que no cubren pantalla
+  // (zoom_punch, keyword_highlight, sfx) no cuentan.
+  const sectionCards = React.useMemo(() => {
+    const windows = overlayCues.map((c) => ({ from: c.from, to: c.from + c.durationInFrames }));
+    return layout.sectionCards.filter(
+      (card) =>
+        !windows.some((w) => card.from < w.to && card.from + card.durationInFrames > w.from),
+    );
+  }, [layout.sectionCards, overlayCues]);
   const sfxCues = effects.filter((e) => e.type === 'sfx' && e.sfx);
 
   const audioEl = audio && isRenderableSrc(audio.path) ? <Audio src={toSrc(audio.path)} /> : null;
@@ -228,7 +240,7 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
           />
         </Sequence>
       ) : null}
-      {layout.sectionCards.map((card, i) => (
+      {sectionCards.map((card, i) => (
         <Sequence
           key={`seccion-${i}`}
           from={card.from}
