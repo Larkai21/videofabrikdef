@@ -102,6 +102,22 @@ describe('Edits (director de edición)', () => {
     expect(editSchema.safeParse({ type: 'nope', from_ms: 0, to_ms: 1 }).success).toBe(false);
   });
 
+  it('acepta los efectos estrella nuevos: kinetic_text y stat_odometer', () => {
+    expect(
+      editSchema.safeParse({ type: 'kinetic_text', from_ms: 0, to_ms: 2200, text: 'se borra solo' })
+        .success,
+    ).toBe(true);
+    expect(
+      editSchema.safeParse({
+        type: 'stat_odometer',
+        from_ms: 5000,
+        to_ms: 7600,
+        value: '1.000.000',
+        label: 'combinaciones',
+      }).success,
+    ).toBe(true);
+  });
+
   it('edits es opcional: el maestro parsea con y sin ellos, y no bloquea el render', () => {
     const master = makeDemoMaster({
       audioPath: '/tmp/a.wav',

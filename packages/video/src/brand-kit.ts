@@ -54,7 +54,15 @@ export interface TitledKitSlot extends FixedKitSlot {
 // Un efecto de edición situado en la línea de tiempo de frames (ya con el
 // offset de la intro aplicado). Lo produce computeEffectsTrack desde master.edits.
 export interface EffectCue {
-  type: 'zoom_punch' | 'keyword_highlight' | 'text_callout' | 'stat_card' | 'quote_card' | 'sfx';
+  type:
+    | 'zoom_punch'
+    | 'keyword_highlight'
+    | 'text_callout'
+    | 'stat_card'
+    | 'quote_card'
+    | 'sfx'
+    | 'kinetic_text'
+    | 'stat_odometer';
   from: number;
   durationInFrames: number;
   beatIdx?: number;

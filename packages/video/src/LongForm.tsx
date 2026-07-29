@@ -13,7 +13,15 @@ import {
 } from '@fabrica/shared';
 import { BeatVisual } from './BeatVisual';
 import { computeBrandKitLayout, computeBrollTrack, type EffectCue } from './brand-kit';
-import { Ambience, ProgressBar, QuoteCard, StatCard, TextCallout } from './effects';
+import {
+  Ambience,
+  KineticText,
+  ProgressBar,
+  QuoteCard,
+  StatCard,
+  StatOdometer,
+  TextCallout,
+} from './effects';
 import { ensureFontLoaded, FONT_FAMILY } from './fonts';
 import { isRenderableSrc, toSrc } from './media-src';
 import { resolveComponent } from './registry.generated';
@@ -46,6 +54,12 @@ const EditOverlay: React.FC<{ cue: EffectCue; design: DesignTokens }> = ({ cue, 
     return <StatCard value={cue.value ?? ''} label={cue.label} design={design} />;
   }
   if (cue.type === 'quote_card') return <QuoteCard text={cue.text ?? ''} design={design} />;
+  if (cue.type === 'kinetic_text') {
+    return <KineticText text={cue.text ?? ''} seed={cue.from} design={design} />;
+  }
+  if (cue.type === 'stat_odometer') {
+    return <StatOdometer value={cue.value ?? ''} label={cue.label} design={design} />;
+  }
   return null;
 };
 
@@ -113,7 +127,12 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
     return map;
   }, [master.edits, beats, fps]);
   const overlayCues = effects.filter(
-    (e) => e.type === 'text_callout' || e.type === 'stat_card' || e.type === 'quote_card',
+    (e) =>
+      e.type === 'text_callout' ||
+      e.type === 'stat_card' ||
+      e.type === 'quote_card' ||
+      e.type === 'kinetic_text' ||
+      e.type === 'stat_odometer',
   );
   const sfxCues = effects.filter((e) => e.type === 'sfx' && e.sfx);
 

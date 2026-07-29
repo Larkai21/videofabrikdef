@@ -227,6 +227,22 @@ describe('computeEffectsTrack', () => {
   it('sin edits devuelve una pista vacía', () => {
     expect(computeEffectsTrack(makeDemoMaster(), 30, 0)).toEqual([]);
   });
+
+  it('mapea los efectos nuevos (kinetic_text, stat_odometer) por passthrough', () => {
+    const master = makeDemoMaster({ audioPath: 'demo/silence.wav' });
+    master.edits = [
+      { type: 'kinetic_text', from_ms: 0, to_ms: 2200, text: 'se borra solo' },
+      { type: 'stat_odometer', from_ms: 3000, to_ms: 5600, value: '1000000', label: 'combinaciones' },
+    ];
+    const effects = computeEffectsTrack(master, 30, 0);
+    expect(effects[0]).toEqual({
+      type: 'kinetic_text',
+      from: 0,
+      durationInFrames: 66,
+      text: 'se borra solo',
+    });
+    expect(effects[1]).toMatchObject({ type: 'stat_odometer', value: '1000000', label: 'combinaciones' });
+  });
 });
 
 describe('computeBrollTrack', () => {

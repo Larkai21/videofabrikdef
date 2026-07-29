@@ -180,6 +180,10 @@ export const EDIT_TYPES = [
   'stat_card',
   'quote_card',
   'sfx',
+  // tipografía cinética palabra a palabra (gancho); usa `text`
+  'kinetic_text',
+  // count-up de rodillo mecánico para cifras; usa `value` (+ `label`)
+  'stat_odometer',
 ] as const;
 export const editTypeSchema = z.enum(EDIT_TYPES);
 export type EditType = z.infer<typeof editTypeSchema>;

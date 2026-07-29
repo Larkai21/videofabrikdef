@@ -2,6 +2,7 @@ import React from 'react';
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { defaultDesign, hexToRgba, type DesignTokens } from '@fabrica/shared';
 import { displayText, FONT_FAMILY } from '../fonts';
+import { hashSeed } from '../seed';
 import { clamp, Ease, span } from './motion';
 
 // Biblioteca de efectos de edición: overlays deterministas que el director de
@@ -140,6 +141,186 @@ export const QuoteCard: React.FC<{ text: string; design?: DesignTokens }> = ({ t
       >
         <div style={{ fontSize: 90, lineHeight: 0.6, color: d.accent, fontWeight: 800 }}>&ldquo;</div>
         <div style={{ fontSize: 54, fontWeight: 700, lineHeight: 1.25, color: d.foreground }}>{text}</div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+// Los 4 gestos de entrada de la tipografía cinética (adaptados de
+// editor-youtube kinetic-type.html:78-87). `e` es el progreso de entrada 0..1;
+// devuelven escala/desplazamiento/rotación/opacidad de la palabra.
+const GESTOS: Array<(e: number) => { s: number; x: number; y: number; r: number; o: number }> = [
+  // aterrizaje desde muy grande
+  (e) => ({ s: 2.6 - 1.6 * e, x: 0, y: 0, r: 0, o: e }),
+  // entra desde el lateral con rotación
+  (e) => ({ s: 0.86 + 0.14 * e, x: (1 - e) * 620, y: 0, r: (1 - e) * 9, o: e }),
+  // sube desde abajo, sobrepasando
+  (e) => ({ s: 0.92 + 0.08 * e, x: 0, y: (1 - e) * 380, r: 0, o: e }),
+  // crece desde cero con giro corto
+  (e) => ({ s: e * 1.04, x: 0, y: 0, r: (1 - e) * -7, o: e }),
+];
+
+// Tipografía cinética: la frase se muestra palabra a palabra, en grande y
+// centrada, cada una con un gesto de entrada distinto (rotan por índice, con
+// desempate determinista por hashSeed). Para el gancho. Adaptado de
+// editor-youtube kinetic-type.html:134-157. Solo useCurrentFrame + kit → puro.
+export const KineticText: React.FC<{ text: string; seed?: number; design?: DesignTokens }> = ({
+  text,
+  seed = 0,
+  design,
+}) => {
+  const d = design ?? defaultDesign();
+  const frame = useCurrentFrame();
+  const { durationInFrames, fps } = useVideoConfig();
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return null;
+
+  // fade global de cierre en los últimos ~0.35 s
+  const closeF = Math.min(Math.round(0.35 * fps), Math.round(durationInFrames * 0.2));
+  const cierre = 1 - span(frame, durationInFrames - closeF, closeF, Ease.outCubic);
+  // cada palabra ocupa un tramo; se solapan un poco para que fluya
+  const step = (durationInFrames - closeF) / words.length;
+
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+      <div style={{ position: 'relative', width: '100%', height: 320 }}>
+        {words.map((w, i) => {
+          const at = i * step;
+          const dur = step * 1.3;
+          const e = span(frame, at, dur * 0.25, Ease.outExpo);
+          const sale = span(frame, at + dur * 0.82, dur * 0.18, Ease.outCubic);
+          const g = GESTOS[hashSeed(`${seed}:${i}`) % GESTOS.length]!(e);
+          const drift = Math.sin(((frame - at) / fps) * 2.2) * 5;
+          const y = g.y + drift - sale * 90;
+          const visible = frame >= at && frame < at + dur;
+          // la última palabra es el remate → color de acento
+          const isLast = i === words.length - 1;
+          const size = clamp(1500 / Math.max(3, w.length), 90, 220);
+          return (
+            <div
+              key={i}
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                opacity: visible ? g.o * (1 - sale) * cierre : 0,
+                transform: `translate(-50%, -50%) translate(${g.x}px, ${y}px) scale(${g.s * (1 - sale * 0.12)}) rotate(${g.r}deg)`,
+                ...displayText(900),
+                fontSize: size,
+                lineHeight: 1,
+                letterSpacing: '-0.03em',
+                textTransform: 'uppercase',
+                whiteSpace: 'nowrap',
+                color: isLast ? d.accent : d.foreground,
+                textShadow: `0 8px 30px ${hexToRgba('#000000', 0.45)}`,
+              }}
+            >
+              {w}
+            </div>
+          );
+        })}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+// Count-up de rodillo mecánico: cada dígito es una columna continua que rueda;
+// la `rigidez` concentra el giro en el tramo final para que el acarreo se sienta
+// mecánico (adaptado de editor-youtube odometro.html:210-241). Para cifras.
+export const StatOdometer: React.FC<{ value: string; label?: string; design?: DesignTokens }> = ({
+  value,
+  label,
+  design,
+}) => {
+  const d = design ?? defaultDesign();
+  const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
+  const { opacity, enter } = useInOut();
+
+  const match = value.match(/-?\d[\d.,]*/);
+  const raw = match?.[0] ?? '';
+  const idx = match?.index ?? 0;
+  const prefix = match ? value.slice(0, idx) : value;
+  const suffix = match ? value.slice(idx + raw.length) : '';
+  const target = Number.parseInt(raw.replace(/[.,\s]/g, ''), 10);
+  const valid = raw !== '' && Number.isFinite(target);
+
+  // el conteo corre sobre el tramo central del efecto
+  const startF = Math.round(durationInFrames * 0.12);
+  const countF = Math.max(1, Math.round(durationInFrames * 0.5));
+  const p = span(frame, startF, countF, Ease.outCubic);
+  const current = valid ? target * p : 0;
+  const numDigits = valid ? Math.max(1, String(target).length) : 0;
+  const RIGIDEZ = 0.7;
+
+  const columns: React.ReactNode[] = [];
+  for (let peso = numDigits - 1; peso >= 0; peso--) {
+    const pos = (current / Math.pow(10, peso)) % 10;
+    const dg = Math.floor(pos);
+    const u = clamp((pos - dg - RIGIDEZ) / (1 - RIGIDEZ), 0, 1);
+    const ty = -(dg + Ease.inOutCubic(u));
+    columns.push(
+      <div key={`c${peso}`} style={{ height: '1em', width: '0.62em', overflow: 'hidden' }}>
+        <div style={{ transform: `translateY(${ty}em)` }}>
+          {Array.from({ length: 11 }, (_, n) => (
+            <div key={n} style={{ height: '1em', lineHeight: '1em', textAlign: 'center' }}>
+              {n % 10}
+            </div>
+          ))}
+        </div>
+      </div>,
+    );
+    // separador de millar
+    if (peso > 0 && peso % 3 === 0) {
+      columns.push(
+        <div key={`s${peso}`} style={{ width: '0.24em', textAlign: 'center' }}>
+          .
+        </div>,
+      );
+    }
+  }
+
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+      <div
+        style={{
+          opacity,
+          transform: `translateY(${(1 - enter) * 20}px)`,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 6,
+          background: hexToRgba(d.background, 0.72),
+          backdropFilter: 'blur(6px)',
+          padding: '24px 46px',
+          borderRadius: 20,
+          border: `1px solid ${hexToRgba(d.accent, 0.5)}`,
+          boxShadow: `0 20px 60px ${hexToRgba('#000000', 0.5)}`,
+        }}
+      >
+        <div
+          style={{
+            ...displayText(800),
+            fontSize: 130,
+            lineHeight: 1,
+            color: d.accent,
+            letterSpacing: '-0.03em',
+            display: 'flex',
+            alignItems: 'baseline',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {prefix ? <span>{prefix}</span> : null}
+          {valid ? (
+            <div style={{ display: 'flex', height: '1em', alignItems: 'flex-start' }}>{columns}</div>
+          ) : (
+            <span>{raw}</span>
+          )}
+          {suffix ? <span>{suffix}</span> : null}
+        </div>
+        {label !== undefined && label.trim() !== '' ? (
+          <div style={{ fontSize: 30, fontWeight: 500, color: d.foreground }}>{label}</div>
+        ) : null}
       </div>
     </AbsoluteFill>
   );
