@@ -51,10 +51,18 @@ function findWordMs(cues: Cue[], needle: string, withinFrom = 0, withinTo = Infi
 const DUR_MS: Record<string, number> = {
   zoom_punch: 1600,
   stat_card: 2600,
+  stat_odometer: 2600,
   text_callout: 2400,
   quote_card: 3000,
   keyword_highlight: 900,
+  kinetic_text: 2400,
 };
+
+// una cifra con 3+ dígitos luce como rodillo (stat_odometer); las cortas (%, xN,
+// cifras de 1-2 dígitos) van en tarjeta simple con count-up (stat_card).
+function pickStatType(value: string): 'stat_odometer' | 'stat_card' {
+  return value.replace(/[^\d]/g, '').length >= 3 ? 'stat_odometer' : 'stat_card';
+}
 
 function beatOf(beats: DirectorBeat[], idx: number): DirectorBeat | undefined {
   return beats.find((b) => b.idx === idx);
@@ -123,10 +131,11 @@ export function ruleEdits(params: EditingParams): Edit[] {
     const value = m[0].replace(/\s+/g, ' ').trim();
     const at = findWordMs(cues, m[0].replace(/[^\d]/g, '').slice(0, 6), beat.from_ms, beat.to_ms);
     const fromMs = at?.from_ms ?? beat.from_ms;
+    const statType = pickStatType(value);
     edits.push({
-      type: 'stat_card',
+      type: statType,
       from_ms: fromMs,
-      to_ms: Math.min(beat.to_ms, fromMs + DUR_MS.stat_card!),
+      to_ms: Math.min(beat.to_ms, fromMs + DUR_MS[statType]!),
       beat_idx: beat.idx,
       value,
     });
@@ -161,7 +170,7 @@ const editingResultSchema = z.object({
     .array(
       z.object({
         beat_idx: z.number().int().nonnegative(),
-        type: z.enum(['callout', 'stat', 'quote']),
+        type: z.enum(['callout', 'stat', 'quote', 'kinetic']),
         text: z.string().optional(),
         value: z.string().optional(),
         label: z.string().optional(),
@@ -179,12 +188,13 @@ function buildEditingPrompt(params: EditingParams): { system: string; user: stri
     'Recibes la narración por beats numerados. Elige los MOMENTOS más potentes',
     'para superponer un efecto que enganche, sin recargar (máximo ~1 cada 2-3 beats).',
     'Tipos:',
+    '- "kinetic": tipografía cinética a pantalla completa, una frase MUY corta de 2-4 palabras (text) que es el golpe del gancho. Úsalo SOLO en el arranque.',
     '- "callout": una etiqueta de 2-5 palabras que refuerza la idea clave del beat.',
-    '- "stat": una cifra impactante mencionada en el beat (value, p. ej. "70%" o "2 millones") + label corto. INCLUYE también cifras escritas con letra.',
+    '- "stat": una cifra impactante del beat (value) + label corto. Escribe value en DÍGITOS (p. ej. "1000000" o "10000", no "un millón"); incluye también cifras que en la narración van con letra. Las grandes se animan como contador de rodillo.',
     '- "quote": una frase textual breve y citable del beat (text).',
-    // gancho: reforzar la promesa al abrir y el payoff al cerrar
-    `- OBLIGATORIO: un "callout" en el beat ${params.beats[0]?.idx ?? 0} que enuncie la PROMESA del vídeo (el gancho), y otro "callout" en el beat ${lastIdx} con el PAYOFF/conclusión.`,
-    `Textos en ${langName}, muy cortos, sin comillas. Máximo 6 momentos.`,
+    // gancho: tipografía cinética al abrir + payoff al cerrar
+    `- OBLIGATORIO: un "kinetic" en el beat ${params.beats[0]?.idx ?? 0} con la frase-golpe del gancho (2-4 palabras), y un "callout" en el beat ${lastIdx} con el PAYOFF/conclusión.`,
+    `Textos en ${langName}, muy cortos, sin comillas. Máximo 6 momentos, como mucho 1 "kinetic".`,
     'Devuelve JSON: { "moments": [ { "beat_idx", "type", "text"?, "value"?, "label"?, "keyword"? } ] }.',
   ].join('\n');
   const user = [
@@ -199,7 +209,7 @@ function buildEditingPrompt(params: EditingParams): { system: string; user: stri
   return { system, user };
 }
 
-function momentsToEdits(
+export function momentsToEdits(
   moments: z.infer<typeof editingResultSchema>['moments'],
   beats: DirectorBeat[],
   cues: Cue[],
@@ -208,34 +218,41 @@ function momentsToEdits(
   for (const m of moments) {
     const beat = beatOf(beats, m.beat_idx);
     if (!beat) continue;
-    const type = m.type === 'callout' ? 'text_callout' : m.type === 'stat' ? 'stat_card' : 'quote_card';
-    const dur = DUR_MS[type] ?? 2500;
     // anclar al instante en que se dice la keyword o la 1ª palabra del texto,
     // no al inicio del beat (el overlay cae sobre la frase → se siente editado)
     const anchor = m.keyword ?? m.text ?? m.value ?? '';
     const firstWord = anchor.split(/\s+/)[0] ?? '';
     const at = findWordMs(cues, firstWord, beat.from_ms, beat.to_ms)?.from_ms ?? beat.from_ms;
-    const toMs = Math.min(beat.to_ms, at + dur);
-    if (type === 'text_callout' && m.text) {
-      edits.push({ type, from_ms: at, to_ms: toMs, beat_idx: beat.idx, text: m.text });
-    } else if (type === 'stat_card' && m.value) {
+    const window = (dur: number): number => Math.min(beat.to_ms, at + dur);
+
+    if (m.type === 'kinetic' && m.text) {
+      // el kinetic es el tratamiento del gancho: ocupa el arranque del beat
       edits.push({
-        type,
+        type: 'kinetic_text',
+        from_ms: beat.from_ms,
+        to_ms: Math.min(beat.to_ms, beat.from_ms + DUR_MS.kinetic_text!),
+        beat_idx: beat.idx,
+        text: m.text,
+      });
+    } else if (m.type === 'callout' && m.text) {
+      edits.push({ type: 'text_callout', from_ms: at, to_ms: window(DUR_MS.text_callout!), beat_idx: beat.idx, text: m.text });
+      edits.push({ type: 'sfx', from_ms: at, to_ms: at + 400, sfx: 'pop' });
+    } else if (m.type === 'stat' && m.value) {
+      const statType = pickStatType(m.value);
+      edits.push({
+        type: statType,
         from_ms: at,
-        to_ms: toMs,
+        to_ms: window(DUR_MS[statType]!),
         beat_idx: beat.idx,
         value: m.value,
         ...(m.label ? { label: m.label } : {}),
       });
-    } else if (type === 'quote_card' && m.text) {
-      edits.push({ type, from_ms: at, to_ms: toMs, beat_idx: beat.idx, text: m.text });
-    } else {
-      continue; // momento sin texto/valor válido: no genera edit ni pop
-    }
-    // pop solo en callouts y tarjetas de dato (en citas resultaba repetitivo)
-    if (type === 'text_callout' || type === 'stat_card') {
       edits.push({ type: 'sfx', from_ms: at, to_ms: at + 400, sfx: 'pop' });
+    } else if (m.type === 'quote' && m.text) {
+      // pop solo en callouts/tarjetas (en citas resultaba repetitivo)
+      edits.push({ type: 'quote_card', from_ms: at, to_ms: window(DUR_MS.quote_card!), beat_idx: beat.idx, text: m.text });
     }
+    // momento sin texto/valor válido: no genera edit
   }
   return edits;
 }
@@ -243,9 +260,19 @@ function momentsToEdits(
 // ---- orquestación: reglas + IA, dedupe y tope de densidad ------------------
 
 // overlays visuales que compiten por pantalla (los SFX/keyword no cuentan)
-const VISUAL_TYPES = new Set(['zoom_punch', 'stat_card', 'text_callout', 'quote_card']);
-// prioridad al recortar por densidad (mayor primero)
+const VISUAL_TYPES = new Set([
+  'zoom_punch',
+  'stat_card',
+  'stat_odometer',
+  'text_callout',
+  'quote_card',
+  'kinetic_text',
+]);
+// prioridad al recortar por densidad (mayor primero). kinetic_text es el
+// centro del gancho: nunca se recorta. odómetro/tarjeta valen igual que stat.
 const PRIORITY: Record<string, number> = {
+  kinetic_text: 6,
+  stat_odometer: 5,
   stat_card: 5,
   zoom_punch: 4,
   quote_card: 3,

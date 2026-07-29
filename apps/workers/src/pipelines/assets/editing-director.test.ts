@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Cue } from '@fabrica/shared';
-import { ruleEdits, type EditingParams } from './editing-director.js';
+import { momentsToEdits, ruleEdits, type EditingParams } from './editing-director.js';
 
 // Cue con una sola palabra en un instante dado (para anclar reglas al ms).
 function cue(w: string, from_ms: number): Cue {
@@ -73,6 +73,14 @@ describe('ruleEdits', () => {
     expect(b.find((e) => e.type === 'stat_card')?.value).toBe('10x');
   });
 
+  it('una cifra grande (3+ dígitos) se anima como odómetro, no tarjeta', () => {
+    const edits = ruleEdits(
+      params({ beats: [{ idx: 0, from_ms: 0, to_ms: 12_000, text: 'son 500 mil combinaciones' }] }),
+    );
+    expect(edits.find((e) => e.type === 'stat_odometer')?.value).toBe('500 mil');
+    expect(edits.some((e) => e.type === 'stat_card')).toBe(false);
+  });
+
   it('un tag del SEO pronunciado se resalta como keyword', () => {
     const edits = ruleEdits(
       params({
@@ -84,5 +92,31 @@ describe('ruleEdits', () => {
     const kw = edits.find((e) => e.type === 'keyword_highlight');
     expect(kw?.keyword).toBe('inferencia');
     expect(kw?.from_ms).toBe(3_000);
+  });
+});
+
+describe('momentsToEdits (capa IA)', () => {
+  const beats = [
+    { idx: 0, from_ms: 0, to_ms: 8_000, text: 'gancho' },
+    { idx: 3, from_ms: 30_000, to_ms: 40_000, text: 'cifra' },
+  ];
+
+  it('un momento kinetic produce kinetic_text al inicio del beat del gancho', () => {
+    const edits = momentsToEdits([{ beat_idx: 0, type: 'kinetic', text: 'se borra solo' }], beats, []);
+    const k = edits.find((e) => e.type === 'kinetic_text');
+    expect(k?.text).toBe('se borra solo');
+    expect(k?.from_ms).toBe(0);
+    expect(k?.beat_idx).toBe(0);
+  });
+
+  it('un stat grande va a odómetro y uno pequeño a tarjeta', () => {
+    const big = momentsToEdits(
+      [{ beat_idx: 3, type: 'stat', value: '1000000', label: 'combinaciones' }],
+      beats,
+      [],
+    );
+    expect(big.find((e) => e.type === 'stat_odometer')?.value).toBe('1000000');
+    const small = momentsToEdits([{ beat_idx: 3, type: 'stat', value: '25%' }], beats, []);
+    expect(small.find((e) => e.type === 'stat_card')?.value).toBe('25%');
   });
 });
