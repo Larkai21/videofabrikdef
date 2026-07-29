@@ -3,7 +3,7 @@ import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remo
 import { defaultDesign, hexToRgba, type DesignTokens } from '@fabrica/shared';
 import { displayText, FONT_FAMILY } from '../fonts';
 import { hashSeed } from '../seed';
-import { clamp, Ease, span } from './motion';
+import { clamp, Ease, noise, pulse, span, typed } from './motion';
 
 // Biblioteca de efectos de edición: overlays deterministas que el director de
 // edición coloca en la línea de tiempo para que el vídeo se sienta editado. Cada
@@ -32,6 +32,18 @@ function useInOut(opts?: { enterFrames?: number; exitFrames?: number }): {
   };
 }
 
+// Superficie "liquid glass" compartida por las tarjetas: blur, borde sutil (o de
+// acento) y un brillo interior en el canto superior que da el look de cristal.
+function glassSurface(d: DesignTokens, opts?: { accent?: boolean }): React.CSSProperties {
+  return {
+    background: hexToRgba(d.background, 0.7),
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    border: `1px solid ${opts?.accent ? hexToRgba(d.accent, 0.55) : hexToRgba(d.foreground, 0.16)}`,
+    boxShadow: `0 24px 64px ${hexToRgba('#000000', 0.5)}, inset 0 1px 0 ${hexToRgba('#ffffff', 0.16)}`,
+  };
+}
+
 // Rótulo/callout que entra con pop en la banda superior (no choca con los
 // subtítulos, anclados abajo). Para resaltar un término o una idea.
 export const TextCallout: React.FC<{ text: string; design?: DesignTokens }> = ({ text, design }) => {
@@ -46,13 +58,11 @@ export const TextCallout: React.FC<{ text: string; design?: DesignTokens }> = ({
           opacity,
           transform: `scale(${0.85 + 0.15 * pop})`,
           ...displayText(800),
-          background: hexToRgba(d.surface, 0.95),
+          ...glassSurface(d, { accent: true }),
           color: d.foreground,
-          border: `2px solid ${d.accent}`,
           fontSize: 46,
           padding: '12px 28px',
           borderRadius: 14,
-          boxShadow: `0 12px 34px ${hexToRgba('#000000', 0.4)}`,
           maxWidth: 1400,
           textAlign: 'center',
         }}
@@ -100,12 +110,9 @@ export const StatCard: React.FC<{ value: string; label?: string; design?: Design
           flexDirection: 'column',
           alignItems: 'center',
           gap: 6,
-          background: hexToRgba(d.background, 0.72),
-          backdropFilter: 'blur(6px)',
+          ...glassSurface(d, { accent: true }),
           padding: '24px 46px',
           borderRadius: 20,
-          border: `1px solid ${hexToRgba(d.accent, 0.5)}`,
-          boxShadow: `0 20px 60px ${hexToRgba('#000000', 0.5)}`,
         }}
       >
         <div style={{ ...displayText(800), fontSize: 130, lineHeight: 1, color: d.accent, letterSpacing: '-0.03em' }}>
@@ -133,8 +140,7 @@ export const QuoteCard: React.FC<{ text: string; design?: DesignTokens }> = ({ t
           maxWidth: 1300,
           padding: '40px 60px',
           borderRadius: 20,
-          background: hexToRgba(d.background, 0.72),
-          backdropFilter: 'blur(8px)',
+          ...glassSurface(d),
           borderLeft: `6px solid ${d.accent}`,
           textAlign: 'center',
         }}
@@ -180,9 +186,13 @@ export const KineticText: React.FC<{ text: string; seed?: number; design?: Desig
   const cierre = 1 - span(frame, durationInFrames - closeF, closeF, Ease.outCubic);
   // cada palabra ocupa un tramo; se solapan un poco para que fluya
   const step = (durationInFrames - closeF) / words.length;
+  // flash de acento breve al aparecer la palabra-remate (sutil)
+  const lastAt = (words.length - 1) * step;
+  const flash = pulse(frame, lastAt - 2, lastAt + 10, 3, 6, Ease.outCubic) * 0.16;
 
   return (
     <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+      {flash > 0.001 ? <AbsoluteFill style={{ background: d.accent, opacity: flash }} /> : null}
       <div style={{ position: 'relative', width: '100%', height: 320 }}>
         {words.map((w, i) => {
           const at = i * step;
@@ -193,9 +203,21 @@ export const KineticText: React.FC<{ text: string; seed?: number; design?: Desig
           const drift = Math.sin(((frame - at) / fps) * 2.2) * 5;
           const y = g.y + drift - sale * 90;
           const visible = frame >= at && frame < at + dur;
-          // la última palabra es el remate → color de acento
+          // la última palabra es el remate → acento; el resto rota estilo
+          // (normal/bloque/contorno) de forma determinista para dar variedad
           const isLast = i === words.length - 1;
           const size = clamp(1500 / Math.max(3, w.length), 90, 220);
+          const variant = isLast
+            ? 'acento'
+            : (['normal', 'bloque', 'contorno'] as const)[hashSeed(`${seed}:st:${i}`) % 3]!;
+          const variantStyle: React.CSSProperties =
+            variant === 'bloque'
+              ? { color: d.background, background: d.accent, padding: '0 24px', borderRadius: 14 }
+              : variant === 'contorno'
+                ? { color: 'transparent', WebkitTextStroke: `3px ${d.accent}` }
+                : variant === 'acento'
+                  ? { color: d.accent }
+                  : { color: d.foreground };
           return (
             <div
               key={i}
@@ -211,8 +233,8 @@ export const KineticText: React.FC<{ text: string; seed?: number; design?: Desig
                 letterSpacing: '-0.03em',
                 textTransform: 'uppercase',
                 whiteSpace: 'nowrap',
-                color: isLast ? d.accent : d.foreground,
                 textShadow: `0 8px 30px ${hexToRgba('#000000', 0.45)}`,
+                ...variantStyle,
               }}
             >
               {w}
@@ -290,12 +312,9 @@ export const StatOdometer: React.FC<{ value: string; label?: string; design?: De
           flexDirection: 'column',
           alignItems: 'center',
           gap: 6,
-          background: hexToRgba(d.background, 0.72),
-          backdropFilter: 'blur(6px)',
+          ...glassSurface(d, { accent: true }),
           padding: '24px 46px',
           borderRadius: 20,
-          border: `1px solid ${hexToRgba(d.accent, 0.5)}`,
-          boxShadow: `0 20px 60px ${hexToRgba('#000000', 0.5)}`,
         }}
       >
         <div
@@ -322,6 +341,223 @@ export const StatOdometer: React.FC<{ value: string; label?: string; design?: De
           <div style={{ fontSize: 30, fontWeight: 500, color: d.foreground }}>{label}</div>
         ) : null}
       </div>
+    </AbsoluteFill>
+  );
+};
+
+// ---- Marco de navegador/móvil con texto tecleándose -------------------------
+// La URL/comando se escribe con `typed` del kit (por frame) + cursor parpadeante.
+// `style`: 'browser' (por defecto) | 'phone'. Determinista.
+export const DeviceFrame: React.FC<{ text: string; style?: string; design?: DesignTokens }> = ({
+  text,
+  style,
+  design,
+}) => {
+  const d = design ?? defaultDesign();
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const { opacity, enter } = useInOut();
+  const isPhone = style === 'phone';
+  const shown = typed(text, frame / fps, 0.35, isPhone ? 16 : 14);
+  const cursorOn = Math.floor(frame / Math.max(1, Math.round(fps * 0.5))) % 2 === 0;
+  const line = hexToRgba(d.foreground, 0.12);
+
+  if (isPhone) {
+    return (
+      <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+        <div
+          style={{
+            width: 380,
+            height: 760,
+            opacity,
+            transform: `translateY(${(1 - enter) * 24}px) scale(${0.94 + 0.06 * enter})`,
+            ...glassSurface(d),
+            border: `3px solid ${hexToRgba(d.foreground, 0.25)}`,
+            borderRadius: 46,
+            padding: 18,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {/* notch */}
+          <div style={{ alignSelf: 'center', width: 150, height: 26, borderRadius: 14, background: hexToRgba(d.foreground, 0.22), marginBottom: 22 }} />
+          {/* barra de búsqueda */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: hexToRgba(d.foreground, 0.1), borderRadius: 14, padding: '14px 18px' }}>
+            <div style={{ width: 16, height: 16, borderRadius: '50%', border: `3px solid ${d.accent}` }} />
+            <span style={{ fontSize: 30, color: d.foreground, fontWeight: 600 }}>
+              {shown}
+              <span style={{ opacity: cursorOn ? 1 : 0, color: d.accent }}>|</span>
+            </span>
+          </div>
+          {/* skeleton de contenido */}
+          <div style={{ marginTop: 26, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {[0.9, 0.7, 0.8, 0.55].map((w, i) => (
+              <div key={i} style={{ height: 22, width: `${w * 100}%`, borderRadius: 8, background: line }} />
+            ))}
+          </div>
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+      <div
+        style={{
+          width: 1180,
+          opacity,
+          transform: `translateY(${(1 - enter) * 24}px) scale(${0.96 + 0.04 * enter})`,
+          ...glassSurface(d),
+          borderRadius: 18,
+          overflow: 'hidden',
+        }}
+      >
+        {/* chrome: 3 puntos + barra de direcciones */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '18px 24px', borderBottom: `1px solid ${line}` }}>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {[0.5, 0.7, 0.9].map((o, i) => (
+              <div key={i} style={{ width: 18, height: 18, borderRadius: '50%', background: hexToRgba(d.foreground, 0.2 + o * 0.1) }} />
+            ))}
+          </div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, background: hexToRgba(d.foreground, 0.08), borderRadius: 12, padding: '12px 20px' }}>
+            {/* candado */}
+            <div style={{ width: 16, height: 14, borderRadius: 3, border: `2px solid ${d.accent}`, position: 'relative' }} />
+            <span style={{ fontSize: 34, color: d.foreground, fontWeight: 600, letterSpacing: '-0.01em' }}>
+              {shown}
+              <span style={{ opacity: cursorOn ? 1 : 0, color: d.accent }}>|</span>
+            </span>
+          </div>
+        </div>
+        {/* cuerpo: skeleton de página */}
+        <div style={{ padding: '34px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ height: 40, width: '52%', borderRadius: 10, background: hexToRgba(d.accent, 0.35) }} />
+          {[0.95, 0.85, 0.9, 0.6].map((w, i) => (
+            <div key={i} style={{ height: 20, width: `${w * 100}%`, borderRadius: 7, background: line }} />
+          ))}
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+// ---- Anotación dibujada a mano (círculo/subrayado/flecha) -------------------
+// El temblor "hecho a mano" sale de noise(hash), no de Math.random, para que dos
+// renders del mismo frame sean idénticos. Adaptado de editor-youtube anotacion.html.
+const ANNOTATION_SHAPES = ['circle', 'underline', 'arrow'] as const;
+type AnnotationShape = (typeof ANNOTATION_SHAPES)[number];
+
+function circlePath(cx: number, cy: number, rx: number, ry: number, seed: number): string {
+  const N = 40;
+  const start = -0.3;
+  const end = Math.PI * 2 + 0.35; // sobrepasa el cierre → lazo abierto, más "a mano"
+  const pts: string[] = [];
+  for (let i = 0; i <= N; i++) {
+    const a = start + (end - start) * (i / N);
+    const x = cx + Math.cos(a) * rx + (noise(i * 2, seed) - 0.5) * 20;
+    const y = cy + Math.sin(a) * ry + (noise(i * 2 + 1, seed) - 0.5) * 20;
+    pts.push(`${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`);
+  }
+  return pts.join(' ');
+}
+
+function underlinePath(x0: number, x1: number, y: number, seed: number): string {
+  const N = 22;
+  const pts: string[] = [];
+  for (let i = 0; i <= N; i++) {
+    const x = x0 + (x1 - x0) * (i / N);
+    const jy = (noise(i, seed) - 0.5) * 12 + Math.sin(i * 0.6) * 5;
+    pts.push(`${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${(y + jy).toFixed(1)}`);
+  }
+  return pts.join(' ');
+}
+
+function arrowPath(x0: number, y0: number, x1: number, y1: number, seed: number): string {
+  const midx = (x0 + x1) / 2 + (noise(1, seed) - 0.5) * 40;
+  const midy = (y0 + y1) / 2 + (noise(2, seed) - 0.5) * 40;
+  const ang = Math.atan2(y1 - midy, x1 - midx);
+  const hl = 52;
+  const a1 = ang + Math.PI - 0.5;
+  const a2 = ang + Math.PI + 0.5;
+  return (
+    `M ${x0} ${y0} Q ${midx.toFixed(1)} ${midy.toFixed(1)} ${x1} ${y1} ` +
+    `M ${x1} ${y1} L ${(x1 + Math.cos(a1) * hl).toFixed(1)} ${(y1 + Math.sin(a1) * hl).toFixed(1)} ` +
+    `M ${x1} ${y1} L ${(x1 + Math.cos(a2) * hl).toFixed(1)} ${(y1 + Math.sin(a2) * hl).toFixed(1)}`
+  );
+}
+
+export const Annotation: React.FC<{
+  shape?: string;
+  text?: string;
+  seed?: number;
+  design?: DesignTokens;
+}> = ({ shape, text, seed = 0, design }) => {
+  const d = design ?? defaultDesign();
+  const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
+  const { opacity } = useInOut({ exitFrames: 10 });
+  // se dibuja en el primer ~45% del efecto; luego se queda
+  const drawFrames = Math.max(6, Math.round(durationInFrames * 0.45));
+  const draw = span(frame, 0, drawFrames, Ease.outExpo);
+  const kind: AnnotationShape = (ANNOTATION_SHAPES as readonly string[]).includes(shape ?? '')
+    ? (shape as AnnotationShape)
+    : ANNOTATION_SHAPES[seed % ANNOTATION_SHAPES.length]!;
+
+  const path =
+    kind === 'circle'
+      ? circlePath(960, 470, 320, 210, seed)
+      : kind === 'underline'
+        ? underlinePath(620, 1300, 650, seed)
+        : arrowPath(560, 820, 900, 540, seed);
+  // etiqueta opcional sobre la marca
+  const labelTop = kind === 'underline' ? 500 : kind === 'arrow' ? 700 : 210;
+
+  return (
+    <AbsoluteFill style={{ pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+      <svg
+        viewBox="0 0 1920 1080"
+        width="100%"
+        height="100%"
+        style={{ position: 'absolute', inset: 0, opacity }}
+      >
+        <path
+          d={path}
+          pathLength={1}
+          fill="none"
+          stroke={d.accent}
+          strokeWidth={13}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeDasharray={1}
+          strokeDashoffset={1 - draw}
+          style={{ filter: `drop-shadow(0 4px 10px ${hexToRgba('#000000', 0.45)})` }}
+        />
+      </svg>
+      {text !== undefined && text.trim() !== '' ? (
+        <div
+          style={{
+            position: 'absolute',
+            top: labelTop,
+            width: '100%',
+            textAlign: 'center',
+            opacity: opacity * clamp(span(frame, drawFrames * 0.6, 8), 0, 1),
+          }}
+        >
+          <span
+            style={{
+              ...displayText(800),
+              fontSize: 40,
+              color: d.foreground,
+              background: hexToRgba(d.accent, 0.9),
+              padding: '6px 20px',
+              borderRadius: 10,
+              transform: 'rotate(-2deg)',
+              display: 'inline-block',
+            }}
+          >
+            {text}
+          </span>
+        </div>
+      ) : null}
     </AbsoluteFill>
   );
 };

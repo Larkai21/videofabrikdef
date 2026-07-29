@@ -13,8 +13,11 @@ import {
 } from '@fabrica/shared';
 import { BeatVisual } from './BeatVisual';
 import { computeBrandKitLayout, computeBrollTrack, type EffectCue } from './brand-kit';
+import { SECTION_TRANSITIONS } from './effects/transitions';
 import {
   Ambience,
+  Annotation,
+  DeviceFrame,
   KineticText,
   ProgressBar,
   QuoteCard,
@@ -34,14 +37,18 @@ const FALLBACK_SUBTITLE_THEME = 'subtitulos-basicos@0.1.0';
 // riser/ding son tonos (se perciben flojos → un pelín más altos). Todos sutiles.
 const SFX_VOLUME: Record<string, number> = { whoosh: 0.38, pop: 0.5, riser: 0.5, ding: 0.5 };
 
-// Transición entre planos con variedad determinista: en límites de sección un
-// wipe direccional (cambio de tema marcado); en cortes normales rota entre
-// fundido, slide y wipe. La dirección/tipo derivan de hashSeed → reproducible.
+// Transición entre planos con variedad determinista: en límites de sección una
+// transición cinematográfica propia (iris/barrido/cortina) que marca el cambio
+// de capítulo; en cortes normales rota entre fundido, slide y wipe. El tipo y la
+// dirección derivan de hashSeed → reproducible.
 const DIRS = ['from-left', 'from-right', 'from-top', 'from-bottom'] as const;
 function pickTransition(kind: 'cut' | 'section', i: number, seedBase: string): TransitionPresentation<Record<string, unknown>> {
   const seed = hashSeed(`${seedBase}:trans:${i}`);
   const dir = DIRS[seed % 4]!;
-  if (kind === 'section') return wipe({ direction: dir }) as TransitionPresentation<Record<string, unknown>>;
+  if (kind === 'section') {
+    const make = SECTION_TRANSITIONS[seed % SECTION_TRANSITIONS.length]!;
+    return make() as unknown as TransitionPresentation<Record<string, unknown>>;
+  }
   const pick = seed % 3;
   const p = pick === 0 ? fade() : pick === 1 ? slide({ direction: dir }) : wipe({ direction: dir });
   return p as TransitionPresentation<Record<string, unknown>>;
@@ -59,6 +66,9 @@ const EditOverlay: React.FC<{ cue: EffectCue; design: DesignTokens }> = ({ cue, 
   }
   if (cue.type === 'stat_odometer') {
     return <StatOdometer value={cue.value ?? ''} label={cue.label} design={design} />;
+  }
+  if (cue.type === 'device_frame') {
+    return <DeviceFrame text={cue.text ?? ''} style={cue.style} design={design} />;
   }
   return null;
 };
@@ -132,7 +142,8 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
       e.type === 'stat_card' ||
       e.type === 'quote_card' ||
       e.type === 'kinetic_text' ||
-      e.type === 'stat_odometer',
+      e.type === 'stat_odometer' ||
+      e.type === 'device_frame',
   );
   // Coordinación capítulos ↔ edición: una tarjeta de sección y un overlay de
   // contenido (callout/cifra/kinetic) que coincidan en el tiempo chocarían en
@@ -146,6 +157,9 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
         !windows.some((w) => card.from < w.to && card.from + card.durationInFrames > w.from),
     );
   }, [layout.sectionCards, overlayCues]);
+  // anotaciones: acento ligero sobre el b-roll; se montan aparte (no compiten
+  // con las tarjetas ni suprimen las de sección)
+  const annotationCues = effects.filter((e) => e.type === 'annotation');
   const sfxCues = effects.filter((e) => e.type === 'sfx' && e.sfx);
 
   const audioEl = audio && isRenderableSrc(audio.path) ? <Audio src={toSrc(audio.path)} /> : null;
@@ -277,6 +291,11 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
       {overlayCues.map((cue, i) => (
         <Sequence key={`fx-${i}`} from={cue.from} durationInFrames={cue.durationInFrames} name={cue.type}>
           <EditOverlay cue={cue} design={design} />
+        </Sequence>
+      ))}
+      {annotationCues.map((cue, i) => (
+        <Sequence key={`anot-${i}`} from={cue.from} durationInFrames={cue.durationInFrames} name="anotación">
+          <Annotation shape={cue.style} text={cue.text} seed={cue.from} design={design} />
         </Sequence>
       ))}
       {/* barra de progreso: cubre todo el cuerpo (oculta bajo intro/outro) */}
