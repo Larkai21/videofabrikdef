@@ -1,31 +1,41 @@
 import React from 'react';
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { defaultDesign, hexToRgba, type DesignTokens } from '@fabrica/shared';
 import { displayText, FONT_FAMILY } from '../fonts';
+import { clamp, Ease, span } from './motion';
 
-// Biblioteca de efectos de edición (Fase 3): overlays deterministas que el
-// director de edición coloca en la línea de tiempo para que el vídeo se sienta
-// editado. Cada uno se monta como <Sequence> propia en LongForm, así useCurrent
-// Frame arranca en 0 al inicio del efecto. Solo useCurrentFrame/spring, sin red.
+// Biblioteca de efectos de edición: overlays deterministas que el director de
+// edición coloca en la línea de tiempo para que el vídeo se sienta editado. Cada
+// uno se monta como <Sequence> propia en LongForm, así useCurrentFrame arranca en
+// 0 al inicio del efecto. Solo useCurrentFrame + el kit de movimiento (matemática
+// pura con easing), sin spring/red — mismo movimiento "editado" que editor-youtube.
 
-// enter/exit estándar relativo a la Sequence del efecto: entra con spring, sale
-// con fade en los últimos exitFrames.
-function useInOut(exitFrames = 8): { opacity: number; enter: number } {
+// enter/exit estándar relativo a la Sequence del efecto. `opacity`: fade-in
+// suave (outExpo) + fade-out al final. `enter`: 0..1 suave para desplazamientos.
+// `pop`: entrada con overshoot (outBack, puede pasar de 1) para escalas con rebote.
+function useInOut(opts?: { enterFrames?: number; exitFrames?: number }): {
+  opacity: number;
+  enter: number;
+  pop: number;
+} {
   const frame = useCurrentFrame();
-  const { durationInFrames, fps } = useVideoConfig();
-  const enter = spring({ frame, fps, config: { damping: 16, stiffness: 160, mass: 0.5 } });
-  const out = interpolate(frame, [durationInFrames - exitFrames, durationInFrames], [1, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  return { opacity: Math.min(enter, out), enter };
+  const { durationInFrames } = useVideoConfig();
+  const enterFrames = opts?.enterFrames ?? 10;
+  const exitFrames = opts?.exitFrames ?? 8;
+  const fadeIn = span(frame, 0, enterFrames, Ease.outExpo);
+  const fadeOut = 1 - span(frame, durationInFrames - exitFrames, exitFrames, Ease.outCubic);
+  return {
+    opacity: Math.min(clamp(fadeIn, 0, 1), fadeOut),
+    enter: clamp(fadeIn, 0, 1),
+    pop: span(frame, 0, enterFrames, Ease.outBack),
+  };
 }
 
 // Rótulo/callout que entra con pop en la banda superior (no choca con los
 // subtítulos, anclados abajo). Para resaltar un término o una idea.
 export const TextCallout: React.FC<{ text: string; design?: DesignTokens }> = ({ text, design }) => {
   const d = design ?? defaultDesign();
-  const { opacity, enter } = useInOut();
+  const { opacity, pop } = useInOut();
   if (text.trim() === '') return null;
   return (
     <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'flex-start', pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
@@ -33,7 +43,7 @@ export const TextCallout: React.FC<{ text: string; design?: DesignTokens }> = ({
         style={{
           marginTop: 130,
           opacity,
-          transform: `scale(${0.85 + 0.15 * enter})`,
+          transform: `scale(${0.85 + 0.15 * pop})`,
           ...displayText(800),
           background: hexToRgba(d.surface, 0.95),
           color: d.foreground,
@@ -61,16 +71,19 @@ export const StatCard: React.FC<{ value: string; label?: string; design?: Design
 }) => {
   const d = design ?? defaultDesign();
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { durationInFrames } = useVideoConfig();
   const { opacity, enter } = useInOut();
-  // parte numérica para el count-up; el resto (símbolos) se conserva
+  // parte numérica para el count-up; el resto (símbolos) se conserva. El conteo
+  // corre sobre el primer ~55% del efecto con outExpo (rápido y luego frena),
+  // más satisfactorio que el spring anterior.
   const match = value.match(/-?\d[\d.,]*/);
   let display = value;
   if (match) {
     const raw = match[0];
     const target = Number.parseFloat(raw.replace(/,/g, ''));
     if (Number.isFinite(target)) {
-      const p = spring({ frame, fps, config: { damping: 20, stiffness: 90, mass: 1 } });
+      const countFrames = Math.max(1, Math.round(durationInFrames * 0.55));
+      const p = span(frame, 0, countFrames, Ease.outExpo);
       const decimals = raw.includes('.') ? (raw.split('.')[1]?.length ?? 0) : 0;
       const current = (target * p).toFixed(decimals);
       display = value.replace(raw, current);
@@ -108,14 +121,14 @@ export const StatCard: React.FC<{ value: string; label?: string; design?: Design
 // Tarjeta de cita centrada, con comillas de acento sobre un scrim.
 export const QuoteCard: React.FC<{ text: string; design?: DesignTokens }> = ({ text, design }) => {
   const d = design ?? defaultDesign();
-  const { opacity, enter } = useInOut();
+  const { opacity, pop } = useInOut();
   if (text.trim() === '') return null;
   return (
     <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
       <div
         style={{
           opacity,
-          transform: `scale(${0.94 + 0.06 * enter})`,
+          transform: `scale(${0.94 + 0.06 * pop})`,
           maxWidth: 1300,
           padding: '40px 60px',
           borderRadius: 20,
