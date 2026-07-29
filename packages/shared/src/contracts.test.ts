@@ -118,6 +118,27 @@ describe('Edits (director de edición)', () => {
     ).toBe(true);
   });
 
+  it('acepta annotation y device_frame con el campo style', () => {
+    expect(
+      editSchema.safeParse({
+        type: 'annotation',
+        from_ms: 3000,
+        to_ms: 4800,
+        style: 'circle',
+        text: 'aquí',
+      }).success,
+    ).toBe(true);
+    expect(
+      editSchema.safeParse({
+        type: 'device_frame',
+        from_ms: 6000,
+        to_ms: 8600,
+        style: 'browser',
+        text: 'grapheneos.org',
+      }).success,
+    ).toBe(true);
+  });
+
   it('edits es opcional: el maestro parsea con y sin ellos, y no bloquea el render', () => {
     const master = makeDemoMaster({
       audioPath: '/tmp/a.wav',

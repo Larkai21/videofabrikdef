@@ -233,6 +233,7 @@ describe('computeEffectsTrack', () => {
     master.edits = [
       { type: 'kinetic_text', from_ms: 0, to_ms: 2200, text: 'se borra solo' },
       { type: 'stat_odometer', from_ms: 3000, to_ms: 5600, value: '1000000', label: 'combinaciones' },
+      { type: 'annotation', from_ms: 6000, to_ms: 7800, style: 'circle', text: 'aquí' },
     ];
     const effects = computeEffectsTrack(master, 30, 0);
     expect(effects[0]).toEqual({
@@ -242,6 +243,8 @@ describe('computeEffectsTrack', () => {
       text: 'se borra solo',
     });
     expect(effects[1]).toMatchObject({ type: 'stat_odometer', value: '1000000', label: 'combinaciones' });
+    // el campo style pasa por passthrough para annotation/device_frame
+    expect(effects[2]).toMatchObject({ type: 'annotation', style: 'circle', text: 'aquí' });
   });
 });
 

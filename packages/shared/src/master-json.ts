@@ -184,6 +184,11 @@ export const EDIT_TYPES = [
   'kinetic_text',
   // count-up de rodillo mecánico para cifras; usa `value` (+ `label`)
   'stat_odometer',
+  // marca dibujada a mano sobre el b-roll (círculo/subrayado/flecha); `style` +
+  // `text` (etiqueta opcional)
+  'annotation',
+  // marco de navegador/móvil con texto/URL tecleándose; `style` + `text`
+  'device_frame',
 ] as const;
 export const editTypeSchema = z.enum(EDIT_TYPES);
 export type EditType = z.infer<typeof editTypeSchema>;
@@ -203,6 +208,9 @@ export const editSchema = z.object({
   // tarjeta de dato: cifra + etiqueta
   value: z.string().optional(),
   label: z.string().optional(),
+  // variante del efecto: annotation (circle|underline|arrow), device_frame
+  // (browser|phone). Libre para no acoplar el contrato a la lista de formas.
+  style: z.string().optional(),
   // efecto de sonido a disparar (built-in de public/sfx)
   sfx: sfxNameSchema.optional(),
   // variación determinista si hiciera falta

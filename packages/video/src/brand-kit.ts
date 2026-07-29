@@ -62,7 +62,9 @@ export interface EffectCue {
     | 'quote_card'
     | 'sfx'
     | 'kinetic_text'
-    | 'stat_odometer';
+    | 'stat_odometer'
+    | 'annotation'
+    | 'device_frame';
   from: number;
   durationInFrames: number;
   beatIdx?: number;
@@ -71,6 +73,7 @@ export interface EffectCue {
   label?: string;
   keyword?: string;
   sfx?: string;
+  style?: string;
 }
 
 export interface BrandKitLayout {
@@ -112,6 +115,7 @@ export function computeEffectsTrack(
       ...(e.label !== undefined ? { label: e.label } : {}),
       ...(e.keyword !== undefined ? { keyword: e.keyword } : {}),
       ...(e.sfx !== undefined ? { sfx: e.sfx } : {}),
+      ...(e.style !== undefined ? { style: e.style } : {}),
     };
   });
 }
