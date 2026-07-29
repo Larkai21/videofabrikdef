@@ -56,7 +56,13 @@ const DUR_MS: Record<string, number> = {
   quote_card: 3000,
   keyword_highlight: 900,
   kinetic_text: 2400,
+  annotation: 1800,
+  device_frame: 2600,
 };
+
+// dominio mencionado en la narración (grapheneos.org, github.com…) → marco de
+// navegador. Sin protocolo; extensiones habituales de un canal tech.
+const DOMAIN_RE = /\b([a-z0-9][a-z0-9-]*\.(?:com|org|io|net|dev|app|ai|gov|co))\b/i;
 
 // una cifra con 3+ dígitos luce como rodillo (stat_odometer); las cortas (%, xN,
 // cifras de 1-2 dígitos) van en tarjeta simple con count-up (stat_card).
@@ -160,6 +166,20 @@ export function ruleEdits(params: EditingParams): Edit[] {
     }
   }
 
+  // device_frame: un dominio mencionado en un beat se muestra en un navegador
+  for (const beat of beats) {
+    const m = beat.text.match(DOMAIN_RE);
+    if (!m) continue;
+    edits.push({
+      type: 'device_frame',
+      from_ms: beat.from_ms,
+      to_ms: Math.min(beat.to_ms, beat.from_ms + DUR_MS.device_frame!),
+      beat_idx: beat.idx,
+      style: 'browser',
+      text: m[1]!.toLowerCase(),
+    });
+  }
+
   return edits;
 }
 
@@ -170,11 +190,12 @@ const editingResultSchema = z.object({
     .array(
       z.object({
         beat_idx: z.number().int().nonnegative(),
-        type: z.enum(['callout', 'stat', 'quote', 'kinetic']),
+        type: z.enum(['callout', 'stat', 'quote', 'kinetic', 'annotation', 'device']),
         text: z.string().optional(),
         value: z.string().optional(),
         label: z.string().optional(),
         keyword: z.string().optional(),
+        style: z.string().optional(),
       }),
     )
     .max(8),
@@ -192,9 +213,11 @@ function buildEditingPrompt(params: EditingParams): { system: string; user: stri
     '- "callout": una etiqueta de 2-5 palabras que refuerza la idea clave del beat.',
     '- "stat": una cifra impactante del beat (value) + label corto. Escribe value en DÍGITOS (p. ej. "1000000" o "10000", no "un millón"); incluye también cifras que en la narración van con letra. Las grandes se animan como contador de rodillo.',
     '- "quote": una frase textual breve y citable del beat (text).',
+    '- "annotation": marca dibujada a mano para SEÑALAR algo concreto en pantalla; text = etiqueta muy corta opcional. Úsalo con moderación (momentos de "mira esto").',
+    '- "device": muestra una web o comando en un marco de navegador; text = la URL o el comando (p. ej. "grapheneos.org"). Solo si el guion menciona un sitio/herramienta concreta.',
     // gancho: tipografía cinética al abrir + payoff al cerrar
     `- OBLIGATORIO: un "kinetic" en el beat ${params.beats[0]?.idx ?? 0} con la frase-golpe del gancho (2-4 palabras), y un "callout" en el beat ${lastIdx} con el PAYOFF/conclusión.`,
-    `Textos en ${langName}, muy cortos, sin comillas. Máximo 6 momentos, como mucho 1 "kinetic".`,
+    `Textos en ${langName}, muy cortos, sin comillas. Máximo 6 momentos; como mucho 1 "kinetic", 1 "device" y 2 "annotation".`,
     'Devuelve JSON: { "moments": [ { "beat_idx", "type", "text"?, "value"?, "label"?, "keyword"? } ] }.',
   ].join('\n');
   const user = [
@@ -251,6 +274,25 @@ export function momentsToEdits(
     } else if (m.type === 'quote' && m.text) {
       // pop solo en callouts/tarjetas (en citas resultaba repetitivo)
       edits.push({ type: 'quote_card', from_ms: at, to_ms: window(DUR_MS.quote_card!), beat_idx: beat.idx, text: m.text });
+    } else if (m.type === 'annotation') {
+      edits.push({
+        type: 'annotation',
+        from_ms: at,
+        to_ms: window(DUR_MS.annotation!),
+        beat_idx: beat.idx,
+        ...(m.style ? { style: m.style } : {}),
+        ...(m.text ? { text: m.text } : {}),
+      });
+      edits.push({ type: 'sfx', from_ms: at, to_ms: at + 400, sfx: 'whoosh' });
+    } else if (m.type === 'device' && m.text) {
+      edits.push({
+        type: 'device_frame',
+        from_ms: at,
+        to_ms: window(DUR_MS.device_frame!),
+        beat_idx: beat.idx,
+        style: m.style ?? 'browser',
+        text: m.text,
+      });
     }
     // momento sin texto/valor válido: no genera edit
   }
@@ -259,7 +301,8 @@ export function momentsToEdits(
 
 // ---- orquestación: reglas + IA, dedupe y tope de densidad ------------------
 
-// overlays visuales que compiten por pantalla (los SFX/keyword no cuentan)
+// overlays visuales que compiten por pantalla (los SFX/keyword no cuentan;
+// annotation es un acento ligero que layerea sobre el b-roll → tampoco compite)
 const VISUAL_TYPES = new Set([
   'zoom_punch',
   'stat_card',
@@ -267,17 +310,21 @@ const VISUAL_TYPES = new Set([
   'text_callout',
   'quote_card',
   'kinetic_text',
+  'device_frame',
 ]);
 // prioridad al recortar por densidad (mayor primero). kinetic_text es el
 // centro del gancho: nunca se recorta. odómetro/tarjeta valen igual que stat.
 const PRIORITY: Record<string, number> = {
   kinetic_text: 6,
+  device_frame: 5,
   stat_odometer: 5,
   stat_card: 5,
   zoom_punch: 4,
   quote_card: 3,
   text_callout: 2,
 };
+// topes por tipo de acento no-competitivo (annotation): no saturar
+const ANNOTATION_CAP = 2;
 
 function dedupeAndCap(edits: Edit[], durationMs: number): Edit[] {
   // dedupe overlays por (type, beat_idx); un beat no lleva dos del mismo tipo
@@ -315,7 +362,22 @@ function dedupeAndCap(edits: Edit[], durationMs: number): Edit[] {
   const others = passthrough.filter((e) =>
     e.type === 'sfx' && e.sfx === 'pop' ? keptVisualFroms.has(e.from_ms) : true,
   );
-  return [...visuals, ...others].sort((a, b) => a.from_ms - b.from_ms);
+  // annotation: acento ligero (no compite por beat) pero con tope y sin repetir
+  // beat, para no saturar; el resto (sfx/keyword) pasa tal cual
+  const annotationBeats = new Set<number>();
+  const annotations: Edit[] = [];
+  const rest: Edit[] = [];
+  for (const e of others) {
+    if (e.type === 'annotation') {
+      const b = e.beat_idx ?? -1;
+      if (annotationBeats.has(b) || annotations.length >= ANNOTATION_CAP) continue;
+      annotationBeats.add(b);
+      annotations.push(e);
+    } else {
+      rest.push(e);
+    }
+  }
+  return [...visuals, ...annotations, ...rest].sort((a, b) => a.from_ms - b.from_ms);
 }
 
 export async function directEdits(ctx: WorkerContext, params: EditingParams): Promise<Edit[]> {

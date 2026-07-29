@@ -81,6 +81,15 @@ describe('ruleEdits', () => {
     expect(edits.some((e) => e.type === 'stat_card')).toBe(false);
   });
 
+  it('un dominio en la narración dispara un marco de navegador', () => {
+    const edits = ruleEdits(
+      params({ beats: [{ idx: 0, from_ms: 0, to_ms: 12_000, text: 'entra en GrapheneOS.org y míralo' }] }),
+    );
+    const dev = edits.find((e) => e.type === 'device_frame');
+    expect(dev?.text).toBe('grapheneos.org');
+    expect(dev?.style).toBe('browser');
+  });
+
   it('un tag del SEO pronunciado se resalta como keyword', () => {
     const edits = ruleEdits(
       params({
@@ -118,5 +127,28 @@ describe('momentsToEdits (capa IA)', () => {
     expect(big.find((e) => e.type === 'stat_odometer')?.value).toBe('1000000');
     const small = momentsToEdits([{ beat_idx: 3, type: 'stat', value: '25%' }], beats, []);
     expect(small.find((e) => e.type === 'stat_card')?.value).toBe('25%');
+  });
+
+  it('un momento device produce device_frame con la URL', () => {
+    const edits = momentsToEdits(
+      [{ beat_idx: 3, type: 'device', text: 'grapheneos.org' }],
+      beats,
+      [],
+    );
+    const dev = edits.find((e) => e.type === 'device_frame');
+    expect(dev?.text).toBe('grapheneos.org');
+    expect(dev?.style).toBe('browser');
+  });
+
+  it('un momento annotation produce annotation (+ whoosh) con estilo y etiqueta', () => {
+    const edits = momentsToEdits(
+      [{ beat_idx: 3, type: 'annotation', style: 'circle', text: 'aquí' }],
+      beats,
+      [],
+    );
+    const an = edits.find((e) => e.type === 'annotation');
+    expect(an?.style).toBe('circle');
+    expect(an?.text).toBe('aquí');
+    expect(edits.some((e) => e.type === 'sfx' && e.sfx === 'whoosh')).toBe(true);
   });
 });
