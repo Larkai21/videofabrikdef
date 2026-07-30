@@ -10,12 +10,7 @@ import {
   type TimelineDto,
   type VideoState,
 } from '@fabrica/shared';
-import {
-  beatRowToTimelineDto,
-  libraryAssetId,
-  originLabel,
-  provisionalFit,
-} from '../lib/beats.js';
+import { beatRowToTimelineDto, libraryAssetId, originLabel, provisionalFit } from '../lib/beats.js';
 import type { ApiContext } from '../lib/context.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { toFileUrl } from '../lib/files.js';
@@ -74,7 +69,10 @@ export function registerTimelineRoutes(app: FastifyInstance, ctx: ApiContext): v
 
     const lockWithCandidate = async (candidate: BeatCandidate) => {
       const beatMs = row.toMs - row.fromMs;
-      const reordered = [candidate, ...(row.candidates ?? []).filter((c) => c.ref !== candidate.ref)];
+      const reordered = [
+        candidate,
+        ...(row.candidates ?? []).filter((c) => c.ref !== candidate.ref),
+      ];
       await ctx.db
         .update(beats)
         .set({
@@ -93,7 +91,10 @@ export function registerTimelineRoutes(app: FastifyInstance, ctx: ApiContext): v
       case 'approve': {
         // con elegido previo (p. ej. subida propia) basta con bloquear
         if (row.assetId && row.fit) {
-          await ctx.db.update(beats).set({ status: 'locked', discardReason: null }).where(eq(beats.id, row.id));
+          await ctx.db
+            .update(beats)
+            .set({ status: 'locked', discardReason: null })
+            .where(eq(beats.id, row.id));
           break;
         }
         const top = row.candidates?.[0];
@@ -147,9 +148,18 @@ export function registerTimelineRoutes(app: FastifyInstance, ctx: ApiContext): v
       .where(eq(beats.videoId, id))
       .orderBy(asc(beats.idx));
     if (!rows.length) throw conflict('El vídeo no tiene beats');
-    const pending = rows.filter((r) => r.status !== 'locked').map((r) => r.idx);
+    // `auto_ok` significa que la máquina va sobrada de confianza en ese plano
+    // (SPEC §9: «verde = auto-aprobado; ámbar = revisar»), así que cruza la
+    // puerta igual que `locked`. Antes exigía `locked` en TODOS y el humano
+    // tenía que pulsar aprobar 36 veces, incluida la mitad que la máquina daba
+    // por buena. Ese es el motivo de que la curación no filtre nada: 36 clics
+    // obligatorios sin información se despachan en fila, y de 181 beats
+    // curados no salió ni un solo descarte. Lo que hay que revisar es lo ámbar.
+    const pending = rows
+      .filter((r) => r.status !== 'locked' && r.status !== 'auto_ok')
+      .map((r) => r.idx);
     if (pending.length) {
-      throw conflict(`Beats sin aprobar: ${pending.join(', ')}`);
+      throw conflict(`Beats sin revisar: ${pending.join(', ')}`);
     }
 
     await transitionVideo(ctx.db, id, 'timeline_ok', { expectFrom: 'assets' });

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import type { FastifyInstance } from 'fastify';
 import { beats, channels, costLedger, createDb, ideas, videos } from '@fabrica/db';
@@ -163,9 +163,22 @@ describe('puertas de la API', () => {
       state: 'guion_borrador',
       master: masterVideoJsonV1.parse({
         version: '1',
-        video: { id: videoId, channel_id: channelId, idea_id: ideaId, fps: 30, width: 1920, height: 1080 },
+        video: {
+          id: videoId,
+          channel_id: channelId,
+          idea_id: ideaId,
+          fps: 30,
+          width: 1920,
+          height: 1080,
+        },
         script: { scenes: [], hook_notes: '' },
-        seo: { titles: ['a', 'b', 'c'], chosen_idx: null, description: '', tags: [], thumbnails: [] },
+        seo: {
+          titles: ['a', 'b', 'c'],
+          chosen_idx: null,
+          description: '',
+          tags: [],
+          thumbnails: [],
+        },
       }),
     });
 
@@ -175,6 +188,69 @@ describe('puertas de la API', () => {
 
     const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
     expect(video?.state).toBe('guion_borrador');
+  });
+
+  // SPEC §9: «verde = auto-aprobado; ámbar = revisar». La puerta exigía `locked`
+  // en todos, así que el humano pulsaba aprobar también en los que la máquina
+  // daba por buenos — y la UI ya habilitaba el botón con `auto_ok`, así que el
+  // resultado era un 409 con el botón activo.
+  it('approve-timeline acepta los beats auto_ok y solo bloquea los que hay que revisar', async () => {
+    const ideaId = await insertIdea();
+    const videoId = `test-vid-${nanoid(8)}`;
+    createdVideoIds.push(videoId);
+    await db.update(ideas).set({ status: 'approved' }).where(eq(ideas.id, ideaId));
+    await db.insert(videos).values({
+      id: videoId,
+      channelId,
+      ideaId,
+      state: 'assets',
+      master: masterVideoJsonV1.parse({
+        version: '1',
+        video: {
+          id: videoId,
+          channel_id: channelId,
+          idea_id: ideaId,
+          fps: 30,
+          width: 1920,
+          height: 1080,
+        },
+      }),
+    });
+    const beatRow = (idx: number, status: 'auto_ok' | 'locked' | 'review') => ({
+      id: `test-beat-${nanoid(8)}`,
+      videoId,
+      idx,
+      fromMs: idx * 10_000,
+      toMs: (idx + 1) * 10_000,
+      text: 'texto',
+      visualQuery: 'q',
+      status,
+    });
+    await db
+      .insert(beats)
+      .values([beatRow(0, 'auto_ok'), beatRow(1, 'locked'), beatRow(2, 'review')]);
+
+    // con un beat en review la puerta sigue cerrada, y nombra solo ese
+    const cerrada = await app.inject({
+      method: 'POST',
+      url: `/videos/${videoId}/approve-timeline`,
+    });
+    expect(cerrada.statusCode).toBe(409);
+    expect((cerrada.json() as { detail: string }).detail).toContain('2');
+    expect((cerrada.json() as { detail: string }).detail).not.toContain('0');
+
+    // aprobado ese, los auto_ok pasan sin que nadie los toque
+    await db
+      .update(beats)
+      .set({ status: 'locked' })
+      .where(and(eq(beats.videoId, videoId), eq(beats.idx, 2)));
+    const abierta = await app.inject({
+      method: 'POST',
+      url: `/videos/${videoId}/approve-timeline`,
+    });
+    expect(abierta.statusCode).toBe(200);
+    const [v] = await db.select().from(videos).where(eq(videos.id, videoId));
+    expect(v?.state).toBe('timeline_ok');
   });
 
   it('GET /inbox devuelve un InboxDto válido', async () => {
