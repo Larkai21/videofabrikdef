@@ -40,7 +40,18 @@ export async function concatWavs(parts: string[], outputPath: string): Promise<v
   const listPath = path.join(path.dirname(outputPath), 'concat-list.txt');
   const lines = parts.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join('\n');
   await fs.writeFile(listPath, `${lines}\n`, 'utf8');
-  await execa('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', listPath, '-c', 'copy', outputPath]);
+  await execa('ffmpeg', [
+    '-y',
+    '-f',
+    'concat',
+    '-safe',
+    '0',
+    '-i',
+    listPath,
+    '-c',
+    'copy',
+    outputPath,
+  ]);
 }
 
 export async function loudnormToWav(inputPath: string, outputPath: string): Promise<void> {
@@ -75,17 +86,23 @@ export async function probeDurationMs(filePath: string): Promise<number> {
     filePath,
   ]);
   const seconds = Number.parseFloat(stdout.trim());
-  if (!Number.isFinite(seconds)) throw new Error(`ffprobe no pudo medir la duración de ${filePath}`);
+  if (!Number.isFinite(seconds))
+    throw new Error(`ffprobe no pudo medir la duración de ${filePath}`);
   return Math.round(seconds * 1000);
 }
 
-// Mide la sonoridad integrada real del archivo final (input_i del análisis).
-// Si la medición no se puede parsear devuelve el objetivo como aproximación,
-// dejándolo registrado: un maestro con lufs = objetivo exacto puede venir de aquí.
+/**
+ * Sonoridad integrada real del archivo final (input_i del análisis).
+ *
+ * Devuelve null si no se puede medir. Antes devolvía el objetivo «como
+ * aproximación», así que un maestro con lufs exactamente −16 podía venir de una
+ * medida buena o de una fallida y no había manera de distinguirlo. Un dato
+ * inventado que se parece a uno correcto es peor que no tener el dato.
+ */
 export async function measureLufs(
   filePath: string,
   logger?: { warn: (obj: object, msg: string) => void },
-): Promise<number> {
+): Promise<number | null> {
   const { stderr } = await execa('ffmpeg', [
     '-hide_banner',
     '-i',
@@ -96,9 +113,9 @@ export async function measureLufs(
     'null',
     '-',
   ]);
-  const fallback = () => {
-    logger?.warn({ filePath }, 'No se pudo medir LUFS; se anota el objetivo como aproximación');
-    return LOUDNORM_LUFS;
+  const fallback = (): null => {
+    logger?.warn({ filePath }, 'No se pudo medir la sonoridad; el maestro queda sin dato');
+    return null;
   };
   const jsonStart = stderr.lastIndexOf('{');
   if (jsonStart < 0) return fallback();

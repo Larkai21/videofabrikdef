@@ -1,4 +1,9 @@
-import { editPayloadText, type BeatCandidate, type BeatStatus, type EditType } from '@fabrica/shared';
+import {
+  editPayloadText,
+  type BeatCandidate,
+  type BeatStatus,
+  type EditType,
+} from '@fabrica/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Player, type PlayerRef } from '@remotion/player';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
@@ -171,7 +176,10 @@ function datosCandidato(
 
   const beatMs = beat.to_ms - beat.from_ms;
   if (kind === 'image') {
-    datos.push({ label: 'Encaje', value: `Imagen fija: se anima con Ken Burns durante ${fmtClock(beatMs)}` });
+    datos.push({
+      label: 'Encaje',
+      value: `Imagen fija: se anima con Ken Burns durante ${fmtClock(beatMs)}`,
+    });
   } else if (durMs > 0 && beatMs > 0) {
     datos.push({
       label: 'Encaje',
@@ -332,8 +340,16 @@ export function Timeline() {
   const { push } = useToasts();
   const queryClient = useQueryClient();
 
-  const videoQ = useQuery({ queryKey: ['video', id], queryFn: () => getVideo(id), enabled: id !== '' });
-  const tlQ = useQuery({ queryKey: ['timeline', id], queryFn: () => getTimeline(id), enabled: id !== '' });
+  const videoQ = useQuery({
+    queryKey: ['video', id],
+    queryFn: () => getVideo(id),
+    enabled: id !== '',
+  });
+  const tlQ = useQuery({
+    queryKey: ['timeline', id],
+    queryFn: () => getTimeline(id),
+    enabled: id !== '',
+  });
 
   const video = videoQ.data;
   const master = video?.master;
@@ -379,6 +395,11 @@ export function Timeline() {
   const [kitLayout, setKitLayout] = useState<{ totalFrames: number; introFrames: number } | null>(
     null,
   );
+  // Si el módulo no carga, la preview se desfasa respecto al MP4 justo lo que
+  // dura la intro (80 frames = 2,7 s): pulsas un beat y el player salta a otro
+  // sitio, y firmas una timeline que no es la que se va a renderizar. Antes
+  // caía a introFrames = 0 en silencio; ahora se dice.
+  const [kitError, setKitError] = useState(false);
   useEffect(() => {
     if (master === undefined) return;
     let alive = true;
@@ -387,9 +408,12 @@ export function Timeline() {
         if (!alive) return;
         const layout = mod.computeBrandKitLayout(master);
         setKitLayout({ totalFrames: layout.totalFrames, introFrames: layout.introFrames });
+        setKitError(false);
       })
       .catch(() => {
-        if (alive) setKitLayout(null);
+        if (!alive) return;
+        setKitLayout(null);
+        setKitError(true);
       });
     return () => {
       alive = false;
@@ -442,7 +466,8 @@ export function Timeline() {
       if (args.action === 'choose') push(`Clip sustituido en el beat ${args.idx + 1}`);
       if (args.action === 'discard') push(`Beat ${args.idx + 1} descartado · buscamos alternativa`);
     },
-    onError: (err) => push(err instanceof Error ? err.message : 'La acción no se pudo aplicar', 'danger'),
+    onError: (err) =>
+      push(err instanceof Error ? err.message : 'La acción no se pudo aplicar', 'danger'),
   });
 
   const approveTlMut = useMutation({
@@ -452,7 +477,8 @@ export function Timeline() {
       push('Timeline aprobada · el render ha empezado');
       void navigate('/');
     },
-    onError: (err) => push(err instanceof Error ? err.message : 'No se pudo aprobar la timeline', 'danger'),
+    onError: (err) =>
+      push(err instanceof Error ? err.message : 'No se pudo aprobar la timeline', 'danger'),
   });
 
   const removeEditMut = useMutation({
@@ -461,7 +487,8 @@ export function Timeline() {
       invalidate();
       push('Efecto quitado');
     },
-    onError: (err) => push(err instanceof Error ? err.message : 'No se pudo quitar el efecto', 'danger'),
+    onError: (err) =>
+      push(err instanceof Error ? err.message : 'No se pudo quitar el efecto', 'danger'),
   });
 
   const uploadMut = useMutation({
@@ -486,9 +513,10 @@ export function Timeline() {
   // Candidato abierto en el visor. El origen decide si al confirmar hay que
   // mandar el candidato entero: los de stock no viven en beats.candidates y el
   // servidor los exige en el cuerpo; los de la rejilla se resuelven por ref.
-  const [visor, setVisor] = useState<{ origen: 'alternativa' | 'stock'; cand: BeatCandidate } | null>(
-    null,
-  );
+  const [visor, setVisor] = useState<{
+    origen: 'alternativa' | 'stock';
+    cand: BeatCandidate;
+  } | null>(null);
   // Plegado por defecto: la lista de efectos vive entre el player y la pista de
   // clips, y con muchos efectos empujaba la timeline fuera de pantalla.
   const [editsOpen, setEditsOpen] = useState(false);
@@ -597,7 +625,10 @@ export function Timeline() {
 
   if (video === undefined || master === undefined || tlQ.isError) {
     return (
-      <div className="wrap-1420" style={{ padding: 'calc(var(--pad) * 2) 26px', display: 'grid', gap: 12 }}>
+      <div
+        className="wrap-1420"
+        style={{ padding: 'calc(var(--pad) * 2) 26px', display: 'grid', gap: 12 }}
+      >
         <div className="banner banner-danger">
           {tlQ.isError ? 'No se pudo cargar la timeline.' : 'No se pudo cargar el vídeo.'}
         </div>
@@ -644,7 +675,10 @@ export function Timeline() {
         >
           previsualización en vivo
         </div>
-        <div className="mono" style={{ fontSize: 11, color: 'rgba(255,255,255,.34)', marginTop: 6 }}>
+        <div
+          className="mono"
+          style={{ fontSize: 11, color: 'rgba(255,255,255,.34)', marginTop: 6 }}
+        >
           se recompone al aprobar o cambiar un clip
         </div>
       </div>
@@ -653,6 +687,15 @@ export function Timeline() {
 
   return (
     <div>
+      {kitError ? (
+        <div className="wrap-1420" style={{ padding: '12px 26px 0' }}>
+          <div className="banner banner-danger">
+            La previsualización no ha podido cargar el montaje del brand kit, así que va desplazada
+            respecto al vídeo final: los tiempos que ves aquí no son los del MP4. Recarga la página
+            antes de firmar la timeline.
+          </div>
+        </div>
+      ) : null}
       <div className="subbar">
         <div className="wrap-1420 subbar-inner">
           <Button variant="secondary" onClick={() => void navigate('/')}>
@@ -800,35 +843,41 @@ export function Timeline() {
               {/* se mantiene montado y se oculta con hidden: así aria-controls
                   apunta siempre a un elemento real */}
               <div id="efectos-edicion" hidden={!editsOpen}>
-              <div className="efectos-lista">
-                {edits.map((e, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      justifyContent: 'space-between',
-                      fontSize: 'var(--fs-sm)',
-                    }}
-                  >
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <span className="mono muted">{fmtClock(e.from_ms)}</span>{' '}
-                      <strong>{EDIT_LABELS[e.type] ?? e.type}</strong>
-                      {editPayloadText(e) !== undefined ? (
-                        <span className="muted"> · {editPayloadText(e)}</span>
-                      ) : null}
-                    </span>
-                    <Button
-                      variant="danger-ghost"
-                      disabled={tlState !== 'assets' || removeEditMut.isPending}
-                      onClick={() => removeEditMut.mutate(i)}
+                <div className="efectos-lista">
+                  {edits.map((e, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        justifyContent: 'space-between',
+                        fontSize: 'var(--fs-sm)',
+                      }}
                     >
-                      Quitar
-                    </Button>
-                  </div>
-                ))}
-              </div>
+                      <span
+                        style={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <span className="mono muted">{fmtClock(e.from_ms)}</span>{' '}
+                        <strong>{EDIT_LABELS[e.type] ?? e.type}</strong>
+                        {editPayloadText(e) !== undefined ? (
+                          <span className="muted"> · {editPayloadText(e)}</span>
+                        ) : null}
+                      </span>
+                      <Button
+                        variant="danger-ghost"
+                        disabled={tlState !== 'assets' || removeEditMut.isPending}
+                        onClick={() => removeEditMut.mutate(i)}
+                      >
+                        Quitar
+                      </Button>
+                    </div>
+                  ))}
+                </div>
                 {tlState !== 'assets' ? (
                   <div className="muted fs-sm" style={{ marginTop: 8 }}>
                     Los efectos ya se congelaron (solo se editan durante la curación).
@@ -865,8 +914,15 @@ export function Timeline() {
                 <span className="mono fs-sm muted" style={{ whiteSpace: 'nowrap' }}>
                   verde aprobado · ámbar requiere revisión
                 </span>
-                <Button variant="secondary" kbd="n" onClick={nextPending} disabled={pendientes.length === 0}>
-                  {pendientes.length > 0 ? `${pendientes.length} sin revisar · siguiente` : 'Todo revisado'}
+                <Button
+                  variant="secondary"
+                  kbd="n"
+                  onClick={nextPending}
+                  disabled={pendientes.length === 0}
+                >
+                  {pendientes.length > 0
+                    ? `${pendientes.length} sin revisar · siguiente`
+                    : 'Todo revisado'}
                 </Button>
               </span>
             </div>
@@ -874,7 +930,10 @@ export function Timeline() {
             <div style={{ position: 'relative' }}>
               <div style={{ display: 'flex', gap: 3, alignItems: 'stretch', position: 'relative' }}>
                 {beats.map((b) => (
-                  <div key={b.idx} style={pillStyle(b.status, b.idx === selIdx, b.to_ms - b.from_ms)}>
+                  <div
+                    key={b.idx}
+                    style={pillStyle(b.status, b.idx === selIdx, b.to_ms - b.from_ms)}
+                  >
                     <button
                       type="button"
                       className="beat-pill"
@@ -1087,7 +1146,14 @@ export function Timeline() {
               Selecciona un beat en la pista para revisarlo.
             </div>
           ) : (
-            <div style={{ padding: 'var(--pad)', display: 'flex', flexDirection: 'column', gap: 'var(--pad)' }}>
+            <div
+              style={{
+                padding: 'var(--pad)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--pad)',
+              }}
+            >
               <div>
                 <div className="mono" style={{ fontSize: 'var(--fs)', fontWeight: 500 }}>
                   Beat {sel.idx + 1} · {fmtClock(sel.from_ms)}–{fmtClock(sel.to_ms)} ·{' '}
@@ -1125,7 +1191,9 @@ export function Timeline() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} className="fs-sm">
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                   <span className="muted">Origen</span>
-                  <span className="mono">{sel.chosen_origin ?? chosenCandidate?.provider ?? '—'}</span>
+                  <span className="mono">
+                    {sel.chosen_origin ?? chosenCandidate?.provider ?? '—'}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                   <span className="muted">Licencia</span>
@@ -1250,7 +1318,13 @@ export function Timeline() {
                   />
                 </div>
                 {debouncedQ.length > 1 ? (
-                  <div style={{ border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      border: '1px solid var(--line)',
+                      borderRadius: 'var(--r-sm)',
+                      overflow: 'hidden',
+                    }}
+                  >
                     {stockSearchQ.isPending ? (
                       <div className="muted fs-sm" style={{ padding: '7px 9px' }}>
                         Buscando en stock
@@ -1289,7 +1363,13 @@ export function Timeline() {
                           <img
                             src={fileUrl(r.thumb_url)}
                             alt=""
-                            style={{ width: 44, flex: 'none', aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 2 }}
+                            style={{
+                              width: 44,
+                              flex: 'none',
+                              aspectRatio: '16 / 9',
+                              objectFit: 'cover',
+                              borderRadius: 2,
+                            }}
                           />
                         ) : (
                           <ThumbPlaceholder width={44} />
@@ -1366,7 +1446,9 @@ export function Timeline() {
         subtitle={sel !== undefined ? `Beat ${sel.idx + 1} · ${sel.visual_query}` : undefined}
         media={visor !== null ? candidatePreview(visor.cand) : null}
         emptyNote="Sin previsualización · el archivo se descarga al elegirlo"
-        datos={visor !== null && sel !== undefined ? datosCandidato(visor.origen, visor.cand, sel) : []}
+        datos={
+          visor !== null && sel !== undefined ? datosCandidato(visor.origen, visor.cand, sel) : []
+        }
         cta="Usar esta"
         ctaDisabled={actionMut.isPending}
         onConfirm={() => {

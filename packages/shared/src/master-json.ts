@@ -67,7 +67,11 @@ export const cueSchema = z.object({
 export const audioSchema = z.object({
   path: z.string(),
   duration_ms: z.number().int().positive(),
-  lufs: z.number(),
+  // null = no se pudo medir. Antes se anotaba el objetivo «como aproximación»,
+  // así que un maestro con lufs exactamente −16 podía venir de una medida real
+  // o de una medida fallida, y no había forma de distinguirlo. Un dato inventado
+  // que se parece a uno bueno es peor que la ausencia del dato.
+  lufs: z.number().nullable(),
 });
 
 export const fitSchema = z.object({
@@ -261,17 +265,41 @@ const editBase = {
  */
 export const editSchema = z.discriminatedUnion('type', [
   // sin beat_idx el punch no sabe qué plano escalar
-  z.object({ ...editBase, type: z.literal('zoom_punch'), beat_idx: z.number().int().nonnegative() }),
+  z.object({
+    ...editBase,
+    type: z.literal('zoom_punch'),
+    beat_idx: z.number().int().nonnegative(),
+  }),
   z.object({ ...editBase, type: z.literal('sfx'), sfx: sfxNameSchema }),
   z.object({ ...editBase, type: z.literal('keyword_highlight'), keyword: z.string().min(1) }),
   z.object({ ...editBase, type: z.literal('text_callout'), text: z.string().min(1) }),
   z.object({ ...editBase, type: z.literal('quote_card'), text: z.string().min(1) }),
   z.object({ ...editBase, type: z.literal('kinetic_text'), text: z.string().min(1) }),
-  z.object({ ...editBase, type: z.literal('stat_card'), value: z.string().min(1), label: z.string().optional() }),
-  z.object({ ...editBase, type: z.literal('stat_odometer'), value: z.string().min(1), label: z.string().optional() }),
+  z.object({
+    ...editBase,
+    type: z.literal('stat_card'),
+    value: z.string().min(1),
+    label: z.string().optional(),
+  }),
+  z.object({
+    ...editBase,
+    type: z.literal('stat_odometer'),
+    value: z.string().min(1),
+    label: z.string().optional(),
+  }),
   // annotation es la única sin payload obligatorio: es una marca sobre el b-roll
-  z.object({ ...editBase, type: z.literal('annotation'), style: z.string().optional(), text: z.string().optional() }),
-  z.object({ ...editBase, type: z.literal('device_frame'), text: z.string().min(1), style: z.string().optional() }),
+  z.object({
+    ...editBase,
+    type: z.literal('annotation'),
+    style: z.string().optional(),
+    text: z.string().optional(),
+  }),
+  z.object({
+    ...editBase,
+    type: z.literal('device_frame'),
+    text: z.string().min(1),
+    style: z.string().optional(),
+  }),
   z.object({ ...editBase, type: z.literal('micro_fx'), style: z.string().min(1) }),
 ]);
 export type Edit = z.infer<typeof editSchema>;

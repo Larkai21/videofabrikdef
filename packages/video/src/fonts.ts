@@ -39,7 +39,17 @@ export function ensureFontLoaded(): void {
       (document.fonts as unknown as { add: (f: FontFace) => void }).add(loaded);
       continueRender(handle);
     })
-    .catch(() => {
+    .catch((err: unknown) => {
+      // Antes se continuaba en silencio y el MP4 salía con la fuente del
+      // sistema: otra tipografía, otras métricas y otros saltos de línea en los
+      // subtítulos, sin que nadie se enterara. En un motor cuyo principio es
+      // «fuentes empaquetadas», un render con otra fuente NO es el mismo vídeo,
+      // así que es mejor fallar el render que entregar algo distinto en
+      // silencio. Sigue habiendo `continueRender` para no dejar el render
+      // colgado si Remotion captura el error.
       continueRender(handle);
+      throw new Error(
+        `No se pudo cargar la fuente empaquetada Inter: ${err instanceof Error ? err.message : String(err)}`,
+      );
     });
 }

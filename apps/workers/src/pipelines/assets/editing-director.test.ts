@@ -395,3 +395,21 @@ describe('hacenFaltaMasTarjetas', () => {
     expect(hacenFaltaMasTarjetas(ruido, 2 * 60_000)).toBe(true);
   });
 });
+
+describe('palabras que se subrayan', () => {
+  // Se llegó a resaltar «vez»: el filtro era «longitud ≥ 4», que deja pasar
+  // cualquier palabra funcional larga. Ahora productor y medidor comparten
+  // regla, así que el informe de calidad no puede señalar algo que el director
+  // siga produciendo.
+  it('los tags de SEO funcionales no llegan a pantalla', () => {
+    const beats = [{ idx: 0, from_ms: 0, to_ms: 10_000, text: 'hablamos de contratos esta vez' }];
+    const cues = [cue('contratos', 1_000), cue('vez', 4_000), cue('cuando', 6_000)];
+    const edits = ruleEdits(params({ beats, cues, seoTags: ['contratos', 'vez', 'cuando'] }));
+    const subrayadas = edits
+      .filter((e) => e.type === 'keyword_highlight')
+      .map((e) => (e as { keyword: string }).keyword);
+    expect(subrayadas).toContain('contratos');
+    expect(subrayadas).not.toContain('vez');
+    expect(subrayadas).not.toContain('cuando');
+  });
+});

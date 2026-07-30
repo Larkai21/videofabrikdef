@@ -4,6 +4,7 @@ import {
   FX_CARD_GUARD_MS,
   FX_CARD_SEP_MS,
   FX_CARDS_PER_MIN,
+  palabraResaltable,
   FX_KEYWORD_SEP_MS,
   FX_KEYWORDS_PER_MIN,
   FX_MICRO_PER_MIN,
@@ -233,6 +234,7 @@ export function intentEdits(params: EditingParams): IntentPlacement {
         case 'keyword':
           // hasta ahora era IMPOSIBLE que la IA produjera un keyword_highlight:
           // solo salían de partir los tags de SEO
+          if (!palabraResaltable(intent.trigger_word)) break;
           edits.push({
             type: 'keyword_highlight',
             from_ms: atMs,
@@ -385,7 +387,10 @@ export function ruleEdits(params: EditingParams & { covered?: ReadonlySet<number
   }
 
   // keyword_highlight: tags del SEO que aparezcan pronunciados en los cues
-  const tagWords = seoTags.flatMap((t) => t.split(/\s+/)).filter((w) => w.length >= 4);
+  // el filtro por longitud dejaba pasar palabras funcionales: se llegó a
+  // resaltar «vez». `palabraResaltable` es la misma regla que usa el informe de
+  // calidad para señalarlo, así que medir y producir no pueden discrepar
+  const tagWords = seoTags.flatMap((t) => t.split(/\s+/)).filter(palabraResaltable);
   const seenKw = new Set<string>();
   for (const tag of tagWords) {
     const key = normalize(tag);

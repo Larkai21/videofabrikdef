@@ -7,6 +7,7 @@ import { Worker, type Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { markIncident, transitionVideo, videos } from '@fabrica/db';
 import {
+  analizarMaster,
   JOBS,
   QUEUES,
   renderableMasterV1,
@@ -21,12 +22,7 @@ import {
 } from '@fabrica/video/chapters';
 import { webpackOverride } from '@fabrica/video/bundling';
 import { bundle } from '@remotion/bundler';
-import {
-  ensureBrowser,
-  renderMedia,
-  renderStill,
-  selectComposition,
-} from '@remotion/renderer';
+import { ensureBrowser, renderMedia, renderStill, selectComposition } from '@remotion/renderer';
 import type { WorkerContext } from '../../lib/context.js';
 import { env, REPO_ROOT } from '../../lib/env.js';
 import { videoSrcLock } from '../../lib/locks.js';
@@ -186,10 +182,7 @@ async function handleRenderVideo(ctx: WorkerContext, job: Job<RenderVideoJob>): 
     await ensureBrowser();
     const serveUrl = await ensureBundle(ctx);
 
-    const filesBaseUrl = env(
-      'FILES_BASE_URL',
-      `http://127.0.0.1:${env('API_PORT', '3001')}/files`,
-    );
+    const filesBaseUrl = env('FILES_BASE_URL', `http://127.0.0.1:${env('API_PORT', '3001')}/files`);
     const inputProps = rewriteMasterMedia(master, {
       libraryDir: ctx.libraryDir,
       outputsDir: ctx.outputsDir,
@@ -285,6 +278,23 @@ async function handleRenderVideo(ctx: WorkerContext, job: Job<RenderVideoJob>): 
     await ctx.queues.script.add(JOBS.script.thumbnailBrief, {
       videoId,
     } satisfies ThumbnailBriefJob);
+    // Puerta de calidad: el informe corre solo, sobre el maestro que se acaba
+    // de congelar, y sus avisos quedan en el log de la entrega. Es barato
+    // (aritmética sobre el maestro) y evita descubrir un minuto mudo o una
+    // palabra vacía resaltada DESPUÉS de subir el vídeo a mano.
+    try {
+      const m = analizarMaster(master);
+      if (m.avisos.length > 0) {
+        log.warn(
+          { avisos: m.avisos.map((a) => `${a.gravedad}: ${a.detalle}`) },
+          `Calidad: ${m.avisos.length} aviso(s) sobre el vídeo terminado`,
+        );
+      } else {
+        log.info({ efectos: m.efectos, planos: m.planos }, 'Calidad: sin avisos');
+      }
+    } catch (err) {
+      log.warn({ err }, 'No se pudo calcular el informe de calidad; el vídeo está entregado');
+    }
     log.info({ outDir }, 'Render terminado y entregables escritos');
   } catch (err) {
     const message = `Fallo en el render: ${errorMessage(err)}`;
