@@ -147,3 +147,53 @@ describe('analizarMaster', () => {
     expect(m.avisos).toEqual([]);
   });
 });
+
+describe('proporción de imágenes fijas', () => {
+  function conKinds(kinds: Array<'clip' | 'image'>) {
+    return analizarMaster(
+      master({
+        beats: kinds.map((k, i) =>
+          beat(i, i * 10_000, (i + 1) * 10_000, {
+            asset: { id: `a${i}`, kind: k, path: `/x/${i}`, fit: { mode: 'trim', offset_ms: 500 } },
+          }),
+        ),
+      }),
+    );
+  }
+
+  it('avisa cuando el vídeo se convierte en una presentación', () => {
+    // 6 de 10 fijas: por encima de la mitad, aviso grave
+    const m = conKinds([
+      'image',
+      'image',
+      'image',
+      'image',
+      'image',
+      'image',
+      'clip',
+      'clip',
+      'clip',
+      'clip',
+    ]);
+    expect(m.imagenes).toBe(6);
+    expect(m.ratio_imagenes).toBeCloseTo(0.6);
+    expect(m.avisos.find((a) => a.codigo === 'demasiada_imagen')?.gravedad).toBe('alta');
+  });
+
+  it('no avisa con una proporción sana de imágenes', () => {
+    const m = conKinds([
+      'image',
+      'clip',
+      'clip',
+      'clip',
+      'clip',
+      'clip',
+      'clip',
+      'clip',
+      'clip',
+      'clip',
+    ]);
+    expect(m.ratio_imagenes).toBeCloseTo(0.1);
+    expect(m.avisos.some((a) => a.codigo === 'demasiada_imagen')).toBe(false);
+  });
+});

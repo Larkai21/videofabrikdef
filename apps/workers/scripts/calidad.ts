@@ -164,6 +164,9 @@ function imprimir(videoId: string, m: MetricasVideo): void {
     `  · recorte     ${m.recortes} clips recortados, mediana ${m.desfase_mediana_s.toFixed(1)} s de material descartado por lado`,
   );
   console.log(
+    `  ${t(m.ratio_imagenes <= 0.3)} metraje     ${m.planos - m.imagenes} clips / ${m.imagenes} imágenes fijas (${Math.round(m.ratio_imagenes * 100)} % fijas)`,
+  );
+  console.log(
     `  ${t(m.planos_repetidos === 0)} repetición  ${m.planos_repetidos} planos repetidos · ${m.bucles} en bucle`,
   );
   console.log(

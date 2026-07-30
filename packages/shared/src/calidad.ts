@@ -21,6 +21,15 @@ import type { Edit, MasterVideoJson } from './master-json.js';
  * mostraba el centro, con una mediana de 5,9 s de separación.
  */
 export const DESFASE_ENCUADRE_MS = 1_500;
+/**
+ * Cuota de imágenes fijas por encima de la cual el vídeo deja de parecer
+ * metraje. Una imagen con Ken Burns no es estática, pero se nota que no es
+ * vídeo; con más de la mitad de los planos así, la pieza entera se siente una
+ * presentación. Medido antes de tocar nada: entre el 33 % y el 61 % según el
+ * vídeo, y un 83 % en el plano principal del peor de ellos.
+ */
+export const RATIO_IMAGENES_MAX = 0.3;
+
 /** Cadencia sana de planos por minuto (fuera de esto, o marea o aburre). */
 export const CADENCIA_MIN = 6;
 export const CADENCIA_MAX = 16;
@@ -44,6 +53,8 @@ export interface MetricasVideo {
   recortes_desfasados: number;
   desfase_mediana_s: number;
   // montaje
+  imagenes: number;
+  ratio_imagenes: number;
   planos_repetidos: number;
   cadencia_planos_min: number;
   bucles: number;
@@ -210,6 +221,18 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
   // como dato porque un recorte enorme significa que se está usando un trozo
   // pequeño de un clip largo, y eso sí es información para elegir mejor.
   const desfasados = desfases.filter((d) => d > DESFASE_ENCUADRE_MS).length;
+
+  // proporción de imágenes fijas: es lo que separa «un vídeo editado» de «una
+  // presentación con voz en off»
+  const imagenes = presentes.filter((a) => (a as { kind?: string }).kind === 'image').length;
+  const ratioImagenes = presentes.length > 0 ? imagenes / presentes.length : 0;
+  if (presentes.length > 0 && ratioImagenes > RATIO_IMAGENES_MAX) {
+    avisos.push({
+      gravedad: ratioImagenes > 0.5 ? 'alta' : 'media',
+      codigo: 'demasiada_imagen',
+      detalle: `${imagenes} de ${presentes.length} planos son imagen fija (${Math.round(ratioImagenes * 100)} %); por encima del ${Math.round(RATIO_IMAGENES_MAX * 100)} % el vídeo se siente una presentación`,
+    });
+  }
   if (bucles > 0) {
     avisos.push({
       gravedad: 'media',
@@ -319,6 +342,8 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
     recortes: desfases.length,
     recortes_desfasados: desfasados,
     desfase_mediana_s: mediana(desfases) / 1000,
+    imagenes,
+    ratio_imagenes: ratioImagenes,
     planos_repetidos: repetidos,
     cadencia_planos_min: cadencia,
     bucles,
