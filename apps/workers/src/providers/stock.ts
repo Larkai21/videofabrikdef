@@ -2,7 +2,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import type pino from 'pino';
 import { captionCache, stockCache, type Db } from '@fabrica/db';
-import { STOCK_CACHE_TTL_H, stockRef } from '@fabrica/shared';
+import { MAX_QUERY_CHARS, STOCK_CACHE_TTL_H, stockRef } from '@fabrica/shared';
 import { closeCost, failCost, openCost } from '../lib/ledger.js';
 
 // Búsqueda de stock (docs/assets-y-biblioteca.md §3): Pexels (vídeos y fotos)
@@ -212,7 +212,11 @@ async function searchPixabay(
     meta: { query: queryNorm },
   });
   try {
-    const params = new URLSearchParams({ key, q: queryNorm, per_page: '15' });
+    // Pixabay responde 400 si `q` pasa de MAX_QUERY_CHARS y no dice por qué:
+    // el recorte aquí es la última red, para que ninguna consulta larga tumbe
+    // la fuente entera desde otro punto de entrada
+    const q = queryNorm.slice(0, MAX_QUERY_CHARS);
+    const params = new URLSearchParams({ key, q, per_page: '15' });
     const json = await fetchJson(`https://pixabay.com/api/videos/?${params.toString()}`, {});
     const results = parsePixabay(json);
     await closeCost(db, handle, { units: 1, unitCost: 0 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { brollResultSchema, buildDirectorPrompt } from './broll-director.js';
+import { MAX_QUERY_CHARS } from '@fabrica/shared';
+import { brollResultSchema, buildDirectorPrompt, recortarConsulta } from './broll-director.js';
 import { buildMockBroll } from './mocks.js';
 
 const BEATS = [
@@ -9,31 +10,49 @@ const BEATS = [
 ];
 
 describe('buildDirectorPrompt', () => {
-  it('incluye idioma, estilo y una línea por beat', () => {
+  it('incluye idioma, el tope de longitud y una línea por beat', () => {
     const { system, user } = buildDirectorPrompt({
       videoId: 'v1',
       channelId: 'c1',
       lang: 'en',
-      styleSuffix: 'clean tech aesthetic',
       beats: BEATS,
     });
     expect(system).toContain('inglés');
-    expect(system).toContain('clean tech aesthetic');
+    expect(system).toContain(`${MAX_QUERY_CHARS} caracteres`);
     // una línea de narración por beat en el user
     expect(user).toContain('0 · city skyline business district ·');
     expect(user.split('\n').filter((l) => /^\d+ · /.test(l))).toHaveLength(3);
   });
 
-  it('sin sufijo de estilo no añade la línea de estilo', () => {
+  // El sufijo de estilo del canal es para los prompts de IMAGEN. Metido en la
+  // consulta tumbaba Pixabay (400 por pasar de 100 caracteres) y añadía una
+  // componente idéntica a todos los vectores de consulta.
+  it('nunca mete el sufijo de estilo del canal en la consulta', () => {
     const { system } = buildDirectorPrompt({
       videoId: 'v1',
       channelId: 'c1',
       lang: 'es',
-      styleSuffix: '',
       beats: BEATS,
     });
     expect(system).toContain('español');
     expect(system).not.toContain('Estilo del canal');
+    expect(system).not.toContain('clean tech aesthetic');
+  });
+});
+
+describe('recortarConsulta', () => {
+  it('deja intactas las consultas cortas y normaliza los espacios', () => {
+    expect(recortarConsulta('  server   room  ')).toBe('server room');
+  });
+
+  it('corta por palabra entera al llegar al tope de Pixabay', () => {
+    const entrada =
+      'warehouse shelving with stacked boxes and a conveyor belt under industrial lighting at night, plus more words that will not fit';
+    const r = recortarConsulta(entrada);
+    expect(r.length).toBeLessThanOrEqual(MAX_QUERY_CHARS);
+    // es un prefijo de la entrada y no parte ninguna palabra por la mitad
+    expect(entrada.startsWith(r)).toBe(true);
+    expect(entrada[r.length]).toMatch(/[\s,]/);
   });
 });
 

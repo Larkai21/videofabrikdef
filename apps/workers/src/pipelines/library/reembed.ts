@@ -44,7 +44,7 @@ export function assetEmbeddingText(row: {
   originQuery: string | null;
   tags: string[];
 }): string {
-  return buildAssetEmbedText(row.caption, row.originQuery, row.tags);
+  return buildAssetEmbedText(row.caption, row.originQuery);
 }
 
 // solo para ideas sin cluster con embeddings: texto de la ficha

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MAX_VISUALS_PER_BEAT } from '@fabrica/shared';
+import { MAX_QUERY_CHARS, MAX_VISUALS_PER_BEAT } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
 import { ledgeredLlmJson } from '../ideas/llm-call.js';
 import { expandQuery } from './score.js';
@@ -45,17 +45,11 @@ export interface DirectorParams {
   videoId: string;
   channelId: string;
   lang: 'en' | 'es';
-  // sufijo de estilo del canal (visual_prompt_suffix) para coherencia visual
-  styleSuffix: string;
   beats: DirectorBeat[];
 }
 
 export function buildDirectorPrompt(params: DirectorParams): { system: string; user: string } {
   const langName = params.lang === 'en' ? 'inglés' : 'español';
-  const styleLine =
-    params.styleSuffix.trim() !== ''
-      ? `\nEstilo del canal (añádelo al final de cada consulta cuando encaje): ${params.styleSuffix.trim()}.`
-      : '';
   const system = [
     'Eres director de b-roll de un canal de YouTube tipo "faceless".',
     'Recibes la narración de un vídeo dividida en beats (trozos de 8-15 s).',
@@ -66,11 +60,10 @@ export function buildDirectorPrompt(params: DirectorParams): { system: string; u
     'Sé conservador: menos es más; no trocees una sola idea.',
     'Cada plano: una consulta de archivo (stock) que ilustre lo que se DICE ahí.',
     'Reglas de la consulta:',
-    `- 3-6 palabras concretas y filmables, en ${langName}.`,
+    `- 3-6 palabras concretas y filmables, en ${langName}; nunca más de ${MAX_QUERY_CHARS} caracteres.`,
     '- Escenas y objetos concretos, nunca conceptos abstractos ni texto en pantalla.',
     '- Planos consecutivos (dentro y entre beats) VISUALMENTE DISTINTOS.',
     '- keyword: una palabra EXACTA tal cual aparece en la narración del beat (o vacío).',
-    styleLine,
     'Devuelve JSON: { "beats": [ { "idx": number, "visuals": [ { "keyword"?: string,',
     '"visual_query": string } ] } ] }, un objeto por beat recibido con el mismo idx.',
   ].join('\n');
@@ -85,6 +78,20 @@ export function buildDirectorPrompt(params: DirectorParams): { system: string; u
   return { system, user };
 }
 
+/**
+ * El prompt pide consultas cortas; esto lo garantiza. Pixabay devuelve 400 por
+ * encima de MAX_QUERY_CHARS y su error no dice por qué, así que un modelo algo
+ * hablador tumbaba en silencio una de las dos fuentes de stock. Se corta por
+ * palabra entera para no partir un término por la mitad.
+ */
+export function recortarConsulta(q: string): string {
+  const limpia = q.trim().replace(/\s+/g, ' ');
+  if (limpia.length <= MAX_QUERY_CHARS) return limpia;
+  const cortada = limpia.slice(0, MAX_QUERY_CHARS);
+  const ultimo = cortada.lastIndexOf(' ');
+  return (ultimo > 0 ? cortada.slice(0, ultimo) : cortada).trim();
+}
+
 // Devuelve idx→cortes[]. Ante cualquier fallo del LLM se cae con gracia a un
 // único corte con la consulta de escena (expandida) para no bloquear el pipeline.
 export async function directBroll(
@@ -92,7 +99,7 @@ export async function directBroll(
   params: DirectorParams,
 ): Promise<Map<number, DirectorCut[]>> {
   const fallback = new Map<number, DirectorCut[]>(
-    params.beats.map((b) => [b.idx, [{ visual_query: expandQuery(b.sceneQuery, b.text) }]]),
+    params.beats.map((b) => [b.idx, [{ visual_query: recortarConsulta(expandQuery(b.sceneQuery, b.text)) }]]),
   );
   if (params.beats.length === 0) return fallback;
 
@@ -122,7 +129,7 @@ export async function directBroll(
     const cuts: DirectorCut[] = b.visuals
       .map((v) => ({
         ...(v.keyword && v.keyword.trim() !== '' ? { keyword: v.keyword.trim() } : {}),
-        visual_query: v.visual_query.trim(),
+        visual_query: recortarConsulta(v.visual_query),
       }))
       .filter((v) => v.visual_query !== '')
       .slice(0, MAX_VISUALS_PER_BEAT);

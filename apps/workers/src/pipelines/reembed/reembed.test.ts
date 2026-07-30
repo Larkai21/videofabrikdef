@@ -15,15 +15,18 @@ describe('constructores de texto del re-embebido', () => {
     expect(rawItemEmbeddingText({ title: 'Sin excerpt', excerpt: null })).toBe('Sin excerpt');
   });
 
-  it('assets usa caption + origin_query y cae a tags si faltan', () => {
+  // El asset se embebe SOLO con su descripción, igual que el stock: meter la
+  // consulta que lo encontró inflaba su similitud con sus propios términos y
+  // hacía que la biblioteca ganara con planos de temas viejos.
+  it('assets usa solo el caption, y la consulta únicamente si no hay descripción', () => {
     expect(
       assetEmbeddingText({ caption: 'Sala oscura', originQuery: 'server room', tags: [] }),
-    ).toBe('Sala oscura server room');
+    ).toBe('Sala oscura');
+    expect(
+      assetEmbeddingText({ caption: 'Sala oscura', originQuery: null, tags: ['datacenter'] }),
+    ).toBe('Sala oscura');
     expect(assetEmbeddingText({ caption: null, originQuery: 'server room', tags: [] })).toBe(
       'server room',
-    );
-    expect(assetEmbeddingText({ caption: null, originQuery: null, tags: ['datacenter', 'racks'] })).toBe(
-      'datacenter racks',
     );
     expect(assetEmbeddingText({ caption: null, originQuery: null, tags: [] })).toBe('');
   });

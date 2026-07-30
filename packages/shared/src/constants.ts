@@ -26,6 +26,14 @@ export const BEAT_LAST_MAX_S = 18;
 // multilingual-e5-small, cuya línea base para pares NO relacionados ronda
 // 0,72–0,78 (con el mock hash la escala era otra). Calibración fina en curso:
 // etiquetar ~50 beats a mano (objetivo <5% de falsos auto_ok).
+// Tope duro de la consulta de stock. Pixabay responde HTTP 400 si `q` pasa de
+// 100 caracteres, y no lo dice en el error. Con el sufijo de estilo del canal
+// dentro de la consulta, 28 de 36 consultas de un vídeo lo superaban y 12 de 15
+// búsquedas de Pixabay morían en silencio (el fallo se traga y el beat sigue
+// sin candidatos de esa fuente). Además, una consulta corta es mejor consulta:
+// el embedding no se diluye en palabras de relleno.
+export const MAX_QUERY_CHARS = 100;
+
 export const T_AUTO = 0.86;
 export const T_REV = 0.78;
 export const T_STOCK = 0.88;

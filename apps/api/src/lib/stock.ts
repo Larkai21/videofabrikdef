@@ -1,7 +1,7 @@
 import { eq, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { stockCache, type Db } from '@fabrica/db';
-import { STOCK_CACHE_TTL_H, stockRef, type BeatCandidate } from '@fabrica/shared';
+import { MAX_QUERY_CHARS, STOCK_CACHE_TTL_H, stockRef, type BeatCandidate } from '@fabrica/shared';
 import { closeCost, failCost, openCost } from './ledger.js';
 
 // Cliente de stock de la API (búsqueda libre desde la timeline). Los workers
@@ -192,7 +192,8 @@ export async function searchStock(db: Db, query: string): Promise<BeatCandidate[
       cachedSearch(db, 'pixabay', queryNorm, async () => {
         const params = new URLSearchParams({
           key: pixabayKey,
-          q: queryNorm,
+          // Pixabay devuelve 400 por encima de MAX_QUERY_CHARS (ver constants)
+          q: queryNorm.slice(0, MAX_QUERY_CHARS),
           per_page: '15',
           safesearch: 'true',
         });

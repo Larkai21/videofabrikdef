@@ -683,7 +683,6 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
         videoId,
         channelId: video.channelId,
         lang: channel?.profile?.style.stock_query_lang ?? 'en',
-        styleSuffix,
         beats: toDirect.map((b) => ({ idx: b.idx, text: b.text, sceneQuery: b.visualQuery })),
       });
       const cues = video.master.cues;
@@ -841,8 +840,14 @@ function extFromUrl(url: string, kind: 'clip' | 'image'): string {
   return kind === 'clip' ? 'mp4' : 'jpg';
 }
 
-function buildTags(query: string, caption: string): string[] {
-  const tokens = `${query} ${caption}`
+/**
+ * Etiquetas de la biblioteca, para la búsqueda de texto libre del navegador de
+ * assets. Salen SOLO de la descripción: derivarlas también de la consulta hacía
+ * que el asset se etiquetara con la búsqueda que lo encontró en vez de con lo
+ * que se ve en él.
+ */
+function buildTags(caption: string): string[] {
+  const tokens = caption
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
@@ -1024,10 +1029,10 @@ async function insertIngestedAsset(
   const caption =
     (meta.caption as string | undefined) ??
     (chosen.provider === 'flux' ? `Imagen generada para: ${target.visualQuery}` : String(meta.title ?? ''));
-  const tags = buildTags(target.visualQuery, caption);
+  const tags = buildTags(caption);
   // texto canónico compartido con backfill y reembed (lib/embed-text.ts)
   const [embedding] = await ctx.embeddings.embed([
-    buildAssetEmbedText(caption, target.visualQuery, tags),
+    buildAssetEmbedText(caption, target.visualQuery),
   ]);
 
   const assetId = nanoid();
