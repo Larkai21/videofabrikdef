@@ -34,6 +34,31 @@ function useInOut(opts?: { enterFrames?: number; exitFrames?: number }): {
 
 // Superficie "liquid glass" compartida por las tarjetas: blur, borde sutil (o de
 // acento) y un brillo interior en el canto superior que da el look de cristal.
+/**
+ * Banda de oscurecimiento detrás de un overlay que pinta trazo o glifo DESNUDO.
+ *
+ * Las tarjetas (callout, stat, quote, device) llevan `glassSurface`, que ya es
+ * una superficie opaca, y se leen sobre cualquier fondo. Los que no la llevan
+ * dependían de lo que hubiera detrás: medido sobre un vídeo real, el texto
+ * cinético del gancho —el efecto más importante del vídeo, sus tres primeros
+ * segundos— salía en azul de acento sobre una captura de pantalla BLANCA, a
+ * ~1,5:1 de contraste. Ilegible.
+ *
+ * El render no puede mirar el fotograma (principio 6: sin fetch ni análisis en
+ * tiempo de render), así que la solución no es adivinar el fondo sino dejar de
+ * depender de él: un degradado vertical suave garantiza el contraste sin tapar
+ * el b-roll, que es lo que hace cualquier cadena de televisión.
+ */
+export function scrim(d: DesignTokens, opts?: { fuerza?: number }): React.CSSProperties {
+  const f = opts?.fuerza ?? 0.84;
+  return {
+    background: `linear-gradient(180deg, ${hexToRgba(d.background, 0)} 0%, ${hexToRgba(
+      d.background,
+      f,
+    )} 38%, ${hexToRgba(d.background, f)} 62%, ${hexToRgba(d.background, 0)} 100%)`,
+  };
+}
+
 export function glassSurface(d: DesignTokens, opts?: { accent?: boolean }): React.CSSProperties {
   return {
     background: hexToRgba(d.background, 0.7),
@@ -46,12 +71,22 @@ export function glassSurface(d: DesignTokens, opts?: { accent?: boolean }): Reac
 
 // Rótulo/callout que entra con pop en la banda superior (no choca con los
 // subtítulos, anclados abajo). Para resaltar un término o una idea.
-export const TextCallout: React.FC<{ text: string; design?: DesignTokens }> = ({ text, design }) => {
+export const TextCallout: React.FC<{ text: string; design?: DesignTokens }> = ({
+  text,
+  design,
+}) => {
   const d = design ?? defaultDesign();
   const { opacity, pop } = useInOut();
   if (text.trim() === '') return null;
   return (
-    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'flex-start', pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+    <AbsoluteFill
+      style={{
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        pointerEvents: 'none',
+        fontFamily: FONT_FAMILY,
+      }}
+    >
       <div
         style={{
           marginTop: 130,
@@ -101,7 +136,14 @@ export const StatCard: React.FC<{ value: string; label?: string; design?: Design
     }
   }
   return (
-    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+    <AbsoluteFill
+      style={{
+        alignItems: 'center',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+        fontFamily: FONT_FAMILY,
+      }}
+    >
       <div
         style={{
           opacity,
@@ -115,7 +157,15 @@ export const StatCard: React.FC<{ value: string; label?: string; design?: Design
           borderRadius: 20,
         }}
       >
-        <div style={{ ...displayText(800), fontSize: 130, lineHeight: 1, color: d.accent, letterSpacing: '-0.03em' }}>
+        <div
+          style={{
+            ...displayText(800),
+            fontSize: 130,
+            lineHeight: 1,
+            color: d.accent,
+            letterSpacing: '-0.03em',
+          }}
+        >
           {display}
         </div>
         {label !== undefined && label.trim() !== '' ? (
@@ -132,7 +182,14 @@ export const QuoteCard: React.FC<{ text: string; design?: DesignTokens }> = ({ t
   const { opacity, pop } = useInOut();
   if (text.trim() === '') return null;
   return (
-    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+    <AbsoluteFill
+      style={{
+        alignItems: 'center',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+        fontFamily: FONT_FAMILY,
+      }}
+    >
       <div
         style={{
           opacity,
@@ -145,8 +202,12 @@ export const QuoteCard: React.FC<{ text: string; design?: DesignTokens }> = ({ t
           textAlign: 'center',
         }}
       >
-        <div style={{ fontSize: 90, lineHeight: 0.6, color: d.accent, fontWeight: 800 }}>&ldquo;</div>
-        <div style={{ fontSize: 54, fontWeight: 700, lineHeight: 1.25, color: d.foreground }}>{text}</div>
+        <div style={{ fontSize: 90, lineHeight: 0.6, color: d.accent, fontWeight: 800 }}>
+          &ldquo;
+        </div>
+        <div style={{ fontSize: 54, fontWeight: 700, lineHeight: 1.25, color: d.foreground }}>
+          {text}
+        </div>
       </div>
     </AbsoluteFill>
   );
@@ -191,8 +252,29 @@ export const KineticText: React.FC<{ text: string; seed?: number; design?: Desig
   const flash = pulse(frame, lastAt - 2, lastAt + 10, 3, 6, Ease.outCubic) * 0.16;
 
   return (
-    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+    <AbsoluteFill
+      style={{
+        alignItems: 'center',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+        fontFamily: FONT_FAMILY,
+      }}
+    >
       {flash > 0.001 ? <AbsoluteFill style={{ background: d.accent, opacity: flash }} /> : null}
+      {/* banda de contraste: sin ella el gancho depende de que el b-roll sea
+          oscuro, y sobre una captura blanca no se lee nada */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: '50%',
+          height: 420,
+          transform: 'translateY(-50%)',
+          opacity: cierre,
+          ...scrim(d),
+        }}
+      />
       <div style={{ position: 'relative', width: '100%', height: 320 }}>
         {words.map((w, i) => {
           const at = i * step;
@@ -209,15 +291,15 @@ export const KineticText: React.FC<{ text: string; seed?: number; design?: Desig
           const size = clamp(1500 / Math.max(3, w.length), 90, 220);
           const variant = isLast
             ? 'acento'
-            : (['normal', 'bloque', 'contorno'] as const)[hashSeed(`${seed}:st:${i}`) % 3]!;
+            : // «contorno» (color transparente + trazo de 3 px del acento) era
+              // invisible sobre cualquier fondo con textura: fuera del reparto
+              (['normal', 'bloque'] as const)[hashSeed(`${seed}:st:${i}`) % 2]!;
           const variantStyle: React.CSSProperties =
             variant === 'bloque'
               ? { color: d.background, background: d.accent, padding: '0 24px', borderRadius: 14 }
-              : variant === 'contorno'
-                ? { color: 'transparent', WebkitTextStroke: `3px ${d.accent}` }
-                : variant === 'acento'
-                  ? { color: d.accent }
-                  : { color: d.foreground };
+              : variant === 'acento'
+                ? { color: d.accent }
+                : { color: d.foreground };
           return (
             <div
               key={i}
@@ -233,7 +315,11 @@ export const KineticText: React.FC<{ text: string; seed?: number; design?: Desig
                 letterSpacing: '-0.03em',
                 textTransform: 'uppercase',
                 whiteSpace: 'nowrap',
-                textShadow: `0 8px 30px ${hexToRgba('#000000', 0.45)}`,
+                // el contorno oscuro asegura el canto de la letra aunque el
+                // scrim no baste; la sombra sola no define bordes
+                WebkitTextStroke: `2px ${hexToRgba(d.background, 0.85)}`,
+                paintOrder: 'stroke fill',
+                textShadow: `0 8px 30px ${hexToRgba('#000000', 0.55)}`,
                 ...variantStyle,
               }}
             >
@@ -303,7 +389,14 @@ export const StatOdometer: React.FC<{ value: string; label?: string; design?: De
   }
 
   return (
-    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+    <AbsoluteFill
+      style={{
+        alignItems: 'center',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+        fontFamily: FONT_FAMILY,
+      }}
+    >
       <div
         style={{
           opacity,
@@ -331,7 +424,9 @@ export const StatOdometer: React.FC<{ value: string; label?: string; design?: De
         >
           {prefix ? <span>{prefix}</span> : null}
           {valid ? (
-            <div style={{ display: 'flex', height: '1em', alignItems: 'flex-start' }}>{columns}</div>
+            <div style={{ display: 'flex', height: '1em', alignItems: 'flex-start' }}>
+              {columns}
+            </div>
           ) : (
             <span>{raw}</span>
           )}
@@ -364,7 +459,14 @@ export const DeviceFrame: React.FC<{ text: string; style?: string; design?: Desi
 
   if (isPhone) {
     return (
-      <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+      <AbsoluteFill
+        style={{
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerEvents: 'none',
+          fontFamily: FONT_FAMILY,
+        }}
+      >
         <div
           style={{
             width: 380,
@@ -380,10 +482,35 @@ export const DeviceFrame: React.FC<{ text: string; style?: string; design?: Desi
           }}
         >
           {/* notch */}
-          <div style={{ alignSelf: 'center', width: 150, height: 26, borderRadius: 14, background: hexToRgba(d.foreground, 0.22), marginBottom: 22 }} />
+          <div
+            style={{
+              alignSelf: 'center',
+              width: 150,
+              height: 26,
+              borderRadius: 14,
+              background: hexToRgba(d.foreground, 0.22),
+              marginBottom: 22,
+            }}
+          />
           {/* barra de búsqueda */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: hexToRgba(d.foreground, 0.1), borderRadius: 14, padding: '14px 18px' }}>
-            <div style={{ width: 16, height: 16, borderRadius: '50%', border: `3px solid ${d.accent}` }} />
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              background: hexToRgba(d.foreground, 0.1),
+              borderRadius: 14,
+              padding: '14px 18px',
+            }}
+          >
+            <div
+              style={{
+                width: 16,
+                height: 16,
+                borderRadius: '50%',
+                border: `3px solid ${d.accent}`,
+              }}
+            />
             <span style={{ fontSize: 30, color: d.foreground, fontWeight: 600 }}>
               {shown}
               <span style={{ opacity: cursorOn ? 1 : 0, color: d.accent }}>|</span>
@@ -392,7 +519,10 @@ export const DeviceFrame: React.FC<{ text: string; style?: string; design?: Desi
           {/* skeleton de contenido */}
           <div style={{ marginTop: 26, display: 'flex', flexDirection: 'column', gap: 16 }}>
             {[0.9, 0.7, 0.8, 0.55].map((w, i) => (
-              <div key={i} style={{ height: 22, width: `${w * 100}%`, borderRadius: 8, background: line }} />
+              <div
+                key={i}
+                style={{ height: 22, width: `${w * 100}%`, borderRadius: 8, background: line }}
+              />
             ))}
           </div>
         </div>
@@ -401,7 +531,14 @@ export const DeviceFrame: React.FC<{ text: string; style?: string; design?: Desi
   }
 
   return (
-    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+    <AbsoluteFill
+      style={{
+        alignItems: 'center',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+        fontFamily: FONT_FAMILY,
+      }}
+    >
       <div
         style={{
           width: 1180,
@@ -413,16 +550,57 @@ export const DeviceFrame: React.FC<{ text: string; style?: string; design?: Desi
         }}
       >
         {/* chrome: 3 puntos + barra de direcciones */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '18px 24px', borderBottom: `1px solid ${line}` }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            padding: '18px 24px',
+            borderBottom: `1px solid ${line}`,
+          }}
+        >
           <div style={{ display: 'flex', gap: 10 }}>
             {[0.5, 0.7, 0.9].map((o, i) => (
-              <div key={i} style={{ width: 18, height: 18, borderRadius: '50%', background: hexToRgba(d.foreground, 0.2 + o * 0.1) }} />
+              <div
+                key={i}
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: '50%',
+                  background: hexToRgba(d.foreground, 0.2 + o * 0.1),
+                }}
+              />
             ))}
           </div>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, background: hexToRgba(d.foreground, 0.08), borderRadius: 12, padding: '12px 20px' }}>
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              background: hexToRgba(d.foreground, 0.08),
+              borderRadius: 12,
+              padding: '12px 20px',
+            }}
+          >
             {/* candado */}
-            <div style={{ width: 16, height: 14, borderRadius: 3, border: `2px solid ${d.accent}`, position: 'relative' }} />
-            <span style={{ fontSize: 34, color: d.foreground, fontWeight: 600, letterSpacing: '-0.01em' }}>
+            <div
+              style={{
+                width: 16,
+                height: 14,
+                borderRadius: 3,
+                border: `2px solid ${d.accent}`,
+                position: 'relative',
+              }}
+            />
+            <span
+              style={{
+                fontSize: 34,
+                color: d.foreground,
+                fontWeight: 600,
+                letterSpacing: '-0.01em',
+              }}
+            >
               {shown}
               <span style={{ opacity: cursorOn ? 1 : 0, color: d.accent }}>|</span>
             </span>
@@ -430,9 +608,19 @@ export const DeviceFrame: React.FC<{ text: string; style?: string; design?: Desi
         </div>
         {/* cuerpo: skeleton de página */}
         <div style={{ padding: '34px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div style={{ height: 40, width: '52%', borderRadius: 10, background: hexToRgba(d.accent, 0.35) }} />
+          <div
+            style={{
+              height: 40,
+              width: '52%',
+              borderRadius: 10,
+              background: hexToRgba(d.accent, 0.35),
+            }}
+          />
           {[0.95, 0.85, 0.9, 0.6].map((w, i) => (
-            <div key={i} style={{ height: 20, width: `${w * 100}%`, borderRadius: 7, background: line }} />
+            <div
+              key={i}
+              style={{ height: 20, width: `${w * 100}%`, borderRadius: 7, background: line }}
+            />
           ))}
         </div>
       </div>
@@ -543,12 +731,21 @@ export const MicroFx: React.FC<{ shape?: string; design?: DesignTokens }> = ({ s
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
-      <svg viewBox="0 0 1920 1080" width="100%" height="100%" style={{ position: 'absolute', inset: 0, opacity }}>
+      <svg
+        viewBox="0 0 1920 1080"
+        width="100%"
+        height="100%"
+        style={{ position: 'absolute', inset: 0, opacity }}
+      >
         <g transform={`translate(${cx} ${cy}) scale(${mix(0.7, 1, clamp(pop, 0, 1.2))})`}>
           {kind === 'spark_up' || kind === 'spark_down' ? (
             <>
               <path
-                d={sube ? 'M -110 70 L -30 10 L 30 45 L 110 -70' : 'M -110 -70 L -30 -10 L 30 -45 L 110 70'}
+                d={
+                  sube
+                    ? 'M -110 70 L -30 10 L 30 45 L 110 -70'
+                    : 'M -110 -70 L -30 -10 L 30 -45 L 110 70'
+                }
                 pathLength={1}
                 fill="none"
                 stroke={color}
@@ -560,7 +757,11 @@ export const MicroFx: React.FC<{ shape?: string; design?: DesignTokens }> = ({ s
               />
               {/* punta de flecha, entra cuando el trazo ya ha llegado */}
               <path
-                d={sube ? 'M 110 -70 L 60 -62 M 110 -70 L 102 -20' : 'M 110 70 L 60 62 M 110 70 L 102 20'}
+                d={
+                  sube
+                    ? 'M 110 -70 L 60 -62 M 110 -70 L 102 -20'
+                    : 'M 110 70 L 60 62 M 110 70 L 102 20'
+                }
                 fill="none"
                 stroke={color}
                 strokeWidth={12}
@@ -584,7 +785,14 @@ export const MicroFx: React.FC<{ shape?: string; design?: DesignTokens }> = ({ s
           ) : (
             <>
               {/* anillo que se vacía en sentido horario */}
-              <circle cx={0} cy={0} r={62} fill="none" stroke={hexToRgba(d.foreground, 0.25)} strokeWidth={12} />
+              <circle
+                cx={0}
+                cy={0}
+                r={62}
+                fill="none"
+                stroke={hexToRgba(d.foreground, 0.25)}
+                strokeWidth={12}
+              />
               <circle
                 cx={0}
                 cy={0}
