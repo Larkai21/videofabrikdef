@@ -58,9 +58,17 @@ export async function probeMedia(filePath: string, logger: pino.Logger): Promise
 }
 
 /**
- * Produce un JPEG ≤640 px de ancho en outPath: fotograma para vídeos (en el
- * segundo 1 o a mitad si el clip es más corto), reescalado para imágenes.
+ * Produce un JPEG ≤640 px de ancho en outPath: para vídeos, el fotograma del
+ * PUNTO MEDIO del clip; para imágenes, un reescalado.
  * Devuelve false si ffmpeg falta o falla (modo degradado, nunca lanza).
+ *
+ * El punto medio no es una elección estética: el encaje recorta el clip
+ * CENTRADO en él (`fit.ts`: `offset_ms = (len − beat) / 2`), así que el punto
+ * medio cae siempre dentro del tramo que verá el espectador. Antes se extraía
+ * el segundo 1, que solo cae dentro si el desfase es menor de un segundo —
+ * medido sobre vídeos reales, el 77 % de los clips empiezan más allá y con una
+ * mediana de 5,9 s. Se describía y se puntuaba una imagen distinta de la que
+ * sale en pantalla.
  */
 export async function extractCaptionJpeg(
   input: { filePath: string; visual: 'video' | 'image'; durationMs: number | null },
@@ -69,7 +77,7 @@ export async function extractCaptionJpeg(
 ): Promise<boolean> {
   const args: string[] = ['-v', 'error'];
   if (input.visual === 'video') {
-    const seekMs = Math.max(0, Math.min(1_000, Math.floor((input.durationMs ?? 2_000) / 2)));
+    const seekMs = Math.max(0, Math.floor((input.durationMs ?? 2_000) / 2));
     args.push('-ss', (seekMs / 1000).toFixed(2));
   }
   args.push(

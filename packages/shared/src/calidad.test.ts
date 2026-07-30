@@ -59,7 +59,7 @@ describe('cifraSinSeparador', () => {
 });
 
 describe('analizarMaster', () => {
-  it('mide el desfase entre el fotograma puntuado y el que se ve', () => {
+  it('reporta cuánto se recorta de los clips, sin tratarlo como defecto', () => {
     const m = analizarMaster(
       master({
         beats: [
@@ -71,7 +71,9 @@ describe('analizarMaster', () => {
     expect(m.recortes).toBe(2);
     expect(m.recortes_desfasados).toBe(1);
     expect(m.desfase_mediana_s).toBeCloseTo(4.25);
-    expect(m.avisos.some((a) => a.codigo === 'encuadre')).toBe(true);
+    // el encaje centra el recorte y la descripción sale del punto medio, así
+    // que un recorte grande es información, no un fallo
+    expect(m.avisos.some((a) => a.codigo === 'encuadre')).toBe(false);
   });
 
   // Este es el aviso que el reparto total NO puede dar: 4 efectos en 4 minutos

@@ -10,8 +10,17 @@ import type { Edit, MasterVideoJson } from './master-json.js';
 // La regla que ordena qué entra aquí: una métrica solo vale si un valor malo
 // señala algo concreto que arreglar. «Puntuación global de calidad» no cumple.
 
-/** Un clip cuyo tramo visible empieza más allá de esto se puntuó a ciegas. */
-export const DESFASE_ENCUADRE_MS = 3_000;
+/**
+ * Distancia máxima tolerada entre el fotograma con el que se describió un clip
+ * y el centro del tramo que se ve.
+ *
+ * El encaje recorta CENTRADO en el clip y la descripción se extrae del punto
+ * medio, así que la distancia debería ser cero por construcción: esto es una
+ * invariante, no un ajuste. Salta si alguien cambia una de las dos mitades sin
+ * la otra, que es justo lo que había pasado — se describía el segundo 1 y se
+ * mostraba el centro, con una mediana de 5,9 s de separación.
+ */
+export const DESFASE_ENCUADRE_MS = 1_500;
 /** Cadencia sana de planos por minuto (fuera de esto, o marea o aburre). */
 export const CADENCIA_MIN = 6;
 export const CADENCIA_MAX = 16;
@@ -195,14 +204,12 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
     if (fit?.mode === 'trim') desfases.push(fit.offset_ms ?? 0);
     if (fit?.mode === 'loop') bucles += 1;
   }
+  // Cuánto se está recortando de los clips. NO es un aviso: el encaje centra el
+  // recorte y la descripción se extrae del punto medio, así que el fotograma
+  // que decidió la relevancia cae siempre dentro del tramo visible. Se reporta
+  // como dato porque un recorte enorme significa que se está usando un trozo
+  // pequeño de un clip largo, y eso sí es información para elegir mejor.
   const desfasados = desfases.filter((d) => d > DESFASE_ENCUADRE_MS).length;
-  if (desfases.length > 0 && desfasados / desfases.length > 0.2) {
-    avisos.push({
-      gravedad: 'alta',
-      codigo: 'encuadre',
-      detalle: `${desfasados} de ${desfases.length} clips muestran un tramo que empieza a más de ${DESFASE_ENCUADRE_MS / 1000} s del fotograma con el que se decidió su relevancia`,
-    });
-  }
   if (bucles > 0) {
     avisos.push({
       gravedad: 'media',

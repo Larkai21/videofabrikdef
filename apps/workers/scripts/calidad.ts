@@ -161,7 +161,7 @@ function imprimir(videoId: string, m: MetricasVideo): void {
     `\n${videoId}  ·  ${m.duracion_min.toFixed(1)} min · ${m.beats} beats · ${m.planos} planos · ${m.efectos} efectos`,
   );
   console.log(
-    `  ${t(m.recortes_desfasados / Math.max(1, m.recortes) <= 0.2)} encuadre    ${m.recortes_desfasados}/${m.recortes} clips desfasados (mediana ${m.desfase_mediana_s.toFixed(1)} s)`,
+    `  · recorte     ${m.recortes} clips recortados, mediana ${m.desfase_mediana_s.toFixed(1)} s de material descartado por lado`,
   );
   console.log(
     `  ${t(m.planos_repetidos === 0)} repetición  ${m.planos_repetidos} planos repetidos · ${m.bucles} en bucle`,
