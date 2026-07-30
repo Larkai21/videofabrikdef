@@ -1,6 +1,63 @@
-import type { ChannelProfile, Research, Scene } from '@fabrica/shared';
+import {
+  FX_CARDS_PER_MIN,
+  WORDS_PER_MIN,
+  type ChannelProfile,
+  type Research,
+  type Scene,
+} from '@fabrica/shared';
 import type { ResearchDoc } from './research.js';
 import { sceneTarget } from './wordcount.js';
+
+/**
+ * Papel de cada escena del cuerpo, con rangos de ids concretos.
+ *
+ * El reparto anterior era una frase fija —«1-2 de contexto, 3 o 4 bloques de
+ * desarrollo, 1 de giro y 1-2 de conclusión»— que describe entre 6 y 9 escenas.
+ * A dos minutos sobraba; a siete minutos el cuerpo son catorce escenas y al
+ * modelo no le quedaba más salida que estirar cada bloque, que es exactamente
+ * «aplanarse en el minuto tres», escrito en el propio prompt. Con un papel
+ * nombrado por tramo de ids, no puede difuminarlo.
+ */
+export function sceneBlueprint(bodyCount: number): string {
+  if (bodyCount <= 0) return '';
+  // proporciones del arco; se reparten y el resto va a desarrollo
+  const contexto = Math.max(1, Math.round(bodyCount * 0.15));
+  const cierre = Math.max(1, Math.round(bodyCount * 0.15));
+  const giro = bodyCount >= 6 ? 1 : 0;
+  const desarrollo = Math.max(1, bodyCount - contexto - cierre - giro);
+  const id = (n: number): string => `sc-body-${n}`;
+  const tramo = (desde: number, cuantas: number): string =>
+    cuantas <= 1 ? id(desde) : `${id(desde)}–${id(desde + cuantas - 1)}`;
+
+  let n = 1;
+  const partes: string[] = [];
+  partes.push(`${tramo(n, contexto)}: el caso concreto — qué ha pasado, quién y dónde.`);
+  n += contexto;
+  if (bodyCount >= 8) {
+    // el punto medio es donde se pierde a la audiencia de un vídeo largo
+    const mitad = Math.floor(desarrollo / 2);
+    partes.push(`${tramo(n, mitad)}: desarrollo, UNA idea propia por escena.`);
+    n += mitad;
+    partes.push(`${id(n)}: PUNTO MEDIO — re-gancho fuerte que cambia lo que el espectador creía.`);
+    n += 1;
+    partes.push(
+      `${tramo(n, desarrollo - mitad - 1)}: complicación — el «sí, pero» de lo anterior.`,
+    );
+    n += desarrollo - mitad - 1;
+  } else {
+    partes.push(`${tramo(n, desarrollo)}: desarrollo, UNA idea propia por escena.`);
+    n += desarrollo;
+  }
+  if (giro === 1) {
+    partes.push(`${id(n)}: GIRO — lo contraintuitivo, o el coste que nadie cuenta.`);
+    n += 1;
+  }
+  partes.push(`${tramo(n, cierre)}: pago explícito de la promesa del titular.`);
+  return [
+    'Papel de cada escena del cuerpo (respeta los ids):',
+    ...partes.map((p) => `- ${p}`),
+  ].join('\n');
+}
 
 export function renderProfile(profile: ChannelProfile): string {
   return [
@@ -82,6 +139,12 @@ export function scriptSystem(profile: ChannelProfile, targetWords: number): stri
   const patterns = profile.title_patterns
     .map((p) => `«${p.template}» (ej.: ${p.example})`)
     .join(' · ');
+  // El presupuesto de tarjetas sale de la MISMA constante que usa el montador
+  // para repartirlas. Antes el prompt daba un techo por escena («de 0 a 2, solo
+  // en las que lo merecen») sin suelo ni ejemplo, y el modelo declaraba el
+  // mínimo: 5 intenciones en 16 escenas, con un techo posible de 32. La capa de
+  // IA del director acababa rellenando lo que el guion no declaró.
+  const cardBudget = Math.max(3, Math.round((targetWords / WORDS_PER_MIN) * FX_CARDS_PER_MIN));
   return [
     'Eres el guionista del canal.',
     renderProfile(profile),
@@ -89,7 +152,7 @@ export function scriptSystem(profile: ChannelProfile, targetWords: number): stri
     'Formato: vídeo largo de YouTube, faceless, pensado para verse entero. No es un short: hay espacio para desarrollar, y por eso hay que sostener la atención a propósito.',
     `Duración: ~${targetWords} palabras en total (tolerancia ±10%). Escenas de 40-70 palabras.`,
     `Escribe exactamente ${sceneTarget(targetWords)} escenas: 1 hook, ${sceneTarget(targetWords) - 2} body y 1 cta. Ids estables: sc-hook, sc-body-1 … sc-body-${sceneTarget(targetWords) - 2}, sc-cta.`,
-    'Reparto del cuerpo: 1-2 escenas de contexto, 3 o 4 bloques de desarrollo con una idea propia cada uno, 1 escena de giro (lo que contradice la intuición, o el coste que nadie cuenta) y 1-2 de conclusión antes del cta.',
+    sceneBlueprint(sceneTarget(targetWords) - 2),
     // oficio de guion: ritmo, arco y sustantivos visuales concretos (el b-roll
     // se ancla a esas palabras). La puntuación gobierna las pausas del TTS.
     craftRules(),
@@ -101,11 +164,16 @@ export function scriptSystem(profile: ChannelProfile, targetWords: number): stri
     // El montaje deja de adivinar: la escena declara qué efecto quiere y en qué
     // palabra entra. Como la palabra la acaba de escribir el propio guionista,
     // el anclaje temporal no puede fallar.
-    'edit_intents: de 0 a 2 por escena, solo en las que lo merecen (un dato, un giro, una cita). Es tu instrucción al montador: sin ella el montaje tiene que adivinar.',
+    `edit_intents: es tu instrucción al montador; sin ella el montaje adivina y se equivoca. Declara ${cardBudget} de tipo tarjeta (callout, stat, quote, device o annotation) REPARTIDAS por todo el guion, nunca dos en escenas seguidas, más las de tipo keyword que merezcan la pena. Máximo 2 por escena.`,
+    'Si en una escena escribes una cifra que sale de los claims, declara un stat sobre ella: es el caso que más se nota en pantalla y el que más se olvida.',
     '- trigger_word: una palabra EXACTA que tú acabas de escribir en el `text` de ESA MISMA escena. No vale una palabra de otra escena, ni una variante, ni una que no se pronuncie. Si no puedes citar una literal, no declares la intención.',
-    '- card_text: el copy de la tarjeta, de 2 a 4 palabras, sentence case, sin comillas ni signos. Resume la frase, no añade información nueva ni la contradice.',
+    `- card_text: el copy de la tarjeta, de 2 a 4 palabras, sentence case, sin comillas ni signos. Resume la frase, no añade información nueva ni la contradice. Va EN ${profile.language === 'en' ? 'INGLÉS' : 'ESPAÑOL'}, el idioma del guion: es texto que el espectador lee en pantalla, no una consulta de archivo.`,
     '- effect: callout (etiqueta que refuerza la idea) · stat (cifra) · quote (frase citable) · kinetic (solo en el hook, como mucho uno en todo el guion) · keyword (resaltar esa palabra en el subtítulo) · annotation (marca de «mira esto») · device (una web o un comando concretos).',
     '- Para effect=stat: value en DÍGITOS y claim_idx OBLIGATORIO, el índice del claim del que sale la cifra. Si la cifra no está en los claims, NO declares el stat: la misma regla factual del guion vale para lo que aparece en pantalla.',
+    // un solo ejemplo, de tema deliberadamente ajeno al canal: da la forma sin
+    // contaminar el contenido. La prosa ya tiene few-shot; las intenciones no
+    // tenían ninguno, solo prohibiciones, y por eso salían tan pocas.
+    'Ejemplo de intenciones bien declaradas, para una escena que dijera «el puerto movió 4200 contenedores en una semana y aun así perdió dinero»: [{"effect":"stat","trigger_word":"4200","value":"4200","label":"contenedores","claim_idx":2},{"effect":"callout","trigger_word":"perdió","card_text":"y aun así pierde"}].',
     'Salida JSON: { script: { scenes: [{id, section: hook|body|cta, text, visual_query, emphasis?, edit_intents?}], hook_notes }, seo: { titles, description, tags, thumbnails } }.',
     'hook_notes: qué promesa abre el vídeo y cómo se paga al final.',
     `seo.titles: exactamente 3 títulos de 70 caracteres máximo, cada uno aplicando uno de estos patrones: ${patterns || 'los del nicho'}. Sin promesas que el guion no pague.`,
@@ -238,7 +306,9 @@ export function judgeUser(opts: {
     `Extensión: ${opts.words} palabras.`,
     '',
     'Claims disponibles (única fuente de cifras permitida):',
-    ...(opts.claims.length > 0 ? opts.claims.map((c) => `- ${c.text}`) : ['- (el research no trajo claims)']),
+    ...(opts.claims.length > 0
+      ? opts.claims.map((c) => `- ${c.text}`)
+      : ['- (el research no trajo claims)']),
   ];
   if (opts.lint.length > 0) {
     parts.push(
@@ -253,7 +323,8 @@ export function judgeUser(opts: {
     // juzgar ni ritmo ni estructura ni factualidad del cuerpo
     'Guion completo:',
     ...opts.scenes.map(
-      (s) => `${s.id} · ${s.section} · ${s.text.split(/\s+/).filter(Boolean).length} palabras · ${s.text}`,
+      (s) =>
+        `${s.id} · ${s.section} · ${s.text.split(/\s+/).filter(Boolean).length} palabras · ${s.text}`,
     ),
   );
   return parts.join('\n');

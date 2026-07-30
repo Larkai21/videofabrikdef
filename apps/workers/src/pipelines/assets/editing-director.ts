@@ -56,7 +56,12 @@ export interface EditingParams {
 const normalize = normalizeWord;
 
 // ms de la primera aparición (o solapada con un rango) de una palabra en cues.
-function findWordMs(cues: Cue[], needle: string, withinFrom = 0, withinTo = Infinity): Cue['words'][number] | null {
+function findWordMs(
+  cues: Cue[],
+  needle: string,
+  withinFrom = 0,
+  withinTo = Infinity,
+): Cue['words'][number] | null {
   const n = normalize(needle);
   if (n.length === 0) return null;
   for (const cue of cues) {
@@ -193,11 +198,23 @@ export function intentEdits(params: EditingParams): IntentPlacement {
           edits.push({ type: 'sfx', from_ms: atMs, to_ms: atMs + 300, sfx: 'destello' });
           break;
         case 'callout':
-          edits.push({ type: 'text_callout', from_ms: atMs, to_ms: win(DUR_MS.text_callout!), beat_idx: beat.idx, text: card });
+          edits.push({
+            type: 'text_callout',
+            from_ms: atMs,
+            to_ms: win(DUR_MS.text_callout!),
+            beat_idx: beat.idx,
+            text: card,
+          });
           edits.push({ type: 'sfx', from_ms: atMs, to_ms: atMs + 400, sfx: 'pop' });
           break;
         case 'quote':
-          edits.push({ type: 'quote_card', from_ms: atMs, to_ms: win(DUR_MS.quote_card!), beat_idx: beat.idx, text: card });
+          edits.push({
+            type: 'quote_card',
+            from_ms: atMs,
+            to_ms: win(DUR_MS.quote_card!),
+            beat_idx: beat.idx,
+            text: card,
+          });
           edits.push({ type: 'sfx', from_ms: atMs, to_ms: atMs + 400, sfx: 'deslizar' });
           break;
         case 'stat': {
@@ -496,7 +513,13 @@ export function momentsToEdits(
         text: m.text,
       });
     } else if (m.type === 'callout' && m.text) {
-      edits.push({ type: 'text_callout', from_ms: at, to_ms: window(DUR_MS.text_callout!), beat_idx: beat.idx, text: m.text });
+      edits.push({
+        type: 'text_callout',
+        from_ms: at,
+        to_ms: window(DUR_MS.text_callout!),
+        beat_idx: beat.idx,
+        text: m.text,
+      });
       edits.push({ type: 'sfx', from_ms: at, to_ms: at + 400, sfx: 'pop' });
     } else if (m.type === 'stat' && m.value) {
       const statType = pickStatType(m.value);
@@ -511,7 +534,13 @@ export function momentsToEdits(
       edits.push({ type: 'sfx', from_ms: at, to_ms: at + 400, sfx: 'pop' });
     } else if (m.type === 'quote' && m.text) {
       // pop solo en callouts/tarjetas (en citas resultaba repetitivo)
-      edits.push({ type: 'quote_card', from_ms: at, to_ms: window(DUR_MS.quote_card!), beat_idx: beat.idx, text: m.text });
+      edits.push({
+        type: 'quote_card',
+        from_ms: at,
+        to_ms: window(DUR_MS.quote_card!),
+        beat_idx: beat.idx,
+        text: m.text,
+      });
     } else if (m.type === 'annotation') {
       edits.push({
         type: 'annotation',
@@ -550,6 +579,22 @@ const VISUAL_TYPES = new Set([
   'kinetic_text',
   'device_frame',
 ]);
+/**
+ * ¿Vale la pena llamar a la capa de IA del director?
+ *
+ * Solo si las tarjetas ya colocadas —declaradas por el guion más las de reglas—
+ * no llenan el presupuesto del vídeo. La puerta anterior era «¿queda algún beat
+ * sin cubrir?», que a longitud real es siempre que sí: con 41 beats y un
+ * presupuesto de 9 tarjetas nunca se cubren todos. Así la llamada se hacía
+ * SIEMPRE y la economía que promete docs/edicion.md §1 —cuanto mejor declara el
+ * guion, menos IA— no podía cumplirse. Además era trabajo tirado: con el
+ * presupuesto lleno, `spreadByWindows` descarta después lo que la IA propone.
+ */
+export function hacenFaltaMasTarjetas(puestas: readonly Edit[], durationMs: number): boolean {
+  const presupuesto = Math.max(1, Math.round((durationMs / 60_000) * FX_CARDS_PER_MIN));
+  return puestas.filter((e) => VISUAL_TYPES.has(e.type)).length < presupuesto;
+}
+
 // prioridad al recortar por densidad (mayor primero). kinetic_text es el
 // centro del gancho: nunca se recorta. odómetro/tarjeta valen igual que stat.
 const PRIORITY: Record<string, number> = {
@@ -686,8 +731,7 @@ export function dedupeAndCap(
     at: (e) => e.from_ms,
     // una tarjeta centrada tapa el subtítulo: resaltarlo debajo no se vería
     // a igualdad, gana la palabra más larga: las cortas suelen ser genéricas
-    score: (e) =>
-      (declared.has(e) ? 10 : 0) + ('keyword' in e ? e.keyword.length : 0) / 100,
+    score: (e) => (declared.has(e) ? 10 : 0) + ('keyword' in e ? e.keyword.length : 0) / 100,
     reject: pisaTarjeta,
   }).kept;
 
@@ -718,12 +762,21 @@ export async function directEdits(ctx: WorkerContext, params: EditingParams): Pr
   // 3) micro-FX disparados por palabra
   const micro = microFxEdits(params);
 
-  // 4) la IA solo rellena los huecos. Cuanto mejor declara el guion, menos IA
-  //    hay en la edición y menos cuesta: si no quedan huecos, no se llama.
-  const cubiertos = new Set([...intents.covered, ...rules.flatMap((e) => (e.beat_idx !== undefined ? [e.beat_idx] : []))]);
+  // 4) la IA solo rellena lo que falta para llenar el PRESUPUESTO de tarjetas.
+  //
+  //    Antes la puerta era «¿quedan beats sin cubrir?», que a longitud real es
+  //    siempre que sí: con 41 beats y un presupuesto de 9 tarjetas nunca se
+  //    cubren todos, así que la llamada se hacía SIEMPRE y la economía que
+  //    promete docs/edicion.md §1 no podía cumplirse. Y era trabajo tirado:
+  //    con el presupuesto lleno, `spreadByWindows` descarta después lo que la
+  //    IA acaba de proponer.
+  const cubiertos = new Set([
+    ...intents.covered,
+    ...rules.flatMap((e) => (e.beat_idx !== undefined ? [e.beat_idx] : [])),
+  ]);
   const huecos = params.beats.filter((b) => !cubiertos.has(b.idx));
   let aiEdits: Edit[] = [];
-  if (huecos.length > 0) {
+  if (hacenFaltaMasTarjetas([...intents.edits, ...rules], durationMs) && huecos.length > 0) {
     try {
       const { system, user } = buildEditingPrompt({ ...params, beats: huecos });
       const data = await ledgeredLlmJson(ctx, {
@@ -744,7 +797,11 @@ export async function directEdits(ctx: WorkerContext, params: EditingParams): Pr
     }
   }
 
-  const final = dedupeAndCap([...intents.edits, ...rules, ...micro, ...aiEdits], durationMs, declared);
+  const final = dedupeAndCap(
+    [...intents.edits, ...rules, ...micro, ...aiEdits],
+    durationMs,
+    declared,
+  );
   ctx.logger.info(
     {
       videoId: params.videoId,

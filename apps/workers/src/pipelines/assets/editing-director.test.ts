@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Cue } from '@fabrica/shared';
+import type { Cue, Edit } from '@fabrica/shared';
 import {
+  hacenFaltaMasTarjetas,
   intentEdits,
   microFxEdits,
   momentsToEdits,
@@ -51,7 +52,9 @@ describe('ruleEdits', () => {
   it('una cifra en la narración genera una tarjeta de dato + ding', () => {
     const edits = ruleEdits(
       params({
-        beats: [{ idx: 0, from_ms: 0, to_ms: 12_000, text: 'el modelo mejora un 70% en la prueba' }],
+        beats: [
+          { idx: 0, from_ms: 0, to_ms: 12_000, text: 'el modelo mejora un 70% en la prueba' },
+        ],
       }),
     );
     const stat = edits.find((e) => e.type === 'stat_card');
@@ -69,14 +72,22 @@ describe('ruleEdits', () => {
         segmentStartMs: [0, 12_000],
       }),
     );
-    expect(edits.some((e) => e.type === 'sfx' && e.sfx === 'whoosh' && e.from_ms === 12_000)).toBe(true);
+    expect(edits.some((e) => e.type === 'sfx' && e.sfx === 'whoosh' && e.from_ms === 12_000)).toBe(
+      true,
+    );
     expect(edits.some((e) => e.type === 'zoom_punch' && e.beat_idx === 1)).toBe(true);
   });
 
   it('detecta cifras con unidad/multiplicador (2 millones, 10x) para el stat', () => {
-    const a = ruleEdits(params({ beats: [{ idx: 0, from_ms: 0, to_ms: 12_000, text: 'ya son 2 millones de usuarios' }] }));
+    const a = ruleEdits(
+      params({
+        beats: [{ idx: 0, from_ms: 0, to_ms: 12_000, text: 'ya son 2 millones de usuarios' }],
+      }),
+    );
     expect(a.find((e) => e.type === 'stat_card')?.value).toBe('2 millones');
-    const b = ruleEdits(params({ beats: [{ idx: 0, from_ms: 0, to_ms: 12_000, text: 'es 10x más rápido' }] }));
+    const b = ruleEdits(
+      params({ beats: [{ idx: 0, from_ms: 0, to_ms: 12_000, text: 'es 10x más rápido' }] }),
+    );
     expect(b.find((e) => e.type === 'stat_card')?.value).toBe('10x');
   });
 
@@ -90,7 +101,9 @@ describe('ruleEdits', () => {
 
   it('un dominio en la narración dispara un marco de navegador', () => {
     const edits = ruleEdits(
-      params({ beats: [{ idx: 0, from_ms: 0, to_ms: 12_000, text: 'entra en GrapheneOS.org y míralo' }] }),
+      params({
+        beats: [{ idx: 0, from_ms: 0, to_ms: 12_000, text: 'entra en GrapheneOS.org y míralo' }],
+      }),
     );
     const dev = edits.find((e) => e.type === 'device_frame');
     expect(dev?.text).toBe('grapheneos.org');
@@ -185,7 +198,9 @@ describe('momentsToEdits (capa IA)', () => {
   });
 
   it('un momento sin keyword se descarta: la IA ya no puede colocar a ciegas', () => {
-    expect(momentsToEdits([{ beat_idx: 0, type: 'callout', text: 'algo' }], beats, cues)).toEqual([]);
+    expect(momentsToEdits([{ beat_idx: 0, type: 'callout', text: 'algo' }], beats, cues)).toEqual(
+      [],
+    );
   });
 
   it('una cifra que no está ni en el beat ni en el research no se pinta', () => {
@@ -229,7 +244,9 @@ describe('intentEdits (lo que el guion declara)', () => {
       section: 'body' as const,
       text: 'el coste real es otro y el margen se hunde',
       visual_query: 'x',
-      edit_intents: [{ effect: 'callout' as const, trigger_word: 'coste', card_text: 'coste real' }],
+      edit_intents: [
+        { effect: 'callout' as const, trigger_word: 'coste', card_text: 'coste real' },
+      ],
     },
   ];
 
@@ -242,7 +259,14 @@ describe('intentEdits (lo que el guion declara)', () => {
   });
 
   it('DESCARTA el efecto cuya palabra no se pronuncia, en vez de colocarlo mal', () => {
-    const malas = [{ ...scenes[0]!, edit_intents: [{ effect: 'callout' as const, trigger_word: 'coste', card_text: 'coste real' }] }];
+    const malas = [
+      {
+        ...scenes[0]!,
+        edit_intents: [
+          { effect: 'callout' as const, trigger_word: 'coste', card_text: 'coste real' },
+        ],
+      },
+    ];
     const r = intentEdits(params({ beats, cues: [cue('otra', 1_000)], scenes: malas }));
     expect(r.edits.filter((e) => e.type === 'text_callout')).toEqual([]);
     expect(r.dropped).toBe(1);
@@ -265,7 +289,9 @@ describe('intentEdits (lo que el guion declara)', () => {
   });
 
   it('effect keyword produce keyword_highlight, que antes era imposible generar', () => {
-    const kw = [{ ...scenes[0]!, edit_intents: [{ effect: 'keyword' as const, trigger_word: 'coste' }] }];
+    const kw = [
+      { ...scenes[0]!, edit_intents: [{ effect: 'keyword' as const, trigger_word: 'coste' }] },
+    ];
     const r = intentEdits(params({ beats, cues, scenes: kw }));
     expect(r.edits.find((e) => e.type === 'keyword_highlight')?.keyword).toBe('coste');
   });
@@ -334,5 +360,38 @@ describe('spreadByWindows', () => {
     const items = Array.from({ length: 30 }, (_, i) => i * 7_000);
     const opts = { budget: 8, durationMs: 300_000, sepMs: 10_000, at, score: () => 0 };
     expect(spreadByWindows(items, opts).kept).toEqual(spreadByWindows(items, opts).kept);
+  });
+});
+
+// La propiedad que justifica toda la arquitectura de intenciones declaradas
+// (docs/edicion.md §1): cuanto mejor declara el guion, menos IA se llama.
+describe('hacenFaltaMasTarjetas', () => {
+  const tarjeta = (from: number): Edit => ({
+    type: 'text_callout',
+    from_ms: from,
+    to_ms: from + 1_500,
+    text: 'un titular',
+  });
+
+  it('no pide IA cuando lo ya colocado llena el presupuesto', () => {
+    // 7 min × 1,2 tarjetas/min ≈ 8
+    const puestas = Array.from({ length: 8 }, (_, i) => tarjeta(i * 30_000));
+    expect(hacenFaltaMasTarjetas(puestas, 7 * 60_000)).toBe(false);
+  });
+
+  it('pide IA cuando el guion declaró poco', () => {
+    expect(hacenFaltaMasTarjetas([tarjeta(0)], 7 * 60_000)).toBe(true);
+    expect(hacenFaltaMasTarjetas([], 7 * 60_000)).toBe(true);
+  });
+
+  // La puerta vieja miraba beats sin cubrir: con 41 beats y 8 tarjetas de
+  // presupuesto siempre quedaban huecos, así que la IA se llamaba SIEMPRE.
+  it('los SFX y los subrayados no cuentan como tarjeta: no compiten por la pantalla', () => {
+    const ruido: Edit[] = [
+      { type: 'sfx', from_ms: 0, to_ms: 500, sfx: 'whoosh' },
+      { type: 'keyword_highlight', from_ms: 1_000, to_ms: 1_900, keyword: 'contratos' },
+      { type: 'annotation', from_ms: 2_000, to_ms: 3_000, style: 'circle' },
+    ];
+    expect(hacenFaltaMasTarjetas(ruido, 2 * 60_000)).toBe(true);
   });
 });
