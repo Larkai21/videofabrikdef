@@ -23,6 +23,7 @@ import {
   QUEUES,
   T_AUTO,
   T_REV,
+  LIBRARY_HANDICAP,
   T_STOCK,
   masterVideoJsonV1,
   type AssetsIngestJob,
@@ -120,6 +121,26 @@ function identityRefs(entry: PoolEntry): string[] {
   return [entry.cand.ref, ...entry.altRefs];
 }
 
+/**
+ * Coseno con el que se ORDENA (el crudo se conserva para los umbrales y para
+ * enseñárselo al humano).
+ *
+ * La biblioteca sale con handicap porque compite en desigualdad de material: el
+ * stock busca de cero entre millones de clips y casi siempre tiene algo que
+ * ilustra la consulta; la biblioteca tiene un par de cientos de assets, así que
+ * para la mayoría de consultas NO tiene nada realmente relevante — pero como
+ * los cosenos están comprimidos en una franja estrecha, un asset mediocre suyo
+ * empata con uno bueno de stock y gana por azar. Medido en un vídeo real:
+ * «lupa sobre texto impreso» se resolvió con un logo de Windows, y «cuaderno
+ * con anotaciones» con un tablero Kanban, ambos de biblioteca.
+ *
+ * Con el handicap la biblioteca solo gana cuando de verdad es mejor, que es
+ * cuando aporta: reutilizar un plano bueno ahorra descarga y VLM.
+ */
+function cosEfectivo(e: PoolEntry): number {
+  return e.cand.provider === 'library' ? e.cos - LIBRARY_HANDICAP : e.cos;
+}
+
 function toBeatKind(assetKind: string): 'clip' | 'image' {
   return assetKind === 'clip' ? 'clip' : 'image';
 }
@@ -136,7 +157,12 @@ function originLabel(cand: BeatCandidate): string {
   return `${label} · ${isPhoto ? 'imagen' : 'clip'} ${id}`;
 }
 
-async function recentAssetIds(db: Db, channelId: string, videoId: string, n: number): Promise<Set<string>> {
+async function recentAssetIds(
+  db: Db,
+  channelId: string,
+  videoId: string,
+  n: number,
+): Promise<Set<string>> {
   const recentVideos = await db
     .select({ id: videos.id })
     .from(videos)
@@ -238,17 +264,21 @@ function selectPick(
   prevVec: number[] | null,
 ): { entry: PoolEntry; fit: Fit } | undefined {
   if (fitted.length === 0) return undefined;
+  // Red de seguridad: el pool ya viene sin los refs usados, pero un mismo
+  // recurso puede entrar con varios alias (altRefs), y ahí sí puede colarse un
+  // repetido. Nunca se degrada a reutilizar salvo que NO quede otra cosa.
   const fresh = fitted.filter((f) => identityRefs(f.entry).every((r) => !usedRefs.has(r)));
   const base = fresh.length > 0 ? fresh : fitted;
-  const bestCos = base[0]?.entry.cos ?? 0; // fitted ya viene ordenado por coseno
-  const band = base.filter((f) => bestCos - f.entry.cos <= PICK_COS_MARGIN);
+  const bestCos = base[0] ? cosEfectivo(base[0].entry) : 0; // fitted ya viene ordenado
+  const band = base.filter((f) => bestCos - cosEfectivo(f.entry) <= PICK_COS_MARGIN);
   const isAdjacent = (e: PoolEntry): boolean =>
     prevVec !== null && e.vec.length > 0 && cosineSimilarity(prevVec, e.vec) > ADJACENT_DEDUPE_COS;
   const notAdjacent = band.filter((f) => !isAdjacent(f.entry));
   const contenders = notAdjacent.length > 0 ? notAdjacent : band;
   // dentro de la banda: primero sin bucle, luego mayor coseno
   return [...contenders].sort(
-    (a, b) => loopPenalty(a.fit) - loopPenalty(b.fit) || b.entry.cos - a.entry.cos,
+    (a, b) =>
+      loopPenalty(a.fit) - loopPenalty(b.fit) || cosEfectivo(b.entry) - cosEfectivo(a.entry),
   )[0];
 }
 
@@ -299,9 +329,7 @@ async function resolveOneVisual(
 
   // 1) biblioteca (canal + shared, anti-repeat)
   const lib = await libraryCandidates(db, channelId, qVec, deps.recentIds);
-  const pool: PoolEntry[] = lib
-    .map((l) => l.entry)
-    .filter((e) => !vetoedRefs.has(e.cand.ref));
+  const pool: PoolEntry[] = lib.map((l) => l.entry).filter((e) => !vetoedRefs.has(e.cand.ref));
   const libAssetByRef = new Map(lib.map((l) => [l.entry.cand.ref, l.assetId]));
   const bestLib = pool[0]?.cos ?? 0;
 
@@ -415,7 +443,7 @@ async function resolveOneVisual(
   // candidatos parecidos). Solo entran candidatos con fit válido, y un asset
   // ya elegido para OTRO beat del mismo vídeo solo repite si no hay
   // alternativa (anti-repetición intra-vídeo por identidad de asset).
-  pool.sort((a, b) => b.cos - a.cos || b.composite - a.composite);
+  pool.sort((a, b) => cosEfectivo(b) - cosEfectivo(a) || b.composite - a.composite);
   const fitted: { entry: PoolEntry; fit: Fit }[] = [];
   for (const entry of pool) {
     const fit = computeFit({
@@ -496,7 +524,8 @@ async function resolveOneVisual(
     fit: chosenFit!,
     status,
     candidates,
-    libAssetId: chosen.cand.provider === 'library' ? (libAssetByRef.get(chosen.cand.ref) ?? null) : null,
+    libAssetId:
+      chosen.cand.provider === 'library' ? (libAssetByRef.get(chosen.cand.ref) ?? null) : null,
   };
 }
 
@@ -538,7 +567,10 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
       vIdx,
       query: span.visual_query,
       spanMs: span.to_ms - span.from_ms,
-      vetoedRefs: vIdx === 0 ? vetoedRefs : new Set<string>(),
+      // Los planos ya usados en este vídeo se vetan al ARMAR el pool, no solo
+      // al elegir: así el candidato repetido ni siquiera compite y la cascada
+      // sigue buscando (stock, y Flux si hace falta) en vez de conformarse.
+      vetoedRefs: new Set([...deps.usedRefs, ...(vIdx === 0 ? vetoedRefs : [])]),
     });
     resolved.push({ span, res });
   }
@@ -775,7 +807,9 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
       segmentStartMs: segments.map((s) => s.from_ms),
       seoTags: video.master.seo?.tags ?? [],
       ...(video.master.script?.hook_notes ? { hookNotes: video.master.script.hook_notes } : {}),
-      ...(video.master.seo ? { title: video.master.seo.titles[video.master.seo.chosen_idx ?? 0] } : {}),
+      ...(video.master.seo
+        ? { title: video.master.seo.titles[video.master.seo.chosen_idx ?? 0] }
+        : {}),
       // el índice escena→audio permite anclar la palabra disparadora en SU
       // ventana; los claims son la única fuente de cifras admitida en pantalla
       ...(video.master.scene_spans ? { sceneSpans: video.master.scene_spans } : {}),
@@ -883,7 +917,8 @@ async function ingestChosen(
   // biblioteca: contabilizar uso, sin descarga
   if (target.assetId || chosen?.provider === 'library') {
     const assetId = target.assetId ?? chosen?.ref.replace('library:', '');
-    if (!assetId) throw new Error(`El beat ${target.beatIdx} no tiene asset de biblioteca resoluble`);
+    if (!assetId)
+      throw new Error(`El beat ${target.beatIdx} no tiene asset de biblioteca resoluble`);
     const [row] = await db.select().from(assetsTable).where(eq(assetsTable.id, assetId));
     if (!row) throw new Error(`Asset de biblioteca no encontrado: ${assetId}`);
     if (row.lastVideoId !== video.id) {
@@ -902,7 +937,8 @@ async function ingestChosen(
 
   if (!chosen) throw new Error(`El beat ${target.beatIdx} no tiene candidato elegido`);
   const meta = (chosen.meta ?? {}) as Record<string, unknown>;
-  const kind = (meta.kind as 'clip' | 'image' | undefined) ?? (chosen.provider === 'flux' ? 'image' : 'clip');
+  const kind =
+    (meta.kind as 'clip' | 'image' | undefined) ?? (chosen.provider === 'flux' ? 'image' : 'clip');
 
   // idempotencia: si el mismo source_ref ya está en biblioteca, reutilizarlo
   const [existing] = await db
@@ -918,7 +954,9 @@ async function ingestChosen(
     }
     return {
       assetId: existing.id,
-      absPath: path.isAbsolute(existing.path) ? existing.path : path.join(ctx.libraryDir, existing.path),
+      absPath: path.isAbsolute(existing.path)
+        ? existing.path
+        : path.join(ctx.libraryDir, existing.path),
       kind: toBeatKind(existing.kind),
       durationMs: existing.durationMs,
     };
@@ -935,7 +973,12 @@ async function ingestChosen(
     source = 'flux';
     license = 'CC0 Flux';
     let srcPath = meta.path as string | undefined;
-    const exists = srcPath ? await fs.access(srcPath).then(() => true, () => false) : false;
+    const exists = srcPath
+      ? await fs.access(srcPath).then(
+          () => true,
+          () => false,
+        )
+      : false;
     if (!srcPath || !exists) {
       // regeneración de emergencia con el MISMO prompt de la imagen aprobada
       // (la semilla ya es determinista); solo pasa si el PNG desapareció
@@ -977,8 +1020,7 @@ async function ingestChosen(
   }
 }
 
-const MAX_DOWNLOAD_BYTES =
-  Number(process.env.STOCK_MAX_DOWNLOAD_MB ?? '200') * 1024 * 1024;
+const MAX_DOWNLOAD_BYTES = Number(process.env.STOCK_MAX_DOWNLOAD_MB ?? '200') * 1024 * 1024;
 
 async function downloadWithCap(url: string, destPath: string, ref: string): Promise<void> {
   const res = await fetch(url, { signal: AbortSignal.timeout(180_000) });
@@ -1028,7 +1070,9 @@ async function insertIngestedAsset(
   const { kind, destPath, source, license, probed, meta } = info;
   const caption =
     (meta.caption as string | undefined) ??
-    (chosen.provider === 'flux' ? `Imagen generada para: ${target.visualQuery}` : String(meta.title ?? ''));
+    (chosen.provider === 'flux'
+      ? `Imagen generada para: ${target.visualQuery}`
+      : String(meta.title ?? ''));
   const tags = buildTags(caption);
   // texto canónico compartido con backfill y reembed (lib/embed-text.ts)
   const [embedding] = await ctx.embeddings.embed([
@@ -1055,7 +1099,10 @@ async function insertIngestedAsset(
     timesUsed: 1,
     lastVideoId: video.id,
   });
-  logger.info({ videoId: video.id, beatIdx: target.beatIdx, assetId, source, codec: probed.codec }, 'Asset ingerido en biblioteca');
+  logger.info(
+    { videoId: video.id, beatIdx: target.beatIdx, assetId, source, codec: probed.codec },
+    'Asset ingerido en biblioteca',
+  );
 
   return {
     assetId,
@@ -1076,7 +1123,10 @@ async function ensureClipThumb(
 ): Promise<void> {
   if (ingested.kind !== 'clip') return;
   const thumb = path.join(ctx.libraryDir, 'assets', channelId, 'thumbs', `${ingested.assetId}.jpg`);
-  const exists = await fs.access(thumb).then(() => true, () => false);
+  const exists = await fs.access(thumb).then(
+    () => true,
+    () => false,
+  );
   if (exists) return;
   await fs.mkdir(path.dirname(thumb), { recursive: true });
   await extractCaptionJpeg(
@@ -1093,7 +1143,10 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
   const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
   if (!video) throw new Error(`Vídeo no encontrado: ${videoId}`);
   if (video.state !== 'timeline_ok') {
-    logger.info({ videoId, state: video.state }, 'El vídeo no está en timeline_ok; se omite la ingesta');
+    logger.info(
+      { videoId, state: video.state },
+      'El vídeo no está en timeline_ok; se omite la ingesta',
+    );
     return;
   }
 
@@ -1148,7 +1201,11 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
       // tramo del SUB-PLANO (no todo el beat)
       const seed = mockHash(`${videoId}${beat.idx}:${vIdx}`);
       const fitResult = computeFit(
-        { kind: ingested.kind, assetDurationMs: ingested.durationMs, beatDurationMs: sv.to_ms - sv.from_ms },
+        {
+          kind: ingested.kind,
+          assetDurationMs: ingested.durationMs,
+          beatDurationMs: sv.to_ms - sv.from_ms,
+        },
         { clampLoops: true },
       );
       const fit: Fit = fitResult?.fit ?? { mode: 'kenburns' };
@@ -1171,7 +1228,12 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
     const primary = frozenVisuals[0]!;
     await db
       .update(beatsTable)
-      .set({ status: 'locked', assetId: primary.asset!.id, fit: primary.asset!.fit, candidates: null })
+      .set({
+        status: 'locked',
+        assetId: primary.asset!.id,
+        fit: primary.asset!.fit,
+        candidates: null,
+      })
       .where(eq(beatsTable.id, beat.id));
 
     frozenBeats.push({
@@ -1202,7 +1264,12 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
   const edits = video.master.edits ?? [];
 
   // congelar master.beats: status locked, asset resuelto, sin candidates
-  const newMaster = masterVideoJsonV1.parse({ ...video.master, beats: frozenBeats, segments, edits });
+  const newMaster = masterVideoJsonV1.parse({
+    ...video.master,
+    beats: frozenBeats,
+    segments,
+    edits,
+  });
   await db
     .update(videos)
     .set({ master: newMaster, updatedAt: new Date() })
@@ -1239,7 +1306,8 @@ export async function registerAssetsWorkers(ctx: WorkerContext): Promise<Worker[
         const attempts = job.opts.attempts ?? 1;
         const isFinal = job.attemptsMade + 1 >= attempts;
         const message = err instanceof Error ? err.message : String(err);
-        const label = job.name === JOBS.assets.ingest ? 'La ingesta de assets' : 'El matching de assets';
+        const label =
+          job.name === JOBS.assets.ingest ? 'La ingesta de assets' : 'El matching de assets';
         ctx.logger.error({ err, videoId: job.data.videoId, isFinal }, 'Fallo en la cola assets');
         if (isFinal) {
           try {

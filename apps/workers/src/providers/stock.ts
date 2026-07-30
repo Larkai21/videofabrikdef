@@ -35,7 +35,11 @@ export function normalizeQuery(q: string): string {
   return q.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-async function readCache(db: Db, queryNorm: string, provider: string): Promise<StockResult[] | null> {
+async function readCache(
+  db: Db,
+  queryNorm: string,
+  provider: string,
+): Promise<StockResult[] | null> {
   const [row] = await db
     .select()
     .from(stockCache)
@@ -80,6 +84,25 @@ function bestPexelsFile(files: PexelsVideoFile[]): PexelsVideoFile | undefined {
   return sorted.find((f) => (f.height ?? 0) >= 1080) ?? sorted[sorted.length - 1];
 }
 
+/**
+ * Texto descriptivo de un clip de Pexels.
+ *
+ * La API de vídeo NO devuelve `alt` ni `tags`: lo único descriptivo es el slug
+ * de la URL de la ficha
+ * (`.../video/a-person-using-a-magnifying-glass-on-a-bible-6970650/`).
+ * Antes se usaba `user.name` —el NOMBRE DEL FOTÓGRAFO— como título, y con él se
+ * hacía la preselección de a cuáles pagar una descripción VLM: el 80 % de los
+ * candidatos de Pexels se ordenaba por un nombre de persona, así que los cuatro
+ * que acababan descritos salían prácticamente al azar y el stock competía en
+ * desventaja frente a la biblioteca, que siempre tiene descripción.
+ */
+export function tituloDesdeUrlPexels(url: string, fallback: string): string {
+  const m = /\/video\/([a-z0-9-]+?)-\d+\/?$/i.exec(url);
+  const slug = m?.[1];
+  if (slug === undefined || slug === '') return fallback;
+  return slug.replace(/-/g, ' ').trim();
+}
+
 function parsePexels(videosJson: unknown, photosJson: unknown): StockResult[] {
   const out: StockResult[] = [];
   const videos = (videosJson as { videos?: Record<string, unknown>[] })?.videos ?? [];
@@ -96,7 +119,10 @@ function parsePexels(videosJson: unknown, photosJson: unknown): StockResult[] {
         width: Number(file.width ?? v.width ?? 0),
         height: Number(file.height ?? v.height ?? 0),
         duration_ms: Math.round(Number(v.duration ?? 0) * 1000),
-        title: String((v.user as { name?: string } | undefined)?.name ?? ''),
+        title: tituloDesdeUrlPexels(
+          String(v.url ?? ''),
+          String((v.user as { name?: string } | undefined)?.name ?? ''),
+        ),
         kind: 'clip',
       },
     });
@@ -127,7 +153,10 @@ function parsePixabay(json: unknown): StockResult[] {
   const out: StockResult[] = [];
   const hits = (json as { hits?: Record<string, unknown>[] })?.hits ?? [];
   for (const hit of hits) {
-    const variants = (hit.videos as Record<string, { url?: string; width?: number; height?: number; thumbnail?: string }> | undefined) ?? {};
+    const variants =
+      (hit.videos as
+        | Record<string, { url?: string; width?: number; height?: number; thumbnail?: string }>
+        | undefined) ?? {};
     const preferred = variants.large ?? variants.medium ?? variants.small ?? variants.tiny;
     if (!preferred?.url) continue;
     const thumb =
@@ -224,7 +253,10 @@ async function searchPixabay(
     return results;
   } catch (err) {
     await failCost(db, handle, err instanceof Error ? err.message : String(err));
-    logger.warn({ err, query: queryNorm }, 'Fallo en la búsqueda de Pixabay; se continúa sin stock');
+    logger.warn(
+      { err, query: queryNorm },
+      'Fallo en la búsqueda de Pixabay; se continúa sin stock',
+    );
     return [];
   }
 }

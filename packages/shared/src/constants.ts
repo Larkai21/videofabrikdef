@@ -50,6 +50,25 @@ export const MAX_QUERY_CHARS = 100;
 export const T_AUTO = 0.86;
 export const T_REV = 0.78;
 export const T_STOCK = 0.88;
+
+/**
+ * Cuánto tiene que ganar un asset de la BIBLIOTECA a uno de stock para llevarse
+ * el plano.
+ *
+ * No compiten en igualdad: el stock busca de cero entre millones de clips y casi
+ * siempre tiene algo que ilustra la consulta; la biblioteca tiene un par de
+ * cientos de assets, así que para la mayoría de consultas no tiene nada
+ * realmente bueno. Con los cosenos comprimidos en una franja estrecha, un asset
+ * mediocre suyo empata con uno bueno de stock y gana por azar. Medido: «lupa
+ * sobre texto impreso» → un logo de Windows; «cuaderno con anotaciones» → un
+ * tablero Kanban.
+ *
+ * 0,03 es un cuarto del rango útil observado (0,80–0,90): suficiente para que
+ * la biblioteca solo gane cuando de verdad es mejor, que es cuando aporta —
+ * reutilizar un plano bueno ahorra descarga y descripción. Subirlo a 1 la
+ * desactiva por completo y todo viene de la API.
+ */
+export const LIBRARY_HANDICAP = 0.03;
 export const ANTI_REPEAT_N = 8;
 export const STOCK_CACHE_TTL_H = 24;
 export const MAX_LOOPS = 3;

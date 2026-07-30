@@ -32,8 +32,20 @@ interface PexelsVideo {
   id?: number;
   image?: string;
   duration?: number;
+  url?: string;
   video_files?: PexelsVideoFile[];
   user?: { name?: string };
+}
+
+/**
+ * Lo único descriptivo que da la API de vídeo de Pexels es el slug de la URL:
+ * ni `alt` ni `tags` vienen rellenos. El nombre del fotógrafo no describe nada.
+ * (Misma función que en el cliente de los workers; la caché es compartida.)
+ */
+function tituloDesdeUrlPexels(url: string, fallback: string): string {
+  const m = /\/video\/([a-z0-9-]+?)-\d+\/?$/i.exec(url);
+  const slug = m?.[1];
+  return slug === undefined || slug === '' ? fallback : slug.replace(/-/g, ' ').trim();
 }
 
 function mapPexels(payload: unknown): BeatCandidate[] {
@@ -61,7 +73,7 @@ function mapPexels(payload: unknown): BeatCandidate[] {
         height: file.height ?? 0,
         duration_ms: Math.round((video.duration ?? 0) * 1000),
         // lo lee la cascada para el coseno; sin él puntúa sobre cadena vacía
-        title: video.user?.name ?? '',
+        title: tituloDesdeUrlPexels(video.url ?? '', video.user?.name ?? ''),
       },
     });
   }
