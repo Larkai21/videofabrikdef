@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { RATIO_IMAGENES_MAX } from './constants.js';
 import { designTokensSchema } from './design.js';
 
 // ChannelProfile v1 (docs/contratos.md §1). Se sintetiza en el wizard,
@@ -35,6 +36,18 @@ export const channelProfileV1 = z.object({
     stock_query_lang: z.enum(['en', 'es']),
     // temas/palabras prohibidos
     banned: z.array(z.string()),
+    /**
+     * Techo de imágenes fijas en el b-roll, de 0 a 1. Gobierna tres sitios a la
+     * vez: cuántas plazas de finalista pueden ir a fotos, cuánto tiene que
+     * ganar una foto para llevarse el plano, y el umbral con el que el informe
+     * de calidad audita el vídeo terminado.
+     *
+     * 0 significa «quiero todo vídeo», y es una PREFERENCIA FUERTE, no una
+     * prohibición: siempre queda una plaza de reserva. Sin ella, un tramo sin
+     * ningún clip relevante cae a Flux, que genera una imagen y encima cuesta:
+     * se acabaría con más imágenes, no con menos.
+     */
+    broll_imagenes_max_pct: z.number().min(0).max(1).default(RATIO_IMAGENES_MAX),
   }),
   voice: z.object({
     provider: z.enum(['edge', 'elevenlabs']),

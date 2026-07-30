@@ -69,6 +69,37 @@ export const T_STOCK = 0.88;
  * desactiva por completo y todo viene de la API.
  */
 export const LIBRARY_HANDICAP = 0.03;
+
+/**
+ * Cuánto tiene que ganar una IMAGEN FIJA a un clip para llevarse el plano.
+ *
+ * El b-roll de un vídeo debería moverse: una imagen fija con Ken Burns es el
+ * plan B, no el plan A. Pero el sistema no tenía ninguna preferencia por el
+ * movimiento, y encima repartía plazas de finalista por proveedor Y tipo, así
+ * que las fotos se llevaban ~2,16 de las 6 plazas por construcción (medido
+ * sobre 315 pools reales). Resultado: entre el 33 % y el 61 % de los planos de
+ * los nueve vídeos producidos son imágenes fijas.
+ *
+ * No es escasez: de las 173 consultas reales guardadas, TODAS tienen clips de
+ * vídeo (mínimo 15, mediana 30) y todas tienen ≥6 que cubren el tramo. Era
+ * puro artefacto de selección.
+ *
+ * 0,02, no más: este handicap y PICK_COS_MARGIN (0,04) se SUMAN, porque la
+ * banda de elección se ancla también en el coseno efectivo. Con 0,02 una imagen
+ * necesita ganar por 0,06 sobre un rango útil de 0,80–0,90; con 0,04 el
+ * requisito sería 0,08, el 80 % del rango, que ya no es una preferencia sino un
+ * veto. La preferencia por movimiento no debe poder imponer un plano irrelevante.
+ */
+export const IMAGE_HANDICAP = 0.02;
+
+/**
+ * Techo de imágenes fijas sobre el total de planos de un vídeo. Es a la vez el
+ * objetivo con el que se PRODUCE (reparto de plazas de finalista) y el umbral
+ * con el que se AUDITA (aviso `demasiada_imagen` de `analizarMaster`): producir
+ * contra un objetivo y auditar contra otro haría el informe inútil.
+ */
+export const RATIO_IMAGENES_MAX = 0.3;
+
 export const ANTI_REPEAT_N = 8;
 export const STOCK_CACHE_TTL_H = 24;
 export const MAX_LOOPS = 3;

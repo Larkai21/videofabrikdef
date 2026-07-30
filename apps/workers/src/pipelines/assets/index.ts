@@ -15,15 +15,15 @@ import {
 } from '@fabrica/db';
 import {
   ANTI_REPEAT_N,
+  IMAGE_HANDICAP,
   IMAGE_MAX_S,
   JOBS,
-  MAX_LOOPS,
   MAX_VISUALS_PER_BEAT,
   PRICES,
   QUEUES,
+  RATIO_IMAGENES_MAX,
   T_AUTO,
   T_REV,
-  LIBRARY_HANDICAP,
   T_STOCK,
   masterVideoJsonV1,
   type AssetsIngestJob,
@@ -49,7 +49,9 @@ import {
 import { directBroll } from './broll-director.js';
 import { directChapters } from './chapter-director.js';
 import { directEdits } from './editing-director.js';
+import { pickFinalists, repartirPlazas } from './finalists.js';
 import { computeFit, kenburnsEffect } from './fit.js';
+import { cosEfectivo, identityRefs, selectPick, type PoolEntry } from './pick.js';
 import { registerAssetsMocks } from './mocks.js';
 import { expandQuery, stockScore } from './score.js';
 import { computeSubvisualSpans, wordsInSpan } from './subvisuals.js';
@@ -92,54 +94,47 @@ export function topByTitleCosine<T extends { meta: { title?: unknown } }>(
     .slice(0, k)
     .map((x) => x.item);
 }
+// De las CAPTION_TOP_K descripciones, cuántas se reservan a imágenes fijas. El
+// resto va a clips, y si no hay imágenes que describir los clips se las quedan.
+const CAPTION_IMAGENES = 1;
+
+/**
+ * A qué finalistas se les paga una descripción de visión, repartiendo el
+ * presupuesto entre clips e imágenes para que el desequilibrio de los títulos
+ * de los proveedores no decida por sí solo quién compite con texto bueno.
+ */
+async function presupuestarCaptions(
+  sinDescribir: readonly StockResult[],
+  qVec: number[],
+  embed: (textos: string[]) => Promise<(number[] | undefined)[]>,
+): Promise<StockResult[]> {
+  if (sinDescribir.length <= CAPTION_TOP_K) return [...sinDescribir];
+  const vectores = await embed(sinDescribir.map((f) => String(f.meta.title ?? '')));
+  const conVec = sinDescribir.map((f, i) => ({ f, v: vectores[i] }));
+  const clips = conVec.filter((x) => x.f.meta.kind === 'clip');
+  const imagenes = conVec.filter((x) => x.f.meta.kind !== 'clip');
+  const plazas = repartirPlazas(
+    clips.length,
+    imagenes.length,
+    CAPTION_TOP_K,
+    Math.min(CAPTION_IMAGENES, CAPTION_TOP_K),
+  );
+  const top = (xs: typeof conVec, k: number): StockResult[] =>
+    topByTitleCosine(
+      xs.map((x) => x.f),
+      xs.map((x) => x.v),
+      qVec,
+      k,
+    );
+  return [...top(clips, plazas.clips), ...top(imagenes, plazas.imagenes)];
+}
+
 const ALTERNATES = 4;
-// margen de coseno dentro del cual se prefiere el clip que cubre el beat en una
-// sola pasada (evita bucles) frente al de coseno ligeramente mayor
-const PICK_COS_MARGIN = 0.04;
 // coseno de contenido por encima del cual dos clips se consideran "el mismo
 // plano" y no deben caer en beats contiguos aunque sean refs distintos
 const ADJACENT_DEDUPE_COS = 0.9;
 
 type BeatRow = typeof beatsTable.$inferSelect;
-
-interface PoolEntry {
-  cand: BeatCandidate;
-  kind: 'clip' | 'image';
-  durationMs: number | null;
-  // similitud coseno pura query↔contenido: la que se compara con los umbrales
-  cos: number;
-  // compuesto 0,6·cos + calidad + novedad: solo para ordenar entre parecidos
-  composite: number;
-  // otras identidades del MISMO asset (library:<id> ↔ sourceRef de stock)
-  altRefs: string[];
-  // embedding del contenido (caption/tags): para no repetir el mismo plano en
-  // beats contiguos. Vacío si no se conoce.
-  vec: number[];
-}
-
-function identityRefs(entry: PoolEntry): string[] {
-  return [entry.cand.ref, ...entry.altRefs];
-}
-
-/**
- * Coseno con el que se ORDENA (el crudo se conserva para los umbrales y para
- * enseñárselo al humano).
- *
- * La biblioteca sale con handicap porque compite en desigualdad de material: el
- * stock busca de cero entre millones de clips y casi siempre tiene algo que
- * ilustra la consulta; la biblioteca tiene un par de cientos de assets, así que
- * para la mayoría de consultas NO tiene nada realmente relevante — pero como
- * los cosenos están comprimidos en una franja estrecha, un asset mediocre suyo
- * empata con uno bueno de stock y gana por azar. Medido en un vídeo real:
- * «lupa sobre texto impreso» se resolvió con un logo de Windows, y «cuaderno
- * con anotaciones» con un tablero Kanban, ambos de biblioteca.
- *
- * Con el handicap la biblioteca solo gana cuando de verdad es mejor, que es
- * cuando aporta: reutilizar un plano bueno ahorra descarga y VLM.
- */
-function cosEfectivo(e: PoolEntry): number {
-  return e.cand.provider === 'library' ? e.cos - LIBRARY_HANDICAP : e.cos;
-}
 
 function toBeatKind(assetKind: string): 'clip' | 'image' {
   return assetKind === 'clip' ? 'clip' : 'image';
@@ -246,62 +241,27 @@ interface MatchDeps {
   // embedding del contenido elegido en el beat anterior (para no repetir plano
   // en beats contiguos); mutable, lo actualiza matchBeat tras cada elección
   prevVec: number[] | null;
+  // cuántas de las STOCK_FINALISTS plazas pueden ir a imágenes fijas, y cuánto
+  // tiene que ganar una imagen para llevarse el plano. Los dos salen del mismo
+  // ajuste del canal (`broll_imagenes_max_pct`) y se congelan en el maestro.
+  imagenesPorPool: number;
+  imagenHandicap: number;
 }
 
-// Penalización de encaje: 0 para una sola pasada (trim/stretch/kenburns),
-// nº de repeticiones para loop. Menor es mejor.
-function loopPenalty(fit: Fit): number {
-  return fit.mode === 'loop' ? (fit.loops ?? MAX_LOOPS) : 0;
-}
-
-// Elige el candidato: entre los que están dentro de PICK_COS_MARGIN del mejor
-// coseno disponible, prefiere el que no repite plano del beat anterior y el que
-// cubre el beat sin bucle; fuera de esa banda manda el coseno. Nunca sacrifica
-// relevancia más allá del margen.
-function selectPick(
-  fitted: { entry: PoolEntry; fit: Fit }[],
-  usedRefs: Set<string>,
-  prevVec: number[] | null,
-): { entry: PoolEntry; fit: Fit } | undefined {
-  if (fitted.length === 0) return undefined;
-  // Red de seguridad: el pool ya viene sin los refs usados, pero un mismo
-  // recurso puede entrar con varios alias (altRefs), y ahí sí puede colarse un
-  // repetido. Nunca se degrada a reutilizar salvo que NO quede otra cosa.
-  const fresh = fitted.filter((f) => identityRefs(f.entry).every((r) => !usedRefs.has(r)));
-  const base = fresh.length > 0 ? fresh : fitted;
-  const bestCos = base[0] ? cosEfectivo(base[0].entry) : 0; // fitted ya viene ordenado
-  const band = base.filter((f) => bestCos - cosEfectivo(f.entry) <= PICK_COS_MARGIN);
-  const isAdjacent = (e: PoolEntry): boolean =>
-    prevVec !== null && e.vec.length > 0 && cosineSimilarity(prevVec, e.vec) > ADJACENT_DEDUPE_COS;
-  const notAdjacent = band.filter((f) => !isAdjacent(f.entry));
-  const contenders = notAdjacent.length > 0 ? notAdjacent : band;
-  // dentro de la banda: primero sin bucle, luego mayor coseno
-  return [...contenders].sort(
-    (a, b) =>
-      loopPenalty(a.fit) - loopPenalty(b.fit) || cosEfectivo(b.entry) - cosEfectivo(a.entry),
-  )[0];
-}
-
-// Intercalado por proveedor y tipo: sin esto los finalistas salen por orden
-// de API y Pixabay o las fotos de Pexels casi nunca llegan a puntuarse.
-function interleaveByProvider(results: StockResult[]): StockResult[] {
-  const groups = new Map<string, StockResult[]>();
-  for (const r of results) {
-    const key = `${r.provider}:${r.meta.kind}`;
-    const group = groups.get(key) ?? [];
-    group.push(r);
-    groups.set(key, group);
-  }
-  const lists = [...groups.values()];
-  const out: StockResult[] = [];
-  for (let i = 0; out.length < results.length; i++) {
-    for (const list of lists) {
-      const item = list[i];
-      if (item) out.push(item);
-    }
-    if (lists.every((l) => i >= l.length)) break;
-  }
-  return out;
+/**
+ * Traduce el techo de imágenes del canal a las dos palancas de la cascada.
+ *
+ * La plaza de reserva es innegociable incluso con el techo a cero: sin ninguna
+ * imagen en el pool, la cascada se queda sin red cuando ningún clip supera
+ * T_REV, y ahí es donde se compra un Flux — que genera UNA IMAGEN y encima
+ * cuesta. Apretar hasta la prohibición acabaría con más imágenes, no con menos.
+ */
+export function palancasImagen(pct: number): { imagenesPorPool: number; imagenHandicap: number } {
+  return {
+    imagenesPorPool: Math.max(1, Math.round(STOCK_FINALISTS * pct)),
+    // techo 0 = «quiero todo vídeo»: preferencia fuerte, nunca prohibición
+    imagenHandicap: pct === 0 ? 0.05 : IMAGE_HANDICAP,
+  };
 }
 
 interface ResolvedVisual {
@@ -317,7 +277,16 @@ interface ResolvedVisual {
 // intra-vídeo y anti-parecido contiguo, ahora entre sub-planos). No escribe BD.
 async function resolveOneVisual(
   deps: MatchDeps,
-  args: { beatIdx: number; vIdx: number; query: string; spanMs: number; vetoedRefs: Set<string> },
+  args: {
+    beatIdx: number;
+    vIdx: number;
+    query: string;
+    spanMs: number;
+    vetoedRefs: Set<string>;
+    // el tramo pide movimiento sí o sí (partes 2ª..n de una imagen troceada):
+    // deja a las imágenes de stock sin plaza reservada
+    exigeClip?: boolean;
+  },
 ): Promise<ResolvedVisual> {
   const { ctx, videoId, channelId } = deps;
   const { db, logger } = ctx;
@@ -331,14 +300,22 @@ async function resolveOneVisual(
   const lib = await libraryCandidates(db, channelId, qVec, deps.recentIds);
   const pool: PoolEntry[] = lib.map((l) => l.entry).filter((e) => !vetoedRefs.has(e.cand.ref));
   const libAssetByRef = new Map(lib.map((l) => [l.entry.cand.ref, l.assetId]));
-  const bestLib = pool[0]?.cos ?? 0;
+  // Solo un CLIP de biblioteca puede ahorrarse la búsqueda de stock. Antes esto
+  // miraba el mejor de cualquier tipo, así que una imagen de biblioteca a 0,88
+  // apagaba la búsqueda entera y el plano salía fijo por decreto — y como la
+  // biblioteca se alimenta de lo que produce, era un lazo que se realimentaba:
+  // cada vídeo con muchas imágenes hacía más probable el siguiente.
+  const bestLibClip = pool.find((e) => e.kind === 'clip')?.cos ?? 0;
 
   // 2) stock solo si la biblioteca no llega al umbral
-  if (bestLib < T_STOCK) {
+  if (bestLibClip < T_STOCK) {
     const stockResults = await searchStock(db, logger, queryText, { videoId, channelId });
-    const finalists = interleaveByProvider(stockResults)
-      .filter((f) => !vetoedRefs.has(f.ref))
-      .slice(0, STOCK_FINALISTS);
+    const finalists = pickFinalists(stockResults, {
+      total: STOCK_FINALISTS,
+      imagenesMax: args.exigeClip === true ? 0 : deps.imagenesPorPool,
+      spanMs: beatMs,
+      vetoedRefs,
+    });
 
     if (finalists.length > 0) {
       // Descripciones ya pagadas de estas imágenes, vengan de la búsqueda que
@@ -356,16 +333,18 @@ async function resolveOneVisual(
       // embeddings son locales y no cuestan) y solo se describe a los que
       // pueden ganar. Describir el octavo finalista es pagar por un candidato
       // que ya iba último con su propio texto.
+      //
+      // El presupuesto se reparte POR TIPO, y no es un detalle: los dos textos
+      // de partida no son comparables. El título de una foto de Pexels es el
+      // `alt` que escribió una persona (13,7 palabras de media, medido); el de
+      // un clip es el slug de la URL (2,0 palabras). Repartir por cosénica de
+      // título con esa desigualdad le regala las descripciones caras a las
+      // fotos, y con ellas el coseno: circular, y exactamente el mecanismo que
+      // ya movió el ratio del 83 % al 42 % cuando se arregló el título del clip.
       const sinDescribir = finalists.filter((f) => !f.meta.caption && f.thumb_url);
-      const toCaption =
-        sinDescribir.length > CAPTION_TOP_K
-          ? topByTitleCosine(
-              sinDescribir,
-              await ctx.embeddings.embed(sinDescribir.map((f) => String(f.meta.title ?? ''))),
-              qVec,
-              CAPTION_TOP_K,
-            )
-          : sinDescribir;
+      const toCaption = await presupuestarCaptions(sinDescribir, qVec, (textos) =>
+        ctx.embeddings.embed(textos),
+      );
 
       const handle = await openCost(db, {
         videoId,
@@ -443,7 +422,8 @@ async function resolveOneVisual(
   // candidatos parecidos). Solo entran candidatos con fit válido, y un asset
   // ya elegido para OTRO beat del mismo vídeo solo repite si no hay
   // alternativa (anti-repetición intra-vídeo por identidad de asset).
-  pool.sort((a, b) => cosEfectivo(b) - cosEfectivo(a) || b.composite - a.composite);
+  const cosOrden = (e: PoolEntry): number => cosEfectivo(e, deps.imagenHandicap);
+  pool.sort((a, b) => cosOrden(b) - cosOrden(a) || b.composite - a.composite);
   const fitted: { entry: PoolEntry; fit: Fit }[] = [];
   for (const entry of pool) {
     const fit = computeFit({
@@ -460,7 +440,7 @@ async function resolveOneVisual(
     }
     fitted.push({ entry, fit: fit.fit });
   }
-  const pick = selectPick(fitted, deps.usedRefs, deps.prevVec);
+  const pick = selectPick(fitted, deps.usedRefs, deps.prevVec, deps.imagenHandicap);
   let chosen: PoolEntry | undefined = pick?.entry;
   let chosenFit: Fit | undefined = pick?.fit;
   const rest: PoolEntry[] = fitted.filter((f) => f !== pick).map((f) => f.entry);
@@ -580,6 +560,13 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
   // Los clips (dinámicos) quedan exentos y llenan su tramo.
   const imageMaxMs = IMAGE_MAX_S * 1000;
   const capped: { span: (typeof spans)[number]; res: ResolvedVisual }[] = [];
+  // Contador MONÓTONO de sub-plano dentro del beat. No puede ser capped.length:
+  // los tramos de la primera pasada ya gastaron 0..spans.length-1, así que un
+  // troceo devolvía a reusar un índice vivo. Con dos sub-planos y el primero
+  // partido, la parte k=1 y el span 1 compartían `flux:<video>:<beat>:1` y el
+  // fichero `<video>-<beat>-1.png`: si los dos caían a Flux, el segundo
+  // copyFile pisaba al primero y los dos sub-planos mostraban LA MISMA imagen.
+  let vIdxLibre = spans.length;
   for (const rv of resolved) {
     const durMs = rv.span.to_ms - rv.span.from_ms;
     const budget = MAX_VISUALS_PER_BEAT - capped.length;
@@ -592,13 +579,21 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
         if (k === 0) {
           capped.push({ span: { ...rv.span, from_ms, to_ms }, res: rv.res });
         } else {
-          // usedRefs ya contiene la imagen previa → sale otra distinta
           const extra = await resolveOneVisual(deps, {
             beatIdx: beat.idx,
-            vIdx: capped.length,
+            vIdx: vIdxLibre++,
             query: rv.span.visual_query,
             spanMs: to_ms - from_ms,
-            vetoedRefs: new Set<string>(),
+            // El veto iba VACÍO aquí, y con él se caía la anti-repetición justo
+            // en los tramos troceados: el pool volvía a incluir los planos ya
+            // usados en el vídeo en vez de seguir buscando.
+            vetoedRefs: new Set(deps.usedRefs),
+            // Estos tramos son cortos (≤IMAGE_MAX_S) y vienen de haber elegido
+            // ya una imagen: es el amplificador que convierte una decisión
+            // «imagen» en dos o tres planos-imagen. Medido sobre las consultas
+            // reales, a 5 s el 98 % de los clips encaja con un corte limpio,
+            // así que aquí el material sobra y se pide movimiento.
+            exigeClip: true,
           });
           capped.push({ span: { ...rv.span, from_ms, to_ms }, res: extra });
         }
@@ -695,6 +690,24 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
   const antiN = channel?.settings?.anti_repeat_n ?? ANTI_REPEAT_N;
   const recentIds = await recentAssetIds(db, video.channelId, videoId, antiN);
 
+  // El techo de imágenes en vigor se congela en el maestro ANTES de matchear:
+  // el informe de calidad tiene que auditar contra lo que se pidió al producir.
+  const imagenesMaxPct = channel?.profile?.style.broll_imagenes_max_pct ?? RATIO_IMAGENES_MAX;
+  const palancas = palancasImagen(imagenesMaxPct);
+  if (video.master.broll_telemetry?.imagenes_max_pct !== imagenesMaxPct) {
+    await db
+      .update(videos)
+      .set({
+        master: masterVideoJsonV1.parse({
+          ...video.master,
+          broll_telemetry: { imagenes_max_pct: imagenesMaxPct },
+        }),
+        updatedAt: new Date(),
+      })
+      .where(eq(videos.id, videoId));
+    video.master = { ...video.master, broll_telemetry: { imagenes_max_pct: imagenesMaxPct } };
+  }
+
   const allRows = await db
     .select()
     .from(beatsTable)
@@ -768,6 +781,7 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
     recentIds,
     usedRefs,
     prevVec: null,
+    ...palancas,
   };
   for (let i = 0; i < beatRows.length; i++) {
     const beat = beatRows[i];

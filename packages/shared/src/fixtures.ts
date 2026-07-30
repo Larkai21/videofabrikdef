@@ -1,4 +1,5 @@
 import type { ChannelProfile } from './channel-profile.js';
+import { RATIO_IMAGENES_MAX } from './constants.js';
 import type { Beat, Cue, MasterVideoJson } from './master-json.js';
 
 // Fixtures compartidas: el render de humo de packages/video, los tests de
@@ -29,6 +30,7 @@ export const demoProfile: ChannelProfile = {
     visual_prompt_suffix: 'clean tech aesthetic, cinematic lighting, no text',
     stock_query_lang: 'en',
     banned: ['clickbait vacío', 'AGI mañana'],
+    broll_imagenes_max_pct: RATIO_IMAGENES_MAX,
   },
   voice: { provider: 'edge', voice_id: 'es-ES-AlvaroNeural', rate: '-8%' },
   title_patterns: [

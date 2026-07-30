@@ -373,6 +373,16 @@ export const masterVideoJsonV1 = z.object({
   // revisión del juez con rúbrica; opcional, los maestros anteriores no la traen
   script_review: scriptReviewSchema.optional(),
   script_telemetry: scriptTelemetrySchema.optional(),
+  /**
+   * Con qué reglas de b-roll se produjo ESTE vídeo. Se congela al matchear
+   * porque el informe de calidad tiene que auditar contra el techo que estaba
+   * en vigor, no contra el que tenga el canal el día que se lee el informe: si
+   * no, cambiar el ajuste re-califica en silencio todos los vídeos viejos y el
+   * histórico deja de poder compararse consigo mismo.
+   */
+  broll_telemetry: z
+    .object({ imagenes_max_pct: z.number().min(0).max(1) })
+    .optional(),
   seo: seoSchema.optional(),
   audio: audioSchema.optional(),
   cues: z.array(cueSchema).optional(),

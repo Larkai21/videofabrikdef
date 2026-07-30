@@ -1,4 +1,4 @@
-import { FX_CARD_GUARD_MS } from './constants.js';
+import { FX_CARD_GUARD_MS, RATIO_IMAGENES_MAX } from './constants.js';
 import { MAX_CARD_WORDS, normalizeWord, wordInText } from './edit-intents.js';
 import type { Edit, MasterVideoJson } from './master-json.js';
 
@@ -21,14 +21,9 @@ import type { Edit, MasterVideoJson } from './master-json.js';
  * mostraba el centro, con una mediana de 5,9 s de separación.
  */
 export const DESFASE_ENCUADRE_MS = 1_500;
-/**
- * Cuota de imágenes fijas por encima de la cual el vídeo deja de parecer
- * metraje. Una imagen con Ken Burns no es estática, pero se nota que no es
- * vídeo; con más de la mitad de los planos así, la pieza entera se siente una
- * presentación. Medido antes de tocar nada: entre el 33 % y el 61 % según el
- * vídeo, y un 83 % en el plano principal del peor de ellos.
- */
-export const RATIO_IMAGENES_MAX = 0.3;
+// Cuota de imágenes fijas por encima de la cual el vídeo deja de parecer
+// metraje. Vive en `constants.ts` porque el mismo número gobierna la PRODUCCIÓN
+// (reparto de plazas de finalista en la cascada) y no solo esta auditoría.
 
 /** Cadencia sana de planos por minuto (fuera de esto, o marea o aburre). */
 export const CADENCIA_MIN = 6;
@@ -226,11 +221,13 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
   // presentación con voz en off»
   const imagenes = presentes.filter((a) => (a as { kind?: string }).kind === 'image').length;
   const ratioImagenes = presentes.length > 0 ? imagenes / presentes.length : 0;
-  if (presentes.length > 0 && ratioImagenes > RATIO_IMAGENES_MAX) {
+  // el techo con el que se PRODUJO este vídeo, no el que tenga el canal hoy
+  const techoImagenes = master.broll_telemetry?.imagenes_max_pct ?? RATIO_IMAGENES_MAX;
+  if (presentes.length > 0 && ratioImagenes > techoImagenes) {
     avisos.push({
       gravedad: ratioImagenes > 0.5 ? 'alta' : 'media',
       codigo: 'demasiada_imagen',
-      detalle: `${imagenes} de ${presentes.length} planos son imagen fija (${Math.round(ratioImagenes * 100)} %); por encima del ${Math.round(RATIO_IMAGENES_MAX * 100)} % el vídeo se siente una presentación`,
+      detalle: `${imagenes} de ${presentes.length} planos son imagen fija (${Math.round(ratioImagenes * 100)} %); por encima del ${Math.round(techoImagenes * 100)} % el vídeo se siente una presentación`,
     });
   }
   if (bucles > 0) {
