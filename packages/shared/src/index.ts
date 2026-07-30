@@ -6,6 +6,7 @@ export * from './edit-intents.js';
 export * from './master-json.js';
 export * from './micro-fx.js';
 export * from './stock-ref.js';
+export * from './calidad.js';
 export * from './script-quality.js';
 export * from './script-review.js';
 export * from './component-manifest.js';
