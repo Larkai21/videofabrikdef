@@ -5,7 +5,13 @@ import { z } from 'zod';
 // Antes el propio prompt le decía «no seas quisquilloso», que es una invitación
 // a decir que todo está alineado.
 
-export const SCRIPT_REVIEW_AXES = ['promesa', 'estructura', 'ritmo', 'factualidad', 'estilo'] as const;
+export const SCRIPT_REVIEW_AXES = [
+  'promesa',
+  'estructura',
+  'ritmo',
+  'factualidad',
+  'estilo',
+] as const;
 export const scriptReviewAxisSchema = z.enum(SCRIPT_REVIEW_AXES);
 export type ScriptReviewAxis = z.infer<typeof scriptReviewAxisSchema>;
 
@@ -35,26 +41,36 @@ export type ScriptSceneNote = z.infer<typeof scriptSceneNoteSchema>;
  * scriptReviewVerdict a partir de umbrales que viven en el código y se
  * recalibran en un solo sitio.
  */
+/**
+ * Lectura tolerante de las notas: una nota cuyo `axis` no es uno de los cinco
+ * ejes se descarta en vez de tumbar la revisión entera.
+ *
+ * Visto con el juez real: devolvió un eje inventado y el `parse` falló, así que
+ * se perdía la revisión completa —puntuaciones incluidas— y el job se
+ * reintentaba pagando otra vez. Es el mismo criterio que ya rige `edits`: un
+ * elemento malformado no puede invalidar los que sí valen.
+ */
+const scriptSceneNotesField = z.array(z.unknown()).transform((raw) =>
+  raw.flatMap((n) => {
+    const p = scriptSceneNoteSchema.safeParse(n);
+    return p.success ? [p.data] : [];
+  }),
+);
+
 export const scriptReviewOutputSchema = z
   .object({
     scores: scriptReviewScoresSchema,
     reasons: z.array(z.string()).max(4),
-    scene_notes: z.array(scriptSceneNoteSchema).max(6),
+    scene_notes: scriptSceneNotesField,
     patch_targets: z.array(z.string()).max(4),
   })
-  .superRefine((r, ctx) => {
-    // un patch_target sin nota es una instrucción sin contenido: el refinado
-    // reescribiría esa escena sin saber qué arreglar
+  // un patch_target sin nota es una instrucción sin contenido: el refinado
+  // reescribiría esa escena sin saber qué arreglar. Se descarta el target, no
+  // la revisión: antes era un superRefine que hacía fallar el parse entero, y
+  // basta con que el modelo etiquete mal una nota para perderlo todo.
+  .transform((r) => {
     const noted = new Set(r.scene_notes.map((n) => n.id));
-    for (const id of r.patch_targets) {
-      if (!noted.has(id)) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['patch_targets'],
-          message: `patch_target ${id} sin nota de escena`,
-        });
-      }
-    }
+    return { ...r, patch_targets: r.patch_targets.filter((id) => noted.has(id)) };
   });
 export type ScriptReviewOutput = z.infer<typeof scriptReviewOutputSchema>;
 
@@ -92,8 +108,7 @@ export function scriptReviewVerdict(scores: ScriptReviewScores): {
     if (scores[axis] < min) blocking.push(axis);
   }
   const total = SCRIPT_REVIEW_AXES.reduce((s, a) => s + scores[a], 0);
-  const verdict =
-    blocking.length > 0 || total < SCRIPT_REVIEW_MIN_TOTAL ? 'misaligned' : 'aligned';
+  const verdict = blocking.length > 0 || total < SCRIPT_REVIEW_MIN_TOTAL ? 'misaligned' : 'aligned';
   return { verdict, blocking, total };
 }
 

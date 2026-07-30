@@ -284,6 +284,13 @@ export function judgeSystem(): string {
     '- estilo: sin muletillas de texto generado, sin exclamaciones, voz activa, sustantivos concretos.',
     'Devuelve JSON: { scores: {promesa, estructura, ritmo, factualidad, estilo}, reasons: [máximo 4 frases cortas, cada una nombrando el eje que falla], scene_notes: [{id, axis, issue, fix}] máximo 6 y solo de escenas que de verdad haya que tocar, patch_targets: [ids, máximo 4, de más grave a menos] }.',
     'Todo id de patch_targets tiene que aparecer en scene_notes. Cada fix es una instrucción concreta de una frase, no un comentario.',
+    // Anclas de calibración. Sin ellas el modelo se queda en el 4 por defecto:
+    // en los tres guiones revisados dio 4/4/4/5/5 dos veces y 3/4/4/5/5 una,
+    // y nunca suspendió. Un ejemplo de qué es un 2 y qué es un 5 rompe el ancla.
+    'Calibración de estructura: un 5 es un guion cuyo bloque central no se puede cortar sin que se note. Un 2 es un guion donde tres escenas seguidas dicen lo mismo con otras palabras, o donde el cuerpo se podría reordenar sin que cambie nada.',
+    'Calibración de ritmo: un 5 alterna longitudes de frase y cada escena entra distinto de la anterior. Un 2 encadena frases del mismo largo o abre dos escenas seguidas igual.',
+    'Es improbable que un guion merezca la misma nota en los cinco ejes. Si lo crees, dilo en reasons y explica por qué.',
+    'Un guion largo cuyo bloque central se podría cortar entero sin que el espectador lo note no pasa de 2 en estructura.',
     'No propongas cambios de longitud ni de duración: de eso se encarga otra pasada.',
     'No bajes nota por gustos de tono: el tono del canal ya está decidido.',
     'Si te paso avisos automáticos, verifícalos antes de darlos por buenos, pero no los ignores.',
