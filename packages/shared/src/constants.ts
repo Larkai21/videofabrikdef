@@ -22,10 +22,6 @@ export const BEAT_TARGET_S = 11.5;
 export const BEAT_LAST_MIN_S = 5;
 export const BEAT_LAST_MAX_S = 18;
 
-// Cascada de assets (similitud coseno). Escala calibrada a ojo para
-// multilingual-e5-small, cuya línea base para pares NO relacionados ronda
-// 0,72–0,78 (con el mock hash la escala era otra). Calibración fina en curso:
-// etiquetar ~50 beats a mano (objetivo <5% de falsos auto_ok).
 // Tope duro de la consulta de stock. Pixabay responde HTTP 400 si `q` pasa de
 // 100 caracteres, y no lo dice en el error. Con el sufijo de estilo del canal
 // dentro de la consulta, 28 de 36 consultas de un vídeo lo superaban y 12 de 15
@@ -34,6 +30,23 @@ export const BEAT_LAST_MAX_S = 18;
 // el embedding no se diluye en palabras de relleno.
 export const MAX_QUERY_CHARS = 100;
 
+// Cascada de assets (similitud coseno). Escala de multilingual-e5-small, cuya
+// línea base para pares NO relacionados ronda 0,72–0,78.
+//
+// ESTOS TRES NÚMEROS ESTÁN DESCALIBRADOS Y SE SABE POR QUÉ. Se fijaron a ojo
+// contra una distribución INFLADA: los assets de biblioteca se embebían con la
+// consulta que los encontró, lo que subía sus cosenos artificialmente. Al
+// cerrar esa fuga la media de un vídeo real bajó de 0,864 a 0,840 (medido,
+// mismo canal, vídeos de 35-36 beats), así que los beats que superan T_AUTO
+// pasaron de 23/36 a 6/35: el umbral quedó estricto de golpe y el humano revisa
+// casi todo.
+//
+// NO se corrige moviendo el número hasta recuperar la tasa de antes: eso sería
+// calibrar contra una tasa deseada en vez de contra la precisión, y la tasa
+// anterior incluía auto-aprobaciones falsas. La corrección es el conjunto
+// etiquetado (`scripts/etiquetar.ts`, 93 pares preparados) y su curva. Con las
+// primeras 12 muestras el AUC sale 0,531 —azar—, así que probablemente el
+// problema no sea dónde está el corte sino que la señal no separa; ver el plan.
 export const T_AUTO = 0.86;
 export const T_REV = 0.78;
 export const T_STOCK = 0.88;
