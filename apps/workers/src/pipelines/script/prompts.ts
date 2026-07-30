@@ -38,10 +38,10 @@ export function sceneBlueprint(bodyCount: number): string {
     const mitad = Math.floor(desarrollo / 2);
     partes.push(`${tramo(n, mitad)}: desarrollo, UNA idea propia por escena.`);
     n += mitad;
-    partes.push(`${id(n)}: PUNTO MEDIO — re-gancho fuerte que cambia lo que el espectador creía.`);
+    partes.push(`${id(n)}: re-gancho fuerte que cambia lo que el espectador creía hasta ahora.`);
     n += 1;
     partes.push(
-      `${tramo(n, desarrollo - mitad - 1)}: complicación — el «sí, pero» de lo anterior.`,
+      `${tramo(n, desarrollo - mitad - 1)}: la objeción a lo anterior, escrita como frase normal.`,
     );
     n += desarrollo - mitad - 1;
   } else {
@@ -49,12 +49,22 @@ export function sceneBlueprint(bodyCount: number): string {
     n += desarrollo;
   }
   if (giro === 1) {
-    partes.push(`${id(n)}: GIRO — lo contraintuitivo, o el coste que nadie cuenta.`);
+    partes.push(`${id(n)}: lo contraintuitivo, o el coste que nadie cuenta.`);
     n += 1;
   }
-  partes.push(`${tramo(n, cierre)}: pago explícito de la promesa del titular.`);
+  partes.push(`${tramo(n, cierre)}: cumple la promesa del titular, de forma explícita.`);
   return [
-    'Papel de cada escena del cuerpo (respeta los ids):',
+    // ESTO SON INSTRUCCIONES, NO TEXTO. El modelo copiaba literalmente los
+    // rótulos al guion y el locutor los decía en voz alta: 18 escenas de los
+    // vídeos ya publicados empiezan por «PUNTO MEDIO:», «GIRO:», «Sí, pero:»,
+    // «Caso:» o «Contexto social:». Salían en mayúsculas y con dos puntos, que
+    // es exactamente la forma de un encabezado, así que el modelo las leía como
+    // parte del formato de salida. Por eso ahora se describe el PAPEL de la
+    // escena en prosa, sin etiquetas, y se dice explícitamente que no se
+    // escriban. El linter lo comprueba (`script-quality.ts`).
+    'Papel de cada escena del cuerpo (respeta los ids). Son indicaciones para ti:',
+    'NUNCA escribas estos papeles dentro del texto de la escena, ni como',
+    'encabezado ni entre paréntesis. El texto es lo que se locuta tal cual.',
     ...partes.map((p) => `- ${p}`),
   ].join('\n');
 }
@@ -110,7 +120,10 @@ export function craftRules(): string {
     'Promesa y pago: lo que prometes en la primera escena se paga de forma explícita antes del cta, y el espectador tiene que reconocer que se le ha pagado.',
     'Bucles abiertos: al cerrar un bloque deja una pregunta pendiente que obligue a seguir, y ciérrala como mucho dos escenas después. Nunca más de dos bucles abiertos a la vez, y ninguno sin cerrar al final.',
     'Re-ganchos: cada tres o cuatro escenas renueva el interés con algo nuevo: un dato de los claims, un contraste o una consecuencia directa para quien escucha.',
-    'Tensión: alterna afirmación y objeción. Después de una idea fuerte escribe el «sí, pero» antes de pasar a la siguiente.',
+    // «escribe el sí, pero» es una instrucción que el modelo cumplía al pie de
+    // la letra: cuatro y hasta siete escenas seguidas abriendo con «Sí, pero:».
+    // La regla tiene que pedir la PROPIEDAD (que haya objeción), no la frase.
+    'Tensión: alterna afirmación y objeción. Después de una idea fuerte, dile al espectador por qué podría no cumplirse en su caso, con una frase normal. Nunca uses la fórmula literal «sí, pero», ni ninguna otra muletilla de contraste repetida entre escenas.',
     'Transiciones: cada escena arranca enlazando con la anterior, sin resumirla. Dos escenas seguidas no pueden empezar con el mismo tipo de frase.',
     'Concreción: cada bloque baja a un caso, una cifra de los claims o algo que se pueda ver. Prohibido encadenar dos escenas que solo generalicen.',
     'Ritmo: alterna frases cortas y medias, máximo 25 palabras por frase, una idea por frase. Puntuación limpia para marcar las respiraciones del locutor.',

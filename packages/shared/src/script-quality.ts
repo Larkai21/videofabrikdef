@@ -23,15 +23,66 @@ export const AI_CLICHES: readonly { id: string; re: RegExp }[] = [
   { id: 'punta-iceberg', re: /\bla punta del iceberg\b/i },
   { id: 'la-pregunta-es', re: /\bla pregunta es\b/i },
   { id: 'aqui-interesante', re: /\by aquí (viene|está) lo interesante\b/i },
-  { id: 'cierre-redaccion', re: /\b(en resumen|en conclusión|en definitiva|dicho esto|sin más preámbulos)\b/i },
-  { id: 'hiperbole', re: /\b(revolucionari[oa]|imparable|el santo grial|cambia las reglas del juego)\b/i },
-  { id: 'folleto', re: /\b(sumérgete|desbloquea|el poder de|el secreto de|todo lo que necesitas saber)\b/i },
+  {
+    id: 'cierre-redaccion',
+    re: /\b(en resumen|en conclusión|en definitiva|dicho esto|sin más preámbulos)\b/i,
+  },
+  {
+    id: 'hiperbole',
+    re: /\b(revolucionari[oa]|imparable|el santo grial|cambia las reglas del juego)\b/i,
+  },
+  {
+    id: 'folleto',
+    re: /\b(sumérgete|desbloquea|el poder de|el secreto de|todo lo que necesitas saber)\b/i,
+  },
   { id: 'relleno', re: /\b(es importante destacar|cabe señalar|vale la pena mencionar)\b/i },
   { id: 'y-es-que', re: /(^|[.;]\s+)y es que\b/i },
 ];
 
+/**
+ * Rótulos de andamiaje: el papel que el prompt le asigna a la escena, escrito
+ * dentro del texto que se locuta.
+ *
+ * Es el defecto más caro que ha tenido el guion, porque no se queda en el
+ * papel: se oye. Medido sobre los diez vídeos producidos, 18 escenas empiezan
+ * por «PUNTO MEDIO:», «GIRO:», «Sí, pero:», «Caso:», «Contexto social:» o
+ * «Pago de la promesa:», y esas palabras están en el MP4. El juez les dio 4 de
+ * 5 en estructura y en estilo sin mencionarlo ni una vez, que es la prueba de
+ * que un juez con rúbrica no sustituye a una comprobación mecánica.
+ *
+ * La causa era `sceneBlueprint()` emitiendo los papeles en mayúsculas y con dos
+ * puntos —la forma exacta de un encabezado—, así que el modelo los leía como
+ * parte del formato de salida. El prompt ya está arreglado; esto es la red que
+ * garantiza que, si vuelve a filtrarse, no llega al audio.
+ */
+export const ANDAMIAJE =
+  /^\s*(punto medio|giro|s[íi],? pero|caso|contexto( social)?|pago(\s+\d+|\s+de la promesa)?|desarrollo|complicaci[óo]n|re-?gancho|cierre|hook|gancho|conclusi[óo]n|primera idea|segunda idea|tercera idea|cuarta idea|quinta idea|paso (uno|dos|tres|cuatro|cinco|\d+))\s*[:—-]/i;
+
+/**
+ * Escena que abre con un ENCABEZADO en vez de con una frase.
+ *
+ * Distinto de ANDAMIAJE y deliberadamente NO bloqueante, porque aquí sí hay
+ * juicio: «No fue un fallo: fue el diseño» usa los dos puntos como recurso
+ * retórico y está bien escrito, mientras que «Hardware: las entradas de capital
+ * suelen apuntar a aceleradores» es una viñeta leída en voz alta. La diferencia
+ * es si delante de los dos puntos hay una oración o una etiqueta, y eso no se
+ * decide con una expresión regular sin un analizador morfológico.
+ *
+ * Se mide porque el dato importa aunque no se pueda bloquear: 81 de las 144
+ * escenas producidas (56 %) abren así, y un vídeo entero —OZmRIqZ2w— tiene 12
+ * de 16 escenas encabezadas. Eso no es un guion, es un índice locutado. El
+ * número va al juez y al informe; la decisión sigue siendo humana.
+ */
+export const ENCABEZADO = /^\s*[«"']?[\p{Lu}][^.!?]{0,28}:\s+\p{L}/u;
+
+/** Cuántas escenas abren con encabezado en vez de con una frase. */
+export function escenasEncabezadas(scenes: readonly { text: string }[]): number {
+  return scenes.filter((s) => ENCABEZADO.test(s.text)).length;
+}
+
 export type ScriptLintKind =
   | 'cliche'
+  | 'andamiaje'
   | 'exclamacion'
   | 'frase_larga'
   | 'escena_corta'
@@ -54,7 +105,10 @@ export interface LintOptions {
 }
 
 function countWords(text: string): number {
-  return text.trim().split(/\s+/).filter((w) => w.length > 0).length;
+  return text
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w.length > 0).length;
 }
 
 function sentences(text: string): string[] {
@@ -82,7 +136,17 @@ export function lintScenes(
   for (const scene of scenes) {
     for (const { id, re } of AI_CLICHES) {
       const m = re.exec(scene.text);
-      if (m) hits.push({ id: scene.id, kind: 'cliche', detail: `muletilla «${m[0].trim()}» (${id})` });
+      if (m)
+        hits.push({ id: scene.id, kind: 'cliche', detail: `muletilla «${m[0].trim()}» (${id})` });
+    }
+
+    const andamiaje = ANDAMIAJE.exec(scene.text);
+    if (andamiaje) {
+      hits.push({
+        id: scene.id,
+        kind: 'andamiaje',
+        detail: `empieza con el rótulo «${andamiaje[0].trim()}»: eso se locuta tal cual`,
+      });
     }
 
     if (scene.text.includes('!') || scene.text.includes('¡')) {
@@ -103,9 +167,17 @@ export function lintScenes(
 
     const words = countWords(scene.text);
     if (words < minWords) {
-      hits.push({ id: scene.id, kind: 'escena_corta', detail: `${words} palabras (mínimo ${minWords})` });
+      hits.push({
+        id: scene.id,
+        kind: 'escena_corta',
+        detail: `${words} palabras (mínimo ${minWords})`,
+      });
     } else if (words > maxWords) {
-      hits.push({ id: scene.id, kind: 'escena_larga', detail: `${words} palabras (máximo ${maxWords})` });
+      hits.push({
+        id: scene.id,
+        kind: 'escena_larga',
+        detail: `${words} palabras (máximo ${maxWords})`,
+      });
     }
 
     // se comprueba cada cifra por separado: una escena puede traer una buena y
@@ -124,7 +196,11 @@ export function lintScenes(
 }
 
 /** Los avisos que obligan a retocar la escena aunque el juez no la marque. */
-export const BLOCKING_LINT_KINDS: readonly ScriptLintKind[] = ['cliche', 'cifra_sin_claim'];
+export const BLOCKING_LINT_KINDS: readonly ScriptLintKind[] = [
+  'cliche',
+  'andamiaje',
+  'cifra_sin_claim',
+];
 
 export function blockingSceneIds(hits: readonly ScriptLintHit[]): string[] {
   return [...new Set(hits.filter((h) => BLOCKING_LINT_KINDS.includes(h.kind)).map((h) => h.id))];

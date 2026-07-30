@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { blockingSceneIds, lintScenes } from './script-quality.js';
+import {
+  BLOCKING_LINT_KINDS,
+  blockingSceneIds,
+  escenasEncabezadas,
+  lintScenes,
+} from './script-quality.js';
 
-const CLAIMS = [{ text: 'el índice subió un 70% en enero' }, { text: 'ya son 2 millones de usuarios' }];
+const CLAIMS = [
+  { text: 'el índice subió un 70% en enero' },
+  { text: 'ya son 2 millones de usuarios' },
+];
 
 const LEXICO = ['dato', 'coste', 'equipo', 'modelo', 'informe', 'plazo', 'cambio', 'motivo'];
 
@@ -37,11 +45,15 @@ describe('lintScenes', () => {
   });
 
   it('detecta exclamaciones y frases kilométricas', () => {
-    const exclama = lintScenes([{ id: 'sc-1', text: `Esto es enorme. ${relleno(45)}!` }], { claims: CLAIMS });
+    const exclama = lintScenes([{ id: 'sc-1', text: `Esto es enorme. ${relleno(45)}!` }], {
+      claims: CLAIMS,
+    });
     expect(kinds(exclama)).toContain('exclamacion');
 
     const frase30 = Array.from({ length: 30 }, () => 'coste').join(' ');
-    const larga = lintScenes([{ id: 'sc-1', text: `${frase30}. ${relleno(25)}` }], { claims: CLAIMS });
+    const larga = lintScenes([{ id: 'sc-1', text: `${frase30}. ${relleno(25)}` }], {
+      claims: CLAIMS,
+    });
     expect(kinds(larga)).toContain('frase_larga');
   });
 
@@ -49,9 +61,12 @@ describe('lintScenes', () => {
     expect(kinds(lintScenes([{ id: 'sc-1', text: relleno(20) }], { claims: CLAIMS }))).toContain(
       'escena_corta',
     );
-    const largaHits = lintScenes([{ id: 'sc-1', text: `${relleno(20)}. ${relleno(20)}. ${relleno(50)}.` }], {
-      claims: CLAIMS,
-    });
+    const largaHits = lintScenes(
+      [{ id: 'sc-1', text: `${relleno(20)}. ${relleno(20)}. ${relleno(50)}.` }],
+      {
+        claims: CLAIMS,
+      },
+    );
     expect(kinds(largaHits)).toContain('escena_larga');
   });
 
@@ -82,5 +97,68 @@ describe('blockingSceneIds', () => {
       { claims: CLAIMS },
     );
     expect(blockingSceneIds(hits)).toEqual(['sc-1']);
+  });
+});
+
+describe('andamiaje del prompt locutado', () => {
+  // Frases LITERALES de vídeos ya publicados. No son ejemplos inventados: cada
+  // una está en el audio de un MP4 que salió de la fábrica.
+  const reales = [
+    'PUNTO MEDIO: estas herramientas funcionan, pero no son cajas negras perfectas.',
+    'GIRO: lo más valioso no es ahorrar tiempo leyendo; es cambiar la tarea.',
+    'Sí, pero: no todos los nichos pagan igual.',
+    'Caso: Marta, 38 años, gestora de proyectos.',
+    'Contexto social: muchas personas en tu situación están en riesgo económico.',
+    'Giro: aunque exista evidencia sectorial del 25%, tu retorno puede variar.',
+    'Primera idea: mapear lo que ya sabes.',
+    'Paso tres: vectorizar. Cada fragmento se transforma en un vector.',
+  ];
+
+  it('marca las formas del andamiaje que se colaron en los vídeos reales', () => {
+    for (const text of reales) {
+      const hits = lintScenes([{ id: 'sc-body-1', text }], { claims: [] });
+      expect(
+        hits.some((h) => h.kind === 'andamiaje'),
+        `no detectado: ${text}`,
+      ).toBe(true);
+    }
+  });
+
+  it('bloquea: no basta con avisar, el guion no puede salir así', () => {
+    expect(BLOCKING_LINT_KINDS).toContain('andamiaje');
+  });
+
+  it('NO bloquea los dos puntos retóricos, que son buena escritura', () => {
+    // «No fue un fallo: fue el diseño» está bien escrito. Bloquear esto sería
+    // cambiar un defecto por otro peor: guiones que no pueden usar el recurso.
+    const hits = lintScenes([{ id: 's2', text: 'No fue un fallo: fue el diseño.' }], {
+      claims: [],
+    });
+    expect(hits.some((h) => h.kind === 'andamiaje')).toBe(false);
+  });
+
+  it('mide los encabezados aunque no los bloquee: 12 de 16 es un índice locutado', () => {
+    const escenas = [
+      { text: 'Hardware: las entradas de capital apuntan a aceleradores.' },
+      { text: 'Modelos: hay apuestas en modelos base y optimización.' },
+      { text: 'Un contenedor sale de Shanghái y llega a Róterdam en treinta días.' },
+    ];
+    expect(escenasEncabezadas(escenas)).toBe(2);
+  });
+
+  it('no marca una escena que simplemente empieza por una palabra normal', () => {
+    const sanas = [
+      'Marta llevaba ocho años en la misma empresa cuando cerraron su departamento.',
+      'El coste oculto de la reconversión no es técnico, es psicológico.',
+      'Las entradas de capital apuntan a aceleradores y centros de datos.',
+      'Un contenedor sale de Shanghái y llega a Róterdam en treinta días.',
+    ];
+    for (const text of sanas) {
+      const hits = lintScenes([{ id: 'sc-body-1', text }], { claims: [] });
+      expect(
+        hits.some((h) => h.kind === 'andamiaje'),
+        `falso positivo: ${text}`,
+      ).toBe(false);
+    }
   });
 });

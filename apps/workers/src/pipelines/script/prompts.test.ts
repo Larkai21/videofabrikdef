@@ -14,14 +14,26 @@ describe('sceneBlueprint', () => {
     }
   });
 
-  it('en formato largo introduce punto medio y giro, y en corto no los fuerza', () => {
+  it('en formato largo introduce re-gancho y giro, y en corto no los fuerza', () => {
+    // Este test afirmaba que el plano contuviera «PUNTO MEDIO» y «GIRO» en
+    // mayúsculas. Estaba fijando el bug: el modelo copiaba esos rótulos al
+    // texto de la escena y el locutor los decía en voz alta en el MP4. Lo que
+    // hay que garantizar es el ARCO (que a lo largo haya re-gancho central y
+    // giro, y a lo corto no), no las palabras con que se le pide.
     const largo = sceneBlueprint(14);
-    expect(largo).toContain('PUNTO MEDIO');
-    expect(largo).toContain('GIRO');
+    expect(largo).toContain('re-gancho fuerte');
+    expect(largo).toContain('lo contraintuitivo');
+    expect(largo).not.toMatch(/PUNTO MEDIO|GIRO/);
 
     const corto = sceneBlueprint(3);
-    expect(corto).not.toContain('PUNTO MEDIO');
+    expect(corto).not.toContain('re-gancho fuerte');
     expect(corto).toContain('sc-body-3');
+  });
+
+  it('avisa de que los papeles no se escriben dentro del guion', () => {
+    // la instrucción explícita es la primera línea de defensa; el linter
+    // (`andamiaje` en script-quality.ts) es la segunda
+    expect(sceneBlueprint(14)).toContain('NUNCA escribas estos papeles');
   });
 
   it('sin cuerpo no dice nada', () => {
