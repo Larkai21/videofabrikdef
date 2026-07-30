@@ -1,12 +1,18 @@
 import { eq, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { stockCache, type Db } from '@fabrica/db';
-import { STOCK_CACHE_TTL_H, type BeatCandidate } from '@fabrica/shared';
+import { STOCK_CACHE_TTL_H, stockRef, type BeatCandidate } from '@fabrica/shared';
 import { closeCost, failCost, openCost } from './ledger.js';
 
 // Cliente de stock de la API (búsqueda libre desde la timeline). Los workers
 // tienen su propio cliente: duplicación asumida en S1 (docs/contratos.md §4).
 // Caché obligatoria en stock_cache con TTL 24 h y query normalizada.
+//
+// Los dos clientes COMPARTEN la tabla stock_cache (misma clave única), así que
+// lo que escribe uno lo lee el otro. Por eso la fila tiene que satisfacer las
+// dos formas a la vez: `ref` canónica de `stockRef`, `score` para el candidato
+// de la timeline y `meta.title` para el coseno de la cascada. Escribir de menos
+// aquí degradaba el b-roll en silencio del otro lado.
 
 const TTL_MS = STOCK_CACHE_TTL_H * 3_600_000;
 const FETCH_TIMEOUT_MS = 10_000;
@@ -27,6 +33,7 @@ interface PexelsVideo {
   image?: string;
   duration?: number;
   video_files?: PexelsVideoFile[];
+  user?: { name?: string };
 }
 
 function mapPexels(payload: unknown): BeatCandidate[] {
@@ -42,7 +49,7 @@ function mapPexels(payload: unknown): BeatCandidate[] {
     const file = files.find((f) => (f.width ?? 0) <= 1920) ?? files[files.length - 1];
     if (!file?.link) continue;
     out.push({
-      ref: `pexels:${video.id}`,
+      ref: stockRef('pexels', 'clip', video.id),
       provider: 'pexels',
       // la búsqueda libre no pasa por embeddings: score neutro, decide el humano
       score: 0,
@@ -50,9 +57,11 @@ function mapPexels(payload: unknown): BeatCandidate[] {
       meta: {
         download_url: file.link,
         kind: 'clip',
-        width: file.width ?? null,
-        height: file.height ?? null,
+        width: file.width ?? 0,
+        height: file.height ?? 0,
         duration_ms: Math.round((video.duration ?? 0) * 1000),
+        // lo lee la cascada para el coseno; sin él puntúa sobre cadena vacía
+        title: video.user?.name ?? '',
       },
     });
   }
@@ -69,6 +78,7 @@ interface PixabayVideoVariant {
 interface PixabayHit {
   id?: number;
   duration?: number;
+  tags?: string;
   videos?: {
     large?: PixabayVideoVariant;
     medium?: PixabayVideoVariant;
@@ -86,20 +96,34 @@ function mapPixabay(payload: unknown): BeatCandidate[] {
     if (!variant?.url) continue;
     const thumb = variant.thumbnail ?? hit.videos?.tiny?.thumbnail;
     out.push({
-      ref: `pixabay:${hit.id}`,
+      ref: stockRef('pixabay', 'clip', hit.id),
       provider: 'pixabay',
       score: 0,
       ...(thumb ? { thumb_url: thumb } : {}),
       meta: {
         download_url: variant.url,
         kind: 'clip',
-        width: variant.width ?? null,
-        height: variant.height ?? null,
+        width: variant.width ?? 0,
+        height: variant.height ?? 0,
         duration_ms: Math.round((hit.duration ?? 0) * 1000),
+        title: hit.tags ?? '',
       },
     });
   }
   return out;
+}
+
+/**
+ * La fila cacheada la pudo escribir el cliente de los workers, cuyo tipo no
+ * lleva `score` (lo calcula después con embeddings). Sin este relleno la
+ * timeline recibía candidatos con `score: undefined` y pintaba la barra vacía.
+ */
+function asCandidates(results: unknown): BeatCandidate[] {
+  if (!Array.isArray(results)) return [];
+  return results.map((r) => {
+    const c = r as BeatCandidate;
+    return typeof c.score === 'number' ? c : { ...c, score: 0 };
+  });
 }
 
 async function cachedSearch(
@@ -114,7 +138,7 @@ async function cachedSearch(
     .where(and(eq(stockCache.queryNorm, queryNorm), eq(stockCache.provider, provider)))
     .limit(1);
   if (cached && Date.now() - cached.fetchedAt.getTime() < TTL_MS) {
-    return cached.results as BeatCandidate[];
+    return asCandidates(cached.results);
   }
 
   const handle = await openCost(db, { provider, operation: 'search', meta: { query: queryNorm } });
@@ -124,7 +148,7 @@ async function cachedSearch(
     await closeCost(db, handle, { units: 1, unitCost: 0 });
   } catch (error) {
     await failCost(db, handle, error instanceof Error ? error.message : String(error));
-    return cached ? (cached.results as BeatCandidate[]) : [];
+    return cached ? asCandidates(cached.results) : [];
   }
 
   await db

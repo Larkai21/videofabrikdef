@@ -1,0 +1,8 @@
+{
+  "version": "1",
+  "type": "title_card",
+  "name": "title-card-ia",
+  "component_version": "0.1.0",
+  "props_schema": "./schema.ts",
+  "assets": []
+}

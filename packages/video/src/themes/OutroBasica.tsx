@@ -1,99 +1,158 @@
 import React from 'react';
-import {
-  AbsoluteFill,
-  Img,
-  interpolate,
-  spring,
-  useCurrentFrame,
-  useVideoConfig,
-} from 'remotion';
+import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import { defaultDesign, hexToRgba } from '@fabrica/shared';
-import { FONT_FAMILY } from '../fonts';
+import { displayText, FONT_FAMILY } from '../fonts';
+import { Ambience } from '../effects';
+import { Ease, clamp, mix, pulse, span } from '../effects/motion';
+import { hashSeed } from '../seed';
+import { BrandMark, MeshBackdrop, WordsReveal } from './shared';
 import type { IntroOutroProps } from './IntroBasica';
 
 // Outro integrada 'outro-basica@0.1.0' (contrato introOutroPropsSchema).
 // Duración fija OUTRO_BASICA_DURATION_FRAMES (registry-gen.ts); se monta tras el
-// último beat. Cierre de marca: avatar con spring, "Gracias por ver", nombre del
-// canal y una píldora "Suscríbete" que late. Determinismo: solo useCurrentFrame/
-// spring, sin relojes ni red.
+// último beat, así que NO desplaza nada: solo suma a la duración total.
+//
+// REESCRITA EN SITIO (mismo ref), igual que la intro.
+//
+// El latido de la píldora es un pulso por segundo con ping de radar, no un
+// Math.sin continuo: un elemento que vibra sin parar se lee como barato, y uno
+// que late una vez por segundo se lee como una llamada a la acción.
+//
+// Sin `logo` BrandMark cae al monograma del canal. Determinismo: solo
+// useCurrentFrame + matemática pura, sin relojes, red ni animaciones CSS.
 
 export const OutroBasica: React.FC<IntroOutroProps> = ({ channel_name, logo, design }) => {
   const frame = useCurrentFrame();
-  const { durationInFrames, fps } = useVideoConfig();
+  const { durationInFrames } = useVideoConfig();
   const d = design ?? defaultDesign();
+  const seed = hashSeed(channel_name);
 
-  const appear = spring({ frame, fps, config: { damping: 14, stiffness: 120, mass: 0.7 } });
-  const exit = interpolate(frame, [durationInFrames - 10, durationInFrames], [1, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  // la píldora "Suscríbete" late (escala) para llamar la atención
-  const pulse = 1 + 0.06 * Math.sin(frame / 6);
-  const glow = 0.9 + 0.1 * Math.sin(frame / 9);
+  const exitF = 12;
+  const salida = span(frame, durationInFrames - exitF, exitF, Ease.outCubic);
+  const exit = 1 - salida;
+  const exitScale = mix(1, 1.04, salida);
+
+  // revelado en cortina: misma gramática que las transiciones de sección
+  const cortina = span(frame, 0, 14, Ease.outExpo);
+  const inset = (1 - cortina) * 50;
+
+  // píldora: entra con rebote y luego late una vez por segundo
+  const pill = span(frame, 34, 14, Ease.outBack);
+  const ciclo = frame >= 56 ? (frame - 56) % 30 : -1;
+  const latido = ciclo >= 0 ? 1 + 0.05 * pulse(ciclo, 0, 30, 6, 10) : 1;
+  const ping = ciclo >= 0 ? span(ciclo, 0, 30, Ease.outCubic) : 0;
+
+  // barra de cierre al pie: rima con la ProgressBar del cuerpo y dice «se acabó»
+  const cierre = span(frame, 44, 66, Ease.inOutCubic);
+
+  const nombre = span(frame, 22, 18, Ease.outCubic);
 
   return (
     <AbsoluteFill
-      style={{
-        backgroundColor: d.background,
-        justifyContent: 'center',
-        alignItems: 'center',
-        fontFamily: FONT_FAMILY,
-        overflow: 'hidden',
-      }}
+      style={{ backgroundColor: d.background, fontFamily: FONT_FAMILY, overflow: 'hidden' }}
     >
       <AbsoluteFill
         style={{
           opacity: exit,
-          background: `radial-gradient(circle at 50% 55%, ${hexToRgba(d.accent, 0.18 * glow)}, transparent 62%)`,
+          background: `radial-gradient(circle at 50% 62%, ${hexToRgba(d.accent, 0.16)}, transparent 60%)`,
         }}
       />
-      <div
+
+      <AbsoluteFill style={{ opacity: exit }}>
+        <MeshBackdrop design={d} seed={seed} from={0} intensity={0.45} />
+      </AbsoluteFill>
+
+      <AbsoluteFill
         style={{
-          opacity: exit * appear,
-          transform: `translateY(${(1 - appear) * 20}px)`,
-          display: 'flex',
-          flexDirection: 'column',
+          justifyContent: 'center',
           alignItems: 'center',
-          gap: 16,
-          textAlign: 'center',
+          opacity: exit,
+          transform: `scale(${exitScale})`,
+          clipPath: `inset(0 ${inset}% 0 ${inset}%)`,
         }}
       >
-        {logo ? (
-          <Img
-            src={logo}
-            style={{
-              width: 150,
-              height: 150,
-              borderRadius: '50%',
-              objectFit: 'cover',
-              border: `4px solid ${d.accent}`,
-              boxShadow: `0 0 ${24 * glow}px ${hexToRgba(d.accent, 0.5)}`,
-              marginBottom: 6,
-            }}
-          />
-        ) : null}
-        <div style={{ fontSize: 62, fontWeight: 800, letterSpacing: '-0.02em', color: d.foreground }}>
-          Gracias por ver
-        </div>
-        {channel_name.length > 0 ? (
-          <div style={{ fontSize: 30, fontWeight: 500, color: d.muted }}>{channel_name}</div>
-        ) : null}
         <div
           style={{
-            marginTop: 14,
-            transform: `scale(${pulse})`,
-            background: d.accent,
-            color: d.accent_fg,
-            fontSize: 26,
-            fontWeight: 700,
-            padding: '12px 30px',
-            borderRadius: 999,
-            boxShadow: `0 10px 30px ${hexToRgba(d.accent, 0.45)}`,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 20,
+            padding: '0 120px',
+            textAlign: 'center',
           }}
         >
-          Suscríbete
+          <BrandMark channelName={channel_name} logo={logo} design={d} size={150} from={8} />
+
+          <WordsReveal
+            text="Gracias por ver"
+            from={14}
+            stagger={3}
+            fontSize={64}
+            weight={800}
+            color={d.foreground}
+          />
+
+          {channel_name.length > 0 ? (
+            <div
+              style={{
+                ...displayText(600),
+                fontSize: 34,
+                color: d.accent,
+                opacity: nombre,
+                transform: `translateY(${(1 - nombre) * 10}px)`,
+              }}
+            >
+              {channel_name}
+            </div>
+          ) : null}
+
+          <div style={{ position: 'relative', marginTop: 10 }}>
+            {/* ping de radar que sale de la píldora */}
+            {ping > 0 ? (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  borderRadius: 999,
+                  border: `2px solid ${d.accent}`,
+                  transform: `scale(${mix(1, 1.35, ping)})`,
+                  opacity: (1 - ping) * 0.5,
+                }}
+              />
+            ) : null}
+            <div
+              style={{
+                ...displayText(700),
+                transform: `scale(${mix(0.7, 1, clamp(pill, 0, 1.15)) * latido})`,
+                opacity: clamp(pill, 0, 1),
+                background: d.accent,
+                color: d.accent_fg,
+                fontSize: 26,
+                padding: '12px 30px',
+                borderRadius: 999,
+                boxShadow: `0 10px 30px ${hexToRgba(d.accent, 0.45)}`,
+              }}
+            >
+              Suscríbete
+            </div>
+          </div>
         </div>
-      </div>
+      </AbsoluteFill>
+
+      {/* barra de cierre */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          bottom: 0,
+          height: 4,
+          width: `${cierre * 100}%`,
+          background: d.accent,
+          opacity: exit * 0.9,
+        }}
+      />
+
+      <Ambience design={d} />
     </AbsoluteFill>
   );
 };

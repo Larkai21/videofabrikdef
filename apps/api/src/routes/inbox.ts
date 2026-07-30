@@ -8,6 +8,7 @@ import {
   type VideoState,
 } from '@fabrica/shared';
 import type { ApiContext } from '../lib/context.js';
+import { officialThumbnailUrl } from '../lib/files.js';
 import { videoTitle } from '../lib/master.js';
 
 // multicanal (SPEC §14 S3): ?channel= filtra puertas, en curso, hechos y costes
@@ -165,15 +166,18 @@ export function registerInboxRoutes(app: FastifyInstance, ctx: ApiContext): void
         };
       });
 
-    const done = videoRows
-      .filter((v) => v.state === 'hecho')
-      .map((video) => ({
-        video_id: video.id,
-        title: videoTitle(video),
-        output_dir: video.outputDir ?? '',
-        finished_at: video.updatedAt.toISOString(),
-        youtube: video.youtube ?? null,
-      }));
+    const done = await Promise.all(
+      videoRows
+        .filter((v) => v.state === 'hecho')
+        .map(async (video) => ({
+          video_id: video.id,
+          title: videoTitle(video),
+          output_dir: video.outputDir ?? '',
+          finished_at: video.updatedAt.toISOString(),
+          thumbnail_url: await officialThumbnailUrl(ctx.outputsDir, video.id),
+          youtube: video.youtube ?? null,
+        })),
+    );
 
     const monthStart = sql`date_trunc('month', now())`;
     const [[costRow], [countRow]] = await Promise.all([

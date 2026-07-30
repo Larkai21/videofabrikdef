@@ -3,7 +3,9 @@ import { z } from 'zod';
 import { channels, ideas, markIncident, videos } from '@fabrica/db';
 import {
   channelSettingsSchema,
+  editIntentSchema,
   JOBS,
+  MAX_INTENTS_PER_SCENE,
   QUEUES,
   researchSchema,
   type ChannelProfile,
@@ -14,6 +16,7 @@ import {
   type Seo,
 } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
+import { intentWarning, keepValidIntents, sweepIntents } from './intents.js';
 import { ledgeredLlmJson } from './llm-call.js';
 import { refineSystem, researchSystem, researchUser, scriptSystem, scriptUser } from './prompts.js';
 import { downloadSources } from './research.js';
@@ -25,6 +28,10 @@ const genSceneSchema = z.object({
   text: z.string().min(1),
   visual_query: z.string().min(1),
   emphasis: z.boolean().optional(),
+  // intención visual declarada por el propio guionista; se valida después con
+  // sweepIntents, no aquí: un refine en el esquema del LLM tumbaría el guion
+  // entero por una intención mal escrita
+  edit_intents: z.array(editIntentSchema).max(MAX_INTENTS_PER_SCENE).optional(),
 });
 
 // exportado: packaging_first genera SOLO esta parte (packaging.ts)
@@ -70,7 +77,11 @@ function mergeHumanEdits(
   const byId = new Map(edited.map((s) => [s.id, s]));
   return generated.map((g) => {
     const human = byId.get(g.id);
-    return human ? { ...g, text: human.text, edited_by_human: true } : { ...g };
+    // al conservar el texto humano sobre la escena regenerada, las intenciones
+    // generadas pueden apuntar a palabras que ese texto ya no tiene
+    return human
+      ? { ...g, text: human.text, edited_by_human: true, ...keepValidIntents(g, human.text) }
+      : { ...g };
   });
 }
 
@@ -116,7 +127,9 @@ async function adjustLength(
   const newTexts = new Map(result.scenes.map((s) => [s.id, s.text]));
   const out = scenes.map((s) => {
     const text = newTexts.get(s.id);
-    return text && adjustableIds.has(s.id) ? { ...s, text } : s;
+    // al reescribir el texto, las intenciones que apuntaban a una palabra que ya
+    // no está se caen: si no, el efecto se anclaría en el sitio equivocado
+    return text && adjustableIds.has(s.id) ? { ...s, text, ...keepValidIntents(s, text) } : s;
   });
   if (!withinTolerance(scriptWords(out), targetWords)) {
     ctx.logger.warn(
@@ -223,6 +236,18 @@ export async function handleScriptGenerate(
   });
 
   let scenes = mergeHumanEdits(gen.script.scenes, editedScenes);
+
+  // portón de las intenciones visuales: lo que el guionista declaró mal se cae
+  // aquí y se avisa, en vez de llegar al director y colocarse en el sitio
+  // equivocado
+  const barrido = sweepIntents(scenes, research.claims);
+  scenes = barrido.scenes;
+  const avisoIntents = intentWarning(barrido.dropped);
+  if (avisoIntents !== null) {
+    ctx.logger.info({ videoId, descartados: barrido.dropped.length }, avisoIntents);
+    await progress(78, avisoIntents);
+  }
+
   if (!withinTolerance(scriptWords(scenes), targetWords)) {
     await progress(80, 'Ajustando la duración del guion');
     scenes = await adjustLength(
@@ -268,11 +293,10 @@ export async function handleScriptGenerate(
   }
   await ctx.publishEvent({ type: 'video_state', video_id: videoId, state: 'guion_borrador' });
   await ctx.publishEvent({ type: 'inbox_changed' });
-  // con título ya confirmado (packaging_first o reescritura tras elegirlo),
-  // el juez verifica que el guion nuevo paga la promesa
-  if (chosenTitle) {
-    await ctx.queues.script.add(JOBS.script.judge, { videoId } satisfies ScriptJudgeJob);
-  }
+  // El juez corre SIEMPRE. Antes solo con título confirmado, así que la mitad
+  // de los vídeos no pasaban ningún control; sin título evalúa la promesa que
+  // enuncia el propio gancho. Es idempotente por huella del guion.
+  await ctx.queues.script.add(JOBS.script.judge, { videoId } satisfies ScriptJudgeJob);
   ctx.logger.info(
     { videoId, words: scriptWords(scenes), targetWords, escenas: scenes.length },
     'Guion generado y en puerta de revisión',

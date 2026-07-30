@@ -71,8 +71,9 @@ export interface BuiltinKitComponent {
 }
 
 export const BUILTIN_KIT_COMPONENTS: BuiltinKitComponent[] = [
-  { type: 'intro', ref: DEFAULT_INTRO_REF, name: 'intro-basica', version: '0.1.0', label: 'Intro cinematográfica', fixed_duration_frames: 80 },
-  { type: 'outro', ref: DEFAULT_OUTRO_REF, name: 'outro-basica', version: '0.1.0', label: 'Outro con CTA', fixed_duration_frames: 90 },
+  // deben COINCIDIR con INTRO/OUTRO_BASICA_DURATION_FRAMES de registry-gen.ts
+  { type: 'intro', ref: DEFAULT_INTRO_REF, name: 'intro-basica', version: '0.1.0', label: 'Intro cinematográfica', fixed_duration_frames: 96 },
+  { type: 'outro', ref: DEFAULT_OUTRO_REF, name: 'outro-basica', version: '0.1.0', label: 'Outro con CTA', fixed_duration_frames: 120 },
   { type: 'title_card', ref: DEFAULT_TITLE_CARD_REF, name: 'titulo-seccion', version: '0.1.0', label: 'Tarjeta de sección' },
   { type: 'lower_third', ref: DEFAULT_LOWER_THIRD_REF, name: 'rotulo-basico', version: '0.1.0', label: 'Rótulo inferior' },
   { type: 'subtitle_theme', ref: DEFAULT_SUBTITLE_THEME_REF, name: 'subtitulos-basicos', version: '0.1.0', label: 'Subtítulos karaoke' },

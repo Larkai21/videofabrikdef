@@ -2,7 +2,7 @@ import type { IdeaDto } from '@fabrica/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Chip, EmptyState, ReasonModal, type Motivo } from '../components/ui';
+import { Button, Chip, EmptyState, ReasonModal, SkeletonRows, type Motivo } from '../components/ui';
 import { approveIdea, discardIdea, getIdeasFor } from '../lib/api';
 import { useChannel } from '../lib/channel';
 import { useToasts } from '../lib/toasts';
@@ -78,7 +78,7 @@ export function Ideas() {
       </div>
 
       <div className="wrap-1160" style={{ padding: 'calc(var(--pad) * 1.6) 26px 72px' }}>
-        {isPending ? <div className="muted fs-sm">Cargando el ranking</div> : null}
+        {isPending ? <SkeletonRows rows={4} label="Cargando el ranking" /> : null}
         {isError ? (
           <div className="banner banner-danger" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ flex: 1 }}>No se pudo cargar el ranking de ideas.</span>

@@ -15,6 +15,12 @@ import { OutroBasica } from './themes/OutroBasica';
 import { SubtitlesBasicos } from './themes/SubtitlesBasicos';
 import { TituloSeccion } from './themes/TituloSeccion';
 import { RotuloBasico } from './themes/RotuloBasico';
+import Kit_intro_ia_0_1_0 from './kit/intro-ia@0.1.0/Component';
+import Kit_intro_ia_0_1_1 from './kit/intro-ia@0.1.1/Component';
+import Kit_lower_third_ia_0_1_0 from './kit/lower-third-ia@0.1.0/Component';
+import Kit_outro_ia_0_1_0 from './kit/outro-ia@0.1.0/Component';
+import Kit_rotulo_ejemplo_1_0_0 from './kit/rotulo-ejemplo@1.0.0/Component';
+import Kit_title_card_ia_0_1_0 from './kit/title-card-ia@0.1.0/Component';
 
 export type RegisteredComponent = React.ComponentType<Record<string, unknown>>;
 
@@ -23,15 +29,21 @@ export const componentRegistry: Partial<
 > = {
   intro: {
     'intro-basica@0.1.0': IntroBasica as unknown as RegisteredComponent,
+    'intro-ia@0.1.0': Kit_intro_ia_0_1_0 as unknown as RegisteredComponent,
+    'intro-ia@0.1.1': Kit_intro_ia_0_1_1 as unknown as RegisteredComponent,
   },
   outro: {
     'outro-basica@0.1.0': OutroBasica as unknown as RegisteredComponent,
+    'outro-ia@0.1.0': Kit_outro_ia_0_1_0 as unknown as RegisteredComponent,
   },
   title_card: {
     'titulo-seccion@0.1.0': TituloSeccion as unknown as RegisteredComponent,
+    'title-card-ia@0.1.0': Kit_title_card_ia_0_1_0 as unknown as RegisteredComponent,
   },
   lower_third: {
     'rotulo-basico@0.1.0': RotuloBasico as unknown as RegisteredComponent,
+    'lower-third-ia@0.1.0': Kit_lower_third_ia_0_1_0 as unknown as RegisteredComponent,
+    'rotulo-ejemplo@1.0.0': Kit_rotulo_ejemplo_1_0_0 as unknown as RegisteredComponent,
   },
   subtitle_theme: {
     'subtitulos-basicos@0.1.0': SubtitlesBasicos as unknown as RegisteredComponent,
@@ -45,10 +57,16 @@ export interface KitComponentMeta {
 }
 
 export const componentMeta: Record<string, KitComponentMeta> = {
-  'intro-basica@0.1.0': { fixed_duration_frames: 80 },
-  'outro-basica@0.1.0': { fixed_duration_frames: 90 },
+  'intro-basica@0.1.0': { fixed_duration_frames: 96 },
+  'intro-ia@0.1.0': { fixed_duration_frames: 90 },
+  'intro-ia@0.1.1': { fixed_duration_frames: 90 },
+  'lower-third-ia@0.1.0': {},
+  'outro-basica@0.1.0': { fixed_duration_frames: 120 },
+  'outro-ia@0.1.0': { fixed_duration_frames: 90 },
   'rotulo-basico@0.1.0': {},
+  'rotulo-ejemplo@1.0.0': {},
   'subtitulos-basicos@0.1.0': {},
+  'title-card-ia@0.1.0': {},
   'titulo-seccion@0.1.0': {},
 };
 

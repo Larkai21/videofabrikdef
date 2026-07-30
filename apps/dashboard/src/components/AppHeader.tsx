@@ -84,29 +84,23 @@ export function AppHeader() {
             ))}
           </select>
         ) : null}
-        <nav style={{ display: 'flex', gap: 14, whiteSpace: 'nowrap' }} aria-label="Secciones">
+        <nav className="app-header-nav" aria-label="Secciones">
           {NAV.map((item) => (
             <Link
               key={item.to}
               to={item.to}
               className="nav-link"
-              style={{ whiteSpace: 'nowrap' }}
               aria-current={isActive(item.to) ? 'page' : undefined}
             >
               {item.label}
             </Link>
           ))}
         </nav>
-        <Link
-          to="/wizard"
-          className="nav-link muted fs-sm"
-          style={{ whiteSpace: 'nowrap' }}
-          title="Crear un canal nuevo"
-        >
+        <Link to="/wizard" className="nav-link muted fs-sm" title="Crear un canal nuevo">
           Nuevo canal
         </Link>
         <div style={{ flex: 1 }} />
-        <div className="input-wrap" style={{ flex: '0 1 230px', minWidth: 120 }}>
+        <div className="input-wrap app-header-search" style={{ flex: '0 1 230px', minWidth: 120 }}>
           <span className="muted" style={{ fontSize: 12 }} aria-hidden="true">
             ⌕
           </span>

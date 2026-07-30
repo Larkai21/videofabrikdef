@@ -1,4 +1,4 @@
-import type { ComponentType, MasterVideoJson } from '@fabrica/shared';
+import type { ComponentType, EditType, MasterVideoJson, SfxName } from '@fabrica/shared';
 import { computeChapters } from './chapters';
 import {
   componentMeta,
@@ -54,17 +54,9 @@ export interface TitledKitSlot extends FixedKitSlot {
 // Un efecto de edición situado en la línea de tiempo de frames (ya con el
 // offset de la intro aplicado). Lo produce computeEffectsTrack desde master.edits.
 export interface EffectCue {
-  type:
-    | 'zoom_punch'
-    | 'keyword_highlight'
-    | 'text_callout'
-    | 'stat_card'
-    | 'quote_card'
-    | 'sfx'
-    | 'kinetic_text'
-    | 'stat_odometer'
-    | 'annotation'
-    | 'device_frame';
+  // se deriva de EDIT_TYPES: así añadir un tipo de efecto al contrato rompe
+  // aquí en vez de colarse sin renderer
+  type: EditType;
   from: number;
   durationInFrames: number;
   beatIdx?: number;
@@ -72,7 +64,8 @@ export interface EffectCue {
   value?: string;
   label?: string;
   keyword?: string;
-  sfx?: string;
+  // SfxName y no string: el nivel de volumen se indexa con esto
+  sfx?: SfxName;
   style?: string;
 }
 
@@ -109,13 +102,15 @@ export function computeEffectsTrack(
       type: e.type,
       from: Math.max(0, from),
       durationInFrames: Math.max(1, end - from),
+      // `in` estrecha la unión discriminada sin aserciones: cada campo solo se
+      // copia de los miembros que de verdad lo llevan
       ...(e.beat_idx !== undefined ? { beatIdx: e.beat_idx } : {}),
-      ...(e.text !== undefined ? { text: e.text } : {}),
-      ...(e.value !== undefined ? { value: e.value } : {}),
-      ...(e.label !== undefined ? { label: e.label } : {}),
-      ...(e.keyword !== undefined ? { keyword: e.keyword } : {}),
-      ...(e.sfx !== undefined ? { sfx: e.sfx } : {}),
-      ...(e.style !== undefined ? { style: e.style } : {}),
+      ...('text' in e && e.text !== undefined ? { text: e.text } : {}),
+      ...('value' in e && e.value !== undefined ? { value: e.value } : {}),
+      ...('label' in e && e.label !== undefined ? { label: e.label } : {}),
+      ...('keyword' in e ? { keyword: e.keyword } : {}),
+      ...('sfx' in e ? { sfx: e.sfx } : {}),
+      ...('style' in e && e.style !== undefined ? { style: e.style } : {}),
     };
   });
 }

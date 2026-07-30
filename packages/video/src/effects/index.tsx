@@ -3,7 +3,7 @@ import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remo
 import { defaultDesign, hexToRgba, type DesignTokens } from '@fabrica/shared';
 import { displayText, FONT_FAMILY } from '../fonts';
 import { hashSeed } from '../seed';
-import { clamp, Ease, noise, pulse, span, typed } from './motion';
+import { clamp, Ease, mix, noise, pulse, span, typed } from './motion';
 
 // Biblioteca de efectos de edición: overlays deterministas que el director de
 // edición coloca en la línea de tiempo para que el vídeo se sienta editado. Cada
@@ -34,7 +34,7 @@ function useInOut(opts?: { enterFrames?: number; exitFrames?: number }): {
 
 // Superficie "liquid glass" compartida por las tarjetas: blur, borde sutil (o de
 // acento) y un brillo interior en el canto superior que da el look de cristal.
-function glassSurface(d: DesignTokens, opts?: { accent?: boolean }): React.CSSProperties {
+export function glassSurface(d: DesignTokens, opts?: { accent?: boolean }): React.CSSProperties {
   return {
     background: hexToRgba(d.background, 0.7),
     backdropFilter: 'blur(12px)',
@@ -443,7 +443,7 @@ export const DeviceFrame: React.FC<{ text: string; style?: string; design?: Desi
 // ---- Anotación dibujada a mano (círculo/subrayado/flecha) -------------------
 // El temblor "hecho a mano" sale de noise(hash), no de Math.random, para que dos
 // renders del mismo frame sean idénticos. Adaptado de editor-youtube anotacion.html.
-const ANNOTATION_SHAPES = ['circle', 'underline', 'arrow'] as const;
+const ANNOTATION_SHAPES = ['circle', 'underline', 'arrow', 'strike', 'check'] as const;
 type AnnotationShape = (typeof ANNOTATION_SHAPES)[number];
 
 function circlePath(cx: number, cy: number, rx: number, ry: number, seed: number): string {
@@ -471,6 +471,34 @@ function underlinePath(x0: number, x1: number, y: number, seed: number): string 
   return pts.join(' ');
 }
 
+// Tachado: como el subrayado pero cruzando el elemento y con inclinación, que es
+// lo que distingue «esto está mal» de «esto es importante».
+function strikePath(x0: number, x1: number, y: number, seed: number): string {
+  const N = 18;
+  const pts: string[] = [];
+  const caida = 26; // el trazo baja de izquierda a derecha, como a mano
+  for (let i = 0; i <= N; i++) {
+    const p = i / N;
+    const x = x0 + (x1 - x0) * p;
+    const jy = (noise(i, seed) - 0.5) * 10 + (p - 0.5) * caida;
+    pts.push(`${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${(y + jy).toFixed(1)}`);
+  }
+  return pts.join(' ');
+}
+
+// Visto: dos trazos, el corto bajando y el largo subiendo. Se dibuja en orden,
+// así que con strokeDashoffset sale como si lo trazara una mano.
+function checkPath(cx: number, cy: number, size: number, seed: number): string {
+  const w = (noise(1, seed) - 0.5) * 12;
+  const x0 = cx - size * 0.55;
+  const y0 = cy;
+  const x1 = cx - size * 0.15 + w * 0.3;
+  const y1 = cy + size * 0.42;
+  const x2 = cx + size * 0.6;
+  const y2 = cy - size * 0.5 + w;
+  return `M ${x0.toFixed(1)} ${y0.toFixed(1)} L ${x1.toFixed(1)} ${y1.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+}
+
 function arrowPath(x0: number, y0: number, x1: number, y1: number, seed: number): string {
   const midx = (x0 + x1) / 2 + (noise(1, seed) - 0.5) * 40;
   const midy = (y0 + y1) / 2 + (noise(2, seed) - 0.5) * 40;
@@ -484,6 +512,99 @@ function arrowPath(x0: number, y0: number, x1: number, y1: number, seed: number)
     `M ${x1} ${y1} L ${(x1 + Math.cos(a2) * hl).toFixed(1)} ${(y1 + Math.sin(a2) * hl).toFixed(1)}`
   );
 }
+
+// Micro-FX: acento gráfico de menos de segundo y medio anclado a UNA palabra
+// pronunciada (catálogo en @fabrica/shared micro-fx.ts). No es una tarjeta: no
+// ocupa el centro ni tapa el b-roll, entra por una esquina alta y se va.
+// Determinismo: todo sale de span/pulse sobre useCurrentFrame.
+const MICRO_SHAPES = ['spark_up', 'spark_down', 'padlock', 'timer'] as const;
+type MicroShape = (typeof MICRO_SHAPES)[number];
+
+export const MicroFx: React.FC<{ shape?: string; design?: DesignTokens }> = ({ shape, design }) => {
+  const d = design ?? defaultDesign();
+  const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
+  const { opacity, pop } = useInOut({ enterFrames: 8, exitFrames: 8 });
+  const kind: MicroShape = (MICRO_SHAPES as readonly string[]).includes(shape ?? '')
+    ? (shape as MicroShape)
+    : 'spark_up';
+
+  // el trazo se dibuja en el primer tercio; luego se sostiene
+  const drawFrames = Math.max(5, Math.round(durationInFrames * 0.35));
+  const draw = span(frame, 0, drawFrames, Ease.outExpo);
+
+  const sube = kind === 'spark_up';
+  const color = kind === 'spark_down' ? '#ff6b6b' : kind === 'spark_up' ? '#3ddc84' : d.accent;
+
+  // ancla arriba a la derecha: no compite con las tarjetas (centro) ni con los
+  // subtítulos (abajo)
+  const cx = 1580;
+  const cy = 240;
+
+  return (
+    <AbsoluteFill style={{ pointerEvents: 'none' }}>
+      <svg viewBox="0 0 1920 1080" width="100%" height="100%" style={{ position: 'absolute', inset: 0, opacity }}>
+        <g transform={`translate(${cx} ${cy}) scale(${mix(0.7, 1, clamp(pop, 0, 1.2))})`}>
+          {kind === 'spark_up' || kind === 'spark_down' ? (
+            <>
+              <path
+                d={sube ? 'M -110 70 L -30 10 L 30 45 L 110 -70' : 'M -110 -70 L -30 -10 L 30 -45 L 110 70'}
+                pathLength={1}
+                fill="none"
+                stroke={color}
+                strokeWidth={12}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray={1}
+                strokeDashoffset={1 - draw}
+              />
+              {/* punta de flecha, entra cuando el trazo ya ha llegado */}
+              <path
+                d={sube ? 'M 110 -70 L 60 -62 M 110 -70 L 102 -20' : 'M 110 70 L 60 62 M 110 70 L 102 20'}
+                fill="none"
+                stroke={color}
+                strokeWidth={12}
+                strokeLinecap="round"
+                opacity={clamp(span(frame, drawFrames * 0.8, 6), 0, 1)}
+              />
+            </>
+          ) : kind === 'padlock' ? (
+            <>
+              {/* arco que salta al abrirse: el gesto ES la apertura */}
+              <path
+                d="M -46 -20 A 46 46 0 0 1 46 -20"
+                fill="none"
+                stroke={color}
+                strokeWidth={12}
+                strokeLinecap="round"
+                transform={`translate(${mix(0, 26, draw).toFixed(1)} ${mix(0, -22, draw).toFixed(1)}) rotate(${mix(0, 22, draw).toFixed(1)})`}
+              />
+              <rect x={-58} y={-20} width={116} height={92} rx={14} fill={color} opacity={0.92} />
+            </>
+          ) : (
+            <>
+              {/* anillo que se vacía en sentido horario */}
+              <circle cx={0} cy={0} r={62} fill="none" stroke={hexToRgba(d.foreground, 0.25)} strokeWidth={12} />
+              <circle
+                cx={0}
+                cy={0}
+                r={62}
+                fill="none"
+                stroke={color}
+                strokeWidth={12}
+                strokeLinecap="round"
+                pathLength={1}
+                strokeDasharray={1}
+                strokeDashoffset={span(frame, 0, durationInFrames, Ease.linear)}
+                transform="rotate(-90)"
+              />
+            </>
+          )}
+        </g>
+      </svg>
+    </AbsoluteFill>
+  );
+};
 
 export const Annotation: React.FC<{
   shape?: string;
@@ -507,9 +628,16 @@ export const Annotation: React.FC<{
       ? circlePath(960, 470, 320, 210, seed)
       : kind === 'underline'
         ? underlinePath(620, 1300, 650, seed)
-        : arrowPath(560, 820, 900, 540, seed);
+        : kind === 'strike'
+          ? strikePath(620, 1300, 520, seed)
+          : kind === 'check'
+            ? checkPath(960, 470, 190, seed)
+            : arrowPath(560, 820, 900, 540, seed);
   // etiqueta opcional sobre la marca
-  const labelTop = kind === 'underline' ? 500 : kind === 'arrow' ? 700 : 210;
+  const labelTop =
+    kind === 'underline' ? 500 : kind === 'arrow' ? 700 : kind === 'strike' ? 380 : 210;
+  // el visto va en verde de acierto, no en el acento de marca: es semántico
+  const stroke = kind === 'check' ? '#3ddc84' : d.accent;
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
@@ -523,7 +651,7 @@ export const Annotation: React.FC<{
           d={path}
           pathLength={1}
           fill="none"
-          stroke={d.accent}
+          stroke={stroke}
           strokeWidth={13}
           strokeLinecap="round"
           strokeLinejoin="round"

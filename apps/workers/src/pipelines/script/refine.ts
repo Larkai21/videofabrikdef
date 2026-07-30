@@ -3,6 +3,7 @@ import { channels, videos } from '@fabrica/db';
 import { QUEUES, type MasterVideoJson, type Scene, type ScriptRefineJob } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
 import { refineOutputSchema } from './generate.js';
+import { keepValidIntents } from './intents.js';
 import { ledgeredLlmJson } from './llm-call.js';
 import { refineSystem } from './prompts.js';
 import { countWords } from './wordcount.js';
@@ -64,9 +65,18 @@ export async function handleScriptRefine(
   const newTexts = new Map(result.scenes.map((s) => [s.id, s.text]));
   const scenes = script.scenes.map((s) => {
     const text = newTexts.get(s.id);
-    return text && targetIds.has(s.id) ? { ...s, text } : s;
+    // el parche puede haber quitado la palabra a la que apuntaba un efecto
+    return text && targetIds.has(s.id) ? { ...s, text, ...keepValidIntents(s, text) } : s;
   });
-  const master: MasterVideoJson = { ...video.master, script: { ...script, scenes } };
+  // La revisión queda obsoleta: el guion que juzgó ya no es este. Marcarla evita
+  // que el fingerprint la dé por buena, y que refine y judge se llamen en bucle.
+  const master: MasterVideoJson = {
+    ...video.master,
+    script: { ...script, scenes },
+    ...(video.master.script_review
+      ? { script_review: { ...video.master.script_review, stale: true } }
+      : {}),
+  };
   // escritura condicionada al estado: si el humano aprobó mientras el LLM
   // trabajaba, el guion aprobado no se pisa (puerta 2 intocable)
   const updated = await ctx.db

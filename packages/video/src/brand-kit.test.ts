@@ -11,6 +11,7 @@ import {
   kitViewFrom,
   type KitView,
 } from './brand-kit';
+import { INTRO_BASICA_DURATION_FRAMES, OUTRO_BASICA_DURATION_FRAMES } from './registry-gen';
 
 // Maestro de demo (INTOCABLE en shared): 4 beats de 43 000 ms → 1290 frames a
 // 30 fps. Los fixtures de intro/outro/title_card/lower_third se registran en
@@ -123,9 +124,13 @@ describe('computeBrandKitLayout', () => {
     const layout = computeBrandKitLayout(
       masterWithKit({ intro: 'intro-basica@0.1.0', outro: 'outro-basica@0.1.0' }),
     );
-    expect(layout.introFrames).toBe(80);
-    expect(layout.outroFrames).toBe(90);
-    expect(layout.totalFrames).toBe(80 + BASE_FRAMES + 90);
+    // contra las constantes, no contra literales: así este test comprueba que
+    // registry.generated.ts se regeneró tras cambiarlas, en vez de romperse
+    expect(layout.introFrames).toBe(INTRO_BASICA_DURATION_FRAMES);
+    expect(layout.outroFrames).toBe(OUTRO_BASICA_DURATION_FRAMES);
+    expect(layout.totalFrames).toBe(
+      INTRO_BASICA_DURATION_FRAMES + BASE_FRAMES + OUTRO_BASICA_DURATION_FRAMES,
+    );
   });
 
   it('monta el title_card al inicio del hook con el título elegido', () => {
@@ -211,7 +216,7 @@ describe('computeEffectsTrack', () => {
       { type: 'stat_card', from_ms: 2000, to_ms: 4000, beat_idx: 0, value: '70%', label: 'x' },
       { type: 'sfx', from_ms: 0, to_ms: 1000, sfx: 'riser' },
     ];
-    // offset de intro = 80 frames (intro-basica), 30 fps
+    // offset de intro arbitrario de 80 frames (no el de ningún integrado), 30 fps
     const effects = computeEffectsTrack(master, 30, 80);
     expect(effects[0]).toEqual({
       type: 'stat_card',

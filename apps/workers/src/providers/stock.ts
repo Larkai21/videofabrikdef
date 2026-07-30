@@ -1,8 +1,8 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import type pino from 'pino';
-import { stockCache, type Db } from '@fabrica/db';
-import { STOCK_CACHE_TTL_H } from '@fabrica/shared';
+import { captionCache, stockCache, type Db } from '@fabrica/db';
+import { STOCK_CACHE_TTL_H, stockRef } from '@fabrica/shared';
 import { closeCost, failCost, openCost } from '../lib/ledger.js';
 
 // Búsqueda de stock (docs/assets-y-biblioteca.md §3): Pexels (vídeos y fotos)
@@ -88,7 +88,7 @@ function parsePexels(videosJson: unknown, photosJson: unknown): StockResult[] {
     const file = bestPexelsFile(files);
     if (!file?.link) continue;
     out.push({
-      ref: `pexels:video:${String(v.id)}`,
+      ref: stockRef('pexels', 'clip', String(v.id)),
       provider: 'pexels',
       thumb_url: String(v.image ?? ''),
       meta: {
@@ -107,7 +107,7 @@ function parsePexels(videosJson: unknown, photosJson: unknown): StockResult[] {
     const download = src.large2x ?? src.original;
     if (!download) continue;
     out.push({
-      ref: `pexels:photo:${String(p.id)}`,
+      ref: stockRef('pexels', 'image', String(p.id)),
       provider: 'pexels',
       thumb_url: src.medium ?? download,
       meta: {
@@ -133,7 +133,7 @@ function parsePixabay(json: unknown): StockResult[] {
     const thumb =
       variants.medium?.thumbnail ?? variants.small?.thumbnail ?? preferred.thumbnail ?? '';
     out.push({
-      ref: `pixabay:video:${String(hit.id)}`,
+      ref: stockRef('pixabay', 'clip', String(hit.id)),
       provider: 'pixabay',
       thumb_url: thumb,
       meta: {
@@ -238,14 +238,32 @@ export async function searchStock(
   return [...pexels, ...pixabay];
 }
 
-// Persiste el caption VLM dentro del resultado cacheado para no recaptionar
-// la misma miniatura en búsquedas futuras.
+/**
+ * Descripciones ya pagadas de estas miniaturas, indexadas POR IMAGEN.
+ *
+ * La descripción es de la imagen, no de la consulta que la encontró: cachearla
+ * por consulta hacía que la misma miniatura se describiera otra vez al salir en
+ * otra búsqueda. Medido antes del cambio: 1208 descripciones para 850 imágenes.
+ */
+export async function captionsByRef(db: Db, refs: string[]): Promise<Map<string, string>> {
+  if (refs.length === 0) return new Map();
+  const rows = await db
+    .select({ ref: captionCache.ref, caption: captionCache.caption })
+    .from(captionCache)
+    .where(inArray(captionCache.ref, refs));
+  return new Map(rows.map((r) => [r.ref, r.caption]));
+}
+
+// Persiste el caption VLM: en caption_cache por imagen (la fuente de verdad) y
+// dentro del resultado cacheado de esta consulta, que es de donde lo lee el
+// scoring sin volver a consultar.
 export async function cacheCaption(
   db: Db,
   query: string,
   ref: string,
   caption: string,
 ): Promise<void> {
+  await db.insert(captionCache).values({ ref, caption }).onConflictDoNothing();
   const provider = ref.startsWith('pixabay:') ? 'pixabay' : 'pexels';
   const queryNorm = normalizeQuery(query);
   const [row] = await db

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { generateRegistrySource, kitDirName, kitIdentifier } from './registry-gen';
+import {
+  INTRO_BASICA_DURATION_FRAMES,
+  OUTRO_BASICA_DURATION_FRAMES,
+  generateRegistrySource,
+  kitDirName,
+  kitIdentifier,
+} from './registry-gen';
 
 describe('generateRegistrySource', () => {
   it('sin entradas emite solo los integrados', () => {
@@ -15,8 +21,14 @@ describe('generateRegistrySource', () => {
   it('emite el mapa de metadatos con las duraciones fijas de los integrados', () => {
     const src = generateRegistrySource([]);
     expect(src).toContain('export const componentMeta');
-    expect(src).toContain("'intro-basica@0.1.0': { fixed_duration_frames: 80 },");
-    expect(src).toContain("'outro-basica@0.1.0': { fixed_duration_frames: 90 },");
+    // se leen de las constantes: si no, cambiar una duración obliga a tocar el
+    // test y es fácil olvidar regenerar el registry
+    expect(src).toContain(
+      `'intro-basica@0.1.0': { fixed_duration_frames: ${INTRO_BASICA_DURATION_FRAMES} },`,
+    );
+    expect(src).toContain(
+      `'outro-basica@0.1.0': { fixed_duration_frames: ${OUTRO_BASICA_DURATION_FRAMES} },`,
+    );
     expect(src).toContain("'subtitulos-basicos@0.1.0': {},");
   });
 

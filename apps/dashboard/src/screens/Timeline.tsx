@@ -1,12 +1,26 @@
-import type { BeatCandidate, BeatStatus } from '@fabrica/shared';
+import { editPayloadText, type BeatCandidate, type BeatStatus, type EditType } from '@fabrica/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Player, type PlayerRef } from '@remotion/player';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Button, Chip, CostBadge, Kbd, ProgressBar, ReasonModal, type ChipKind, type Motivo } from '../components/ui';
+import {
+  Button,
+  Chip,
+  CostBadge,
+  Kbd,
+  ProgressBar,
+  ReasonModal,
+  ThumbPlaceholder,
+  VisorMedia,
+  type ChipKind,
+  type Motivo,
+  type VisorDato,
+  type VisorMediaSource,
+} from '../components/ui';
 import {
   approveTimeline,
   beatAction,
+  fileUrl,
   getTimeline,
   removeEdits,
   getVideo,
@@ -21,12 +35,20 @@ import { useToasts } from '../lib/toasts';
 const FPS = 30;
 
 // Etiquetas de los efectos de edición para el panel de curación.
-const EDIT_LABELS: Record<string, string> = {
+// Record<EditType, …> y no Record<string, …>: así añadir un tipo de efecto al
+// contrato obliga a darle nombre humano aquí, en vez de que el panel de curación
+// enseñe el identificador crudo (que es lo que pasaba con cuatro de ellos).
+const EDIT_LABELS: Record<EditType, string> = {
   zoom_punch: 'Zoom',
-  keyword_highlight: 'Keyword',
-  text_callout: 'Callout',
+  keyword_highlight: 'Palabra resaltada',
+  text_callout: 'Etiqueta',
   stat_card: 'Tarjeta de dato',
+  stat_odometer: 'Contador',
   quote_card: 'Cita',
+  kinetic_text: 'Tipografía cinética',
+  annotation: 'Marca a mano',
+  device_frame: 'Marco de navegador',
+  micro_fx: 'Acento',
   sfx: 'Sonido',
 };
 
@@ -82,6 +104,116 @@ function candidateTitle(candidate: BeatCandidate): string {
   return `${candidate.provider} · ${candidate.ref}`;
 }
 
+function metaStr(candidate: BeatCandidate, key: string): string | null {
+  const v = candidate.meta?.[key];
+  return typeof v === 'string' && v !== '' ? v : null;
+}
+
+function metaNum(candidate: BeatCandidate, key: string): number {
+  return Number(candidate.meta?.[key] ?? 0);
+}
+
+/**
+ * De dónde sale la previsualización de un candidato y qué elemento la pinta.
+ *
+ * - `meta.kind` manda sobre el tipo: lo rellenan los tres proveedores.
+ * - La fuente es `meta.download_url` (stock, https absoluto) o `preview_url`
+ *   (biblioteca y flux, que la API deriva de meta.path). NUNCA `meta.path`:
+ *   es ruta de disco y acabaría en un 404.
+ * - Sin fuente, la miniatura sirve de imagen; sin nada, no hay previsualización.
+ */
+function candidatePreview(candidate: BeatCandidate): VisorMediaSource | null {
+  const src = metaStr(candidate, 'download_url') ?? candidate.preview_url ?? null;
+  const poster =
+    candidate.thumb_url !== undefined && candidate.thumb_url !== ''
+      ? fileUrl(candidate.thumb_url)
+      : undefined;
+  if (src === null) return poster !== undefined ? { kind: 'image', src: poster } : null;
+  const kind = metaStr(candidate, 'kind') ?? (candidate.provider === 'flux' ? 'image' : 'clip');
+  if (kind === 'clip') {
+    return { kind: 'video', src: fileUrl(src), ...(poster !== undefined ? { poster } : {}) };
+  }
+  return { kind: 'image', src: fileUrl(src) };
+}
+
+/**
+ * Filas de datos del visor. La de «encaje» es la que de verdad decide: replica
+ * en texto lo que hará provisionalFit en la API al elegir el candidato.
+ */
+function datosCandidato(
+  origen: 'alternativa' | 'stock',
+  cand: BeatCandidate,
+  beat: { from_ms: number; to_ms: number },
+): VisorDato[] {
+  const datos: VisorDato[] = [
+    { label: 'Origen', value: <span className="mono">{cand.provider}</span> },
+    { label: 'Licencia', value: providerLicense(cand) },
+  ];
+
+  const kind = metaStr(cand, 'kind') ?? (cand.provider === 'flux' ? 'image' : 'clip');
+  const w = metaNum(cand, 'width');
+  const h = metaNum(cand, 'height');
+  const durMs = metaNum(cand, 'duration_ms');
+  const formato = [
+    kind === 'clip' ? 'Clip' : 'Imagen',
+    w > 0 && h > 0 ? `${w}×${h}` : null,
+    durMs > 0 ? fmtClock(durMs) : null,
+  ]
+    .filter((x) => x !== null)
+    .join(' · ');
+  datos.push({ label: 'Formato', value: <span className="mono">{formato}</span> });
+
+  // la búsqueda libre de stock no pasa por embeddings: su score es siempre 0 y
+  // mostrarlo sería engañoso
+  if (origen !== 'stock') {
+    datos.push({ label: 'Similitud con el beat', value: <BarraSimilitud value={cand.score} /> });
+  }
+
+  const beatMs = beat.to_ms - beat.from_ms;
+  if (kind === 'image') {
+    datos.push({ label: 'Encaje', value: `Imagen fija: se anima con Ken Burns durante ${fmtClock(beatMs)}` });
+  } else if (durMs > 0 && beatMs > 0) {
+    datos.push({
+      label: 'Encaje',
+      value:
+        durMs >= beatMs
+          ? `Sobra metraje: se recorta al centro (${fmtClock(beatMs)} de ${fmtClock(durMs)})`
+          : `Más corto que el beat: se repetirá ${Math.min(3, Math.ceil(beatMs / durMs))} veces`,
+    });
+  }
+
+  return datos;
+}
+
+/** Barra de similitud del panel de curación, compartida con el visor. */
+function BarraSimilitud({ value }: { value: number | null }) {
+  if (value === null) return <span className="mono">—</span>;
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      <span
+        style={{
+          width: 66,
+          height: 5,
+          borderRadius: 999,
+          background: 'var(--bg3)',
+          overflow: 'hidden',
+          display: 'inline-block',
+        }}
+      >
+        <span
+          style={{
+            display: 'block',
+            height: '100%',
+            width: `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`,
+            background: value >= 0.75 ? 'var(--ok)' : 'var(--warn)',
+          }}
+        />
+      </span>
+      <span className="mono">{fmtSim(value)}</span>
+    </span>
+  );
+}
+
 // posición de reproducción como estado LOCAL: solo re-renderizan estas hojas.
 // introFrames descuenta la intro del brand kit y maxMs acota la outro: el
 // reloj y la aguja miden la línea temporal del AUDIO (la ley), nunca más.
@@ -116,10 +248,10 @@ function ClockAndScrub({
       <div
         style={{
           flex: 1,
-          height: 3,
-          background: 'rgba(255,255,255,.2)',
-          borderRadius: 999,
-          overflow: 'hidden',
+          // La pista se ve de 3px pero se pulsa en 16px: apuntar a una franja
+          // de 3px exige precisión de píxel.
+          paddingTop: 7,
+          paddingBottom: 6,
           cursor: 'pointer',
         }}
         onClick={(e) => {
@@ -127,14 +259,40 @@ function ClockAndScrub({
           const ratio = (e.clientX - rect.left) / rect.width;
           onSeek(ratio * durationMs);
         }}
+        onKeyDown={(e) => {
+          const paso = e.shiftKey ? 1000 : 5000;
+          let next: number | null = null;
+          if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = currentMs + paso;
+          else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = currentMs - paso;
+          else if (e.key === 'Home') next = 0;
+          else if (e.key === 'End') next = durationMs;
+          if (next === null) return;
+          e.preventDefault();
+          // Con el scrubber enfocado las flechas buscan posición; sin él, el
+          // atajo global sigue navegando entre beats.
+          e.stopPropagation();
+          onSeek(Math.max(0, Math.min(durationMs, next)));
+        }}
         role="slider"
         aria-label="Posición de reproducción"
         aria-valuemin={0}
         aria-valuemax={Math.round(durationMs / 1000)}
         aria-valuenow={Math.round(currentMs / 1000)}
+        aria-valuetext={`${fmtClock(currentMs)} de ${fmtClock(durationMs)}`}
         tabIndex={0}
       >
-        <div style={{ width: `${pct(currentMs, durationMs)}%`, height: '100%', background: '#fff' }} />
+        <div
+          style={{
+            height: 3,
+            background: 'rgba(255,255,255,.2)',
+            borderRadius: 999,
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{ width: `${pct(currentMs, durationMs)}%`, height: '100%', background: '#fff' }}
+          />
+        </div>
       </div>
     </>
   );
@@ -248,6 +406,9 @@ export function Timeline() {
   const selectBeat = (idx: number) => {
     setSelIdx(idx);
     setAltsOpen(false);
+    // sin esto se podría confirmar el visor contra un beat que ya no es el
+    // seleccionado
+    setVisor(null);
     const beat = beats.find((b) => b.idx === idx);
     if (beat !== undefined) seekToMs(beat.from_ms + 1);
   };
@@ -322,6 +483,15 @@ export function Timeline() {
 
   // Alternativas, stock y descarte
   const [altsOpen, setAltsOpen] = useState(false);
+  // Candidato abierto en el visor. El origen decide si al confirmar hay que
+  // mandar el candidato entero: los de stock no viven en beats.candidates y el
+  // servidor los exige en el cuerpo; los de la rejilla se resuelven por ref.
+  const [visor, setVisor] = useState<{ origen: 'alternativa' | 'stock'; cand: BeatCandidate } | null>(
+    null,
+  );
+  // Plegado por defecto: la lista de efectos vive entre el player y la pista de
+  // clips, y con muchos efectos empujaba la timeline fuera de pantalla.
+  const [editsOpen, setEditsOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [stockQ, setStockQ] = useState('');
   const debouncedQ = useDebounced(stockQ.trim(), 350);
@@ -357,17 +527,34 @@ export function Timeline() {
 
   const chosenCandidate =
     sel?.candidates?.find((c) => c.ref === sel.asset?.id) ?? sel?.candidates?.[0];
+  // 6 y no 3: los candidatos ocultos ya están puntuados y descargados en el
+  // maestro, no cuestan ni una llamada, y 6 es hasta donde llegan los atajos.
   const alternatives = (sel?.candidates ?? [])
     .filter((c) => c.ref !== chosenCandidate?.ref)
-    .slice(0, 3);
+    .slice(0, 6);
+
+  // Para el clip ya elegido manda el archivo descargado (asset.path), que es lo
+  // que se va a renderizar; la miniatura del proveedor es solo el respaldo.
+  const elegido: VisorMediaSource | null =
+    sel?.asset?.path !== undefined && sel.asset.path !== ''
+      ? {
+          kind: sel.asset.kind === 'image' ? 'image' : 'video',
+          src: fileUrl(sel.asset.path),
+          ...(chosenCandidate?.thumb_url ? { poster: fileUrl(chosenCandidate.thumb_url) } : {}),
+        }
+      : chosenCandidate !== undefined
+        ? candidatePreview(chosenCandidate)
+        : null;
 
   const allReady = beats.length > 0 && pendientes.length === 0;
   const canApproveTimeline = allReady && video?.state === 'assets' && !approveTlMut.isPending;
 
   useHotkeys((e) => {
     // con un modal abierto los atajos globales se apagan (el modal gestiona
-    // su propio teclado)
-    if (discardOpen) return;
+    // su propio teclado). El visor entra aquí porque useHotkeys solo se calla
+    // dentro de input/textarea/select: sin esta guarda, «espacio» con el visor
+    // abierto reproduciría a la vez su vídeo y el player de detrás.
+    if (discardOpen || visor !== null) return;
     const k = e.key.toLowerCase();
     if (k === 'a') {
       e.preventDefault();
@@ -391,13 +578,12 @@ export function Timeline() {
     } else if (k === 'n') {
       e.preventDefault();
       nextPending();
-    } else if (['1', '2', '3'].includes(k) && altsOpen && sel !== undefined) {
+    } else if (/^[1-6]$/.test(k) && altsOpen && sel !== undefined) {
       e.preventDefault();
+      // abre el visor en vez de sustituir a ciegas: mismo gesto que el ratón,
+      // y con el foco puesto en «Usar esta» basta Enter para confirmar
       const alt = alternatives[Number(k) - 1];
-      if (alt !== undefined) {
-        actionMut.mutate({ idx: sel.idx, action: 'choose', ref: alt.ref });
-        setAltsOpen(false);
-      }
+      if (alt !== undefined) setVisor({ origen: 'alternativa', cand: alt });
     }
   });
 
@@ -502,13 +688,10 @@ export function Timeline() {
       </div>
 
       <div
-        className="wrap-1420"
+        className="wrap-1420 split-side"
         style={{
           padding: 'calc(var(--pad) * 1.5) 26px 60px',
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) 372px',
           gap: 'calc(var(--gap) * 1.6)',
-          alignItems: 'start',
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
@@ -589,10 +772,35 @@ export function Timeline() {
           {/* Efectos de edición (auto): revisables y se pueden quitar antes de aprobar */}
           {edits.length > 0 ? (
             <div className="card" style={{ padding: 'var(--pad)', marginBottom: 'var(--gap)' }}>
-              <div className="muted fs-sm" style={{ marginBottom: 8 }}>
-                Efectos de edición · {edits.length} · se ven en la preview; quítalos si sobran
-              </div>
-              <div style={{ display: 'grid', gap: 6 }}>
+              <button
+                type="button"
+                className="disclosure"
+                aria-expanded={editsOpen}
+                aria-controls="efectos-edicion"
+                onClick={() => setEditsOpen((v) => !v)}
+              >
+                <svg
+                  className="disclosure-caret"
+                  viewBox="0 0 10 10"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M3.5 1.5 L7 5 L3.5 8.5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <span className="muted fs-sm">
+                  Efectos de edición · {edits.length} · se ven en la preview; quítalos si sobran
+                </span>
+              </button>
+              {/* se mantiene montado y se oculta con hidden: así aria-controls
+                  apunta siempre a un elemento real */}
+              <div id="efectos-edicion" hidden={!editsOpen}>
+              <div className="efectos-lista">
                 {edits.map((e, i) => (
                   <div
                     key={i}
@@ -607,8 +815,8 @@ export function Timeline() {
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       <span className="mono muted">{fmtClock(e.from_ms)}</span>{' '}
                       <strong>{EDIT_LABELS[e.type] ?? e.type}</strong>
-                      {e.text ?? e.value ?? e.keyword ?? e.sfx ? (
-                        <span className="muted"> · {e.text ?? e.value ?? e.keyword ?? e.sfx}</span>
+                      {editPayloadText(e) !== undefined ? (
+                        <span className="muted"> · {editPayloadText(e)}</span>
                       ) : null}
                     </span>
                     <Button
@@ -621,11 +829,12 @@ export function Timeline() {
                   </div>
                 ))}
               </div>
-              {tlState !== 'assets' ? (
-                <div className="muted fs-sm" style={{ marginTop: 8 }}>
-                  Los efectos ya se congelaron (solo se editan durante la curación).
-                </div>
-              ) : null}
+                {tlState !== 'assets' ? (
+                  <div className="muted fs-sm" style={{ marginTop: 8 }}>
+                    Los efectos ya se congelaron (solo se editan durante la curación).
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
@@ -790,6 +999,9 @@ export function Timeline() {
                 <Kbd>← →</Kbd> moverse
               </span>
               <span>
+                <Kbd>1</Kbd>–<Kbd>6</Kbd> previsualizar alternativa
+              </span>
+              <span>
                 <Kbd>d</Kbd> descartar con motivo
               </span>
               <div style={{ flex: 1 }} />
@@ -811,19 +1023,7 @@ export function Timeline() {
           className="card"
           style={{ position: 'sticky', top: 'calc(var(--row) * 2 + 18px)', overflow: 'hidden' }}
         >
-          {chosenCandidate?.thumb_url !== undefined && chosenCandidate.thumb_url !== '' ? (
-            <img
-              src={chosenCandidate.thumb_url}
-              alt={sel !== undefined ? `Candidato del beat ${sel.idx + 1}` : 'Candidato'}
-              style={{
-                width: '100%',
-                aspectRatio: '16 / 9',
-                objectFit: 'cover',
-                display: 'block',
-                borderBottom: '1px solid var(--line)',
-              }}
-            />
-          ) : (
+          {elegido === null ? (
             <div
               className="thumb-ph"
               style={{
@@ -851,6 +1051,35 @@ export function Timeline() {
                 sin miniatura · 1920 × 1080
               </span>
             </div>
+          ) : elegido.kind === 'video' ? (
+            <video
+              src={elegido.src}
+              poster={elegido.poster}
+              controls
+              preload="metadata"
+              playsInline
+              aria-label={sel !== undefined ? `Clip del beat ${sel.idx + 1}` : 'Clip elegido'}
+              style={{
+                width: '100%',
+                aspectRatio: '16 / 9',
+                objectFit: 'cover',
+                display: 'block',
+                background: '#000',
+                borderBottom: '1px solid var(--line)',
+              }}
+            />
+          ) : (
+            <img
+              src={elegido.src}
+              alt={sel !== undefined ? `Candidato del beat ${sel.idx + 1}` : 'Candidato'}
+              style={{
+                width: '100%',
+                aspectRatio: '16 / 9',
+                objectFit: 'cover',
+                display: 'block',
+                borderBottom: '1px solid var(--line)',
+              }}
+            />
           )}
 
           {sel === undefined ? (
@@ -911,36 +1140,7 @@ export function Timeline() {
                   }}
                 >
                   <span className="muted">Similitud con el beat</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {(() => {
-                      const sim = sel.chosen_score ?? chosenCandidate?.score ?? null;
-                      if (sim === null) return <span className="mono">—</span>;
-                      return (
-                        <>
-                          <span
-                            style={{
-                              width: 66,
-                              height: 5,
-                              borderRadius: 999,
-                              background: 'var(--bg3)',
-                              overflow: 'hidden',
-                              display: 'inline-block',
-                            }}
-                          >
-                            <span
-                              style={{
-                                display: 'block',
-                                height: '100%',
-                                width: `${Math.round(sim * 100)}%`,
-                                background: sim >= 0.75 ? 'var(--ok)' : 'var(--warn)',
-                              }}
-                            />
-                          </span>
-                          <span className="mono">{fmtSim(sim)}</span>
-                        </>
-                      );
-                    })()}
-                  </span>
+                  <BarraSimilitud value={sel.chosen_score ?? chosenCandidate?.score ?? null} />
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                   <span className="muted">Estado</span>
@@ -967,50 +1167,74 @@ export function Timeline() {
                   Alternativas ({alternatives.length})
                 </Button>
                 {altsOpen ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-                    {alternatives.map((alt, i) => (
-                      <button
-                        key={alt.ref}
-                        type="button"
-                        onClick={() => {
-                          actionMut.mutate({ idx: sel.idx, action: 'choose', ref: alt.ref });
-                          setAltsOpen(false);
-                        }}
-                        style={{
-                          border: '1px solid var(--line)',
-                          borderRadius: 'var(--r-sm)',
-                          overflow: 'hidden',
-                          background: 'var(--bg2)',
-                          padding: 0,
-                          textAlign: 'left',
-                          cursor: 'pointer',
-                        }}
-                        aria-label={`Elegir alternativa ${i + 1} · similitud ${fmtSim(alt.score)}`}
-                      >
-                        {alt.thumb_url !== undefined && alt.thumb_url !== '' ? (
-                          <img
-                            src={alt.thumb_url}
-                            alt=""
-                            style={{ width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', display: 'block' }}
-                          />
-                        ) : (
-                          <div className="thumb-ph" style={{ aspectRatio: '16 / 9', border: 'none', borderRadius: 0 }} />
-                        )}
-                        <div
-                          className="mono"
+                  // 2 columnas y no 3: en 380px de lateral pasa cada miniatura
+                  // de ~111×62 a ~176×99, que ya deja juzgar el plano.
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+                    {alternatives.map((alt, i) => {
+                      const medio = candidatePreview(alt);
+                      return (
+                        <button
+                          key={alt.ref}
+                          type="button"
+                          onClick={() => setVisor({ origen: 'alternativa', cand: alt })}
                           style={{
-                            fontSize: 9.5,
-                            color: 'var(--fg2)',
-                            padding: '4px 5px',
-                            display: 'flex',
-                            justifyContent: 'space-between',
+                            border: '1px solid var(--line)',
+                            borderRadius: 'var(--r-sm)',
+                            overflow: 'hidden',
+                            background: 'var(--bg2)',
+                            padding: 0,
+                            textAlign: 'left',
+                            cursor: 'pointer',
                           }}
+                          aria-label={`Previsualizar la alternativa ${i + 1} · similitud ${fmtSim(alt.score)}`}
                         >
-                          <span>{fmtSim(alt.score)}</span>
-                          <span>{i + 1}</span>
-                        </div>
-                      </button>
-                    ))}
+                          {medio === null ? (
+                            <ThumbPlaceholder width="100%" />
+                          ) : medio.kind === 'video' ? (
+                            // #t=0.1 pinta un fotograma real sin descargar el
+                            // clip entero: el estático responde a rangos.
+                            <video
+                              src={`${medio.src}#t=0.1`}
+                              poster={medio.poster}
+                              preload="metadata"
+                              muted
+                              playsInline
+                              tabIndex={-1}
+                              style={{
+                                width: '100%',
+                                aspectRatio: '16 / 9',
+                                objectFit: 'cover',
+                                display: 'block',
+                              }}
+                            />
+                          ) : (
+                            <img
+                              src={medio.src}
+                              alt=""
+                              style={{
+                                width: '100%',
+                                aspectRatio: '16 / 9',
+                                objectFit: 'cover',
+                                display: 'block',
+                              }}
+                            />
+                          )}
+                          <div
+                            className="mono"
+                            style={{
+                              fontSize: 10.5,
+                              color: 'var(--fg2)',
+                              padding: '4px 5px',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                            }}
+                          >
+                            <span>{fmtSim(alt.score)}</span>
+                            <span>{i + 1}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : null}
 
@@ -1042,9 +1266,10 @@ export function Timeline() {
                         key={r.ref}
                         type="button"
                         className="row-hover"
-                        onClick={() =>
-                          actionMut.mutate({ idx: sel.idx, action: 'choose', ref: r.ref, candidate: r })
-                        }
+                        // antes el primer clic ya sustituía el clip, sin ver
+                        // nada y sin confirmar: ahora pasa por el visor
+                        onClick={() => setVisor({ origen: 'stock', cand: r })}
+                        aria-label={`Previsualizar ${candidateTitle(r)}`}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -1062,12 +1287,12 @@ export function Timeline() {
                       >
                         {r.thumb_url !== undefined && r.thumb_url !== '' ? (
                           <img
-                            src={r.thumb_url}
+                            src={fileUrl(r.thumb_url)}
                             alt=""
                             style={{ width: 44, flex: 'none', aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 2 }}
                           />
                         ) : (
-                          <div className="thumb-ph" style={{ width: 44, aspectRatio: '16 / 9', borderRadius: 2 }} />
+                          <ThumbPlaceholder width={44} />
                         )}
                         <span
                           style={{
@@ -1079,9 +1304,6 @@ export function Timeline() {
                           }}
                         >
                           {candidateTitle(r)}
-                        </span>
-                        <span className="mono" style={{ fontSize: 10.5, color: 'var(--fg2)' }}>
-                          {fmtSim(r.score)}
                         </span>
                       </button>
                     ))}
@@ -1136,6 +1358,31 @@ export function Timeline() {
           if (sel !== undefined) actionMut.mutate({ idx: sel.idx, action: 'discard', reason });
         }}
         onClose={() => setDiscardOpen(false)}
+      />
+
+      <VisorMedia
+        open={visor !== null}
+        title={visor !== null ? candidateTitle(visor.cand) : ''}
+        subtitle={sel !== undefined ? `Beat ${sel.idx + 1} · ${sel.visual_query}` : undefined}
+        media={visor !== null ? candidatePreview(visor.cand) : null}
+        emptyNote="Sin previsualización · el archivo se descarga al elegirlo"
+        datos={visor !== null && sel !== undefined ? datosCandidato(visor.origen, visor.cand, sel) : []}
+        cta="Usar esta"
+        ctaDisabled={actionMut.isPending}
+        onConfirm={() => {
+          if (visor === null || sel === undefined) return;
+          actionMut.mutate({
+            idx: sel.idx,
+            action: 'choose',
+            ref: visor.cand.ref,
+            // los de stock no viven en beats.candidates: el servidor los exige
+            // en el cuerpo. Los de la rejilla se resuelven por ref.
+            ...(visor.origen === 'stock' ? { candidate: visor.cand } : {}),
+          });
+          setVisor(null);
+          setAltsOpen(false);
+        }}
+        onClose={() => setVisor(null)}
       />
     </div>
   );

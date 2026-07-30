@@ -350,11 +350,20 @@ async function runSynthesize(ctx: WorkerContext, factory: TtsFactory, job: Job<T
       );
     }
 
-    // el maestro guarda audio y cues; los beats viven en su tabla
+    // el maestro guarda audio y cues; los beats viven en su tabla.
+    // scene_spans es el mismo cálculo que alimenta computeBeats, persistido: es
+    // el índice que permite al director de edición buscar la palabra disparadora
+    // de una escena en SU ventana, y no en todo el vídeo. Sin él, una palabra
+    // repetida se anclaría en su primera aparición, casi siempre la equivocada.
     const newMaster = {
       ...master,
       audio: { path: masterAudioPath, duration_ms: durationMs, lufs },
       cues,
+      scene_spans: scenes.map((scene, i) => ({
+        scene_id: scene.id,
+        from_ms: sceneOffsets[i] ?? 0,
+        to_ms: (sceneOffsets[i] ?? 0) + (sceneDurMs[i] ?? 0),
+      })),
     };
     await db
       .update(videos)

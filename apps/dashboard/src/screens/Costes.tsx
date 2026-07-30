@@ -126,7 +126,7 @@ export function Costes() {
               {usd(data?.total_usd ?? 0)}
             </div>
           </div>
-          <div style={{ display: 'grid', gap: 'var(--sec-gap)', gridTemplateColumns: '1fr 1fr' }}>
+          <div className="split-half">
             <Breakdown title="Por proveedor" rows={data?.by_provider ?? []} max={maxProvider} />
             <Breakdown title="Por operación" rows={data?.by_operation ?? []} max={maxOperation} />
           </div>

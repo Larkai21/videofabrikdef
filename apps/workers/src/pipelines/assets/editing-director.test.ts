@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Cue } from '@fabrica/shared';
-import { momentsToEdits, ruleEdits, type EditingParams } from './editing-director.js';
+import {
+  intentEdits,
+  microFxEdits,
+  momentsToEdits,
+  ruleEdits,
+  spreadByWindows,
+  type EditingParams,
+} from './editing-director.js';
 
 // Cue con una sola palabra en un instante dado (para anclar reglas al ms).
 function cue(w: string, from_ms: number): Cue {
@@ -107,11 +114,19 @@ describe('ruleEdits', () => {
 describe('momentsToEdits (capa IA)', () => {
   const beats = [
     { idx: 0, from_ms: 0, to_ms: 8_000, text: 'gancho' },
-    { idx: 3, from_ms: 30_000, to_ms: 40_000, text: 'cifra' },
+    { idx: 3, from_ms: 30_000, to_ms: 40_000, text: 'la cifra es 1000000 combinaciones' },
   ];
+  // la IA debe declarar la palabra donde entra el efecto, y esa palabra tiene
+  // que estar pronunciada dentro del beat
+  const cues = [cue('gancho', 1_000), cue('cifra', 32_000), cue('grapheneos', 33_000)];
+  const CLAIMS = [{ text: 'son 1000000 de combinaciones posibles' }];
 
   it('un momento kinetic produce kinetic_text al inicio del beat del gancho', () => {
-    const edits = momentsToEdits([{ beat_idx: 0, type: 'kinetic', text: 'se borra solo' }], beats, []);
+    const edits = momentsToEdits(
+      [{ beat_idx: 0, type: 'kinetic', text: 'se borra solo', keyword: 'gancho' }],
+      beats,
+      cues,
+    );
     const k = edits.find((e) => e.type === 'kinetic_text');
     expect(k?.text).toBe('se borra solo');
     expect(k?.from_ms).toBe(0);
@@ -120,35 +135,204 @@ describe('momentsToEdits (capa IA)', () => {
 
   it('un stat grande va a odómetro y uno pequeño a tarjeta', () => {
     const big = momentsToEdits(
-      [{ beat_idx: 3, type: 'stat', value: '1000000', label: 'combinaciones' }],
+      [{ beat_idx: 3, type: 'stat', value: '1000000', label: 'combinaciones', keyword: 'cifra' }],
       beats,
-      [],
+      cues,
+      CLAIMS,
     );
     expect(big.find((e) => e.type === 'stat_odometer')?.value).toBe('1000000');
-    const small = momentsToEdits([{ beat_idx: 3, type: 'stat', value: '25%' }], beats, []);
+    const small = momentsToEdits(
+      [{ beat_idx: 3, type: 'stat', value: '25%', keyword: 'cifra' }],
+      beats,
+      cues,
+      [{ text: 'subió un 25% el trimestre' }],
+    );
     expect(small.find((e) => e.type === 'stat_card')?.value).toBe('25%');
   });
 
   it('un momento device produce device_frame con la URL', () => {
     const edits = momentsToEdits(
-      [{ beat_idx: 3, type: 'device', text: 'grapheneos.org' }],
+      [{ beat_idx: 3, type: 'device', text: 'grapheneos.org', keyword: 'grapheneos' }],
       beats,
-      [],
+      cues,
     );
     const dev = edits.find((e) => e.type === 'device_frame');
     expect(dev?.text).toBe('grapheneos.org');
     expect(dev?.style).toBe('browser');
   });
 
-  it('un momento annotation produce annotation (+ whoosh) con estilo y etiqueta', () => {
+  it('un momento annotation produce annotation con estilo y etiqueta', () => {
     const edits = momentsToEdits(
-      [{ beat_idx: 3, type: 'annotation', style: 'circle', text: 'aquí' }],
+      [{ beat_idx: 3, type: 'annotation', style: 'circle', text: 'aquí', keyword: 'cifra' }],
       beats,
-      [],
+      cues,
     );
     const an = edits.find((e) => e.type === 'annotation');
     expect(an?.style).toBe('circle');
     expect(an?.text).toBe('aquí');
-    expect(edits.some((e) => e.type === 'sfx' && e.sfx === 'whoosh')).toBe(true);
+  });
+
+  // --- las garantías nuevas ---
+
+  it('un momento cuya keyword no se pronuncia en el beat se DESCARTA', () => {
+    // antes caía a beat.from_ms y el overlay salía desincronizado sin avisar
+    const edits = momentsToEdits(
+      [{ beat_idx: 3, type: 'callout', text: 'coste real', keyword: 'inexistente' }],
+      beats,
+      cues,
+    );
+    expect(edits).toEqual([]);
+  });
+
+  it('un momento sin keyword se descarta: la IA ya no puede colocar a ciegas', () => {
+    expect(momentsToEdits([{ beat_idx: 0, type: 'callout', text: 'algo' }], beats, cues)).toEqual([]);
+  });
+
+  it('una cifra que no está ni en el beat ni en el research no se pinta', () => {
+    const edits = momentsToEdits(
+      [{ beat_idx: 3, type: 'stat', value: '4500', keyword: 'cifra' }],
+      beats,
+      cues,
+      CLAIMS,
+    );
+    expect(edits.filter((e) => e.type === 'stat_card' || e.type === 'stat_odometer')).toEqual([]);
+  });
+
+  it('un copy de más de cuatro palabras se descarta: es titular, no transcripción', () => {
+    const edits = momentsToEdits(
+      [{ beat_idx: 0, type: 'callout', text: 'una frase larga que no cabe', keyword: 'gancho' }],
+      beats,
+      cues,
+    );
+    expect(edits).toEqual([]);
+  });
+
+  it('el efecto se ancla al ms de la palabra, no al inicio del beat', () => {
+    const edits = momentsToEdits(
+      [{ beat_idx: 3, type: 'callout', text: 'coste real', keyword: 'cifra' }],
+      beats,
+      cues,
+    );
+    expect(edits.find((e) => e.type === 'text_callout')?.from_ms).toBe(32_000);
+  });
+});
+
+describe('intentEdits (lo que el guion declara)', () => {
+  const beats = [
+    { idx: 0, from_ms: 0, to_ms: 10_000, text: 'el coste real es otro' },
+    { idx: 1, from_ms: 10_000, to_ms: 20_000, text: 'y el margen se hunde' },
+  ];
+  const cues = [cue('coste', 4_300), cue('margen', 13_000)];
+  const scenes = [
+    {
+      id: 'sc-body-1',
+      section: 'body' as const,
+      text: 'el coste real es otro y el margen se hunde',
+      visual_query: 'x',
+      edit_intents: [{ effect: 'callout' as const, trigger_word: 'coste', card_text: 'coste real' }],
+    },
+  ];
+
+  it('ancla al ms EXACTO de la palabra, no al inicio del beat', () => {
+    const r = intentEdits(params({ beats, cues, scenes }));
+    const callout = r.edits.find((e) => e.type === 'text_callout');
+    expect(callout?.from_ms).toBe(4_300);
+    expect(callout?.beat_idx).toBe(0);
+    expect(r.dropped).toBe(0);
+  });
+
+  it('DESCARTA el efecto cuya palabra no se pronuncia, en vez de colocarlo mal', () => {
+    const malas = [{ ...scenes[0]!, edit_intents: [{ effect: 'callout' as const, trigger_word: 'coste', card_text: 'coste real' }] }];
+    const r = intentEdits(params({ beats, cues: [cue('otra', 1_000)], scenes: malas }));
+    expect(r.edits.filter((e) => e.type === 'text_callout')).toEqual([]);
+    expect(r.dropped).toBe(1);
+  });
+
+  it('cada intención cae en el beat que le toca aunque la escena abarque varios', () => {
+    const dos = [
+      {
+        ...scenes[0]!,
+        edit_intents: [
+          { effect: 'callout' as const, trigger_word: 'coste', card_text: 'coste real' },
+          { effect: 'quote' as const, trigger_word: 'margen', card_text: 'sin margen' },
+        ],
+      },
+    ];
+    const r = intentEdits(params({ beats, cues, scenes: dos }));
+    expect(r.edits.find((e) => e.type === 'text_callout')?.beat_idx).toBe(0);
+    expect(r.edits.find((e) => e.type === 'quote_card')?.beat_idx).toBe(1);
+    expect([...r.covered].sort()).toEqual([0, 1]);
+  });
+
+  it('effect keyword produce keyword_highlight, que antes era imposible generar', () => {
+    const kw = [{ ...scenes[0]!, edit_intents: [{ effect: 'keyword' as const, trigger_word: 'coste' }] }];
+    const r = intentEdits(params({ beats, cues, scenes: kw }));
+    expect(r.edits.find((e) => e.type === 'keyword_highlight')?.keyword).toBe('coste');
+  });
+});
+
+describe('microFxEdits', () => {
+  it('dispara con la palabra del catálogo, con y sin tilde', () => {
+    const edits = microFxEdits(params({ cues: [cue('jamás', 5_000)] }));
+    expect(edits.find((e) => e.type === 'annotation')?.style).toBe('strike');
+    expect(edits.some((e) => e.type === 'sfx' && e.sfx === 'clic')).toBe(true);
+  });
+
+  it('cada efecto entra UNA sola vez por vídeo', () => {
+    const edits = microFxEdits(
+      params({ cues: [cue('nunca', 1_000), cue('jamas', 40_000), cue('error', 80_000)] }),
+    );
+    expect(edits.filter((e) => e.type === 'annotation')).toHaveLength(1);
+  });
+
+  it('una palabra corriente no dispara nada', () => {
+    expect(microFxEdits(params({ cues: [cue('modelo', 1_000)] }))).toEqual([]);
+  });
+});
+
+describe('spreadByWindows', () => {
+  const at = (n: number): number => n;
+
+  it('reparte en el tiempo en vez de amontonar donde hay material', () => {
+    // 40 candidatos TODOS en el primer minuto de un vídeo de 10: con el recorte
+    // por prioridad anterior sobrevivían doce apelotonados
+    const items = Array.from({ length: 40 }, (_, i) => i * 1_000);
+    const { kept } = spreadByWindows(items, {
+      budget: 12,
+      durationMs: 600_000,
+      sepMs: 20_000,
+      at,
+      score: () => 0,
+    });
+    expect(kept.length).toBeLessThanOrEqual(2);
+  });
+
+  it('con candidatos repartidos llena el presupuesto', () => {
+    const items = Array.from({ length: 40 }, (_, i) => i * 15_000);
+    const { kept } = spreadByWindows(items, {
+      budget: 12,
+      durationMs: 600_000,
+      sepMs: 20_000,
+      at,
+      score: () => 0,
+    });
+    expect(kept.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it('respeta la separación mínima', () => {
+    const { kept } = spreadByWindows([0, 3_000, 6_000], {
+      budget: 3,
+      durationMs: 60_000,
+      sepMs: 20_000,
+      at,
+      score: () => 0,
+    });
+    expect(kept).toHaveLength(1);
+  });
+
+  it('es determinista', () => {
+    const items = Array.from({ length: 30 }, (_, i) => i * 7_000);
+    const opts = { budget: 8, durationMs: 300_000, sepMs: 10_000, at, score: () => 0 };
+    expect(spreadByWindows(items, opts).kept).toEqual(spreadByWindows(items, opts).kept);
   });
 });

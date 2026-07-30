@@ -10,6 +10,7 @@ import {
   type ComponentType as KitType,
   type DesignTokens,
   type MasterVideoJson,
+  type SfxName,
 } from '@fabrica/shared';
 import { BeatVisual } from './BeatVisual';
 import { computeBrandKitLayout, computeBrollTrack, type EffectCue } from './brand-kit';
@@ -19,6 +20,7 @@ import {
   Annotation,
   DeviceFrame,
   KineticText,
+  MicroFx,
   ProgressBar,
   QuoteCard,
   StatCard,
@@ -32,10 +34,33 @@ import { Subtitles } from './Subtitles';
 
 const FALLBACK_SUBTITLE_THEME = 'subtitulos-basicos@0.1.0';
 
-// volumen de cada SFX built-in, nivelado para una sonoridad PERCIBIDA pareja
-// bajo la voz (−16 LUFS): el whoosh es ruido (se oye fuerte → más bajo), el
-// riser/ding son tonos (se perciben flojos → un pelín más altos). Todos sutiles.
-const SFX_VOLUME: Record<string, number> = { whoosh: 0.38, pop: 0.5, riser: 0.5, ding: 0.5 };
+// Volumen de cada SFX, nivelado para una sonoridad PERCIBIDA pareja bajo la voz
+// (−16 LUFS) y con la música ya agachada a −22 dB. Tres familias:
+//   · banda ancha (ruido): se percibe fuerte → más bajo
+//   · graves cortos: se sienten más que se oyen, y comen headroom donde vive el
+//     fundamental de la voz → bajos
+//   · tonos agudos puros: se perciben flojos → un pelín más altos
+// El tipo Record<SfxName, …> es la garantía: añadir un nombre a SFX_NAMES sin
+// nivelarlo aquí NO COMPILA. Antes era Record<string, …> con fallback, así que
+// un sonido nuevo sonaba al nivel equivocado en silencio.
+const SFX_VOLUME: Record<SfxName, number> = {
+  whoosh: 0.38,
+  pop: 0.5,
+  riser: 0.5,
+  ding: 0.5,
+  impacto: 0.45,
+  clic: 0.3,
+  tic: 0.32,
+  tecleo: 0.26,
+  // más alto que el resto de la familia de ruido: aun con la banda ensanchada su
+  // pico se queda 5 dB por debajo, medido con volumedetect
+  deslizar: 0.45,
+  destello: 0.4,
+  subgrave: 0.42,
+  aparicion: 0.42,
+  notificacion: 0.44,
+  resolucion: 0.46,
+};
 
 // Transición entre planos con variedad determinista: en límites de sección una
 // transición cinematográfica propia (iris/barrido/cortina) que marca el cambio
@@ -160,6 +185,10 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
   // anotaciones: acento ligero sobre el b-roll; se montan aparte (no compiten
   // con las tarjetas ni suprimen las de sección)
   const annotationCues = effects.filter((e) => e.type === 'annotation');
+  // los micro-FX van en el carril de ACENTOS, junto a las anotaciones: no
+  // cuentan como overlay de contenido y por eso no suprimen la tarjeta de
+  // sección solapada (a diferencia de overlayCues)
+  const microCues = effects.filter((e) => e.type === 'micro_fx');
   const sfxCues = effects.filter((e) => e.type === 'sfx' && e.sfx);
 
   const audioEl = audio && isRenderableSrc(audio.path) ? <Audio src={toSrc(audio.path)} /> : null;
@@ -197,7 +226,10 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
           durationInFrames={cue.durationInFrames}
           name={`SFX ${cue.sfx}`}
         >
-          <Audio src={toSrc(`sfx/${cue.sfx}.wav`)} volume={SFX_VOLUME[cue.sfx ?? ''] ?? 0.5} />
+          <Audio
+            src={toSrc(`sfx/${cue.sfx}.wav`)}
+            volume={cue.sfx !== undefined ? SFX_VOLUME[cue.sfx] : 0.5}
+          />
         </Sequence>
       ))}
       {beats.length > 0 ? (
@@ -296,6 +328,11 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
       {annotationCues.map((cue, i) => (
         <Sequence key={`anot-${i}`} from={cue.from} durationInFrames={cue.durationInFrames} name="anotación">
           <Annotation shape={cue.style} text={cue.text} seed={cue.from} design={design} />
+        </Sequence>
+      ))}
+      {microCues.map((cue, i) => (
+        <Sequence key={`micro-${i}`} from={cue.from} durationInFrames={cue.durationInFrames} name="micro-fx">
+          <MicroFx shape={cue.style} design={design} />
         </Sequence>
       ))}
       {/* barra de progreso: cubre todo el cuerpo (oculta bajo intro/outro) */}

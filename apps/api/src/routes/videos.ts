@@ -13,6 +13,7 @@ import {
   QUEUES,
   scriptEditRequestSchema,
   titleChoiceRequestSchema,
+  wordInText,
   type MasterVideoJson,
   type QueueName,
   type ThumbnailBriefJob,
@@ -22,6 +23,7 @@ import {
 import { beatRowToBeat, kindFromPath, type AssetFileInfo } from '../lib/beats.js';
 import type { ApiContext } from '../lib/context.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
+import { officialThumbnailUrl } from '../lib/files.js';
 import { masterWithFileUrls } from '../lib/master.js';
 import { publishVideo } from './youtube.js';
 
@@ -32,22 +34,6 @@ const THUMB_UPLOAD_EXTS: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/webp': 'webp',
 };
-
-// URL /files de la miniatura oficial: la subida por el humano (thumb_custom.*)
-// gana; si no, la auto-generada thumb_a.jpg; null si aún no hay ninguna.
-async function officialThumbnailUrl(outputsDir: string, id: string): Promise<string | null> {
-  const dir = path.join(outputsDir, id);
-  let entries: string[] = [];
-  try {
-    entries = await readdir(dir);
-  } catch {
-    return null;
-  }
-  const custom = entries.find((e) => /^thumb_custom\.(png|jpg|jpeg|webp)$/i.test(e));
-  if (custom) return `/files/outputs/${id}/${custom}`;
-  if (entries.includes('thumb_a.jpg')) return `/files/outputs/${id}/thumb_a.jpg`;
-  return null;
-}
 
 async function loadVideo(ctx: ApiContext, id: string): Promise<VideoRow> {
   const [row] = await ctx.db.select().from(videos).where(eq(videos.id, id)).limit(1);
@@ -176,10 +162,22 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
       if (!known.has(edit.id)) throw badRequest(`Escena desconocida: ${edit.id}`);
     }
     const edits = new Map(body.scenes.map((s) => [s.id, s.text]));
+    let efectosCaidos = 0;
     const scenes = script.scenes.map((scene) => {
       const text = edits.get(scene.id);
       if (text === undefined || text === scene.text) return scene;
-      return { ...scene, text, edited_by_human: true };
+      // Al reescribir la escena, las intenciones visuales que apuntaban a una
+      // palabra que ya no está se caen: si se conservaran, el efecto se anclaría
+      // en el sitio equivocado o se perdería en silencio durante el montaje.
+      const kept = (scene.edit_intents ?? []).filter((i) => wordInText(text, i.trigger_word));
+      efectosCaidos += (scene.edit_intents?.length ?? 0) - kept.length;
+      const { edit_intents: _previas, ...resto } = scene;
+      return {
+        ...resto,
+        text,
+        edited_by_human: true,
+        ...(kept.length > 0 ? { edit_intents: kept } : {}),
+      };
     });
 
     await ctx.db

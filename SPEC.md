@@ -226,5 +226,7 @@ lectura bajo demanda.
 - `docs/voz-y-beats.md` — TTS por escena, word boundaries, subtítulos y algoritmo de beats.
 - `docs/assets-y-biblioteca.md` — embeddings, cascada de matching, APIs de stock,
   umbrales, encaje (fit) e ingesta a biblioteca.
+- `docs/edicion.md` — director de edición: intenciones declaradas por el guion,
+  carriles y presupuesto de densidad, catálogo de micro-FX y catálogo de sonido.
 - `docs/render.md` — Remotion SSR: bundling, registry del brand kit, ajustes, salidas.
 - `docs/contratos.md` — esquemas versionados (perfil, JSON maestro, manifest) y API interna.

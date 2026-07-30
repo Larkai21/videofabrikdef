@@ -35,8 +35,14 @@ interface RegistryLine {
 
 // Duraciones fijas de los integrados (frames a 30 fps). Los componentes leen
 // la suya con useVideoConfig(): la Sequence que los monta mide exactamente esto.
-export const INTRO_BASICA_DURATION_FRAMES = 80;
-export const OUTRO_BASICA_DURATION_FRAMES = 90;
+// 96 = 3,2 s: con 80 (2,67 s) daba para entrar y revelar, pero no para
+// SOSTENER. Ojo, la intro desplaza audio, beats, subtítulos y efectos
+// (brand-kit.ts): cambiar este número mueve el montaje entero.
+export const INTRO_BASICA_DURATION_FRAMES = 96;
+// 120 = 4 s. La outro se monta detrás del cuerpo, así que no desplaza nada:
+// solo suma al total. 90 no daba para nombre + agradecimiento + CTA sin
+// atropellarse.
+export const OUTRO_BASICA_DURATION_FRAMES = 120;
 
 // Componentes integrados en el repo (S1: tema de subtítulos; S3: intro/outro
 // básicos): siempre presentes en el registry.

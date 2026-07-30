@@ -240,9 +240,8 @@ function MiniaturaCard({
           Miniaturas auto-generadas (respaldo)
         </summary>
         <div
+          className="split-half"
           style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
             gap: 'var(--gap)',
             marginTop: 10,
           }}
@@ -443,13 +442,10 @@ export function Entrega() {
       </div>
 
       <div
-        className="wrap-1160"
+        className="wrap-1160 split-side"
         style={{
           padding: 'calc(var(--pad) * 1.6) 26px 72px',
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) 380px',
           gap: 'calc(var(--gap) * 1.8)',
-          alignItems: 'start',
         }}
       >
         <div style={{ display: 'grid', gap: 'var(--gap)' }}>

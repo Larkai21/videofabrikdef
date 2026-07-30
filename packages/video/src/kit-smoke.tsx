@@ -5,6 +5,7 @@ import {
   DEFAULT_SUBTITLE_THEME_REF,
   type ComponentType as KitComponentType,
 } from '@fabrica/shared';
+import { ensureFontLoaded, FONT_FAMILY } from './fonts';
 import { samplePropsFor } from './kit-contract';
 import { resolveComponent } from './registry.generated';
 
@@ -28,6 +29,10 @@ export function smokeDurationInFrames(value: unknown): number {
 type SmokeProps = Record<string, unknown>;
 
 export const KitSmokeHarness: React.FC<SmokeProps> = (props) => {
+  // sin esto los previews del Brand kit salen en la serif del sistema: el
+  // harness no cargaba Inter y era lo único que el usuario ve de cada
+  // componente. Mismo call site que LongForm.
+  ensureFontLoaded();
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -46,7 +51,7 @@ export const KitSmokeHarness: React.FC<SmokeProps> = (props) => {
     kitType === 'subtitle_theme' ? { ...sample, currentMs: (frame * 1000) / fps } : sample;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: SMOKE_BACKGROUND }}>
+    <AbsoluteFill style={{ backgroundColor: SMOKE_BACKGROUND, fontFamily: FONT_FAMILY }}>
       <Kit {...kitProps} />
     </AbsoluteFill>
   );

@@ -19,6 +19,9 @@ export type CostProvider = z.infer<typeof costProviderSchema>;
 
 export const COST_OPERATIONS = [
   'script',
+  // paquete SEO (títulos, descripción, tags, miniaturas) en llamada aparte del
+  // guion: son dos oficios distintos y mezclarlos restaba foco a los dos
+  'packaging',
   'judge',
   'refine',
   'research',

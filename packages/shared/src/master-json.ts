@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { designTokensSchema } from './design.js';
+import { editIntentSchema, MAX_INTENTS_PER_SCENE } from './edit-intents.js';
+import { scriptReviewSchema } from './script-review.js';
 import { beatStatusSchema } from './states.js';
 
 // MasterVideoJson v1 (docs/contratos.md §2). El maestro se construye por fases:
@@ -29,6 +31,11 @@ export const sceneSchema = z.object({
   visual_query: z.string(),
   emphasis: z.boolean().optional(),
   edited_by_human: z.boolean().optional(),
+  // Intención visual declarada por el propio guionista: trigger_word es una
+  // palabra que él mismo puso en `text`, así que el anclaje por cues no puede
+  // fallar. Opcional: los maestros anteriores no la traen y el director de
+  // edición cae a su comportamiento de siempre.
+  edit_intents: z.array(editIntentSchema).max(MAX_INTENTS_PER_SCENE).optional(),
 });
 
 export const scriptSchema = z.object({
@@ -90,6 +97,10 @@ export const candidateSchema = z.object({
   provider: z.enum(['library', 'pexels', 'pixabay', 'flux']),
   score: z.number(),
   thumb_url: z.string().optional(),
+  // URL servible (/files/...) que la API deriva de meta.path para los
+  // candidatos de biblioteca y de flux, que no traen thumb_url. Es campo de
+  // SALIDA: no se persiste en el maestro, se calcula al serializar el DTO.
+  preview_url: z.string().optional(),
   // metadatos del proveedor necesarios para descargar/mostrar sin re-consultar
   meta: z.record(z.string(), z.unknown()).optional(),
 });
@@ -170,6 +181,18 @@ export const segmentSchema = z.object({
   from_ms: z.number().int().nonnegative(),
 });
 
+// Tramo de audio de cada escena del guion. NO es ley temporal: la ley siguen
+// siendo los beats (principio 1). Es el ÍNDICE que acota en qué ventana de los
+// cues hay que buscar la palabra disparadora de una escena, para que una palabra
+// repetida en el vídeo se ancle donde toca. Lo escribe el worker de voz con los
+// mismos ms que alimentan el cálculo de beats.
+export const sceneSpanSchema = z.object({
+  scene_id: z.string(),
+  from_ms: z.number().int().nonnegative(),
+  to_ms: z.number().int().nonnegative(),
+});
+export type SceneSpan = z.infer<typeof sceneSpanSchema>;
+
 // Línea de tiempo de EDICIÓN (la produce el director de edición): efectos
 // anclados en ms sobre la ley temporal del audio (nunca cambian los cortes,
 // principio 1). Opcional → no afecta al render de maestros antiguos.
@@ -189,34 +212,96 @@ export const EDIT_TYPES = [
   'annotation',
   // marco de navegador/móvil con texto/URL tecleándose; `style` + `text`
   'device_frame',
+  // acento gráfico de menos de segundo y medio anclado a UNA palabra
+  // pronunciada (ver micro-fx.ts); `style` elige la forma
+  'micro_fx',
 ] as const;
 export const editTypeSchema = z.enum(EDIT_TYPES);
 export type EditType = z.infer<typeof editTypeSchema>;
 
-export const SFX_NAMES = ['whoosh', 'pop', 'riser', 'ding'] as const;
+// Efectos de sonido integrados. Se sintetizan con ffmpeg en
+// packages/video/scripts/make-sfx.ts (deterministas y sin licencias) y el render
+// los carga por convención de nombre: public/sfx/<nombre>.wav. Añadir un nombre
+// aquí obliga a darle receta y volumen, y el typecheck lo exige.
+export const SFX_NAMES = [
+  'whoosh',
+  'pop',
+  'riser',
+  'ding',
+  'impacto',
+  'clic',
+  'tic',
+  'tecleo',
+  'deslizar',
+  'destello',
+  'subgrave',
+  'aparicion',
+  'notificacion',
+  'resolucion',
+] as const;
 export const sfxNameSchema = z.enum(SFX_NAMES);
+export type SfxName = z.infer<typeof sfxNameSchema>;
 
-export const editSchema = z.object({
-  type: editTypeSchema,
+const editBase = {
   from_ms: z.number().int().nonnegative(),
   to_ms: z.number().int().nonnegative(),
   // beat al que se ancla (zoom_punch necesita saber en qué beat escalar)
   beat_idx: z.number().int().nonnegative().optional(),
-  // palabra clave (keyword_highlight) o texto de callout/quote (text_callout/quote_card)
-  keyword: z.string().optional(),
-  text: z.string().optional(),
-  // tarjeta de dato: cifra + etiqueta
-  value: z.string().optional(),
-  label: z.string().optional(),
-  // variante del efecto: annotation (circle|underline|arrow), device_frame
-  // (browser|phone). Libre para no acoplar el contrato a la lista de formas.
-  style: z.string().optional(),
-  // efecto de sonido a disparar (built-in de public/sfx)
-  sfx: sfxNameSchema.optional(),
   // variación determinista si hiciera falta
   seed: z.number().optional(),
-});
+};
+
+/**
+ * Unión discriminada por `type`: cada efecto exige el campo SIN EL CUAL el
+ * render pinta un hueco. Con el objeto plano anterior, un stat_card sin `value`
+ * validaba y llegaba a la composición como una tarjeta de dato vacía.
+ *
+ * `style` queda libre (no enum) para no acoplar el contrato a la lista de formas
+ * de annotation/micro_fx/device_frame, que crece en el paquete de vídeo.
+ */
+export const editSchema = z.discriminatedUnion('type', [
+  // sin beat_idx el punch no sabe qué plano escalar
+  z.object({ ...editBase, type: z.literal('zoom_punch'), beat_idx: z.number().int().nonnegative() }),
+  z.object({ ...editBase, type: z.literal('sfx'), sfx: sfxNameSchema }),
+  z.object({ ...editBase, type: z.literal('keyword_highlight'), keyword: z.string().min(1) }),
+  z.object({ ...editBase, type: z.literal('text_callout'), text: z.string().min(1) }),
+  z.object({ ...editBase, type: z.literal('quote_card'), text: z.string().min(1) }),
+  z.object({ ...editBase, type: z.literal('kinetic_text'), text: z.string().min(1) }),
+  z.object({ ...editBase, type: z.literal('stat_card'), value: z.string().min(1), label: z.string().optional() }),
+  z.object({ ...editBase, type: z.literal('stat_odometer'), value: z.string().min(1), label: z.string().optional() }),
+  // annotation es la única sin payload obligatorio: es una marca sobre el b-roll
+  z.object({ ...editBase, type: z.literal('annotation'), style: z.string().optional(), text: z.string().optional() }),
+  z.object({ ...editBase, type: z.literal('device_frame'), text: z.string().min(1), style: z.string().optional() }),
+  z.object({ ...editBase, type: z.literal('micro_fx'), style: z.string().min(1) }),
+]);
 export type Edit = z.infer<typeof editSchema>;
+
+/**
+ * Lectura TOLERANTE del campo ya persistido. Endurecer sin esto rompería el
+ * parse del maestro en el worker de assets, en el render y en el player del
+ * dashboard: un solo efecto viejo malformado dejaría el vídeo sin render Y sin
+ * previsualización. Aquí el que no cumple se descarta y el maestro sigue vivo.
+ */
+export const editsFieldSchema = z.array(z.unknown()).transform((raw) =>
+  raw.flatMap((item) => {
+    const parsed = editSchema.safeParse(item);
+    return parsed.success ? [parsed.data] : [];
+  }),
+);
+
+/** Cuántos efectos descartaría la lectura tolerante, para poder AVISAR. */
+export function countInvalidEdits(raw: unknown): number {
+  return Array.isArray(raw) ? raw.filter((i) => !editSchema.safeParse(i).success).length : 0;
+}
+
+/** Texto que lleva un efecto, sin tener que estrechar el tipo en cada consumidor. */
+export function editPayloadText(e: Edit): string | undefined {
+  if ('text' in e && e.text !== undefined) return e.text;
+  if ('value' in e) return e.value;
+  if ('keyword' in e) return e.keyword;
+  if ('sfx' in e) return e.sfx;
+  return undefined;
+}
 
 export const masterVideoJsonV1 = z.object({
   version: z.literal('1'),
@@ -230,13 +315,18 @@ export const masterVideoJsonV1 = z.object({
   }),
   research: researchSchema.optional(),
   script: scriptSchema.optional(),
+  // revisión del juez con rúbrica; opcional, los maestros anteriores no la traen
+  script_review: scriptReviewSchema.optional(),
   seo: seoSchema.optional(),
   audio: audioSchema.optional(),
   cues: z.array(cueSchema).optional(),
   beats: z.array(beatSchema).optional(),
+  // índice escena → tramo de audio; lo usa el director para anclar por palabra
+  scene_spans: z.array(sceneSpanSchema).optional(),
   segments: z.array(segmentSchema).optional(),
-  // línea de tiempo de efectos de edición (director de edición); opcional
-  edits: z.array(editSchema).optional(),
+  // línea de tiempo de efectos de edición (director de edición); opcional y de
+  // lectura tolerante, para no tumbar maestros anteriores al endurecimiento
+  edits: editsFieldSchema.optional(),
   brand: brandSchema.optional(),
   costs: costsSchema.optional(),
 });

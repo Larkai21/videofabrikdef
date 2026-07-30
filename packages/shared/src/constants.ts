@@ -68,6 +68,43 @@ export const DEDUPE_WINDOW_DAYS = 14;
 export const IDEA_SCORE_THRESHOLD = 55;
 
 // Guion
-export const WORDS_PER_MIN = 150;
+// Velocidad de locución MEDIDA, no estimada: 2.887 palabras / 23,25 min de voz
+// real en los tres vídeos de formato largo = 124,2 wpm (edge-tts, es-ES, rate
+// -8%, con las pausas entre escenas ya dentro). El 150 anterior era una
+// suposición y descalibraba todo el régimen de duración un 20 %: pedir 7 min
+// producía 1.050 palabras, que son 8,5 min de voz. Al cambiar esto se mueve
+// `sceneTarget`, así que el número de escenas del prompt cambia con él.
+export const WORDS_PER_MIN = 125;
 export const SCRIPT_LENGTH_TOLERANCE = 0.1;
 export const RESEARCH_MAX_CHARS_PER_SOURCE = 20_000;
+// Palabras por escena: fija cuántas escenas pide el prompt. Sin este número el
+// modelo improvisa el reparto y por eso salta tanto la pasada de duración.
+export const WORDS_PER_SCENE = 55;
+export const SCENE_MIN_WORDS = 40;
+export const SCENE_MAX_WORDS = 70;
+export const SENTENCE_MAX_WORDS = 25;
+
+// Densidad de la línea de efectos de edición (docs/edicion.md). Las tasas van
+// POR MINUTO porque el vídeo es largo (5-10 min); las separaciones y la guarda
+// son constantes perceptivas y NO escalan con la duración.
+//
+// Las del proyecto hermano (6 micro-fx, 7 s de separación) no se escalan
+// linealmente: allí están en el régimen «la separación es el cuello de botella»
+// y darían 72 micro-fx en diez minutos. Lo que se conserva es la RAREZA
+// relativa: 0,9/min da ~7 en ocho minutos, el mismo número que el hermano pero
+// para la pieza entera.
+export const FX_CARDS_PER_MIN = 1.2;
+export const FX_MICRO_PER_MIN = 0.9;
+export const FX_KEYWORDS_PER_MIN = 2.5;
+/** Fusible, no objetivo: si muerde es que algo va mal. */
+export const FX_SFX_PER_MIN = 6;
+
+export const FX_CARD_SEP_MS = 20_000;
+/** ~2 beats: dos acentos dentro del mismo beat se leen como un tic. */
+export const FX_MICRO_SEP_MS = 25_000;
+export const FX_KEYWORD_SEP_MS = 12_000;
+export const FX_ZOOM_SEP_MS = 12_000;
+/** Lo que tarda el ojo en acabar de leer la entrada de una tarjeta. */
+export const FX_CARD_GUARD_MS = 600;
+/** Dos sonidos más juntos que esto se emborronan. */
+export const FX_SFX_COLLISION_MS = 120;

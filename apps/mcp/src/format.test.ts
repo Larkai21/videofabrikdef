@@ -44,6 +44,7 @@ const inboxFixture: InboxDto = {
       title: 'Copiar ya no es trampa',
       output_dir: '/outputs/vid-3',
       finished_at: '2026-07-20T10:00:00.000Z',
+      thumbnail_url: '/files/outputs/vid-3/thumb_a.jpg',
       youtube: {
         status: 'subido',
         youtube_id: 'yt123',
@@ -58,6 +59,7 @@ const inboxFixture: InboxDto = {
   month_cost_usd: 1.23456,
   month_videos: 2,
   month_budget_usd: 25,
+  stale_sources: [],
 };
 
 describe('helpers', () => {
@@ -111,6 +113,7 @@ describe('formatIdeas', () => {
       why_now: 'sale hoy',
       score: 0.91,
       status: 'new',
+      manual_rank: null,
       source_refs: [{ url: 'https://example.com/x', domain: 'example.com' }],
       created_at: '2026-07-26T08:00:00.000Z',
     },
@@ -123,6 +126,7 @@ describe('formatIdeas', () => {
       why_now: null,
       score: 0.7,
       status: 'new',
+      manual_rank: null,
       source_refs: [{ url: 'https://sin-dominio.example/y' }],
       created_at: '2026-07-26T09:00:00.000Z',
     },
@@ -152,6 +156,7 @@ describe('formatVideo', () => {
     master: makeDemoMaster(),
     costs_total: 0.1234567,
     youtube: null,
+    thumbnail_url: null,
     incident: null,
     created_at: '2026-07-25T12:00:00.000Z',
     updated_at: '2026-07-25T12:30:00.000Z',
@@ -197,6 +202,7 @@ describe('formatTimeline', () => {
     state: 'assets',
     audio_url: '/files/outputs/vid-1/voz.wav',
     duration_ms: 43_000,
+    edits: [],
     beats: [
       {
         idx: 0,
@@ -262,6 +268,7 @@ describe('formatLibrary', () => {
         times_used: 3,
         last_video_id: 'vid-9',
         purge_candidate: false,
+        favorite: false,
         created_at: '2026-06-01T00:00:00.000Z',
       },
     ],

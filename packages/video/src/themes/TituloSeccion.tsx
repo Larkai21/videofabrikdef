@@ -1,13 +1,25 @@
 import React from 'react';
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { defaultDesign, hexToRgba, type DesignTokens } from '@fabrica/shared';
-import { displayText, FONT_FAMILY } from '../fonts';
+import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
+import { defaultDesign, type DesignTokens } from '@fabrica/shared';
+import { FONT_FAMILY } from '../fonts';
+import { glassSurface } from '../effects';
+import { Ease, mix, span } from '../effects/motion';
+import { WordsReveal, overlayWindows } from './shared';
 
 // Tarjeta de sección integrada 'titulo-seccion@0.1.0' (contrato
 // titleCardPropsSchema). SUPERPOSICIÓN centrada sobre el b-roll al entrar cada
-// segmento. Entrada con WIPE de izquierda a derecha + spring; barra de acento
-// que crece; salida limpia. Determinismo: solo useCurrentFrame/spring, sin fondo
-// opaco (deja ver el vídeo debajo).
+// segmento; sin fondo opaco, deja ver el vídeo debajo.
+//
+// REESCRITA EN SITIO (mismo ref).
+//
+// Dos detalles que la separan de una tarjeta genérica: la SALIDA en espejo del
+// wipe de entrada (antes se cortaba en seco al acabar la Sequence, que es lo
+// que más se nota) y una micro-deriva de ±2 px durante el sostenimiento — una
+// tarjeta perfectamente quieta sobre b-roll en movimiento canta mucho.
+//
+// brand-kit.ts recorta esta tarjeta a min(90, hueco, fin del cuerpo) y puede
+// dejarla en 20 frames: overlayWindows escala entrada y salida para que no se
+// solapen y la pieza siempre llegue a opacidad plena.
 
 export type TitleCardProps = {
   title: string;
@@ -17,56 +29,83 @@ export type TitleCardProps = {
 
 export const TituloSeccion: React.FC<TitleCardProps> = ({ title, design }) => {
   const frame = useCurrentFrame();
-  const { durationInFrames, fps } = useVideoConfig();
+  const { durationInFrames } = useVideoConfig();
   const d = design ?? defaultDesign();
-  if (title.trim() === '') return null;
+  const { enterF, exitF } = overlayWindows(durationInFrames, 12, 14);
 
-  const enter = spring({ frame, fps, config: { damping: 16, stiffness: 130, mass: 0.6 } });
-  const exit = interpolate(frame, [durationInFrames - 14, durationInFrames], [1, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const opacity = Math.min(enter, exit);
-  const rise = (1 - enter) * 16;
-  // wipe de revelado izquierda→derecha (inset por la derecha que se abre)
-  const wipe = interpolate(enter, [0, 1], [100, 0]);
-  const barWidth = interpolate(enter, [0, 1], [0, 200]);
+  const entra = span(frame, 0, enterF, Ease.outExpo);
+  const sale = span(frame, durationInFrames - exitF, exitF, Ease.inOutCubic);
+  // wipe de revelado izquierda→derecha; al salir barre hacia la derecha
+  const clip = sale > 0 ? `inset(0 0 0 ${sale * 100}%)` : `inset(0 ${(1 - entra) * 100}% 0 0)`;
+
+  const espina = span(frame, 2, 12, Ease.outCubic);
+  const regla = span(frame, 6, 16, Ease.outBack);
+  const deriva = Math.sin(frame / 34) * 2;
+
+  if (title.trim() === '') return null;
 
   return (
     <AbsoluteFill
-      style={{ justifyContent: 'center', alignItems: 'center', fontFamily: FONT_FAMILY, pointerEvents: 'none' }}
+      style={{
+        justifyContent: 'center',
+        alignItems: 'center',
+        fontFamily: FONT_FAMILY,
+        pointerEvents: 'none',
+        // no pisar los subtítulos, anclados abajo
+        paddingBottom: 160,
+      }}
     >
       <div
         style={{
-          opacity,
-          transform: `translateY(${rise}px)`,
-          clipPath: `inset(0 ${wipe}% 0 0)`,
+          opacity: 1 - sale,
+          clipPath: clip,
+          transform: `translateY(${deriva - sale * 14}px) scaleY(${mix(0.88, 1, entra)})`,
           display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 16,
-          padding: '28px 48px',
+          alignItems: 'stretch',
           borderRadius: 16,
-          background: hexToRgba(d.background, 0.66),
-          backdropFilter: 'blur(6px)',
-          boxShadow: `0 18px 60px rgba(0, 0, 0, 0.45)`,
-          borderLeft: `5px solid ${d.accent}`,
+          overflow: 'hidden',
           maxWidth: 1200,
+          ...glassSurface(d),
         }}
       >
+        {/* espina de acento que crece desde arriba */}
         <div
           style={{
-            ...displayText(800),
-            fontSize: 68,
-            color: d.foreground,
-            textAlign: 'center',
-            lineHeight: 1.1,
-            textShadow: '0 3px 16px rgba(0, 0, 0, 0.6)',
+            width: 5,
+            flex: 'none',
+            background: d.accent,
+            transformOrigin: 'top',
+            transform: `scaleY(${espina})`,
+          }}
+        />
+        <div
+          style={{
+            padding: '28px 48px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            gap: 14,
           }}
         >
-          {title}
+          <div
+            style={{
+              width: mix(0, 260, Math.min(regla, 1.15)),
+              height: 4,
+              borderRadius: 2,
+              background: d.accent,
+            }}
+          />
+          <WordsReveal
+            text={title}
+            from={8}
+            stagger={3}
+            fontSize={68}
+            weight={800}
+            color={d.foreground}
+            align="left"
+            shadow
+          />
         </div>
-        <div style={{ width: barWidth, height: 5, borderRadius: 3, background: d.accent }} />
       </div>
     </AbsoluteFill>
   );

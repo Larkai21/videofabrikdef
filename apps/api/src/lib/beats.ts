@@ -67,6 +67,20 @@ export function libraryAssetId(candidate: BeatCandidate): string | null {
   return candidate.ref.startsWith('library:') ? candidate.ref.slice('library:'.length) : candidate.ref;
 }
 
+// Los candidatos de biblioteca y de flux no traen thumb_url: guardan la ruta de
+// disco en meta.path. El navegador necesita la URL servida, así que se deriva
+// aquí igual que se hace con beat.asset.path. Enriquecimiento SOLO de salida:
+// la elección se resuelve contra `candidates` de la BD (routes/timeline.ts), no
+// contra el cuerpo de la petición, así que este campo nunca se persiste.
+export function candidateForDto(candidate: BeatCandidate): BeatCandidate {
+  const diskPath = candidate.meta?.path;
+  if (typeof diskPath !== 'string' || diskPath === '') return candidate;
+  const url = toFileUrl(diskPath);
+  // toFileUrl devuelve la ruta cruda si cae fuera de las raíces publicadas:
+  // en ese caso no se expone nada, para no filtrar rutas de disco.
+  return url.startsWith('/files/') ? { ...candidate, preview_url: url } : candidate;
+}
+
 export interface AssetFileInfo {
   path: string;
   kind: 'clip' | 'image';
@@ -81,7 +95,7 @@ export function beatRowToBeat(row: BeatRow, assetFile?: AssetFileInfo): Beat {
     visual_query: row.visualQuery,
     status: row.status as BeatStatus,
   };
-  if (row.candidates?.length) beat.candidates = row.candidates;
+  if (row.candidates?.length) beat.candidates = row.candidates.map(candidateForDto);
   if (row.assetId && row.fit) {
     beat.asset = {
       id: row.assetId,

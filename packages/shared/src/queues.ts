@@ -69,6 +69,9 @@ export interface ScriptRefineJob {
   videoId: string;
   patchTargets: string[];
   reasons: string[];
+  // instrucciones por escena del juez; sin ellas el refinado reescribe a ciegas.
+  // Opcional para no romper los jobs que ya estén en vuelo.
+  notes?: Array<{ id: string; axis: string; issue: string; fix: string }>;
 }
 
 // Brief de miniatura de alta conversión (LLM): escribe outputs/<id>/

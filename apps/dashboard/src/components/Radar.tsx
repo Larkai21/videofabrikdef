@@ -7,12 +7,14 @@ import {
   approveIdea,
   discardIdea,
   getIdeasFor,
+  getSettings,
   getSources,
   orderIdeas,
   pollSources,
 } from '../lib/api';
 import { useLive } from '../lib/events';
 import { useToasts } from '../lib/toasts';
+import { CajonIdea, dominio } from './CajonIdea';
 import { Button, ProgressBar } from './ui';
 
 const RANKING_VISIBLE = 8;
@@ -32,7 +34,14 @@ function fmtScore(score: number): string {
 // Radar de ideas: buscar con las fuentes reales, ver el progreso en vivo,
 // reordenar el ranking (el orden manual manda; sin tocar, manda el score) y
 // arrancar la producción de la primera idea. Las puertas 2 y 3 no cambian.
-export function Radar({ channelId }: { channelId: string }) {
+export function Radar({
+  channelId,
+  costeMedio,
+}: {
+  channelId: string;
+  /** coste medio por vídeo del mes, para estimar en el cajón; null si no hay */
+  costeMedio: number | null;
+}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { push } = useToasts();
@@ -41,12 +50,18 @@ export function Radar({ channelId }: { channelId: string }) {
   // instante en que se pulsó «Buscar»: el feed solo enseña lo posterior
   const [searchStart, setSearchStart] = useState<number | null>(null);
   const [timedOut, setTimedOut] = useState(false);
-  // descarte en dos pasos: id de la idea esperando confirmación
-  const [confirmDiscard, setConfirmDiscard] = useState<string | null>(null);
+  // idea con el cajón abierto. Se guarda el id y no el índice para que
+  // reordenar mientras está abierto no cambie de idea bajo los pies.
+  const [abiertaId, setAbiertaId] = useState<string | null>(null);
 
   const sourcesQ = useQuery({
     queryKey: ['fuentes', channelId],
     queryFn: () => getSources(channelId),
+  });
+  // los ajustes del canal dan la duración objetivo que el cajón usa para estimar
+  const settingsQ = useQuery({
+    queryKey: ['settings', channelId],
+    queryFn: () => getSettings(channelId),
   });
   const ideasQ = useQuery({
     queryKey: ['ideas', 'new', channelId],
@@ -104,6 +119,8 @@ export function Radar({ channelId }: { channelId: string }) {
     mutationFn: (idea: IdeaDto) => approveIdea(idea.id),
     onSuccess: (_, idea) => {
       push(`Vídeo en marcha: ${idea.title}`);
+      // la idea sale del ranking; sin esto el cajón quedaría apuntando a nada
+      setAbiertaId(null);
       void queryClient.invalidateQueries({ queryKey: ['ideas'] });
       void queryClient.invalidateQueries({ queryKey: ['inbox'] });
     },
@@ -118,18 +135,13 @@ export function Radar({ channelId }: { channelId: string }) {
 
   const discardMut = useMutation({
     mutationFn: (idea: IdeaDto) => discardIdea(idea.id, 'descartada desde el radar'),
-    onSuccess: () => {
+    onSuccess: (_, idea) => {
+      push(`Idea descartada: ${idea.title}`);
+      setAbiertaId(null);
       void queryClient.invalidateQueries({ queryKey: ['ideas'] });
     },
     onError: () => push('No se pudo descartar la idea', 'danger'),
   });
-
-  // la confirmación de descarte caduca sola
-  useEffect(() => {
-    if (confirmDiscard === null) return;
-    const t = setTimeout(() => setConfirmDiscard(null), 4_000);
-    return () => clearTimeout(t);
-  }, [confirmDiscard]);
 
   const sources = sourcesQ.data ?? [];
   const ideas = ideasQ.data ?? [];
@@ -197,12 +209,26 @@ export function Radar({ channelId }: { channelId: string }) {
     orderMut.mutate(ids);
   };
 
-  const first = ranking[0];
+  // «Generar vídeo» arranca siempre la primera del orden; para lanzar otra se
+  // abre su tarjeta, que trae su propio botón. Antes eran dos pasos separados
+  // («elegir» arriba, «generar» abajo) y no se veía cuál iba a salir.
+  const primera = ranking[0];
+  const abierta = ranking.find((i) => i.id === abiertaId);
 
   return (
     <section className="card" style={{ padding: 'var(--pad)', marginBottom: 'var(--sec-gap)' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
-        <h2 className="head" style={{ fontSize: 17, margin: 0 }}>
+      {/* wrap: en estrecho el titular se partía letra a letra por pelear con el
+          subtítulo y el contador dentro de la misma línea flex */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          flexWrap: 'wrap',
+          gap: 12,
+          marginBottom: 12,
+        }}
+      >
+        <h2 className="head" style={{ fontSize: 17, margin: 0, whiteSpace: 'nowrap' }}>
           Radar de ideas
         </h2>
         <span className="muted fs-sm">
@@ -228,26 +254,22 @@ export function Radar({ channelId }: { channelId: string }) {
         </Button>
         <Button
           variant="primary"
-          disabled={first === undefined || generateMut.isPending}
-          title={first !== undefined ? `Generar «${first.title}»` : undefined}
+          disabled={primera === undefined || generateMut.isPending}
+          title={primera !== undefined ? `Generar «${primera.title}»` : undefined}
           onClick={() => {
-            if (first !== undefined) generateMut.mutate(first);
+            if (primera !== undefined) generateMut.mutate(primera);
           }}
         >
-          Generar vídeo
+          {generateMut.isPending ? 'Arrancando' : 'Generar vídeo'}
         </Button>
-        {first !== undefined ? (
+        {primera !== undefined ? (
           <span
             className="muted fs-sm"
-            style={{
-              alignSelf: 'center',
-              minWidth: 0,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
+            // sin nowrap: en estrecho baja de línea entera en vez de cortarse
+            // con puntos suspensivos justo donde está el titular que importa
+            style={{ alignSelf: 'center', flex: '1 1 240px', minWidth: 0 }}
           >
-            saldrá la primera del orden: «{first.title}»
+            saldrá «{primera.title}»; para otra, abre su tarjeta
           </span>
         ) : null}
       </div>
@@ -324,53 +346,37 @@ export function Radar({ channelId }: { channelId: string }) {
         </div>
       ) : (
         <div>
-          <ol style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          <ol className="oportunidades">
             {ranking.map((idea, i) => (
-              <li
-                key={idea.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '9px 2px',
-                  borderTop: i === 0 ? 'none' : '1px solid var(--line)',
-                }}
-              >
-                <span
-                  className="mono fs-sm muted"
-                  style={{ width: 18, flex: 'none', textAlign: 'right' }}
-                >
-                  {i + 1}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontWeight: 500,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {idea.title}
-                  </div>
-                  {idea.why_now !== null && idea.why_now !== '' ? (
-                    <div
-                      className="muted fs-sm"
-                      style={{
-                        marginTop: 2,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {idea.why_now}
-                    </div>
-                  ) : null}
+              <li key={idea.id} className="oportunidad" data-primera={i === 0 ? 'si' : 'no'}>
+                <div className="oportunidad-cabecera">
+                  <span className="oportunidad-puesto">n.º {i + 1}</span>
+                  <span>{fmtScore(idea.score)}</span>
                 </div>
-                <span className="mono fs-sm muted" style={{ flex: 'none' }}>
-                  {fmtScore(idea.score)}
-                </span>
-                <div style={{ display: 'flex', gap: 4, flex: 'none' }}>
+
+                {/* el ::after de este botón cubre la tarjeta entera; los botones
+                    del pie se levantan por encima con position:relative */}
+                <button
+                  type="button"
+                  className="oportunidad-abrir"
+                  onClick={() => setAbiertaId(idea.id)}
+                >
+                  <span className="oportunidad-titulo">{idea.title}</span>
+                  {idea.why_now !== null && idea.why_now !== '' ? (
+                    <span className="oportunidad-porque">{idea.why_now}</span>
+                  ) : null}
+                </button>
+
+                <div className="oportunidad-pie">
+                  <span
+                    className="oportunidad-fuentes"
+                    title={idea.source_refs.map((r) => dominio(r.url, r.domain)).join(', ')}
+                  >
+                    {idea.source_refs.length === 0
+                      ? 'sin fuente'
+                      : dominio(idea.source_refs[0]!.url, idea.source_refs[0]!.domain) +
+                        (idea.source_refs.length > 1 ? ` +${idea.source_refs.length - 1}` : '')}
+                  </span>
                   {/* aria-disabled (y no disabled) en los bordes: deshabilitar
                       el botón enfocado tras mover expulsaría el foco */}
                   <Button
@@ -395,27 +401,6 @@ export function Radar({ channelId }: { channelId: string }) {
                   >
                     ↓
                   </Button>
-                  {confirmDiscard === idea.id ? (
-                    <Button
-                      variant="danger-ghost"
-                      aria-label={`Confirmar el descarte de «${idea.title}»`}
-                      disabled={discardMut.isPending}
-                      onClick={() => {
-                        setConfirmDiscard(null);
-                        discardMut.mutate(idea);
-                      }}
-                    >
-                      ¿Seguro?
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      aria-label={`Descartar «${idea.title}»`}
-                      onClick={() => setConfirmDiscard(idea.id)}
-                    >
-                      Descartar
-                    </Button>
-                  )}
                 </div>
               </li>
             ))}
@@ -426,8 +411,8 @@ export function Radar({ channelId }: { channelId: string }) {
           >
             <span>
               {hasManualOrder
-                ? 'Orden manual guardado; «Generar vídeo» usa el primero.'
-                : 'Ordenadas por score; reordena con las flechas si quieres decidir tú.'}
+                ? 'Orden manual guardado. Pulsa una tarjeta para verla entera y lanzarla.'
+                : 'Ordenadas por puntuación. Pulsa una tarjeta para verla entera, o reordena con las flechas.'}
             </span>
             <div style={{ flex: 1 }} />
             <button
@@ -441,6 +426,19 @@ export function Radar({ channelId }: { channelId: string }) {
           </div>
         </div>
       )}
+
+      {abierta !== undefined ? (
+        <CajonIdea
+          idea={abierta}
+          puesto={ranking.findIndex((i) => i.id === abierta.id) + 1}
+          minutos={settingsQ.data?.target_minutes ?? null}
+          costeMedio={costeMedio}
+          generando={generateMut.isPending}
+          onGenerar={() => generateMut.mutate(abierta)}
+          onDescartar={() => discardMut.mutate(abierta)}
+          onClose={() => setAbiertaId(null)}
+        />
+      ) : null}
     </section>
   );
 }

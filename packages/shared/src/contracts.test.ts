@@ -20,6 +20,9 @@ import {
   parseComponentRef,
   renderableMasterV1,
   VIDEO_TRANSITIONS,
+  countInvalidEdits,
+  editPayloadText,
+  editsFieldSchema,
 } from './index.js';
 
 describe('ChannelProfile v1', () => {
@@ -306,5 +309,54 @@ describe('Autoría de componentes por IA', () => {
     expect(AUTHOR_ALL_TYPES).not.toContain('transition');
     expect(AUTHOR_ALL_TYPES).toContain('intro');
     expect(AUTHOR_ALL_TYPES).toContain('subtitle_theme');
+  });
+});
+
+describe('editSchema como unión discriminada', () => {
+  const base = { from_ms: 0, to_ms: 1000 };
+
+  it('exige el campo sin el cual el render pinta un hueco', () => {
+    // con el objeto plano anterior estos cuatro parseaban y llegaban al render
+    expect(editSchema.safeParse({ ...base, type: 'stat_card' }).success).toBe(false);
+    expect(editSchema.safeParse({ ...base, type: 'text_callout' }).success).toBe(false);
+    expect(editSchema.safeParse({ ...base, type: 'keyword_highlight' }).success).toBe(false);
+    expect(editSchema.safeParse({ ...base, type: 'sfx' }).success).toBe(false);
+    expect(editSchema.safeParse({ ...base, type: 'zoom_punch' }).success).toBe(false);
+  });
+
+  it('acepta los efectos bien formados', () => {
+    expect(editSchema.safeParse({ ...base, type: 'stat_card', value: '70%' }).success).toBe(true);
+    expect(editSchema.safeParse({ ...base, type: 'sfx', sfx: 'clic' }).success).toBe(true);
+    expect(editSchema.safeParse({ ...base, type: 'zoom_punch', beat_idx: 0 }).success).toBe(true);
+    expect(editSchema.safeParse({ ...base, type: 'micro_fx', style: 'spark_up' }).success).toBe(true);
+    // annotation es la única sin payload obligatorio: es una marca sobre el b-roll
+    expect(editSchema.safeParse({ ...base, type: 'annotation' }).success).toBe(true);
+  });
+
+  it('rechaza un sonido que no existe en el pack', () => {
+    expect(editSchema.safeParse({ ...base, type: 'sfx', sfx: 'inventado' }).success).toBe(false);
+  });
+
+  it('la lectura del maestro DESCARTA lo malformado en vez de fallar entera', () => {
+    // sin esto, un solo efecto viejo dejaría el vídeo sin render y sin preview
+    const parsed = editsFieldSchema.parse([
+      { type: 'stat_card', from_ms: 0, to_ms: 1 },
+      { type: 'sfx', from_ms: 0, to_ms: 400, sfx: 'pop' },
+    ]);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.type).toBe('sfx');
+  });
+
+  it('countInvalidEdits cuenta lo descartado para poder avisar', () => {
+    expect(countInvalidEdits([{ type: 'stat_card', from_ms: 0, to_ms: 1 }])).toBe(1);
+    expect(countInvalidEdits([{ type: 'sfx', from_ms: 0, to_ms: 1, sfx: 'pop' }])).toBe(0);
+    expect(countInvalidEdits('no es una lista')).toBe(0);
+  });
+
+  it('editPayloadText saca el texto sin estrechar el tipo a mano', () => {
+    expect(editPayloadText({ ...base, type: 'text_callout', text: 'coste real' })).toBe('coste real');
+    expect(editPayloadText({ ...base, type: 'stat_card', value: '70%' })).toBe('70%');
+    expect(editPayloadText({ ...base, type: 'sfx', sfx: 'clic' })).toBe('clic');
+    expect(editPayloadText({ ...base, type: 'zoom_punch', beat_idx: 0 })).toBeUndefined();
   });
 });

@@ -178,7 +178,13 @@ export const beats = pgTable(
     visuals: jsonb('visuals').$type<StoredSubvisual[]>(),
     discardReason: text('discard_reason'),
   },
-  (t) => [uniqueIndex('beats_video_idx_idx').on(t.videoId, t.idx)],
+  (t) => [
+    uniqueIndex('beats_video_idx_idx').on(t.videoId, t.idx),
+    // la biblioteca comprueba «¿este asset lo usa algún beat?» con un EXISTS
+    // correlacionado por fila (library-browse.ts), y la purga hace lo mismo:
+    // sin índice son tantos recorridos de `beats` como assets se listen
+    index('beats_asset_idx').on(t.assetId),
+  ],
 );
 
 export const assets = pgTable(
@@ -208,6 +214,10 @@ export const assets = pgTable(
   (t) => [
     index('assets_channel_kind_idx').on(t.channelId, t.kind),
     index('assets_embedding_idx').using('hnsw', t.embedding.op('vector_cosine_ops')),
+    // la cascada pregunta «¿ya tengo este recurso de stock?» una vez por
+    // sub-plano (hasta ~90 por vídeo) antes de descargar; sin índice cada
+    // pregunta recorre entera la tabla que más crece
+    index('assets_source_ref_idx').on(t.sourceRef),
   ],
 );
 
@@ -265,3 +275,18 @@ export const stockCache = pgTable(
   },
   (t) => [uniqueIndex('stock_cache_query_provider_idx').on(t.queryNorm, t.provider)],
 );
+
+// Descripción visual de una miniatura de stock, indexada POR IMAGEN.
+//
+// Antes vivía dentro de la fila de stock_cache de la consulta que la generó,
+// pero la descripción es de la imagen, no de la consulta: la misma miniatura
+// que salía en dos búsquedas se describía (y se pagaba) dos veces. Medido sobre
+// la base real: 1208 descripciones para 850 imágenes distintas, un 30 % tirado,
+// y el porcentaje sube según se solapan más búsquedas.
+export const captionCache = pgTable('caption_cache', {
+  // ref canónica del proveedor (`stockRef` de shared):
+  // 'pexels:video:123' | 'pexels:photo:456' | 'pixabay:video:789'
+  ref: text('ref').primaryKey(),
+  caption: text('caption').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});

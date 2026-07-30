@@ -140,10 +140,17 @@ async function main(): Promise<void> {
     imagePath: 'demo/image.png',
   });
   masterKit.brand = {
+    // sin channel_name el humo no ejercitaba el texto de intro ni outro: el
+    // monograma caía a «·» y «Señal y ruido» nunca se pintaba
+    channel_name: 'Canal de ejemplo',
     components: {
       subtitle_theme: masterKit.brand?.components.subtitle_theme ?? 'subtitulos-basicos@0.1.0',
       intro: 'intro-basica@0.1.0',
       outro: 'outro-basica@0.1.0',
+      // las cuatro piezas integradas a la vez: la tarjeta y el rótulo se montan
+      // sobre el b-roll y su legibilidad solo se juzga en el montaje real
+      title_card: 'titulo-seccion@0.1.0',
+      lower_third: 'rotulo-basico@0.1.0',
     },
   };
   const kitComposition = await selectComposition({
@@ -182,6 +189,29 @@ async function main(): Promise<void> {
   });
   if (!existsSync(kitOutput) || statSync(kitOutput).size <= 0) {
     throw new Error(`El render de humo del brand kit no produjo ${kitOutput}`);
+  }
+
+  // ---- tercera pasada: el cruce cuerpo→outro, que no se probaba nunca
+  const outroOutput = path.join(outDir, 'smoke-outro.mp4');
+  const outroFrom = Math.max(0, expectedFrames - OUTRO_BASICA_DURATION_FRAMES - 15);
+  console.log(`Renderizando el cruce cuerpo→outro (frames ${outroFrom}–${expectedFrames - 1})…`);
+  await renderMedia({
+    composition: kitComposition,
+    serveUrl,
+    codec: 'h264',
+    crf: 18,
+    pixelFormat: 'yuv420p',
+    audioCodec: 'aac',
+    audioBitrate: '192k',
+    frameRange: [outroFrom, expectedFrames - 1],
+    inputProps: masterKit,
+    outputLocation: outroOutput,
+    onProgress: ({ progress }) => {
+      if (progress === 1) console.log('Codificación del outro terminada');
+    },
+  });
+  if (!existsSync(outroOutput) || statSync(outroOutput).size <= 0) {
+    throw new Error(`El render de humo del outro no produjo ${outroOutput}`);
   }
 
   const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);

@@ -1,16 +1,51 @@
 @import 'tailwindcss';
 
 /*
- * Tokens copiados de docs/design/Fábrica.dc.html.
- * Tema oscuro (por defecto) = «Sala de control» dark.
- * Tema claro = «Neutro nativo» light.
+ * Tokens de la sala de control.
+ * Tema oscuro (por defecto) = «Sala de control». Tema claro = «Neutro nativo».
  * El tema es un swap de data-attributes en <html>: data-tema y data-density.
+ *
+ * Un solo eje de color, y es lo que hace legible la pantalla de un vistazo:
+ *   cian  = la máquina está trabajando
+ *   ámbar = la máquina te espera a ti
+ * Nada más compite por la atención. El verde y el rojo quedan para el resultado
+ * de una acción concreta (aprobado, fallo), nunca para el estado del pipeline.
  */
+
+/* Inter variable, la MISMA que se empaqueta en los vídeos: el panel y el
+   producto que fabrica hablan con la misma voz. Servida en local, sin red. */
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/InterVariable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --font-ui: system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
-  --font-head: system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-head: 'Inter', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, 'IBM Plex Mono', monospace;
   --font-serif: 'Newsreader', Georgia, 'Times New Roman', serif;
+
+  /* Escala tipográfica. Los saltos son grandes a propósito: con incrementos de
+     1-2px todo parece lo mismo y no hay jerarquía, que es el defecto de la
+     versión anterior de esta pantalla. */
+  --t-micro: 11px;
+  --t-dato: 12.5px;
+  --t-cuerpo: 14px;
+  --t-titulo: 17px;
+  --t-seccion: 22px;
+  --t-pantalla: 30px;
+
+  /* Ritmo vertical en múltiplos de 4 */
+  --e-1: 4px;
+  --e-2: 8px;
+  --e-3: 12px;
+  --e-4: 16px;
+  --e-6: 24px;
+  --e-8: 32px;
+  --e-12: 48px;
 
   --bg: #0b0e11;
   --bg2: #12171c;
@@ -24,13 +59,27 @@
   --ok: #3ddc84;
   --warn: #ffb224;
   --danger: #ff6b6b;
+  /* El eje de la pantalla. `espera` es el mismo ámbar que --warn, pero con otro
+     significado: no avisa de un problema, dice que el turno es tuyo. Se nombra
+     aparte para que se pueda recalibrar sin arrastrar los avisos de error. */
+  --espera: #ffb224;
+  --espera-fg: #2a1a00;
+  --maquina: #4cc2ff;
+  /* Texto sobre el fondo --danger sólido. Blanco sobre #ff6b6b da 2,77:1 (falla
+     AA); este casi negro da 6,66:1 y conserva el rojo del mock. Mismo patrón
+     que --accent / --accent-fg. */
+  --danger-fg: #2a0808;
   --ring: #4cc2ff;
   --r-sm: 3px;
   --r: 4px;
   --r-lg: 6px;
   --pill-r: 3px;
   --shadow: none;
-  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.45);
+  /* En oscuro una sombra negra sobre --bg es invisible: la elevación se expresa
+     con un aro claro de 1px, no con desenfoque. */
+  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 16px 40px rgba(0, 0, 0, 0.7);
+  --surface-hover: #1d242c;
+  --side-w: 380px;
 }
 
 :root[data-tema='claro'] {
@@ -44,8 +93,16 @@
   --accent-fg: #fafaf9;
   --accent2: #1c1a17;
   --ok: #15803d;
-  --warn: #a8560a;
+  /* Ámbar sobre su propio tinte al 12–14% (fichas y chips): 5,2:1. Con el
+     #a8560a anterior se quedaba en 4,0 y no llegaba a AA. */
+  --warn: #8d4707;
   --danger: #b42318;
+  /* Blanco sobre #b42318: 6,57:1. */
+  --danger-fg: #ffffff;
+  /* En claro el acento de marca es casi negro, así que la máquina no puede ser
+     «el acento»: necesita un azul propio que no compita con el texto. */
+  --espera: #8d4707;
+  --maquina: #1d4ed8;
   --ring: #1c1a17;
   --r-sm: 6px;
   --r: 8px;
@@ -53,6 +110,7 @@
   --pill-r: 6px;
   --shadow: 0 1px 2px rgba(28, 26, 23, 0.06);
   --shadow-lg: 0 12px 32px rgba(28, 26, 23, 0.14);
+  --surface-hover: #f4f2ef;
 }
 
 :root[data-density='comoda'] {
@@ -70,7 +128,10 @@
   --gap: 8px;
   --row: 38px;
   --fs: 13px;
-  --fs-sm: 11.5px;
+  /* Suelo de 12px: --fs-sm lo heredan chips, .field-label y los inputs, que
+     llevan contenido real. Los micro-rótulos mono (.kbd, .step-label) van
+     aparte porque son versalitas con tracking, no texto corrido. */
+  --fs-sm: 12px;
   --track-h: 44px;
   --sec-gap: 22px;
 }
@@ -188,7 +249,7 @@ select {
 
 .step-label {
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--fg2);
@@ -196,6 +257,20 @@ select {
 
 .muted {
   color: var(--fg2);
+}
+
+/* Texto solo para lectores de pantalla: los esqueletos son decorativos y van
+   con aria-hidden, así que el estado de carga hay que anunciarlo aparte. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 .fs-sm {
   font-size: var(--fs-sm);
@@ -267,7 +342,7 @@ h2.head,
 .btn-danger {
   border-color: var(--danger);
   background: var(--danger);
-  color: #fff;
+  color: var(--danger-fg);
   font-weight: 600;
 }
 .btn-danger:hover:not(:disabled) {
@@ -329,7 +404,7 @@ h2.head,
 
 .kbd {
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--fg2);
   border: 1px solid var(--line);
   border-radius: 3px;
@@ -448,6 +523,46 @@ textarea.control {
   transform: translateY(-2px);
 }
 
+/* ---- desplegable (patrón disclosure) ---- */
+
+.disclosure {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  /* 4px arriba/abajo: zona pulsable cómoda sin descuadrar el interior de la
+     tarjeta, que ya trae su propio var(--pad) */
+  padding: 4px 0;
+  color: inherit;
+}
+.disclosure:hover .disclosure-caret,
+.disclosure:hover span {
+  color: var(--fg);
+}
+.disclosure-caret {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  color: var(--fg2);
+  transition: transform 0.12s;
+}
+.disclosure[aria-expanded='true'] .disclosure-caret {
+  transform: rotate(90deg);
+}
+
+/* La lista desplegada tampoco puede empujar la pista de clips fuera de
+   pantalla: se le pone tope y scroll propio. */
+.efectos-lista {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
 /* ---- placeholders de miniatura ---- */
 
 .thumb-ph {
@@ -494,6 +609,24 @@ textarea.control {
   box-shadow: var(--shadow-lg);
   overflow: hidden;
   animation: fbup 0.16s ease-out;
+}
+
+/* El visor de medios necesita más ancho que un diálogo de confirmación: se
+   juzga un encuadre, no se lee una pregunta. */
+.modal-box-wide {
+  width: 720px;
+}
+.visor-media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  display: block;
+  background: #000;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  /* contain y no cover: en la rejilla la miniatura es un índice y puede
+     recortar, pero aquí se decide si el plano vale y hay que ver el cuadro
+     entero. */
+  object-fit: contain;
 }
 
 .motivo-btn {
@@ -556,6 +689,22 @@ textarea.control {
   border-radius: 999px;
   flex: none;
 }
+.toast-close {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--fg2);
+  font-size: 12px;
+  line-height: 1;
+  /* 28px de zona pulsable con el glifo a 12px */
+  padding: 8px;
+  margin: -8px -6px -8px 0;
+  border-radius: var(--r-sm);
+}
+.toast-close:hover {
+  color: var(--fg);
+  background: var(--bg3);
+}
 
 /* ---- cabecera de la app ---- */
 
@@ -574,12 +723,30 @@ textarea.control {
      biblioteca, brand kit, tema y densidad) y debe caber en un portátil */
   gap: 12px;
 }
+
+/* La fila de la cabecera suma ~1240px de contenido rígido, así que desbordaba
+   por debajo de ~1290px. La navegación es el único bloque elástico: se encoge
+   y desplaza dentro de sí misma en vez de empujar la página. */
+.app-header-nav {
+  display: flex;
+  gap: 14px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.app-header-nav::-webkit-scrollbar {
+  display: none;
+}
 .nav-link {
   font-size: var(--fs-sm);
   color: var(--fg2);
-  padding: 4px 0;
+  /* 9px arriba/abajo lleva la zona pulsable a ~32px sin mover la línea base
+     del subrayado de sección. */
+  padding: 9px 0;
   border-bottom: 2px solid transparent;
   text-decoration: none;
+  white-space: nowrap;
 }
 .nav-link:hover {
   color: var(--fg);
@@ -603,8 +770,8 @@ textarea.control {
   background: transparent;
   color: var(--fg2);
   border-radius: calc(var(--r-sm) - 1px);
-  padding: 3px 9px;
-  font-size: 11.5px;
+  padding: 5px 10px;
+  font-size: 12px;
 }
 .seg-btn[aria-pressed='true'] {
   background: var(--bg2);
@@ -631,13 +798,689 @@ textarea.control {
     transform 0.12s;
   cursor: pointer;
 }
+/* El hover no puede apoyarse solo en box-shadow: en oscuro --shadow-lg apenas
+   se lee sobre --bg. El cambio de superficie funciona en los dos temas. */
 .gate-card:hover {
   border-color: var(--accent);
+  background: var(--surface-hover);
   box-shadow: var(--shadow-lg);
 }
 
 .row-hover:hover {
   background: var(--bg3);
+}
+
+/* ---- línea de producción ----
+   El raíl de la fábrica. Es la pieza que da carácter a la pantalla, así que
+   todo lo demás a su alrededor va callado: una sola marca de color por fase y
+   nada de decoración. */
+
+.linea {
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--bg2);
+  padding: var(--e-6) var(--e-6) var(--e-4);
+  margin-bottom: var(--sec-gap);
+}
+
+.linea-cabecera {
+  display: flex;
+  align-items: baseline;
+  gap: var(--e-3);
+  margin-bottom: var(--e-6);
+}
+.linea-titulo {
+  font-family: var(--font-head);
+  font-size: var(--t-seccion);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--fg);
+}
+.linea-resumen {
+  font-size: var(--t-dato);
+  color: var(--fg2);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* El raíl: la fila de fases con su regla horizontal detrás. */
+.linea-rail {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--e-3);
+  position: relative;
+}
+/* la regla no es un borde de la rejilla: es una línea que atraviesa las marcas,
+   por eso va posicionada a la altura del punto */
+.linea-rail::before {
+  content: '';
+  position: absolute;
+  /* media columna a cada lado: la regla empieza en el primer punto y acaba en
+     el último, en vez de sobresalir por los extremos */
+  left: calc(50% / 4);
+  right: calc(50% / 4);
+  top: 5px;
+  height: 1px;
+  background: var(--line);
+}
+
+.linea-fase {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--e-2);
+  min-width: 0;
+}
+
+.linea-marca {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: var(--bg3);
+  border: 1px solid var(--line);
+  position: relative;
+  z-index: 1;
+}
+.linea-marca[data-estado='maquina'] {
+  background: var(--maquina);
+  border-color: var(--maquina);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--maquina) 22%, transparent);
+}
+.linea-marca[data-estado='espera'] {
+  background: var(--espera);
+  border-color: var(--espera);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--espera) 26%, transparent);
+}
+
+.linea-etiqueta {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg2);
+}
+
+.linea-fichas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+  width: 100%;
+  min-width: 0;
+}
+
+.linea-incidencias {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+  margin-top: var(--e-4);
+}
+
+/* Ficha de un vídeo situado en su fase. La rejilla con áreas deja que la
+   insignia del atajo ocupe su propia columna sin pisar el título. */
+.ficha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'titulo atajo'
+    'detalle atajo';
+  align-items: center;
+  column-gap: var(--e-2);
+  min-width: 0;
+  padding: var(--e-2) var(--e-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--bg3);
+  text-decoration: none;
+  transition:
+    border-color 0.12s,
+    background-color 0.12s;
+}
+.ficha:hover {
+  text-decoration: none;
+  background: var(--surface-hover);
+}
+.ficha[data-estado='espera'] {
+  border-color: color-mix(in oklab, var(--espera) 55%, transparent);
+  background: color-mix(in oklab, var(--espera) 12%, var(--bg3));
+}
+.ficha[data-estado='espera']:hover {
+  border-color: var(--espera);
+}
+.ficha[data-estado='maquina'] {
+  border-color: color-mix(in oklab, var(--maquina) 40%, transparent);
+}
+.ficha[data-estado='maquina']:hover {
+  border-color: var(--maquina);
+}
+.ficha[data-estado='fallo'] {
+  border-color: color-mix(in oklab, var(--danger) 50%, transparent);
+  background: color-mix(in oklab, var(--danger) 10%, var(--bg3));
+}
+
+.ficha-titulo {
+  grid-area: titulo;
+  font-size: var(--t-dato);
+  font-weight: 500;
+  color: var(--fg);
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.ficha-detalle {
+  grid-area: detalle;
+  margin-top: 2px;
+  font-size: var(--t-micro);
+  color: var(--fg2);
+}
+.ficha[data-estado='espera'] .ficha-detalle {
+  color: var(--espera);
+}
+.ficha[data-estado='fallo'] .ficha-detalle {
+  color: var(--danger);
+}
+.ficha-atajo {
+  grid-area: atajo;
+}
+
+/* Por debajo del suelo de diseño el raíl no cabe en seis columnas: pasa a lista
+   vertical, que sigue diciendo lo mismo. */
+@media (max-width: 900px) {
+  .linea-rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .linea-rail::before {
+    display: none;
+  }
+  .linea-fase {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: var(--e-3);
+  }
+  .linea-etiqueta {
+    width: 60px;
+    flex: none;
+    padding-top: 1px;
+  }
+  .linea-fichas {
+    flex: 1;
+  }
+  /* sin fichas, la fase vacía es una línea de texto suelta: se calla */
+  .linea-fase:not(:has(.ficha)) {
+    display: none;
+  }
+  /* el resumen deja de pelear con el titular por el mismo renglón */
+  .linea-cabecera {
+    flex-wrap: wrap;
+  }
+  .linea-resumen {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* ---- radar: tarjetas de oportunidad ----
+   El ranking era una lista de ocho renglones cuyo único dato visible era una
+   puntuación que en la práctica no discrimina (todas caen entre 79 y 81). La
+   tarjeta enseña lo que sí decide: por qué ahora y de dónde sale. */
+
+.oportunidades {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: var(--e-3);
+  list-style: none;
+  margin: 0 0 var(--e-4);
+  padding: 0;
+}
+
+.oportunidad {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+  padding: var(--e-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg3);
+  transition:
+    border-color 0.12s,
+    background-color 0.12s;
+}
+.oportunidad:hover {
+  background: var(--surface-hover);
+  border-color: color-mix(in oklab, var(--fg2) 55%, transparent);
+}
+/* la primera del orden es la que sale al pulsar «Generar vídeo»: se marca para
+   que el botón de arriba no sea una apuesta a ciegas */
+.oportunidad[data-primera='si'] {
+  border-color: color-mix(in oklab, var(--accent) 60%, transparent);
+}
+
+.oportunidad-cabecera {
+  display: flex;
+  align-items: baseline;
+  gap: var(--e-2);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--fg2);
+}
+.oportunidad-puesto {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+/* El disparador estira su área de pulsación a toda la tarjeta con un ::after;
+   los botones de acción se levantan por encima con position:relative. Así la
+   tarjeta entera es pulsable sin anidar botones. */
+.oportunidad-abrir {
+  display: block;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font: inherit;
+  color: var(--fg);
+}
+.oportunidad-abrir::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+.oportunidad-abrir:focus-visible {
+  outline: none;
+}
+.oportunidad-abrir:focus-visible::after {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.oportunidad-titulo {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--t-dato);
+  font-weight: 500;
+  line-height: 1.3;
+}
+.oportunidad-porque {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: var(--e-2);
+  font-size: var(--t-micro);
+  line-height: 1.45;
+  color: var(--fg2);
+}
+
+.oportunidad-pie {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--e-1);
+  margin-top: auto;
+  padding-top: var(--e-2);
+  border-top: 1px solid var(--line);
+}
+.oportunidad-fuentes {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--fg2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- galería de entregas ----
+   Lo terminado es un vídeo: se enseña como un vídeo, en 16:9, y no como un
+   renglón de texto con una miniatura de relleno. */
+
+.galeria {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--e-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.entrega {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--bg2);
+  overflow: hidden;
+  transition:
+    border-color 0.12s,
+    transform 0.12s;
+}
+.entrega:hover {
+  border-color: color-mix(in oklab, var(--fg2) 60%, transparent);
+}
+
+.entrega-lienzo {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  overflow: hidden;
+}
+.entrega-lienzo > img,
+.entrega-lienzo > video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* el vídeo solo se revela al pasar por encima o al enfocar con teclado; hasta
+   entonces vive detrás de la miniatura y no se descarga (preload="none") */
+.entrega-lienzo > video {
+  opacity: 0;
+  transition: opacity 0.18s;
+}
+.entrega:hover .entrega-lienzo > video,
+.entrega:focus-within .entrega-lienzo > video {
+  opacity: 1;
+}
+.entrega-sinimagen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg3);
+  color: var(--fg2);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+}
+/* Los chips tienen fondo translúcido; encima de un fotograma cualquiera eso
+   deja el contraste al azar. El envoltorio pone una superficie opaca debajo,
+   sea cual sea el tipo de chip. */
+.entrega-estado {
+  position: absolute;
+  top: var(--e-2);
+  left: var(--e-2);
+  z-index: 1;
+  border-radius: var(--pill-r);
+  background: var(--bg2);
+  line-height: 0;
+}
+
+/* flex:1 + margin-top:auto en el pie: con títulos de una y de dos líneas, las
+   fechas y los botones siguen alineados a lo largo de la fila */
+.entrega-cuerpo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-1);
+  padding: var(--e-3);
+}
+.entrega-titulo {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--t-dato);
+  font-weight: 500;
+  line-height: 1.3;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--fg);
+  cursor: pointer;
+  font-family: inherit;
+}
+.entrega-titulo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+.entrega-titulo:focus-visible {
+  outline: none;
+}
+.entrega-titulo:focus-visible::after {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.entrega-pie {
+  position: relative;
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--fg2);
+}
+.entrega-pie > .btn {
+  margin-left: auto;
+}
+
+/* Franja de coste al pie de la bandeja: un renglón, no una tarjeta lateral. */
+.franja-coste {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--e-3);
+  margin-top: var(--sec-gap);
+  padding: var(--e-3) var(--e-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--bg2);
+}
+.franja-coste-barra {
+  flex: 1 1 160px;
+  min-width: 120px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--bg3);
+  overflow: hidden;
+}
+
+/* ---- ficha completa de una entrega ----
+   Dos columnas: el vídeo manda a la izquierda y a la derecha va lo que se
+   copia y se pega en YouTube, en el mismo orden del formulario de subida. */
+
+.ficha-entrega {
+  width: 1040px;
+  max-width: 100%;
+  max-height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--bg2);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: fbup 0.16s ease-out;
+}
+
+.ficha-entrega-media {
+  display: flex;
+  flex-direction: column;
+  /* el 16:9 no llena la altura de la columna de texto: centrarlo lee como un
+     encuadre, y no como un hueco al final */
+  justify-content: center;
+  min-width: 0;
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+}
+.ficha-entrega-video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  display: block;
+  background: #000;
+}
+.ficha-entrega-datos {
+  display: flex;
+  gap: var(--e-2);
+  padding: var(--e-3) var(--e-4);
+  font-size: var(--t-micro);
+  color: var(--fg2);
+  min-width: 0;
+}
+/* solo la ruta cede: el coste nunca se parte en dos líneas */
+.ficha-entrega-datos > span {
+  flex: none;
+  white-space: nowrap;
+}
+.ficha-entrega-datos > span:last-child {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ficha-entrega-lado {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.ficha-entrega-campos {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--e-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+}
+.ficha-entrega-pie {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  padding: var(--e-3) var(--e-4);
+  border-top: 1px solid var(--line);
+}
+
+.ficha-campo-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-2);
+  margin-bottom: var(--e-1);
+}
+.ficha-campo-valor {
+  font-size: var(--t-dato);
+  line-height: 1.55;
+}
+/* sin scroll propio: la columna entera ya se desplaza, y dos barras anidadas
+   hacen que la rueda del ratón no vaya donde el ojo espera */
+.ficha-campo-valor[data-multilinea='si'] {
+  white-space: pre-wrap;
+  color: var(--fg2);
+}
+
+/* Bajo el suelo de dos columnas la ficha se apila: el vídeo arriba, el texto
+   debajo, que es el orden en que se usa. */
+@media (max-width: 860px) {
+  .ficha-entrega {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .ficha-entrega-media {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+/* ---- cajón de lanzamiento ---- */
+
+.cajon-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: flex-end;
+}
+.cajon {
+  width: 460px;
+  max-width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg2);
+  border-left: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+  animation: cajon-entra 0.18s ease-out;
+}
+@keyframes cajon-entra {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.cajon-cuerpo {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--e-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-6);
+}
+.cajon-pie {
+  flex: none;
+  display: flex;
+  gap: var(--e-2);
+  padding: var(--e-4) var(--e-6);
+  border-top: 1px solid var(--line);
+  background: var(--bg2);
+}
+.cajon-bloque > dt {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg2);
+  margin-bottom: var(--e-2);
+}
+.cajon-bloque > dd {
+  margin: 0;
+  font-size: var(--t-dato);
+  line-height: 1.55;
+}
+.cajon-fuentes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+}
+.cajon-fuentes a {
+  display: block;
+  font-size: var(--t-dato);
+  line-height: 1.35;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in oklab, var(--accent) 45%, transparent);
+}
+.cajon-fuentes a:hover {
+  text-decoration-color: currentcolor;
+}
+.cajon-fuentes .mono {
+  font-size: var(--t-micro);
+  color: var(--fg2);
 }
 
 /* ---- banners ---- */
@@ -654,4 +1497,123 @@ textarea.control {
 .banner-danger {
   border-color: color-mix(in oklab, var(--danger) 45%, transparent);
   background: color-mix(in oklab, var(--danger) 10%, transparent);
+}
+
+/* ---- rejillas de página ----
+   Estaban en estilos en línea, donde ninguna media query podía alcanzarlas.
+   .split-side = contenido + barra lateral fija (Timeline, Guion, Entrega).
+   .split-half = dos columnas iguales (Bandeja, Costes). */
+
+.split-side,
+.split-half,
+.split-lead {
+  display: grid;
+  gap: var(--sec-gap);
+}
+.split-side {
+  grid-template-columns: minmax(0, 1fr) var(--side-w);
+  align-items: start;
+}
+.split-half {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.split-lead {
+  grid-template-columns: 1.4fr minmax(0, 1fr);
+  align-items: start;
+}
+
+/* ---- esqueletos de carga ---- */
+
+.skeleton {
+  border-radius: var(--r-sm);
+  background: linear-gradient(
+    90deg,
+    var(--bg3) 25%,
+    color-mix(in oklab, var(--fg) 9%, var(--bg3)) 37%,
+    var(--bg3) 63%
+  );
+  background-size: 400% 100%;
+  animation: fb-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes fb-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+/* ---- puntos de ruptura ----
+   Suelo de diseño: 1024px (portátil pequeño). Por debajo la herramienta sigue
+   siendo usable en una columna, pero no es el objetivo. */
+
+/* 1000px y no 1180: a 1024 (el suelo de diseño) el editor debe conservar player
+   y panel de curación en paralelo. Apilarlos alarga la página justo donde el
+   problema es la altura. A 1024 quedan ~570px de columna principal, que da
+   para un 16:9 legible. */
+@media (max-width: 1000px) {
+  .split-side {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1280px) {
+  .app-header-inner {
+    gap: 10px;
+  }
+  .app-header-search {
+    flex-basis: 170px;
+  }
+}
+
+@media (max-width: 1100px) {
+  /* El coste del mes también vive en Costes; es lo primero que sobra aquí.
+     Se apunta al badge dentro de la cabecera para no tocar la API de
+     CostBadge, que se reutiliza en otras pantallas. */
+  .app-header-inner .badge-cost {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .split-half,
+  .split-lead {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .wrap-1160,
+  .wrap-1320,
+  .wrap-1420 {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* ---- movimiento reducido ---- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* La barra indeterminada vive de su animación: sin ella quedaría fuera de
+     cuadro. Se convierte en una barra llena y quieta. */
+  .progress-indeterminate > div {
+    width: 100%;
+    animation: none;
+  }
+  .skeleton {
+    animation: none;
+    background: var(--bg3);
+  }
+  .beat-pill:hover,
+  .gate-card:hover,
+  .btn:active:not(:disabled) {
+    transform: none;
+  }
 }

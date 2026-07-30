@@ -236,13 +236,10 @@ export function Guion() {
         </div>
 
         <div
-          className="wrap-1320"
+          className="wrap-1320 split-side"
           style={{
             padding: 'calc(var(--pad) * 1.6) 26px 70px',
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) 380px',
             gap: 'calc(var(--gap) * 1.8)',
-            alignItems: 'start',
           }}
         >
           <div style={{ display: 'grid', gap: 'var(--gap)' }}>
@@ -385,13 +382,10 @@ export function Guion() {
       </div>
 
       <div
-        className="wrap-1320"
+        className="wrap-1320 split-side"
         style={{
           padding: 'calc(var(--pad) * 1.6) 26px 70px',
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) 380px',
           gap: 'calc(var(--gap) * 1.8)',
-          alignItems: 'start',
         }}
       >
         <div style={{ display: 'grid', gap: 'var(--gap)' }}>

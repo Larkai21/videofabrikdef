@@ -39,7 +39,12 @@ import { closeCost, failCost, openCost } from '../../lib/ledger.js';
 import { cosineSimilarity } from '../../providers/embeddings.js';
 import { generateFluxImage } from '../../providers/flux.js';
 import { mockHash } from '../../providers/llm.js';
-import { cacheCaption, searchStock, type StockResult } from '../../providers/stock.js';
+import {
+  cacheCaption,
+  captionsByRef,
+  searchStock,
+  type StockResult,
+} from '../../providers/stock.js';
 import { directBroll } from './broll-director.js';
 import { directChapters } from './chapter-director.js';
 import { directEdits } from './editing-director.js';
@@ -54,7 +59,38 @@ import { extractCaptionJpeg } from '../library/media.js';
 // aprobar la timeline (ingest).
 
 const LIB_CANDIDATES = 6;
-const STOCK_FINALISTS = 8;
+// Cuántos resultados de stock entran a puntuar. Bajarlo estrecha la elección;
+// lo que de verdad ahorra es CAPTION_TOP_K, que no la estrecha.
+const STOCK_FINALISTS = 6;
+// Cuántos de esos finalistas se describen con el modelo de visión. El resto se
+// puntúa con el título del proveedor: siguen compitiendo, solo que con un texto
+// peor. Es donde estaba el 77 % del coste de un vídeo.
+const CAPTION_TOP_K = 4;
+
+/**
+ * Los `k` candidatos que más se parecen a la query según su TÍTULO, para
+ * decidir a cuáles vale la pena pagarles una descripción de visión.
+ *
+ * Los embeddings son locales y no cuestan, así que esta criba es gratis. Un
+ * candidato sin título puntúa 0: si aun así entra, es porque no había mejores.
+ * Determinista: los empates se rompen por el orden de llegada.
+ */
+export function topByTitleCosine<T extends { meta: { title?: unknown } }>(
+  items: readonly T[],
+  vectors: readonly (number[] | undefined)[],
+  qVec: number[],
+  k: number,
+): T[] {
+  return items
+    .map((item, i) => {
+      const v = vectors[i];
+      const titulo = String(item.meta.title ?? '');
+      return { item, i, cos: v && titulo !== '' ? cosineSimilarity(qVec, v) : 0 };
+    })
+    .sort((a, b) => b.cos - a.cos || a.i - b.i)
+    .slice(0, k)
+    .map((x) => x.item);
+}
 const ALTERNATES = 4;
 // margen de coseno dentro del cual se prefiere el clip que cubre el beat en una
 // sola pasada (evita bucles) frente al de coseno ligeramente mayor
@@ -277,14 +313,43 @@ async function resolveOneVisual(
       .slice(0, STOCK_FINALISTS);
 
     if (finalists.length > 0) {
-      // caption VLM de finalistas (con caché dentro de stock_cache)
-      const toCaption = finalists.filter((f) => !f.meta.caption && f.thumb_url);
+      // Descripciones ya pagadas de estas imágenes, vengan de la búsqueda que
+      // vengan: la caché es por imagen, no por consulta.
+      const yaDescritas = await captionsByRef(
+        db,
+        finalists.map((f) => f.ref),
+      );
+      for (const f of finalists) {
+        const previa = yaDescritas.get(f.ref);
+        if (previa !== undefined && !f.meta.caption) f.meta.caption = previa;
+      }
+
+      // Preselección GRATIS: se puntúa con el título del proveedor (los
+      // embeddings son locales y no cuestan) y solo se describe a los que
+      // pueden ganar. Describir el octavo finalista es pagar por un candidato
+      // que ya iba último con su propio texto.
+      const sinDescribir = finalists.filter((f) => !f.meta.caption && f.thumb_url);
+      const toCaption =
+        sinDescribir.length > CAPTION_TOP_K
+          ? topByTitleCosine(
+              sinDescribir,
+              await ctx.embeddings.embed(sinDescribir.map((f) => String(f.meta.title ?? ''))),
+              qVec,
+              CAPTION_TOP_K,
+            )
+          : sinDescribir;
+
       const handle = await openCost(db, {
         videoId,
         channelId,
         provider: ctx.llm.ledgerProvider,
         operation: 'vlm_caption',
-        meta: { query: queryText, finalists: toCaption.length },
+        meta: {
+          query: queryText,
+          finalists: toCaption.length,
+          reusados: finalists.length - sinDescribir.length,
+          descartados_por_preseleccion: sinDescribir.length - toCaption.length,
+        },
       });
       try {
         for (const finalist of toCaption) {
@@ -712,6 +777,10 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
       seoTags: video.master.seo?.tags ?? [],
       ...(video.master.script?.hook_notes ? { hookNotes: video.master.script.hook_notes } : {}),
       ...(video.master.seo ? { title: video.master.seo.titles[video.master.seo.chosen_idx ?? 0] } : {}),
+      // el índice escena→audio permite anclar la palabra disparadora en SU
+      // ventana; los claims son la única fuente de cifras admitida en pantalla
+      ...(video.master.scene_spans ? { sceneSpans: video.master.scene_spans } : {}),
+      ...(video.master.research ? { claims: video.master.research.claims } : {}),
     });
     await db
       .update(videos)

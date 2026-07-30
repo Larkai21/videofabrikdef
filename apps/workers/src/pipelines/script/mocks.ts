@@ -1,4 +1,4 @@
-import { WORDS_PER_MIN } from '@fabrica/shared';
+import { WORDS_PER_MIN, type EditIntent } from '@fabrica/shared';
 import { mockHash, registerMockOp } from '../../providers/llm.js';
 
 // Mocks deterministas del pipeline de guion. El guion mock respeta la duración
@@ -68,6 +68,7 @@ export interface MockScriptPayload {
       text: string;
       visual_query: string;
       emphasis?: boolean;
+      edit_intents?: EditIntent[];
     }>;
     hook_notes: string;
   };
@@ -87,13 +88,25 @@ export function mockScriptPayload(opts: MockScriptOptions): MockScriptPayload {
   const bodyCount = Math.max(1, Math.round((target - hookWords - ctaWords) / bodyBase));
   let diff = target - (hookWords + ctaWords + bodyCount * bodyBase);
 
+  // El mock declara intenciones VÁLIDAS POR CONSTRUCCIÓN: toma sus disparadores
+  // del texto que él mismo acaba de generar. Así el camino nuevo se ejercita en
+  // el E2E sin claves de API, en vez de quedar sin probar hasta producción.
+  const intentsDe = (text: string, effect: 'kinetic' | 'callout'): EditIntent[] => {
+    const palabras = text.split(/\s+/).filter((w) => w.length > 3);
+    const trigger = palabras[2];
+    if (trigger === undefined) return [];
+    return [{ effect, trigger_word: trigger, card_text: palabras.slice(2, 4).join(' ') }];
+  };
+
   const scenes: MockScriptPayload['script']['scenes'] = [];
+  const hookText = mockWords(`${opts.ideaTitle}:hook`, hookWords);
   scenes.push({
     id: 'sc-hook',
     section: 'hook',
-    text: mockWords(`${opts.ideaTitle}:hook`, hookWords),
+    text: hookText,
     visual_query: pickVisualQuery(opts.ideaTitle, 0),
     emphasis: true,
+    edit_intents: intentsDe(hookText, 'kinetic'),
   });
   for (let i = 0; i < bodyCount; i++) {
     // reparte la diferencia manteniendo cada escena en 40-70 palabras
@@ -103,11 +116,14 @@ export function mockScriptPayload(opts: MockScriptOptions): MockScriptPayload {
       sceneWords += delta;
       diff -= delta;
     }
+    const bodyText = mockWords(`${opts.ideaTitle}:body:${i}`, sceneWords);
     scenes.push({
       id: `sc-body-${i + 1}`,
       section: 'body',
-      text: mockWords(`${opts.ideaTitle}:body:${i}`, sceneWords),
+      text: bodyText,
       visual_query: pickVisualQuery(opts.ideaTitle, i + 1),
+      // una de cada dos: el mock no debe saturar tampoco
+      ...(i % 2 === 0 ? { edit_intents: intentsDe(bodyText, 'callout') } : {}),
     });
   }
   scenes.push({
@@ -228,9 +244,11 @@ export function registerScriptMocks(): void {
       aiDisclosure: mockContext.aiDisclosure === true,
     }),
   );
+  // rúbrica de 5 ejes; el veredicto lo deriva el código, no el modelo
   registerMockOp('judge', () => ({
-    verdict: 'aligned',
-    reasons: ['La promesa del título coincide con el gancho y el cierre'],
+    scores: { promesa: 4, estructura: 4, ritmo: 4, factualidad: 5, estilo: 4 },
+    reasons: ['La promesa del gancho se paga antes del cierre'],
+    scene_notes: [],
     patch_targets: [],
   }));
   registerMockOp('refine', ({ mockContext }) => buildMockRefine(mockContext));

@@ -14,29 +14,51 @@ interface ToastState {
 
 const ToastContext = createContext<ToastState | null>(null);
 
+/** Un error necesita tiempo para leerse y decidir; una confirmación, no. */
+const DURACION_MS: Record<ToastKind, number> = { ok: 3600, danger: 9000 };
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(1);
 
-  const push = useCallback((text: string, kind: ToastKind = 'ok') => {
-    const id = nextId.current++;
-    setToasts((prev) => [...prev.slice(-3), { id, text, kind }]);
-    window.setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3600);
+  const dismiss = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  const push = useCallback(
+    (text: string, kind: ToastKind = 'ok') => {
+      const id = nextId.current++;
+      setToasts((prev) => [...prev.slice(-3), { id, text, kind }]);
+      window.setTimeout(() => dismiss(id), DURACION_MS[kind]);
+    },
+    [dismiss],
+  );
 
   return (
     <ToastContext.Provider value={{ push }}>
       {children}
-      <div className="toast-stack" role="status" aria-live="polite">
+      <div className="toast-stack">
         {toasts.map((t) => (
-          <div key={t.id} className="toast">
+          <div
+            key={t.id}
+            className="toast"
+            // Los errores interrumpen; las confirmaciones esperan turno.
+            role={t.kind === 'danger' ? 'alert' : 'status'}
+            aria-live={t.kind === 'danger' ? 'assertive' : 'polite'}
+          >
             <span
               className="toast-dot"
               style={{ background: t.kind === 'ok' ? 'var(--ok)' : 'var(--danger)' }}
             />
-            <span>{t.text}</span>
+            <span style={{ flex: 1 }}>{t.text}</span>
+            <button
+              type="button"
+              className="toast-close"
+              aria-label="Cerrar el aviso"
+              onClick={() => dismiss(t.id)}
+            >
+              ✕
+            </button>
           </div>
         ))}
       </div>

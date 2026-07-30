@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { componentMeta, resolveComponent } from './registry.generated';
+import { INTRO_BASICA_DURATION_FRAMES, OUTRO_BASICA_DURATION_FRAMES } from './registry-gen';
 import { IntroBasica } from './themes/IntroBasica';
 import { OutroBasica } from './themes/OutroBasica';
 import { SubtitlesBasicos } from './themes/SubtitlesBasicos';
@@ -27,8 +28,14 @@ describe('resolveComponent', () => {
 
 describe('componentMeta', () => {
   it('publica las duraciones fijas de los integrados (nunca se leen de BD)', () => {
-    expect(componentMeta['intro-basica@0.1.0']).toEqual({ fixed_duration_frames: 80 });
-    expect(componentMeta['outro-basica@0.1.0']).toEqual({ fixed_duration_frames: 90 });
+    // comparar contra las constantes convierte este test en el guardián de que
+    // registry.generated.ts se ha regenerado tras cambiarlas
+    expect(componentMeta['intro-basica@0.1.0']).toEqual({
+      fixed_duration_frames: INTRO_BASICA_DURATION_FRAMES,
+    });
+    expect(componentMeta['outro-basica@0.1.0']).toEqual({
+      fixed_duration_frames: OUTRO_BASICA_DURATION_FRAMES,
+    });
     expect(componentMeta['subtitulos-basicos@0.1.0']).toEqual({});
   });
 });

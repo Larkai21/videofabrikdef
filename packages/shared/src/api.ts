@@ -125,6 +125,9 @@ export const inboxDtoSchema = z.object({
       title: z.string(),
       output_dir: z.string(),
       finished_at: z.string(),
+      // URL /files de la miniatura oficial, para la galería de la bandeja;
+      // null mientras no haya ninguna generada ni subida
+      thumbnail_url: z.string().nullable(),
       youtube: youtubePublicationSchema.nullable(),
     }),
   ),
