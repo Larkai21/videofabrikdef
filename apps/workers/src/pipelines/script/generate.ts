@@ -16,7 +16,7 @@ import {
   type Seo,
 } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
-import { intentWarning, keepValidIntents, sweepIntents } from './intents.js';
+import { countIntents, intentWarning, keepValidIntents, sweepIntents } from './intents.js';
 import { ledgeredLlmJson } from './llm-call.js';
 import { refineSystem, researchSystem, researchUser, scriptSystem, scriptUser } from './prompts.js';
 import { downloadSources } from './research.js';
@@ -237,6 +237,11 @@ export async function handleScriptGenerate(
 
   let scenes = mergeHumanEdits(gen.script.scenes, editedScenes);
 
+  // se cuenta ANTES del barrido: sin este número no se distingue «el modelo
+  // declaró tres» de «declaró doce y once se cayeron», que son problemas
+  // distintos y se arreglan en sitios distintos
+  const declaradas = countIntents(gen.script.scenes);
+
   // portón de las intenciones visuales: lo que el guionista declaró mal se cae
   // aquí y se avisa, en vez de llegar al director y colocarse en el sitio
   // equivocado
@@ -248,8 +253,11 @@ export async function handleScriptGenerate(
     await progress(78, avisoIntents);
   }
 
+  const trasBarrido = countIntents(scenes);
+  let pasadaDuracion = false;
   if (!withinTolerance(scriptWords(scenes), targetWords)) {
     await progress(80, 'Ajustando la duración del guion');
+    pasadaDuracion = true;
     scenes = await adjustLength(
       ctx,
       { videoId, channelId: video.channelId },
@@ -258,6 +266,10 @@ export async function handleScriptGenerate(
       targetWords,
     );
   }
+  // la pasada reescribe el texto, así que se lleva por delante las intenciones
+  // cuya palabra disparadora desapareció. Es el mayor destructor silencioso de
+  // efectos declarados, y hasta ahora no se contaba en ningún sitio.
+  const perdidasEnDuracion = Math.max(0, trasBarrido - countIntents(scenes));
 
   // escritura y transición en una transacción con candado y RELECTURA: si el
   // humano aprobó el guion mientras el LLM generaba, el borrador se descarta;
@@ -279,6 +291,20 @@ export async function handleScriptGenerate(
       ...row.master,
       research,
       script: { scenes: finalScenes, hook_notes: gen.script.hook_notes },
+      script_telemetry: {
+        words: scriptWords(finalScenes),
+        target_words: targetWords,
+        scenes: finalScenes.length,
+        intents_declared: declaradas,
+        intents_kept: countIntents(finalScenes),
+        intents_dropped: barrido.dropped.map((d) => ({
+          scene_id: d.sceneId,
+          effect: d.effect,
+          reason: d.reason,
+        })),
+        intents_lost_in_length_pass: perdidasEnDuracion,
+        length_pass_ran: pasadaDuracion,
+      },
       seo,
     };
     await tx

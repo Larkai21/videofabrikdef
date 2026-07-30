@@ -303,6 +303,33 @@ export function editPayloadText(e: Edit): string | undefined {
   return undefined;
 }
 
+/**
+ * Qué pasó al generar el guion, para poder diagnosticarlo después.
+ *
+ * Existe porque el sistema de intenciones declaradas rendía muy por debajo de su
+ * capacidad y no había forma de saber por qué: si el modelo declaraba pocas, si
+ * la validación las tiraba, o si las borraba la pasada de duración. El aviso se
+ * escribía en el log y se perdía. Esto es barato (unas decenas de bytes) y es la
+ * diferencia entre arreglar con datos y arreglar a ciegas.
+ */
+export const scriptTelemetrySchema = z.object({
+  words: z.number().int().nonnegative(),
+  target_words: z.number().int().nonnegative(),
+  scenes: z.number().int().nonnegative(),
+  /** declaradas por el modelo, ANTES de validarlas */
+  intents_declared: z.number().int().nonnegative(),
+  /** las que sobreviven en el maestro final */
+  intents_kept: z.number().int().nonnegative(),
+  /** las que tiró la validación, con su motivo */
+  intents_dropped: z
+    .array(z.object({ scene_id: z.string(), effect: z.string(), reason: z.string() }))
+    .default([]),
+  /** las que se perdieron al reescribir el texto en la pasada de duración */
+  intents_lost_in_length_pass: z.number().int().nonnegative().default(0),
+  length_pass_ran: z.boolean().default(false),
+});
+export type ScriptTelemetry = z.infer<typeof scriptTelemetrySchema>;
+
 export const masterVideoJsonV1 = z.object({
   version: z.literal('1'),
   video: z.object({
@@ -317,6 +344,7 @@ export const masterVideoJsonV1 = z.object({
   script: scriptSchema.optional(),
   // revisión del juez con rúbrica; opcional, los maestros anteriores no la traen
   script_review: scriptReviewSchema.optional(),
+  script_telemetry: scriptTelemetrySchema.optional(),
   seo: seoSchema.optional(),
   audio: audioSchema.optional(),
   cues: z.array(cueSchema).optional(),

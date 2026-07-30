@@ -13,7 +13,14 @@ import {
 
 export interface IntentSweep {
   scenes: Scene[];
-  dropped: Array<{ sceneId: string; reason: IntentDropReason }>;
+  // el efecto va junto al motivo: saber que se cayó «un stat por cifra sin
+  // respaldo» dice qué arreglar; «se cayó uno» no dice nada
+  dropped: Array<{ sceneId: string; effect: string; reason: IntentDropReason }>;
+}
+
+/** Cuántas intenciones llevan estas escenas. Para medir antes y después. */
+export function countIntents(scenes: Array<{ edit_intents?: EditIntent[] }>): number {
+  return scenes.reduce((acc, s) => acc + (s.edit_intents?.length ?? 0), 0);
 }
 
 /** Deja en cada escena solo las intenciones que se sostienen. Nunca lanza. */
@@ -22,7 +29,9 @@ export function sweepIntents(scenes: Scene[], claims: readonly { text: string }[
   const out = scenes.map((scene) => {
     if (scene.edit_intents === undefined || scene.edit_intents.length === 0) return scene;
     const { kept, dropped: fuera } = validateSceneIntents(scene, claims);
-    for (const d of fuera) dropped.push({ sceneId: scene.id, reason: d.reason });
+    for (const d of fuera) {
+      dropped.push({ sceneId: scene.id, effect: d.intent.effect, reason: d.reason });
+    }
     const { edit_intents: _omitido, ...resto } = scene;
     return kept.length > 0 ? { ...resto, edit_intents: kept } : resto;
   });

@@ -1,6 +1,6 @@
 import type { Scene } from '@fabrica/shared';
 import { describe, expect, it } from 'vitest';
-import { intentWarning, keepValidIntents, sweepIntents } from './intents.js';
+import { countIntents, intentWarning, keepValidIntents, sweepIntents } from './intents.js';
 
 const CLAIMS = [{ text: 'ya son 2 millones de usuarios' }];
 
@@ -26,7 +26,11 @@ describe('sweepIntents', () => {
     expect(r.scenes[0]?.edit_intents).toHaveLength(1);
     // la escena que se queda sin intenciones no arrastra un array vacío
     expect(r.scenes[1]?.edit_intents).toBeUndefined();
-    expect(r.dropped).toEqual([{ sceneId: 'sc-body-2', reason: 'trigger_ausente' }]);
+    // el efecto viaja con el motivo: «se cayó un callout por palabra ausente»
+    // dice qué arreglar; «se cayó uno» no
+    expect(r.dropped).toEqual([
+      { sceneId: 'sc-body-2', effect: 'callout', reason: 'trigger_ausente' },
+    ]);
   });
 
   it('deja intactas las escenas sin intenciones', () => {
@@ -55,9 +59,9 @@ describe('intentWarning', () => {
 
   it('escribe en español y sin estructura cruda', () => {
     const aviso = intentWarning([
-      { sceneId: 'a', reason: 'trigger_ausente' },
-      { sceneId: 'b', reason: 'trigger_ausente' },
-      { sceneId: 'c', reason: 'sin_valor' },
+      { sceneId: 'a', effect: 'callout', reason: 'trigger_ausente' },
+      { sceneId: 'b', effect: 'keyword', reason: 'trigger_ausente' },
+      { sceneId: 'c', effect: 'stat', reason: 'sin_valor' },
     ]);
     expect(aviso).toContain('3 efectos');
     expect(aviso).toContain('no está en el texto de la escena');
@@ -66,7 +70,7 @@ describe('intentWarning', () => {
   });
 
   it('concuerda el singular', () => {
-    expect(intentWarning([{ sceneId: 'a', reason: 'sin_copy' }])).toContain('un efecto');
+    expect(intentWarning([{ sceneId: 'a', effect: 'callout', reason: 'sin_copy' }])).toContain('un efecto');
   });
 });
 
@@ -80,5 +84,24 @@ describe('keepValidIntents', () => {
     };
     expect(keepValidIntents(scene, 'ahora hablamos del coste y ya').edit_intents).toHaveLength(1);
     expect(keepValidIntents(scene, 'texto completamente distinto')).toEqual({});
+  });
+});
+
+describe('countIntents', () => {
+  it('suma las intenciones de todas las escenas y trata la ausencia como cero', () => {
+    expect(countIntents([])).toBe(0);
+    expect(countIntents([{}, { edit_intents: [] }])).toBe(0);
+    expect(
+      countIntents([
+        { edit_intents: [{ effect: 'keyword', trigger_word: 'a' }] },
+        {},
+        {
+          edit_intents: [
+            { effect: 'keyword', trigger_word: 'b' },
+            { effect: 'stat', trigger_word: 'c' },
+          ],
+        },
+      ]),
+    ).toBe(3);
   });
 });
