@@ -54,11 +54,20 @@ para cada beat:
 - El fit se guarda en el maestro: `beat.asset.fit = {mode, offset_ms, loops}` y el
   render lo ejecuta tal cual.
 
-## 5. Flux (último recurso y canal de historia futuro)
+## 5. Cuando no hay plano
 
-- fal.ai `flux/schnell`: prompt = `visual_query + style_suffix` del perfil; 1280×720
-  (≤1 MP → 0,003 $), 4 steps, `seed = hash(video_id, beat_idx)`; reintento con prompt
-  reformulado si el VLM de control detecta texto corrupto o anatomía rota (máx 2).
+No hay tier de generación de imagen: el cuerpo del vídeo no lleva imágenes hechas por
+IA. Hubo uno (fal.ai `flux/schnell`) y se retiró en jul-2026 sin haber producido nunca
+un plano que se publicara. Los dos desenlaces posibles son:
+
+- **Hay candidatos, pero ninguno llega a `T_REV`.** Se propone el mejor igualmente,
+  marcado `review`, con su coseno y su origen a la vista. Un plano flojo es una
+  propuesta que el humano puede cambiar en la curación; un hueco es una tarea que no
+  puede resolver desde la timeline.
+- **No hay ningún candidato**, ni siquiera reutilizando uno ya usado en el vídeo. El
+  job lanza un error que nombra `PEXELS_API_KEY` y `PIXABAY_API_KEY`, el vídeo entra en
+  `incidencia` y se puede reintentar. Fallar aquí es mejor que escribir un beat sin
+  asset y reventar en la ingesta o en el render.
 
 ## 6. Descarga e ingesta a biblioteca
 

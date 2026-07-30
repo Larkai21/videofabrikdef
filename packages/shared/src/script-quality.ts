@@ -80,6 +80,78 @@ export function escenasEncabezadas(scenes: readonly { text: string }[]): number 
   return scenes.filter((s) => ENCABEZADO.test(s.text)).length;
 }
 
+// Unidades que hacen que un número sea narrativo o instructivo, no una prueba:
+// la edad de un personaje, el largo de un email que le pides al lector, una
+// duración. Ninguna de estas puede «no estar en el research», porque no es un
+// dato del research.
+const UNIDAD_NARRATIVA =
+  /^(años?|meses?|semanas?|d[íi]as?|horas?|minutos?|segundos?|palabras?|correos?|emails?|caracteres?|l[íi]neas?|p[áa]ginas?|veces)\b/i;
+
+/**
+ * ¿Esta cifra afirma algo que habría que poder respaldar con el research?
+ *
+ * La regla factual del prompt es buena y la comprobación estaba rota: se pasaba
+ * CUALQUIER dígito por `figureBackedBy`. Medido sobre los once maestros, eso da
+ * 29 avisos y NINGUNO es una cifra inventada: son los ordinales de las listas
+ * («1) mapea en qué capa operas; 2) identifica…»), la edad del personaje —que
+ * además está en el título elegido, «Por qué reconvertirte a los 38…»—, «150
+ * palabras» y «20 correos».
+ *
+ * No es un aviso cosmético de más: `cifra_sin_claim` bloquea, y `factualidad`
+ * es el ÚNICO eje del juez que decide el veredicto (su mínimo es 4 frente al 3
+ * de los demás). Los tres guiones suspendidos del corpus lo fueron por esto, y
+ * los tres son falsos positivos. Peor: el presupuesto de cuatro escenas del
+ * refinado se gastaba entero en quitarle la edad a Marta, así que las notas
+ * sobre estructura no llegaban nunca.
+ *
+ * Lo que sí exige respaldo: porcentajes, dinero, magnitudes con escala
+ * (millones, miles) y cualquier número grande. Es donde vive la afirmación
+ * fuerte, y es lo que el prompt quería proteger.
+ */
+export function cifrasEvidenciales(texto: string): Set<string> {
+  const out = new Set<string>();
+  // el MISMO barrido que numericTokens, para que los tokens coincidan: esa
+  // función NORMALIZA («12.000» → «12000», «300 millones» → «300000000»), así
+  // que buscar el token dentro del texto con indexOf no encuentra nada
+  for (const m of texto.matchAll(/(\d[\d.,]*)\s*(\p{L}+)?/gu)) {
+    const crudo = m[1] ?? '';
+    const bare = crudo.replace(/\D/g, '');
+    if (bare === '') continue;
+    const i = m.index ?? 0;
+    const antes = texto.slice(Math.max(0, i - 14), i);
+    const despues = texto.slice(i + crudo.length).trimStart();
+    const unidad = m[2] ?? '';
+
+    const evidencial =
+      /^(%|por ciento)/i.test(despues) ||
+      /^(millones?|mill[óo]n|mil(es)?\b|billones?)/i.test(despues) ||
+      /[€$]\s*$/.test(antes) ||
+      /^(€|\$|d[óo]lares|euros)/i.test(despues) ||
+      // proporciones: «uno de cada cuatro adultos», «1 de cada 3»
+      /\bde cada\s*$/i.test(antes) ||
+      /^de cada\b/i.test(despues) ||
+      // Un número grande y desnudo casi nunca es instructivo; uno pequeño casi
+      // siempre lo es («prueba 20 contactos», «tres cosas», «1) …»). El corte
+      // alto deja pasar alguna afirmación sin porcentaje, y es el lado bueno
+      // por el que equivocarse: un falso negativo cuesta una revisión humana,
+      // un falso positivo se come el presupuesto entero del refinado.
+      (Number(bare) >= 1000 && !UNIDAD_NARRATIVA.test(despues));
+
+    if (!evidencial) continue;
+    out.add(bare);
+    // la magnitud escrita con letra genera un segundo token en numericTokens
+    const mag = /^(millones?|mill[óo]n)/i.test(unidad)
+      ? 1e6
+      : /^mil$/i.test(unidad)
+        ? 1e3
+        : /^billones?$/i.test(unidad)
+          ? 1e9
+          : 0;
+    if (mag > 0) out.add(String(Number(bare) * mag));
+  }
+  return out;
+}
+
 export type ScriptLintKind =
   | 'cliche'
   | 'andamiaje'
@@ -181,8 +253,10 @@ export function lintScenes(
     }
 
     // se comprueba cada cifra por separado: una escena puede traer una buena y
-    // otra inventada
+    // otra inventada. Solo las EVIDENCIALES: ver `cifrasEvidenciales`.
+    const evidenciales = cifrasEvidenciales(scene.text);
     for (const token of new Set(numericTokens(scene.text))) {
+      if (!evidenciales.has(token)) continue;
       if (!figureBackedBy(token, claimTexts)) {
         hits.push({
           id: scene.id,

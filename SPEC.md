@@ -33,7 +33,7 @@ scheduler · MinIO · notificaciones push.
 | Ideación (scraper) | Producir sobre demanda real sin gastar cuota | RSS de competidores y fuentes del nicho, dedupe por embeddings, scoring LLM, ranking |
 | Generación (guion+SEO) | El guion decide retención y el título el CTR | Research pack, JSON de escenas con visual_query, 3 títulos, descripción, tags |
 | Voz y subtítulos | Narración = retención; coste cero | edge-tts con word boundaries; ElevenLabs como flag por canal |
-| Assets y timeline | El b-roll irrelevante es el mayor riesgo automatizado | Cascada biblioteca→stock→Flux, similitud por embeddings, triaje por confianza, timeline de revisión |
+| Assets y timeline | El b-roll irrelevante es el mayor riesgo automatizado | Cascada biblioteca→stock, similitud por embeddings, triaje por confianza, timeline de revisión |
 | Brand kit | Diferenciación visual sin diseñar cada vídeo | Prompts-contrato por componente, import de zips validados, versionado |
 | Biblioteca local | Acumular valor: coste y tiempo bajan con cada vídeo | Carpeta en disco + índice etiquetado en Postgres, tier 0 de la cascada |
 | Render | Fábrica determinista y reproducible | Remotion SSR en el VPS; preview exacta con @remotion/player |
@@ -112,9 +112,10 @@ DESIGN.md del brand kit.
 5. TTS: edge-tts (gratis; sus word boundaries dan subtítulos y el corte en beats de
    8–15 s). ElevenLabs (`with-timestamps`) como flag por canal.
 6. Assets por beat: cascada biblioteca → Pexels/Pixabay (query desde `visual_query`,
-   ranking por similitud embedding↔metadatos) → Flux Schnell (≤1 MP). Encaje calculado:
-   recorte central si el clip sobra, loop si falta, Ken Burns si es imagen. Confianza
-   alta → `auto_ok`; dudoso → `review`.
+   ranking por similitud embedding↔metadatos). Sin tier de generación por IA. Encaje
+   calculado: recorte central si el clip sobra, loop si falta, Ken Burns si es imagen.
+   Confianza alta → `auto_ok`; dudoso → `review`. Si nada llega al umbral se propone
+   igual el mejor candidato marcado ámbar; si no hay ningún candidato, incidencia.
 7. Timeline de revisión (§9). Al aprobar → render.
 8. Render: Remotion SSR en contenedor propio, concurrencia 1–2; la composición consume
    el JSON maestro + componentes del brand kit referenciados por `id@versión`.

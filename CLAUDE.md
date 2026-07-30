@@ -26,7 +26,10 @@ diseñar módulos nuevos o tomar decisiones de arquitectura.
    la cola solo transporta trabajo. Cualquier job se puede reintentar sin efectos dobles.
 4. Ledger de costes: cada llamada externa (LLM, TTS, stock, imagen) registra proveedor,
    unidades y coste estimado, agregado por vídeo.
-5. Cascada de assets: biblioteca local → stock (Pexels/Pixabay) → Flux. No invertir.
+5. Cascada de assets: biblioteca local → stock (Pexels/Pixabay). No invertir.
+   Sin imágenes generadas por IA en el cuerpo del vídeo: si nada encaja, se propone
+   el mejor plano marcado ámbar; si no queda ningún candidato, el job falla con
+   incidencia reintentable.
 6. Determinismo de render: sin aleatoriedad sin semilla, sin fetch durante el render,
    fuentes empaquetadas, animación solo con useCurrentFrame.
 7. El MVP no toca la YouTube Data API en el camino crítico: la salida es MP4 + metadatos
@@ -52,3 +55,7 @@ diseñar módulos nuevos o tomar decisiones de arquitectura.
 - No introducir Next.js/SSR ni cambiar el stack del front.
 - No usar MoviePy ni FFmpeg directo para el cuerpo del vídeo: Remotion es el motor;
   FFmpeg queda para utilidades (loudnorm, probes, extracción de frames).
+- No reintroducir generación de imagen por IA (Flux/fal.ai, Google/Gemini, Imagen) en
+  ninguna parte del pipeline. El avatar del canal se sube desde el dashboard. Los enums
+  y etiquetas que aún dicen `flux` son legado: describen datos ya guardados y no se
+  quitan, pero tampoco se usan.

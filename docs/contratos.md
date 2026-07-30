@@ -13,7 +13,7 @@ incompatible = major + migración.
   language: "es" | "en",
   pillars: [{ name, description, example_queries: string[] }],
   style: {
-    visual_prompt_suffix: string,      // sufijo para Flux y queries
+    visual_prompt_suffix: string,      // sufijo de estilo para prompts de imagen
     stock_query_lang: "en" | "es",
     banned: string[]                   // temas/palabras prohibidos
   },
@@ -99,7 +99,7 @@ la API valida el estado origen antes de transicionar (máquina de estados en un 
 | edge-tts | tts | caracteres (coste 0, se registra igual) |
 | elevenlabs | tts | caracteres |
 | pexels/pixabay | search | requests (coste 0; vigila límites) |
-| fal | flux_schnell | megapíxeles |
+| fal | flux_schnell | megapíxeles | (histórico: proveedor retirado en jul-2026) |
 | youtube | api | unidades de cuota (bootstrap/refresh) |
 
 Regla: el worker escribe la fila ANTES de la llamada (estado pending) y la completa con

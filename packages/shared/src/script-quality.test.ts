@@ -162,3 +162,38 @@ describe('andamiaje del prompt locutado', () => {
     }
   });
 });
+
+describe('cifra_sin_claim: solo las cifras que afirman algo', () => {
+  const claims = [{ text: 'el índice subió un 70% en enero' }];
+  const salta = (text: string): boolean =>
+    lintScenes([{ id: 's', text }], { claims }).some((h) => h.kind === 'cifra_sin_claim');
+
+  it('marca la cifra que de verdad afirma algo sin respaldo', () => {
+    expect(salta('El 45% de las empresas ya lo usa.')).toBe(true);
+    expect(salta('Levantaron 300 millones de dólares.')).toBe(true);
+    expect(salta('Son 12.000 modelos publicados este año.')).toBe(true);
+  });
+
+  it('no marca la cifra que está en los claims', () => {
+    expect(salta('El índice subió un 70% en enero, según el informe.')).toBe(false);
+  });
+
+  it('no marca números instructivos ni narrativos', () => {
+    // Los cuatro son literales de guiones reales. Antes disparaban los 29
+    // avisos del corpus, y NINGUNO era una cifra inventada: el juez suspendió
+    // tres vídeos por esto y el refinado gastó su presupuesto entero en
+    // quitarle la edad al personaje en vez de arreglar la estructura.
+    expect(salta('1) mapea en qué capa operas; 2) identifica dependencias; 3) prioriza.')).toBe(
+      false,
+    );
+    expect(salta('Caso: Marta, 38 años, gestora de proyectos.')).toBe(false);
+    expect(salta('Redacta un email de 150 palabras y prueba 20 contactos.')).toBe(false);
+    expect(salta('Checklist para las primeras ocho semanas: 1) línea de base; 2) piloto.')).toBe(
+      false,
+    );
+  });
+
+  // Laguna conocida y anterior a esto: numericTokens solo ve dígitos, así que
+  // «uno de cada cuatro adultos» no se comprueba contra el research en absoluto.
+  it.todo('las cifras escritas con letra no se comprueban');
+});
