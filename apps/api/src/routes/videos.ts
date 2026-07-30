@@ -271,6 +271,13 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
     if (!video.master.script) {
       throw conflict('El vídeo aún no tiene guion; confirma el título y encarga el guion');
     }
+    // sin título elegido el vídeo cruza esta puerta y muere veinte minutos
+    // después en el render (render/index.ts exige seo.chosen_idx), tras haber
+    // gastado voz y assets. La puerta 2 es «elegir título Y firmar el guion»:
+    // que falle aquí, gratis, y no al final
+    if (video.master.seo?.chosen_idx == null) {
+      throw conflict('Elige un título antes de firmar el guion: el render lo necesita');
+    }
     await transitionVideo(ctx.db, id, 'guion_ok', { expectFrom: 'guion_borrador' });
     await ctx.enqueuer.enqueue(QUEUES.tts, JOBS.tts.synthesize, { videoId: id });
     await ctx.events.publish({ type: 'video_state', video_id: id, state: 'guion_ok' });

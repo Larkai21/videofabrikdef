@@ -149,6 +149,34 @@ describe('puertas de la API', () => {
     expect(video?.state).toBe('idea_aprobada');
   });
 
+  // Sin esta guarda el vídeo cruza la puerta 2, gasta voz y assets, y muere
+  // veinte minutos después en el render pidiendo el título que nadie eligió.
+  it('approve-script sin título elegido devuelve 409 y no transiciona', async () => {
+    const ideaId = await insertIdea();
+    const videoId = `test-vid-${nanoid(8)}`;
+    createdVideoIds.push(videoId);
+    await db.update(ideas).set({ status: 'approved' }).where(eq(ideas.id, ideaId));
+    await db.insert(videos).values({
+      id: videoId,
+      channelId,
+      ideaId,
+      state: 'guion_borrador',
+      master: masterVideoJsonV1.parse({
+        version: '1',
+        video: { id: videoId, channel_id: channelId, idea_id: ideaId, fps: 30, width: 1920, height: 1080 },
+        script: { scenes: [], hook_notes: '' },
+        seo: { titles: ['a', 'b', 'c'], chosen_idx: null, description: '', tags: [], thumbnails: [] },
+      }),
+    });
+
+    const res = await app.inject({ method: 'POST', url: `/videos/${videoId}/approve-script` });
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { detail?: string }).detail ?? res.json()).toBeDefined();
+
+    const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
+    expect(video?.state).toBe('guion_borrador');
+  });
+
   it('GET /inbox devuelve un InboxDto válido', async () => {
     await insertIdea();
     const res = await app.inject({ method: 'GET', url: '/inbox' });
