@@ -101,6 +101,19 @@ describe('pickFinalists', () => {
     expect(out.filter((r) => r.meta.kind === 'clip')).toHaveLength(5);
   });
 
+  it('devuelve vacío si TODO está vetado, en vez de colar un repetido', () => {
+    // La cascada tiene que enterarse de que no queda nada nuevo para poder tirar
+    // de su reserva. Desde que no hay generación de imagen al final, este es el
+    // único camino que evita que un beat se quede literalmente sin plano.
+    const out = pickFinalists(muchos, {
+      total: 6,
+      imagenesMax: 1,
+      spanMs: 11_500,
+      vetoedRefs: new Set(muchos.map((r) => r.ref)),
+    });
+    expect(out).toEqual([]);
+  });
+
   it('no gasta plazas de clip en clips que no cubren el tramo', () => {
     const cortos = [
       ...Array.from({ length: 5 }, (_, i) => res(`corto${i}`, 'clip', 'pexels', 500)),

@@ -59,10 +59,21 @@ export const ASSET_KINDS = ['clip', 'image', 'music', 'screenshot', 'upload'] as
 export const assetKindSchema = z.enum(ASSET_KINDS);
 export type AssetKind = z.infer<typeof assetKindSchema>;
 
+// 'flux' es LEGADO: ya no se generan imágenes, pero hay assets y beats
+// guardados con ese origen y el enum tiene que seguir aceptándolos.
 export const ASSET_SOURCES = ['pexels', 'pixabay', 'flux', 'playwright', 'upload'] as const;
 export const assetSourceSchema = z.enum(ASSET_SOURCES);
 export type AssetSource = z.infer<typeof assetSourceSchema>;
 
-export const SOURCE_KINDS = ['rss', 'hn', 'reddit', 'news', 'web', 'youtube', 'arxiv', 'github'] as const;
+export const SOURCE_KINDS = [
+  'rss',
+  'hn',
+  'reddit',
+  'news',
+  'web',
+  'youtube',
+  'arxiv',
+  'github',
+] as const;
 export const sourceKindSchema = z.enum(SOURCE_KINDS);
 export type SourceKind = z.infer<typeof sourceKindSchema>;

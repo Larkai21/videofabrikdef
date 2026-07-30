@@ -16,7 +16,6 @@ import {
   authorComponents,
   deleteComponent,
   fileUrl,
-  generateAvatar,
   getComponentPrompt,
   getComponents,
   putDesign,
@@ -56,7 +55,7 @@ function suggestChannelName(characterName: string): string {
   return cleaned.length > 0 ? `${cleaned}News` : 'MilkyGoblinNews';
 }
 
-// Personaje y avatar del canal: subir o generar con IA el avatar, y editar el
+// Personaje y avatar del canal: subir el avatar (nada de generarlo con IA) y
 // nombre + descripción del personaje. El avatar aparece en el header, en las
 // intro/outro y de fondo en la miniatura de los vídeos nuevos.
 function CharacterCard({ channel }: { channel: ChannelDto }) {
@@ -73,8 +72,7 @@ function CharacterCard({ channel }: { channel: ChannelDto }) {
     setDescription(c.description);
   }, [channel.id, channel.profile?.character]);
 
-  const invalidateChannels = () =>
-    queryClient.invalidateQueries({ queryKey: ['channels'] });
+  const invalidateChannels = () => queryClient.invalidateQueries({ queryKey: ['channels'] });
 
   const uploadMut = useMutation({
     mutationFn: (file: File) => uploadAvatar(channel.id, file),
@@ -84,13 +82,6 @@ function CharacterCard({ channel }: { channel: ChannelDto }) {
     },
     onError: (err) =>
       push(err instanceof Error ? err.message : 'No se pudo subir el avatar', 'danger'),
-  });
-
-  const generateMut = useMutation({
-    mutationFn: () => generateAvatar(channel.id),
-    onSuccess: () => push('Generando el avatar con IA'),
-    onError: (err) =>
-      push(err instanceof Error ? err.message : 'No se pudo generar el avatar', 'danger'),
   });
 
   const saveCharacterMut = useMutation({
@@ -108,7 +99,7 @@ function CharacterCard({ channel }: { channel: ChannelDto }) {
   });
 
   const dirty = name !== character.name || description !== character.description;
-  const busy = uploadMut.isPending || generateMut.isPending;
+  const busy = uploadMut.isPending;
 
   return (
     <div
@@ -120,7 +111,7 @@ function CharacterCard({ channel }: { channel: ChannelDto }) {
       </div>
       <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.55 }}>
         El avatar del personaje aparece en la barra superior, en la intro/outro y de fondo en la
-        miniatura de los vídeos nuevos. Súbelo o deja que la IA lo genere.
+        miniatura de los vídeos nuevos. Súbelo desde tu ordenador en PNG, JPG o WebP.
       </p>
 
       <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -168,11 +159,8 @@ function CharacterCard({ channel }: { channel: ChannelDto }) {
               if (fileRef.current) fileRef.current.value = '';
             }}
           />
-          <Button variant="secondary" disabled={busy} onClick={() => fileRef.current?.click()}>
+          <Button variant="primary" disabled={busy} onClick={() => fileRef.current?.click()}>
             {uploadMut.isPending ? 'Subiendo' : 'Subir avatar'}
-          </Button>
-          <Button variant="primary" disabled={busy} onClick={() => generateMut.mutate()}>
-            {generateMut.isPending ? 'Generando' : 'Generar con IA'}
           </Button>
         </div>
       </div>
@@ -223,14 +211,15 @@ function CharacterCard({ channel }: { channel: ChannelDto }) {
 }
 
 // Etiquetas de cada token de color del design system (orden de edición).
-const DESIGN_TOKEN_LABELS: Array<{ key: keyof Omit<DesignTokens, 'font_family'>; label: string }> = [
-  { key: 'background', label: 'Fondo' },
-  { key: 'surface', label: 'Superficie' },
-  { key: 'foreground', label: 'Texto' },
-  { key: 'muted', label: 'Texto atenuado' },
-  { key: 'accent', label: 'Acento' },
-  { key: 'accent_fg', label: 'Texto sobre acento' },
-];
+const DESIGN_TOKEN_LABELS: Array<{ key: keyof Omit<DesignTokens, 'font_family'>; label: string }> =
+  [
+    { key: 'background', label: 'Fondo' },
+    { key: 'surface', label: 'Superficie' },
+    { key: 'foreground', label: 'Texto' },
+    { key: 'muted', label: 'Texto atenuado' },
+    { key: 'accent', label: 'Acento' },
+    { key: 'accent_fg', label: 'Texto sobre acento' },
+  ];
 
 const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
@@ -259,7 +248,8 @@ function DesignSystemCard({ channel }: { channel: ChannelDto }) {
       push(err instanceof Error ? err.message : 'No se pudo guardar el design system', 'danger'),
   });
 
-  const dirty = DESIGN_TOKEN_LABELS.some(({ key }) => draft[key] !== saved[key]) ||
+  const dirty =
+    DESIGN_TOKEN_LABELS.some(({ key }) => draft[key] !== saved[key]) ||
     draft.font_family !== saved.font_family;
   const allValid = DESIGN_TOKEN_LABELS.every(({ key }) => HEX_RE.test(draft[key]));
 
@@ -275,8 +265,8 @@ function DesignSystemCard({ channel }: { channel: ChannelDto }) {
         Design system
       </div>
       <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.55 }}>
-        Colores y tipografía del canal. Se aplican al instante a las animaciones (subtítulos,
-        intro, outro, tarjetas y miniatura) de los vídeos nuevos, sin regenerar nada.
+        Colores y tipografía del canal. Se aplican al instante a las animaciones (subtítulos, intro,
+        outro, tarjetas y miniatura) de los vídeos nuevos, sin regenerar nada.
       </p>
 
       <div
@@ -413,7 +403,10 @@ function DesignSystemCard({ channel }: { channel: ChannelDto }) {
 // Expande #rgb → #rrggbb para el <input type="color"> (que solo acepta 6 díg.).
 function expandHex(hex: string): string {
   const h = hex.replace('#', '');
-  return `#${h.split('').map((c) => c + c).join('')}`;
+  return `#${h
+    .split('')
+    .map((c) => c + c)
+    .join('')}`;
 }
 
 // Animaciones con IA: la IA (Claude) escribe TODAS las animaciones del brand
@@ -534,7 +527,11 @@ function ComponentCard({
         <span className="mono" style={{ fontSize: 'var(--fs-sm)' }}>
           {c.name}@{c.version}
         </span>
-        {c.builtin ? <Chip kind="neutral">Integrado</Chip> : <Chip kind={status.kind}>{status.label}</Chip>}
+        {c.builtin ? (
+          <Chip kind="neutral">Integrado</Chip>
+        ) : (
+          <Chip kind={status.kind}>{status.label}</Chip>
+        )}
         {c.active ? <Chip kind="ok">Activo</Chip> : null}
       </div>
 
@@ -667,8 +664,7 @@ export function Componentes() {
 
   const { jobNotes } = useLive();
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ['componentes'] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['componentes'] });
 
   const uploadMut = useMutation({
     mutationFn: (file: File) => uploadComponent({ file, channelId: channelId as string }),
@@ -678,7 +674,8 @@ export function Componentes() {
       void invalidate();
       push('Zip subido; validación en marcha');
     },
-    onError: (err) => push(err instanceof Error ? err.message : 'No se pudo subir el zip', 'danger'),
+    onError: (err) =>
+      push(err instanceof Error ? err.message : 'No se pudo subir el zip', 'danger'),
   });
 
   const activateMut = useMutation({
@@ -736,7 +733,10 @@ export function Componentes() {
   };
 
   const busy =
-    activateMut.isPending || deleteMut.isPending || revalidateMut.isPending || activateRefMut.isPending;
+    activateMut.isPending ||
+    deleteMut.isPending ||
+    revalidateMut.isPending ||
+    activateRefMut.isPending;
   const componentsByType = new Map<ComponentType, ComponentDto[]>();
   for (const c of componentsQ.data ?? []) {
     const type = c.type as ComponentType;
@@ -790,9 +790,9 @@ export function Componentes() {
           z.object + assets/. Restricciones de render: animar solo con useCurrentFrame, sin fetch
           durante el render, sin aleatoriedad sin semilla y fuentes empaquetadas en el zip o pila
           del sistema. La validación compila el componente, comprueba el contrato de props de su
-          tipo y hace un render de humo de 60 frames antes de dejarlo activable. Nota: el render
-          usa el componente nuevo de inmediato; la previsualización del dashboard compilado lo
-          incorpora en el siguiente build (en desarrollo se recarga sola).
+          tipo y hace un render de humo de 60 frames antes de dejarlo activable. Nota: el render usa
+          el componente nuevo de inmediato; la previsualización del dashboard compilado lo incorpora
+          en el siguiente build (en desarrollo se recarga sola).
         </p>
       </div>
 

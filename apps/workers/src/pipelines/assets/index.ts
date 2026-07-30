@@ -38,7 +38,6 @@ import type { WorkerContext } from '../../lib/context.js';
 import { buildAssetEmbedText } from '../../lib/embed-text.js';
 import { closeCost, failCost, openCost } from '../../lib/ledger.js';
 import { cosineSimilarity } from '../../providers/embeddings.js';
-import { generateFluxImage } from '../../providers/flux.js';
 import { mockHash } from '../../providers/llm.js';
 import {
   cacheCaption,
@@ -58,8 +57,9 @@ import { computeSubvisualSpans, wordsInSpan } from './subvisuals.js';
 import { extractCaptionJpeg } from '../library/media.js';
 
 // Worker de assets (docs/assets-y-biblioteca.md): cascada biblioteca →
-// stock → Flux por beat (match) y descarga + ingesta a biblioteca al
-// aprobar la timeline (ingest).
+// stock por beat (match) y descarga + ingesta a biblioteca al aprobar la
+// timeline (ingest). No hay tier de generación de imagen: el cuerpo del vídeo
+// no lleva imágenes hechas por IA.
 
 const LIB_CANDIDATES = 6;
 // Cuántos resultados de stock entran a puntuar. Bajarlo estrecha la elección;
@@ -145,6 +145,8 @@ function originLabel(cand: BeatCandidate): string {
     const title = (cand.meta?.title as string | undefined) ?? '';
     return `Biblioteca · ${title || cand.ref.replace('library:', '')}`;
   }
+  // legado: ya no se generan imágenes, pero hay beats y maestros antiguos que
+  // guardan candidatos con este proveedor y hay que saber etiquetarlos
   if (cand.provider === 'flux') return 'Generado · Flux';
   const id = cand.ref.split(':')[2] ?? cand.ref;
   const isPhoto = cand.ref.includes(':photo:');
@@ -251,10 +253,11 @@ interface MatchDeps {
 /**
  * Traduce el techo de imágenes del canal a las dos palancas de la cascada.
  *
- * La plaza de reserva es innegociable incluso con el techo a cero: sin ninguna
- * imagen en el pool, la cascada se queda sin red cuando ningún clip supera
- * T_REV, y ahí es donde se compra un Flux — que genera UNA IMAGEN y encima
- * cuesta. Apretar hasta la prohibición acabaría con más imágenes, no con menos.
+ * La plaza de reserva es innegociable incluso con el techo a cero, y ahora más
+ * que antes: sin generación de imagen al final de la cascada, un tramo cuyos
+ * clips no encajan se queda SIN RED. Antes esto se justificaba en no comprar un
+ * Flux; ahora se justifica en que el beat necesita un plano sí o sí. No la
+ * quites: el techo a cero es una preferencia fuerte, nunca una prohibición.
  */
 export function palancasImagen(pct: number): { imagenesPorPool: number; imagenHandicap: number } {
   return {
@@ -272,7 +275,7 @@ interface ResolvedVisual {
   libAssetId: string | null;
 }
 
-// Resuelve UNA consulta (un sub-plano) por la cascada biblioteca→stock→Flux y
+// Resuelve UNA consulta (un sub-plano) por la cascada biblioteca→stock y
 // devuelve el elegido con su fit/estado. Muta usedRefs/prevVec (anti-repetición
 // intra-vídeo y anti-parecido contiguo, ahora entre sub-planos). No escribe BD.
 async function resolveOneVisual(
@@ -299,6 +302,12 @@ async function resolveOneVisual(
   // 1) biblioteca (canal + shared, anti-repeat)
   const lib = await libraryCandidates(db, channelId, qVec, deps.recentIds);
   const pool: PoolEntry[] = lib.map((l) => l.entry).filter((e) => !vetoedRefs.has(e.cand.ref));
+  // Los vetados se apartan, no se tiran: son la red del último recurso. El veto
+  // a nivel de pool existe para que la cascada SIGA buscando en vez de
+  // conformarse con un repetido, pero si al final no aparece nada, un plano
+  // repetido es infinitamente mejor que un beat sin plano — y sin generación de
+  // imagen detrás, esta es la única red que queda.
+  const reserva: PoolEntry[] = lib.map((l) => l.entry).filter((e) => vetoedRefs.has(e.cand.ref));
   const libAssetByRef = new Map(lib.map((l) => [l.entry.cand.ref, l.assetId]));
   // Solo un CLIP de biblioteca puede ahorrarse la búsqueda de stock. Antes esto
   // miraba el mejor de cualquier tipo, así que una imagen de biblioteca a 0,88
@@ -316,6 +325,21 @@ async function resolveOneVisual(
       spanMs: beatMs,
       vetoedRefs,
     });
+    // Reserva de stock: los que el veto dejó fuera, puntuados solo con su
+    // TÍTULO. No se les paga descripción de visión porque son repeticiones y
+    // solo entran si no queda absolutamente nada más; el embedding es local y
+    // no cuesta. Sin esto, un tramo cuyos seis finalistas estén todos usados
+    // se quedaría sin plano, que es justo lo que Flux tapaba antes.
+    const vetadosStock = stockResults.filter((r) => vetoedRefs.has(r.ref));
+    if (vetadosStock.length > 0) {
+      const vecs = await ctx.embeddings.embed(
+        vetadosStock.map((r) => String(r.meta.caption ?? r.meta.title ?? '')),
+      );
+      vetadosStock.forEach((r, i) => {
+        const vec = vecs[i];
+        reserva.push(stockToEntry(r, vec ? cosineSimilarity(qVec, vec) : 0, 0, [], vec ?? []));
+      });
+    }
 
     if (finalists.length > 0) {
       // Descripciones ya pagadas de estas imágenes, vengan de la búsqueda que
@@ -423,77 +447,74 @@ async function resolveOneVisual(
   // ya elegido para OTRO beat del mismo vídeo solo repite si no hay
   // alternativa (anti-repetición intra-vídeo por identidad de asset).
   const cosOrden = (e: PoolEntry): number => cosEfectivo(e, deps.imagenHandicap);
-  pool.sort((a, b) => cosOrden(b) - cosOrden(a) || b.composite - a.composite);
-  const fitted: { entry: PoolEntry; fit: Fit }[] = [];
-  for (const entry of pool) {
-    const fit = computeFit({
-      kind: entry.kind,
-      assetDurationMs: entry.durationMs,
-      beatDurationMs: beatMs,
-    });
-    if (!fit) {
-      logger.info(
-        { videoId, beatIdx: args.beatIdx, ref: entry.cand.ref },
-        'Candidato descartado: no cubre el beat ni con el máximo de loops',
-      );
-      continue;
+  const encajar = (entries: PoolEntry[]): { entry: PoolEntry; fit: Fit }[] => {
+    const out: { entry: PoolEntry; fit: Fit }[] = [];
+    for (const entry of [...entries].sort(
+      (a, b) => cosOrden(b) - cosOrden(a) || b.composite - a.composite,
+    )) {
+      const fit = computeFit({
+        kind: entry.kind,
+        assetDurationMs: entry.durationMs,
+        beatDurationMs: beatMs,
+      });
+      if (!fit) {
+        logger.info(
+          { videoId, beatIdx: args.beatIdx, ref: entry.cand.ref },
+          'Candidato descartado: no cubre el beat ni con el máximo de loops',
+        );
+        continue;
+      }
+      out.push({ entry, fit: fit.fit });
     }
-    fitted.push({ entry, fit: fit.fit });
+    return out;
+  };
+  let fitted = encajar(pool);
+  // 4) Último recurso: NO se genera una imagen con IA. Antes, cuando ningún
+  // candidato llegaba a T_REV, el beat se resolvía con una imagen de Flux; ese
+  // camino se retiró por decisión de producto (nada de imágenes generadas en el
+  // cuerpo del vídeo) y porque nunca llegó a producir un plano publicado: cero
+  // filas en beats.candidates, en chosen_origin, en los maestros y en assets, y
+  // las únicas tres llamadas a fal.ai del ledger están en `failed` con coste 0.
+  //
+  // La política nueva es proponer siempre algo y marcarlo ámbar: un plano flojo
+  // con su coseno y su origen a la vista es una PROPUESTA que el humano puede
+  // cambiar en la curación; un hueco es una tarea que no puede resolver desde
+  // la timeline. Es el principio 2 del proyecto (el humano selecciona y aprueba).
+  if (fitted.length === 0 && reserva.length > 0) {
+    // Todo lo que había estaba vetado por repetido. Pasa en los beats finales
+    // de un vídeo, que arrastran muchos refs usados, y sobre todo si la
+    // consulta devuelve poco. Antes Flux rescataba este caso; ahora la red es
+    // repetir un plano del propio vídeo, que es peor que no repetirlo pero
+    // muchísimo mejor que quedarse sin plano.
+    fitted = encajar(reserva);
+    logger.warn(
+      { videoId, beatIdx: args.beatIdx, vIdx: args.vIdx, query: queryText },
+      'Sin candidatos nuevos: se reutiliza un plano ya usado en este vídeo',
+    );
   }
   const pick = selectPick(fitted, deps.usedRefs, deps.prevVec, deps.imagenHandicap);
-  let chosen: PoolEntry | undefined = pick?.entry;
-  let chosenFit: Fit | undefined = pick?.fit;
+  if (!pick) {
+    // Pool vacío de verdad: ni biblioteca ni stock. Fallar aquí, con un mensaje
+    // accionable, es mejor que escribir un beat sin asset y reventar tres pasos
+    // más tarde en la ingesta o en el render. El worker lo convierte en
+    // incidencia y el vídeo se puede reintentar.
+    throw new Error(
+      `El beat ${args.beatIdx} (plano ${args.vIdx}) se quedó sin ningún candidato para «${queryText}»: ` +
+        'la biblioteca no tiene nada y la búsqueda de stock no devolvió resultados. ' +
+        'Comprueba PEXELS_API_KEY y PIXABAY_API_KEY.',
+    );
+  }
+  const chosen: PoolEntry = pick.entry;
+  const chosenFit: Fit = pick.fit;
   const rest: PoolEntry[] = fitted.filter((f) => f !== pick).map((f) => f.entry);
 
-  let status: 'auto_ok' | 'review';
-  let candidates: BeatCandidate[];
-
-  if (!chosen || chosen.cos < T_REV) {
-    // 4) Flux como último recurso → candidato único en revisión. La clave lleva
-    // el índice de sub-plano para no colisionar entre planos del mismo beat.
-    const fluxRef = `flux:${videoId}:${args.beatIdx}:${args.vIdx}`;
-    const fluxVetoed = vetoedRefs.has(fluxRef);
-    const basePrompt = deps.styleSuffix ? `${queryText}, ${deps.styleSuffix}` : queryText;
-    const prompt = fluxVetoed ? `${basePrompt}. Variación distinta.` : basePrompt;
-    const flux = await generateFluxImage(db, logger, {
-      videoId,
-      channelId,
-      beatIdx: args.beatIdx,
-      prompt,
-      ...(fluxVetoed ? { seedSalt: `${args.vIdx}` } : {}),
-    });
-    // el PNG vive bajo la biblioteca (no en tmp) para que la timeline pueda
-    // mostrarlo vía /files y la ingesta lo reutilice tal cual se aprobó
-    const fluxDir = path.join(deps.ctx.libraryDir, 'assets', channelId, 'flux');
-    await fs.mkdir(fluxDir, { recursive: true });
-    const fluxName = `${videoId}-${args.beatIdx}-${args.vIdx}.png`;
-    const fluxPath = path.join(fluxDir, fluxName);
-    await fs.copyFile(flux.path, fluxPath);
-    chosen = {
-      cand: {
-        ref: fluxRef,
-        provider: 'flux',
-        score: 0,
-        thumb_url: `/files/library/assets/${channelId}/flux/${fluxName}`,
-        meta: { path: fluxPath, width: 1280, height: 720, kind: 'image', seed: flux.seed, prompt },
-      },
-      kind: 'image',
-      durationMs: null,
-      cos: 0,
-      composite: 0,
-      altRefs: [],
-      vec: [],
-    };
-    chosenFit = { mode: 'kenburns' };
-    status = 'review';
-    candidates = [chosen.cand];
-  } else if (chosen.cos >= T_AUTO) {
-    status = 'auto_ok';
-    candidates = [chosen.cand, ...rest.slice(0, ALTERNATES).map((e) => e.cand)];
-  } else {
-    status = 'review';
-    candidates = [chosen.cand, ...rest.slice(0, ALTERNATES).map((e) => e.cand)];
-  }
+  // Ámbar salvo que la máquina vaya sobrada. Un candidato por debajo de T_REV
+  // llega aquí igual y se propone marcado para revisión.
+  const status: 'auto_ok' | 'review' = chosen.cos >= T_AUTO ? 'auto_ok' : 'review';
+  const candidates: BeatCandidate[] = [
+    chosen.cand,
+    ...rest.slice(0, ALTERNATES).map((e) => e.cand),
+  ];
 
   for (const ref of identityRefs(chosen)) deps.usedRefs.add(ref);
   // memoria para el sub-plano siguiente: evita repetir el mismo plano seguido
@@ -501,7 +522,7 @@ async function resolveOneVisual(
 
   return {
     chosen,
-    fit: chosenFit!,
+    fit: chosenFit,
     status,
     candidates,
     libAssetId:
@@ -549,7 +570,7 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
       spanMs: span.to_ms - span.from_ms,
       // Los planos ya usados en este vídeo se vetan al ARMAR el pool, no solo
       // al elegir: así el candidato repetido ni siquiera compite y la cascada
-      // sigue buscando (stock, y Flux si hace falta) en vez de conformarse.
+      // sigue buscando en el stock en vez de conformarse con el repetido.
       vetoedRefs: new Set([...deps.usedRefs, ...(vIdx === 0 ? vetoedRefs : [])]),
     });
     resolved.push({ span, res });
@@ -951,8 +972,7 @@ async function ingestChosen(
 
   if (!chosen) throw new Error(`El beat ${target.beatIdx} no tiene candidato elegido`);
   const meta = (chosen.meta ?? {}) as Record<string, unknown>;
-  const kind =
-    (meta.kind as 'clip' | 'image' | undefined) ?? (chosen.provider === 'flux' ? 'image' : 'clip');
+  const kind = (meta.kind as 'clip' | 'image' | undefined) ?? 'clip';
 
   // idempotencia: si el mismo source_ref ya está en biblioteca, reutilizarlo
   const [existing] = await db
@@ -976,46 +996,17 @@ async function ingestChosen(
     };
   }
 
-  // obtener el archivo: descarga de stock o PNG de Flux (regenerable por semilla)
+  // obtener el archivo: descarga de stock. Aquí había una rama para el PNG de
+  // Flux, con regeneración de emergencia por semilla; sin generación de imagen
+  // en la cascada, ningún candidato puede llegar ya con provider 'flux'.
   const destDir = path.join(ctx.libraryDir, 'assets', video.channelId, kind);
   await fs.mkdir(destDir, { recursive: true });
-  let destPath: string;
-  let license: string;
-  let source: string;
-
-  if (chosen.provider === 'flux') {
-    source = 'flux';
-    license = 'CC0 Flux';
-    let srcPath = meta.path as string | undefined;
-    const exists = srcPath
-      ? await fs.access(srcPath).then(
-          () => true,
-          () => false,
-        )
-      : false;
-    if (!srcPath || !exists) {
-      // regeneración de emergencia con el MISMO prompt de la imagen aprobada
-      // (la semilla ya es determinista); solo pasa si el PNG desapareció
-      const regenerated = await generateFluxImage(db, logger, {
-        videoId: video.id,
-        channelId: video.channelId,
-        beatIdx: target.beatIdx,
-        prompt: (meta.prompt as string | undefined) ?? target.visualQuery,
-        // misma semilla que la imagen aprobada, aunque llevara sal de descarte
-        ...(typeof meta.seed === 'number' ? { seed: meta.seed } : {}),
-      });
-      srcPath = regenerated.path;
-    }
-    destPath = path.join(destDir, `${nanoid()}.png`);
-    await fs.copyFile(srcPath, destPath);
-  } else {
-    source = chosen.provider;
-    license = chosen.provider === 'pexels' ? 'Pexels' : 'Pixabay';
-    const downloadUrl = meta.download_url as string | undefined;
-    if (!downloadUrl) throw new Error(`El candidato ${chosen.ref} no tiene download_url`);
-    destPath = path.join(destDir, `${nanoid()}.${extFromUrl(downloadUrl, kind)}`);
-    await downloadWithCap(downloadUrl, destPath, chosen.ref);
-  }
+  const source = chosen.provider;
+  const license = chosen.provider === 'pexels' ? 'Pexels' : 'Pixabay';
+  const downloadUrl = meta.download_url as string | undefined;
+  if (!downloadUrl) throw new Error(`El candidato ${chosen.ref} no tiene download_url`);
+  const destPath = path.join(destDir, `${nanoid()}.${extFromUrl(downloadUrl, kind)}`);
+  await downloadWithCap(downloadUrl, destPath, chosen.ref);
 
   try {
     const probed = await probeMedia(destPath);
@@ -1082,11 +1073,7 @@ async function insertIngestedAsset(
 ): Promise<IngestedAsset> {
   const { db, logger } = ctx;
   const { kind, destPath, source, license, probed, meta } = info;
-  const caption =
-    (meta.caption as string | undefined) ??
-    (chosen.provider === 'flux'
-      ? `Imagen generada para: ${target.visualQuery}`
-      : String(meta.title ?? ''));
+  const caption = (meta.caption as string | undefined) ?? String(meta.title ?? '');
   const tags = buildTags(caption);
   // texto canónico compartido con backfill y reembed (lib/embed-text.ts)
   const [embedding] = await ctx.embeddings.embed([

@@ -69,8 +69,9 @@ export function interleaveByProvider<T extends { provider: string }>(results: re
  *    cuando ya había desplazado a otro candidato.
  * 3. Nunca dejar las imágenes a cero. Medido sobre 173 consultas reales: con
  *    cero plazas, ninguna imagen de stock llega a puntuarse en ningún caso, y
- *    la cascada se queda sin red cuando ningún clip supera T_REV — que es
- *    exactamente cuando se compra un Flux. Una plaza de reserva cuesta nada y
+ *    la cascada se queda sin red cuando ningún clip encaja en el tramo. Ya no
+ *    hay generación de imagen detrás que rescate el beat, así que esa plaza es
+ *    lo único que separa un plano flojo de no tener plano. Cuesta nada y
  *    convierte una prohibición en una preferencia.
  */
 export function pickFinalists(

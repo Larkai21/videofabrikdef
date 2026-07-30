@@ -13,7 +13,6 @@ import {
   JOBS,
   QUEUES,
   wizardRequestSchema,
-  type ChannelAvatarGenerateJob,
   type ChannelDto,
   type SourcesBootstrapJob,
 } from '@fabrica/shared';
@@ -166,24 +165,5 @@ export function registerChannelRoutes(app: FastifyInstance, ctx: ApiContext): vo
     if (!row) throw notFound(`Canal ${id} no existe`);
     await ctx.events.publish({ type: 'inbox_changed' });
     return channelDto(row);
-  });
-
-  // ---- avatar/personaje: generación con IA (Flux). Encola el job; el worker
-  // escribe el PNG y setea avatar_path. El dashboard se refresca por SSE.
-  app.post('/channels/:id/avatar/generate', async (req) => {
-    const { id } = req.params as { id: string };
-    const body = (req.body ?? {}) as { seed_salt?: string };
-    const [channel] = await ctx.db
-      .select({ id: channels.id })
-      .from(channels)
-      .where(eq(channels.id, id))
-      .limit(1);
-    if (!channel) throw notFound(`Canal ${id} no existe`);
-    const payload: ChannelAvatarGenerateJob = {
-      channelId: id,
-      ...(body.seed_salt ? { seedSalt: body.seed_salt } : {}),
-    };
-    await ctx.enqueuer.enqueue(QUEUES.sources, JOBS.sources.avatar, payload);
-    return { ok: true as const };
   });
 }

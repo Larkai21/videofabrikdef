@@ -1,13 +1,6 @@
 import { Worker } from 'bullmq';
-import {
-  JOBS,
-  QUEUES,
-  type ChannelAvatarGenerateJob,
-  type SourcePollJob,
-  type SourcesBootstrapJob,
-} from '@fabrica/shared';
+import { JOBS, QUEUES, type SourcePollJob, type SourcesBootstrapJob } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
-import { handleAvatarGenerate } from './avatar.js';
 import { handleBootstrap } from './bootstrap.js';
 import { registerSourcesMocks } from './mocks.js';
 import { handleSourcePoll } from './poll.js';
@@ -32,9 +25,6 @@ export async function registerSourcesWorkers(ctx: WorkerContext): Promise<Worker
       }
       if (job.name === JOBS.sources.bootstrap) {
         return handleBootstrap(ctx, job.data as SourcesBootstrapJob);
-      }
-      if (job.name === JOBS.sources.avatar) {
-        return handleAvatarGenerate(ctx, job.data as ChannelAvatarGenerateJob);
       }
       ctx.logger.warn({ name: job.name }, 'Job desconocido en la cola sources');
     },

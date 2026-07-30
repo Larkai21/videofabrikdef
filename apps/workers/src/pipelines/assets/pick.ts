@@ -76,14 +76,17 @@ export const ADJACENT_DEDUPE_COS = 0.9;
  * cubre el beat sin bucle. Fuera de esa banda manda el coseno.
  *
  * La guarda de viabilidad es lo primero que se aplica y no es cosmética: la
- * banda se ancla en el coseno EFECTIVO (con handicaps) pero la puerta que
- * dispara Flux compara el coseno CRUDO contra T_REV. Sin la guarda, el orden
- * intra-banda —que antepone «sin bucle» al coseno— puede elegir un candidato
- * por debajo de T_REV existiendo otro por encima, y el beat se va a Flux: una
- * imagen generada, que cuesta dinero, en lugar del clip que ya se tenía. Es la
- * precondición de los handicaps: mientras exista un candidato aceptable, se
- * elige uno aceptable, y por tanto ninguna preferencia de tipo puede aumentar
- * el gasto en Flux.
+ * banda se ancla en el coseno EFECTIVO (con handicaps) pero T_REV se compara
+ * contra el CRUDO. Sin la guarda, el orden intra-banda —que antepone «sin
+ * bucle» al coseno— puede elegir un candidato por debajo de T_REV existiendo
+ * otro por encima. Es la precondición de los handicaps: mientras exista un
+ * candidato aceptable se elige uno aceptable, y por tanto ninguna preferencia
+ * de tipo puede degradar el plano por debajo del umbral.
+ *
+ * (Cuando existía el tier de generación de imagen, esto además evitaba pagar
+ * por un Flux teniendo el clip delante. Ese tier ya no está, pero la guarda
+ * sigue siendo necesaria: ahora lo que evita es mandar a revisión humana un
+ * plano flojo habiendo uno bueno en el mismo pool.)
  */
 export function selectPick(
   fitted: readonly { entry: PoolEntry; fit: Fit }[],

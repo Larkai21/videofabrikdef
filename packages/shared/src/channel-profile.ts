@@ -31,7 +31,9 @@ export const channelProfileV1 = z.object({
     }),
   ),
   style: z.object({
-    // sufijo para prompts de Flux y queries de stock
+    // sufijo de estilo para prompts de imagen (componentes del brand kit).
+    // NO se concatena a las consultas de stock: hacía que Pixabay fallara por
+    // longitud y comprimía todos los cosenos con una componente común.
     visual_prompt_suffix: z.string(),
     stock_query_lang: z.enum(['en', 'es']),
     // temas/palabras prohibidos
@@ -43,9 +45,9 @@ export const channelProfileV1 = z.object({
      * de calidad audita el vídeo terminado.
      *
      * 0 significa «quiero todo vídeo», y es una PREFERENCIA FUERTE, no una
-     * prohibición: siempre queda una plaza de reserva. Sin ella, un tramo sin
-     * ningún clip relevante cae a Flux, que genera una imagen y encima cuesta:
-     * se acabaría con más imágenes, no con menos.
+     * prohibición: siempre queda una plaza de reserva. La cascada no tiene
+     * generación de imagen detrás, así que un tramo sin ningún clip que encaje
+     * se quedaría literalmente sin plano.
      */
     broll_imagenes_max_pct: z.number().min(0).max(1).default(RATIO_IMAGENES_MAX),
   }),

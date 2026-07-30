@@ -102,11 +102,13 @@ export async function getInbox(): Promise<InboxDto> {
 // ---- costes ----
 import { costsDtoSchema, type CostsDto } from '@fabrica/shared';
 
-export async function getCosts(filters: {
-  channel?: string | null;
-  video?: string;
-  month?: string;
-} = {}): Promise<CostsDto> {
+export async function getCosts(
+  filters: {
+    channel?: string | null;
+    video?: string;
+    month?: string;
+  } = {},
+): Promise<CostsDto> {
   const params = new URLSearchParams();
   if (filters.channel) params.set('channel', filters.channel);
   if (filters.video) params.set('video', filters.video);
@@ -160,11 +162,6 @@ export async function uploadAvatar(id: string, file: File): Promise<ChannelDto> 
   return channelDtoSchema.parse(
     await request(`/channels/${id}/avatar`, { method: 'POST', body: form }),
   );
-}
-
-// avatar/personaje: generación con IA (Flux). El resultado llega por SSE.
-export async function generateAvatar(id: string): Promise<void> {
-  await post(`/channels/${id}/avatar/generate`);
 }
 
 // settings del canal (presupuesto, duración objetivo, música de fondo…)
@@ -291,7 +288,8 @@ export async function getLibrary(filters: LibraryFilters = {}): Promise<LibraryL
   const params = new URLSearchParams();
   if (filters.kind !== undefined && filters.kind !== '') params.set('kind', filters.kind);
   if (filters.q !== undefined && filters.q !== '') params.set('q', filters.q);
-  if (filters.channel !== undefined && filters.channel !== '') params.set('channel', filters.channel);
+  if (filters.channel !== undefined && filters.channel !== '')
+    params.set('channel', filters.channel);
   if (filters.purge === true) params.set('purge', 'true');
   if (filters.favorite === true) params.set('favorite', 'true');
   if (filters.limit !== undefined) params.set('limit', String(filters.limit));
@@ -525,10 +523,7 @@ export async function getInboxFor(channel?: string | null): Promise<InboxDto> {
   return inboxDtoSchema.parse(await request(`/inbox${qs}`));
 }
 
-export async function getIdeasFor(
-  status = 'new',
-  channel?: string | null,
-): Promise<IdeaDto[]> {
+export async function getIdeasFor(status = 'new', channel?: string | null): Promise<IdeaDto[]> {
   const params = new URLSearchParams({ status });
   if (channel !== undefined && channel !== null && channel !== '') {
     params.set('channel', channel);
