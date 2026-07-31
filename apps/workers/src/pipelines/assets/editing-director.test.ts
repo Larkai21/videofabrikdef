@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Cue, Edit } from '@fabrica/shared';
 import {
+  dedupeAndCap,
   hacenFaltaMasTarjetas,
   intentEdits,
   microFxEdits,
@@ -411,5 +412,63 @@ describe('palabras que se subrayan', () => {
     expect(subrayadas).toContain('contratos');
     expect(subrayadas).not.toContain('vez');
     expect(subrayadas).not.toContain('cuando');
+  });
+});
+
+describe('lo declarado por el guion gana al efecto inferido', () => {
+  const beat = (idx: number, from: number) => ({ from_ms: from, to_ms: from + 10_000, idx });
+
+  it('una tarjeta declarada sobrevive a un zoom en el mismo beat', () => {
+    // El bug: `zoom_punch` tiene prioridad 4 y `text_callout` 2, así que el
+    // zoom que genera la regla de `emphasis` mataba la tarjeta que pidió el
+    // guion ANTES de llegar al reparto, donde el +10 de declarado la habría
+    // salvado. Medido en un vídeo real: 8 intenciones ancladas, 6 zoom_punch
+    // en el maestro y UNA tarjeta.
+    const tarjeta: Edit = {
+      type: 'text_callout',
+      from_ms: 1_000,
+      to_ms: 3_000,
+      beat_idx: 0,
+      text: 'dato clave',
+    };
+    const zoom: Edit = { type: 'zoom_punch', from_ms: 1_000, to_ms: 2_000, beat_idx: 0 };
+    const out = dedupeAndCap([zoom, tarjeta], 60_000, new Set([tarjeta]));
+    expect(out.map((e) => e.type)).toContain('text_callout');
+    expect(out.map((e) => e.type)).not.toContain('zoom_punch');
+  });
+
+  it('sin nada declarado, sigue mandando la prioridad de tipo', () => {
+    const tarjeta: Edit = {
+      type: 'text_callout',
+      from_ms: 1_000,
+      to_ms: 3_000,
+      beat_idx: 0,
+      text: 'x',
+    };
+    const zoom: Edit = { type: 'zoom_punch', from_ms: 1_000, to_ms: 2_000, beat_idx: 0 };
+    const out = dedupeAndCap([tarjeta, zoom], 60_000);
+    expect(out.map((e) => e.type)).toContain('zoom_punch');
+  });
+
+  it('varias tarjetas declaradas, repartidas en el tiempo, sobreviven todas', () => {
+    // Una por ventana de reparto: a 5 min el presupuesto son 6 ventanas de 50 s,
+    // así que van a 10, 60, 110 y 160 s. Amontonarlas dentro de una ventana las
+    // mataría igual, y con razón: eso es lo que `spreadByWindows` viene a evitar.
+    const decl: Edit[] = [0, 1, 2, 3].map((i) => ({
+      type: 'text_callout' as const,
+      from_ms: i * 50_000 + 10_000,
+      to_ms: i * 50_000 + 12_000,
+      beat_idx: i,
+      text: `t${i}`,
+    }));
+    const zooms: Edit[] = [0, 1, 2, 3].map((i) => ({
+      type: 'zoom_punch' as const,
+      from_ms: i * 50_000 + 10_000,
+      to_ms: i * 50_000 + 11_000,
+      beat_idx: i,
+    }));
+    const out = dedupeAndCap([...zooms, ...decl], 300_000, new Set(decl));
+    expect(out.filter((e) => e.type === 'text_callout')).toHaveLength(4);
+    expect(out.filter((e) => e.type === 'zoom_punch')).toHaveLength(0);
   });
 });

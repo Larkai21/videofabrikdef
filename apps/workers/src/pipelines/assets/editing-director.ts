@@ -676,7 +676,18 @@ export function dedupeAndCap(
     }
     kept.push(e);
   }
-  // un solo overlay visual por beat (el de mayor prioridad) para no amontonar
+  // Un solo overlay visual por beat para no amontonar. Lo DECLARADO por el
+  // guion gana siempre a lo inferido por reglas o por la IA, y esa bonificación
+  // tiene que estar AQUÍ y no solo en el reparto de más abajo.
+  //
+  // Estaba solo abajo, y por eso el sistema de intenciones declaradas se caía
+  // en silencio: `zoom_punch` (prioridad 4, lo genera la regla de `emphasis`)
+  // ganaba a `text_callout` (prioridad 2, lo pide el guion) en el mismo beat, y
+  // la tarjeta moría antes de llegar a `spreadByWindows`, donde el +10 de
+  // declarado la habría salvado. Medido en un vídeo real: 8 intenciones
+  // ancladas correctamente en el audio, 6 zoom_punch en el maestro y UNA sola
+  // tarjeta. El guion declaraba y el montaje lo ignoraba.
+  const puntua = (e: Edit): number => (PRIORITY[e.type] ?? 0) + (declared.has(e) ? 10 : 0);
   const bestPerBeat = new Map<number, Edit>();
   const passthrough: Edit[] = [];
   for (const e of kept) {
@@ -685,7 +696,7 @@ export function dedupeAndCap(
       continue;
     }
     const cur = bestPerBeat.get(e.beat_idx);
-    if (!cur || (PRIORITY[e.type] ?? 0) > (PRIORITY[cur.type] ?? 0)) bestPerBeat.set(e.beat_idx, e);
+    if (!cur || puntua(e) > puntua(cur)) bestPerBeat.set(e.beat_idx, e);
   }
   // Reparto por ventanas en vez del recorte por prioridad: con el `slice`
   // anterior, un vídeo cuyo primer minuto daba mucho material se quedaba con
@@ -697,7 +708,7 @@ export function dedupeAndCap(
     sepMs: FX_CARD_SEP_MS,
     at: (e) => e.from_ms,
     // lo DECLARADO por el guion gana a lo inferido por reglas o por la IA
-    score: (e) => (PRIORITY[e.type] ?? 0) + (declared.has(e) ? 10 : 0),
+    score: puntua,
   }).kept;
   // conserva SFX/keyword; recorta los "pop" cuyos overlays fueron descartados
   const keptVisualFroms = new Set(visuals.map((v) => v.from_ms));
