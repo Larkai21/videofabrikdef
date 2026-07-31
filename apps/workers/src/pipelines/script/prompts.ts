@@ -83,6 +83,35 @@ export function sceneBlueprint(bodyCount: number): string {
   ].join('\n');
 }
 
+/**
+ * En qué escenas del cuerpo va una tarjeta, repartidas de verdad.
+ *
+ * El montador ya reparte bien en el tiempo: `spreadByWindows` parte el vídeo en
+ * tantas ventanas como permita el presupuesto y elige una por ventana. Pero si
+ * el guion no declaró nada en ese tramo, la ventana se queda vacía. Medido en el
+ * último vídeo: 18 intenciones declaradas y 18 vivas, y aun así el reparto por
+ * minuto fue [1 2 0 0 1 1 2 0] — tres minutos mudos de siete.
+ *
+ * Se saltan la primera y la última escena del cuerpo: la primera va pegada al
+ * gancho, que ya lleva su propio efecto, y la última al cta.
+ */
+export function huecosDeTarjeta(bodyCount: number, presupuesto: number): string[] {
+  if (bodyCount <= 0 || presupuesto <= 0) return [];
+  const desde = bodyCount > 2 ? 2 : 1;
+  const hasta = bodyCount > 2 ? bodyCount - 1 : bodyCount;
+  const disponibles = hasta - desde + 1;
+  const cuantas = Math.min(presupuesto, disponibles);
+  if (cuantas <= 0) return [];
+  const paso = disponibles / cuantas;
+  const out: string[] = [];
+  for (let i = 0; i < cuantas; i++) {
+    const n = desde + Math.round(i * paso);
+    const id = `sc-body-${Math.min(n, hasta)}`;
+    if (!out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
 export function renderProfile(profile: ChannelProfile): string {
   return [
     `Canal: ${profile.identity.name}. Posicionamiento: ${profile.identity.positioning}.`,
@@ -236,7 +265,15 @@ export function scriptSystem(profile: ChannelProfile, targetWords: number): stri
     // El montaje deja de adivinar: la escena declara qué efecto quiere y en qué
     // palabra entra. Como la palabra la acaba de escribir el propio guionista,
     // el anclaje temporal no puede fallar.
-    `edit_intents: es tu instrucción al montador; sin ella el montaje adivina y se equivoca. Declara ${cardBudget} de tipo tarjeta (callout, stat, quote, device o annotation) REPARTIDAS por todo el guion, nunca dos en escenas seguidas, más las de tipo keyword que merezcan la pena. Máximo 2 por escena.`,
+    // «REPARTIDAS por todo el guion» no bastaba. Medido en el último vídeo: 18
+    // intenciones declaradas y 18 vivas —el modelo declara de sobra— pero el
+    // reparto por minuto salió [1 2 0 0 1 1 2 0], con tres minutos mudos de
+    // siete. El montador ya reparte bien en el tiempo (`spreadByWindows` elige
+    // uno por ventana), así que una ventana vacía significa que en ese tramo
+    // del guion NO se declaró nada. Pedir «repartidas» es tan vago como pedir
+    // «buena estructura»; nombrar los huecos concretos es lo que funcionó con
+    // los movimientos del blueprint.
+    `edit_intents: es tu instrucción al montador; sin ella el montaje adivina y se equivoca. Declara UNA tarjeta (callout, stat, quote, device o annotation) en CADA UNA de estas escenas, y en ninguna otra: ${huecosDeTarjeta(sceneTarget(targetWords) - 2, cardBudget).join(', ')}. Si en alguna de ellas no hay nada que merezca tarjeta, deja esa escena sin tarjeta antes que forzarla — pero no la muevas a otra escena. Aparte, las de tipo keyword que merezcan la pena, sin límite de sitio.`,
     'Si en una escena escribes una cifra que sale de los claims, declara un stat sobre ella: es el caso que más se nota en pantalla y el que más se olvida.',
     '- trigger_word: una palabra EXACTA que tú acabas de escribir en el `text` de ESA MISMA escena. No vale una palabra de otra escena, ni una variante, ni una que no se pronuncie. Si no puedes citar una literal, no declares la intención.',
     `- card_text: el copy de la tarjeta, de 2 a 4 palabras, sentence case, sin comillas ni signos. Resume la frase, no añade información nueva ni la contradice. Va EN ${profile.language === 'en' ? 'INGLÉS' : 'ESPAÑOL'}, el idioma del guion: es texto que el espectador lee en pantalla, no una consulta de archivo.`,
