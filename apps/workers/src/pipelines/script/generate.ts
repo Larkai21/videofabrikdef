@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { channels, ideas, markIncident, videos } from '@fabrica/db';
 import {
   channelSettingsSchema,
+  suficienciaResearch,
   editIntentSchema,
   JOBS,
   QUEUES,
@@ -214,6 +215,36 @@ export async function handleScriptGenerate(
     mockContext: { refs, ideaTitle: idea.title },
   });
 
+  // La duración sale del MATERIAL, no solo del ajuste del canal. Un tuit da dos
+  // minutos honestos; pedirle siete produce mil palabras de generalidades, y el
+  // guion llegaba a confesárselo al espectador («Nuestro research pack es
+  // limitado»). No se apaga la fábrica: si de verdad no hay nada, incidencia;
+  // si hay poco, se escribe más corto.
+  const caracteres = docs.reduce((n, d) => n + d.text.length, 0);
+  const suficiencia = suficienciaResearch(research, caracteres, settings.target_minutes);
+  if (suficiencia.nivel === 'insuficiente') {
+    await markIncident(ctx.db, videoId, {
+      message: suficiencia.motivo,
+      suggested_action: 'descartar',
+      queue: QUEUES.script,
+    });
+    await ctx.publishEvent({
+      type: 'incident',
+      video_id: videoId,
+      queue: QUEUES.script,
+      message: suficiencia.motivo,
+      suggested_action: 'descartar',
+    });
+    return;
+  }
+  if (suficiencia.nivel === 'justo') {
+    ctx.logger.info(
+      { videoId, ...suficiencia },
+      'Research corto: se acorta el vídeo en vez de rellenarlo',
+    );
+  }
+  const targetWordsReal = wordTarget(suficiencia.minutosMax);
+
   await progress(55, 'Redactando guion y paquete SEO');
   const prevScenes = video.master.script?.scenes ?? [];
   const editedScenes = prevScenes.filter((s) => s.edited_by_human);
@@ -229,11 +260,11 @@ export async function handleScriptGenerate(
     videoId,
     channelId: video.channelId,
     op: 'script',
-    system: scriptSystem(profile, targetWords),
+    system: scriptSystem(profile, targetWordsReal),
     user: scriptUser({
       idea: { title: idea.title, angle: idea.angle, summary: idea.summary, whyNow: idea.whyNow },
       research,
-      targetWords,
+      targetWords: targetWordsReal,
       language: profile.language,
       ...(rewriteReason ? { rewriteReason } : {}),
       ...(chosenTitle ? { chosenTitle } : {}),
@@ -268,7 +299,11 @@ export async function handleScriptGenerate(
 
   const trasBarrido = countIntents(scenes);
   let pasadaDuracion = false;
-  if (!withinTolerance(scriptWords(scenes), targetWords)) {
+  // Contra targetWordsReal, NO contra el ajuste del canal: si el material solo
+  // daba para dos minutos, comprobar la tolerancia contra los siete haría que
+  // esta pasada estirase el guion corto de vuelta al relleno que se acaba de
+  // evitar. Es el mismo número con el que se escribió.
+  if (!withinTolerance(scriptWords(scenes), targetWordsReal)) {
     await progress(80, 'Ajustando la duración del guion');
     pasadaDuracion = true;
     scenes = await adjustLength(
@@ -276,7 +311,7 @@ export async function handleScriptGenerate(
       { videoId, channelId: video.channelId },
       profile,
       scenes,
-      targetWords,
+      targetWordsReal,
     );
   }
   // la pasada reescribe el texto, así que se lleva por delante las intenciones
@@ -307,7 +342,7 @@ export async function handleScriptGenerate(
       script: { scenes: finalScenes, hook_notes: gen.script.hook_notes },
       script_telemetry: {
         words: scriptWords(finalScenes),
-        target_words: targetWords,
+        target_words: targetWordsReal,
         scenes: finalScenes.length,
         intents_declared: declaradas,
         intents_kept: countIntents(finalScenes),
@@ -338,7 +373,7 @@ export async function handleScriptGenerate(
   // enuncia el propio gancho. Es idempotente por huella del guion.
   await ctx.queues.script.add(JOBS.script.judge, { videoId } satisfies ScriptJudgeJob);
   ctx.logger.info(
-    { videoId, words: scriptWords(scenes), targetWords, escenas: scenes.length },
+    { videoId, words: scriptWords(scenes), targetWords: targetWordsReal, escenas: scenes.length },
     'Guion generado y en puerta de revisión',
   );
 }

@@ -14,6 +14,8 @@ Una fila por vuelta. Sin esto, dentro de tres semanas no se sabe qué cambio pro
 | 31-jul-2026 | `s3-ritmo` | 0b2d1ee | «la última frase de cada escena es corta —ocho palabras o menos— y dice la consecuencia» | `cierre_medio` 15,7 → **6,9** · cierres cortos 10,6 % → **74 %**. Los dos criterios superados de largo | **REVERTIDA.** La métrica pasó y el texto EMPEORÓ |
 | 31-jul-2026 | `s3-ritmo-v2` | 0b2d1ee | la misma idea pedida como variación, prohibiendo el latiguillo genérico y el arranque por «Eso» | cierres cortos 13,5 %, `cierre_medio` 15,0: la línea base. Nada supera la banda | **REVERTIDA.** Tres de cada ocho cierres siguen empezando por «Eso»: la regla se ignora |
 
+| 31-jul-2026 | `s4-titulos` | 46c9350 | los patrones del perfil pasan de 2 a 6 y el prompt deja de pedir «cada título aplicando uno de estos patrones»: ahora exige que los tres se diferencien en FORMA, que alguno nombre algo del research, y prohíbe «Por qué» | títulos que empiezan por «Por qué»: **100 % → 0 %** (54 títulos). Aperturas repartidas entre «Cómo», «Habla», nombres propios | **se queda** |
+
 ## La vuelta del ritmo: dos intentos, los dos fallidos, y lo que enseñan
 
 El diagnóstico era bueno y está medido: el único guion del corpus que se lee bien cierra

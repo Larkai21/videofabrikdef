@@ -9,7 +9,8 @@
       "AGI mañana"
     ],
     "stock_query_lang": "en",
-    "visual_prompt_suffix": "clean tech aesthetic, cinematic lighting, no text"
+    "visual_prompt_suffix": "clean tech aesthetic, cinematic lighting, no text",
+    "broll_imagenes_max_pct": 0.3
   },
   "voice": {
     "rate": "-8%",
@@ -65,6 +66,26 @@
       "source": "mined",
       "example": "El modelo que abarató la inteligencia",
       "template": "El {cosa} que {consecuencia}"
+    },
+    {
+      "source": "manual",
+      "example": "Meta liberó sus pesos y perdió el control del precio",
+      "template": "{Nombre} {hizo algo} y {consecuencia inesperada}"
+    },
+    {
+      "source": "manual",
+      "example": "Lo que OpenAI no cuenta sobre el coste de inferencia",
+      "template": "Lo que {actor} no cuenta sobre {X}"
+    },
+    {
+      "source": "manual",
+      "example": "70 empresas contra la Casa Blanca: qué se juega tu stack",
+      "template": "{Cifra} {unidad}: {lo que significa}"
+    },
+    {
+      "source": "mined",
+      "example": "Su móvil se borró solo en el aeropuerto (y acabó imputado)",
+      "template": "{Hecho concreto} (y {consecuencia entre paréntesis})"
     }
   ],
   "high_cpm_topics": [

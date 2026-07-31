@@ -94,6 +94,209 @@ export function escenasEncabezadas(scenes: readonly { text: string }[]): number 
   return scenes.filter((s) => abreConRotulo(s.text)).length;
 }
 
+// Palabras que empiezan por mayúscula sin ser un nombre propio: arranque de
+// frase, gentilicios, meses, y —importante— los rótulos de andamiaje. Sin esta
+// última parte, «PUNTO MEDIO» contaría como dos entidades y arreglar los
+// rótulos haría BAJAR la concreción medida.
+const NO_ES_ENTIDAD = new Set([
+  'el',
+  'la',
+  'los',
+  'las',
+  'un',
+  'una',
+  'unos',
+  'unas',
+  'y',
+  'o',
+  'pero',
+  'si',
+  'no',
+  'que',
+  'qué',
+  'cuando',
+  'cuándo',
+  'donde',
+  'dónde',
+  'como',
+  'cómo',
+  'porque',
+  'por',
+  'para',
+  'con',
+  'sin',
+  'sobre',
+  'entre',
+  'desde',
+  'hasta',
+  'ese',
+  'esa',
+  'eso',
+  'este',
+  'esta',
+  'esto',
+  'aquel',
+  'su',
+  'sus',
+  'tu',
+  'tus',
+  'mi',
+  'mis',
+  'al',
+  'del',
+  'es',
+  'son',
+  'fue',
+  'hay',
+  'está',
+  'están',
+  'tiene',
+  'tienen',
+  'puede',
+  'pueden',
+  'va',
+  'van',
+  'ya',
+  'también',
+  'además',
+  'ahora',
+  'hoy',
+  'ayer',
+  'mañana',
+  'aquí',
+  'allí',
+  'así',
+  'solo',
+  'sólo',
+  'más',
+  'menos',
+  'muy',
+  'todo',
+  'toda',
+  'todos',
+  'todas',
+  'otro',
+  'otra',
+  'cada',
+  'nunca',
+  'siempre',
+  'punto',
+  'medio',
+  'giro',
+  'caso',
+  'contexto',
+  'pago',
+  'desarrollo',
+  'complicación',
+  'cierre',
+  'gancho',
+  'conclusión',
+  'paso',
+  'fase',
+  'idea',
+  'primera',
+  'segunda',
+  'tercera',
+  'cuarta',
+  'quinta',
+  'primer',
+  'segundo',
+  'tercer',
+  'lunes',
+  'martes',
+  'miércoles',
+  'jueves',
+  'viernes',
+  'sábado',
+  'domingo',
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+  'internet',
+  'ia',
+  // verbos y arranques que aparecen en mayúscula al empezar un claim: «Existe un
+  // artículo titulado…» no nombra nada, y contarlo como entidad convertía en
+  // «dato con sustancia» justo el claim vacío que motivó toda esta medida
+  'existe',
+  'existen',
+  'aparece',
+  'aparecen',
+  'según',
+  'segun',
+  'hay',
+  'se',
+  'sus',
+  'varios',
+  'varias',
+  'muchos',
+  'muchas',
+  'algunos',
+  'algunas',
+  'tras',
+  'durante',
+  'mientras',
+  'aunque',
+  'pese',
+  'dice',
+  'sostiene',
+  'sostienen',
+  'afirma',
+  'afirman',
+  'reporta',
+  'reportan',
+  'indica',
+  'indican',
+  'nuevo',
+  'nueva',
+]);
+
+/**
+ * Nombres propios y siglas del texto: empresas, productos, personas, leyes.
+ *
+ * Es la medida de CONCRETO. OJO con el diagnóstico que circulaba: «siete de once
+ * guiones no nombran ni una entidad» es FALSO. Salió de contar apariciones de una
+ * lista fija de empresas de IA (OpenAI, Anthropic, Google…), que mide otra cosa.
+ * Con esta definición, solo 1 de 11 guiones publicados está a cero y la media son
+ * 6,9 nombres propios por guion. El problema de concreción es real pero mucho más
+ * suave de lo que parecía, y por eso esta función es una MÉTRICA y no un aviso
+ * bloqueante.
+ *
+ * Heurística, no un analizador: mayúscula inicial fuera del arranque de frase, o
+ * sigla de dos o más letras. Se queda corta con los nombres en minúscula
+ * («arXiv») y se pasa con algún inicio de cita; sirve para comparar corridas, no
+ * para juzgar una frase suelta.
+ */
+export function entidadesNombradas(texto: string): Set<string> {
+  const out = new Set<string>();
+  const frases = texto.split(/(?<=[.;:?!])\s+/);
+  for (const frase of frases) {
+    const palabras = frase.trim().split(/\s+/);
+    palabras.forEach((cruda, i) => {
+      const palabra = cruda.replace(/^[«"'(¿¡]+|[»"',.;:?!)]+$/g, '');
+      if (palabra.length < 2) return;
+      const bajas = palabra.toLowerCase();
+      if (NO_ES_ENTIDAD.has(bajas)) return;
+      // sigla: dos o más mayúsculas seguidas, en cualquier posición
+      if (/^[\p{Lu}]{2,}(-[\p{Lu}0-9]+)?$/u.test(palabra)) {
+        out.add(palabra);
+        return;
+      }
+      // nombre propio: mayúscula inicial y NO al empezar la frase
+      if (i > 0 && /^[\p{Lu}]/u.test(palabra)) out.add(palabra);
+    });
+  }
+  return out;
+}
+
 /**
  * El cierre de una escena, en palabras de su última frase.
  *

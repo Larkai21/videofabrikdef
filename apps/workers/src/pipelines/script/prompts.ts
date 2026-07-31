@@ -248,7 +248,13 @@ export function scriptSystem(profile: ChannelProfile, targetWords: number): stri
     'Ejemplo de intenciones bien declaradas, para una escena que dijera «el puerto movió 4200 contenedores en una semana y aun así perdió dinero»: [{"effect":"stat","trigger_word":"4200","value":"4200","label":"contenedores","claim_idx":2},{"effect":"callout","trigger_word":"perdió","card_text":"y aun así pierde"}].',
     'Salida JSON: { script: { scenes: [{id, section: hook|body|cta, text, visual_query, emphasis?, edit_intents?}], hook_notes }, seo: { titles, description, tags, thumbnails } }.',
     'hook_notes: qué promesa abre el vídeo y cómo se paga al final.',
-    `seo.titles: exactamente 3 títulos de 70 caracteres máximo, cada uno aplicando uno de estos patrones: ${patterns || 'los del nicho'}. Sin promesas que el guion no pague.`,
+    // Los patrones son EJEMPLOS DE VOZ, no plantillas que rellenar. Pedir «cada
+    // uno aplicando uno de estos patrones» con dos patrones y tres huecos hacía
+    // que el primero se repitiera siempre: medido, el 100 % de los títulos
+    // generados empiezan por «Por qué» —16 de 16, 34 de 34, 6 de 6— y 9 de los
+    // 11 elegidos en producción también. Lo que hace falta es que los tres se
+    // diferencien en FORMA, y que alguno nombre algo.
+    `seo.titles: exactamente 3 títulos de 70 caracteres máximo. Los tres tienen que ser DISTINTOS EN FORMA entre sí: no pueden empezar las tres por la misma palabra ni compartir estructura. Al menos uno lleva un nombre propio o una cifra sacados del research. Ninguno empieza por «Por qué». Voz del canal, como referencia y no como molde: ${patterns || 'los del nicho'}. Sin promesas que el guion no pague.`,
     'seo.description: 2 párrafos (el primero abre con la keyword principal) y al final un bloque de capítulos EXACTAMENTE así:\nCapítulos:\n{timestamps}',
     profile.flags.ai_disclosure
       ? 'Añade al final de la descripción una línea de transparencia sobre asistencia de IA.'
@@ -315,7 +321,13 @@ export function packagingSystem(profile: ChannelProfile): string {
     'Eres el estratega de packaging del canal: el título y la miniatura se deciden ANTES de escribir el guion.',
     renderProfile(profile),
     'Salida JSON: { seo: { titles, description, tags, thumbnails } }. Nada más: el guion se escribirá después para cumplir la promesa del título elegido.',
-    `seo.titles: exactamente 3 títulos de 70 caracteres máximo, cada uno aplicando uno de estos patrones: ${patterns || 'los del nicho'}. Promesas concretas que un guion pueda pagar.`,
+    // Los patrones son EJEMPLOS DE VOZ, no plantillas que rellenar. Pedir «cada
+    // uno aplicando uno de estos patrones» con dos patrones y tres huecos hacía
+    // que el primero se repitiera siempre: medido, el 100 % de los títulos
+    // generados empiezan por «Por qué» —16 de 16, 34 de 34, 6 de 6— y 9 de los
+    // 11 elegidos en producción también. Lo que hace falta es que los tres se
+    // diferencien en FORMA, y que alguno nombre algo.
+    `seo.titles: exactamente 3 títulos de 70 caracteres máximo. Los tres tienen que ser DISTINTOS EN FORMA entre sí: no pueden empezar las tres por la misma palabra ni compartir estructura. Al menos uno lleva un nombre propio o una cifra sacados del research. Ninguno empieza por «Por qué». Voz del canal, como referencia y no como molde: ${patterns || 'los del nicho'}. Promesas concretas que un guion pueda pagar.`,
     'seo.description: 2 párrafos (el primero abre con la keyword principal) y al final un bloque de capítulos EXACTAMENTE así:\nCapítulos:\n{timestamps}',
     profile.flags.ai_disclosure
       ? 'Añade al final de la descripción una línea de transparencia sobre asistencia de IA.'

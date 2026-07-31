@@ -8,6 +8,7 @@ export * from './micro-fx.js';
 export * from './stock-ref.js';
 export * from './calidad.js';
 export * from './script-quality.js';
+export * from './suficiencia.js';
 export * from './script-review.js';
 export * from './component-manifest.js';
 export * from './component-prompt.js';
