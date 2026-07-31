@@ -156,3 +156,12 @@ las ocho.
   con tres variables movidas a la vez no se puede atribuir nada. **Un cambio por vuelta.**
 - **Medir el ruido ANTES de interpretar un diff.** Cuesta una corrida (~5 min, 0,08 $) y
   es lo único que separa iterar de dar vueltas.
+- **Una métrica en la que «más es mejor» acaba jugada.** La regla de cierres cortos llevó
+  la métrica del 11 % al 74 % y el texto empeoró: cada escena remataba con un imperativo
+  genérico («Decide según tu riesgo», «Sigue leyendo»). Si un valor extremo no puede ser
+  malo, la métrica no mide calidad. Toda métrica nueva necesita banda por arriba y por
+  abajo, y **el número nunca cierra una vuelta sin leer un guion**.
+- **`craftRules()` está saturado y ya no es la palanca.** Diez reglas largas, y dos
+  añadidas esta sesión no movieron nada medible. Lo que sí movió la aguja fue estructural
+  (`sceneBlueprint` por movimientos: rótulos del 37,9 % al 14,7 %) o mecánico (avisos del
+  linter). Antes de escribir una regla nueva ahí, buscar dónde está la causa.

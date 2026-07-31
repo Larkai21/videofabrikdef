@@ -480,6 +480,26 @@ function medir(variante: string): Metricas | null {
   return m;
 }
 
+/**
+ * El porcentaje de cierres cortos tiene TECHO, no solo suelo.
+ *
+ * La primera versión de la regla de ritmo pedía que cada escena cerrara con
+ * ocho palabras o menos. La métrica subió del 11 % al 74 % y el texto empeoró:
+ * el modelo le pegaba a cada escena un imperativo genérico («Mantén el control
+ * local», «Decide según tu riesgo», «Sigue leyendo»). Si todas las escenas
+ * rematan, ninguna remata.
+ *
+ * Referencia: el único guion del corpus que se lee bien está en el 30 %. La
+ * banda 20-45 % lo contiene con margen a los dos lados.
+ *
+ * La lección general, y vale para cualquier métrica que se añada aquí: una
+ * medida en la que «más es mejor» acaba jugada. Si un valor extremo no puede
+ * ser malo, la métrica no está midiendo calidad.
+ */
+export function enBandaDeCierre(pct: number): boolean {
+  return pct >= 20 && pct <= 45;
+}
+
 function imprimirMetricas(variante: string, m: Metricas): void {
   const pct = m.escenas > 0 ? Math.round((m.encabezadas / m.escenas) * 100) : 0;
   console.log(`\n${variante}: ${m.guiones} guiones · ${m.escenas} escenas`);
@@ -495,7 +515,11 @@ function imprimirMetricas(variante: string, m: Metricas): void {
   console.log(`  rotuladas        ${m.rotuladas_pct} % de las escenas`);
   console.log(`  promesas/guion   ${m.promesas_x_guion}`);
   console.log(`  meta/guion       ${m.meta_x_guion}`);
-  console.log(`  cierre de escena ${m.cierre_medio} palabras · ${m.cierres_cortos_pct} % de ≤8`);
+  const banda = enBandaDeCierre(m.cierres_cortos_pct);
+  console.log(
+    `  cierre de escena ${m.cierre_medio} palabras · ${m.cierres_cortos_pct} % de ≤8 ` +
+      `${banda ? '(en banda)' : '← FUERA de 20-45 %'}`,
+  );
 }
 
 /**
@@ -570,13 +594,17 @@ function medirVarias(nombres: string[]): Metricas | null {
     rotuladas_pct: 0,
     promesas_x_guion: 0,
     meta_x_guion: 0,
-    cierre_medio:
-      Math.round((10 * vivos.reduce((n, x) => n + x.cierre_medio * x.escenas, 0)) / m.escenas) / 10,
-    cierres_cortos_pct:
-      Math.round(
-        (10 * vivos.reduce((n, x) => n + x.cierres_cortos_pct * x.escenas, 0)) / m.escenas,
-      ) / 10,
+    cierre_medio: 0,
+    cierres_cortos_pct: 0,
   };
+  // Las tasas se calculan DESPUÉS: dentro del literal, `m.escenas` todavía no
+  // existe y el fallo es un ReferenceError en tiempo de ejecución, no de tipos.
+  const ponderada = (k: 'cierre_medio' | 'cierres_cortos_pct'): number =>
+    m.escenas > 0
+      ? Math.round((10 * vivos.reduce((n, x) => n + x[k] * x.escenas, 0)) / m.escenas) / 10
+      : 0;
+  m.cierre_medio = ponderada('cierre_medio');
+  m.cierres_cortos_pct = ponderada('cierres_cortos_pct');
   m.rotuladas_pct = Math.round((1000 * m.andamiaje) / m.escenas) / 10;
   m.promesas_x_guion = Math.round((10 * m.promesa_no_producible) / m.guiones) / 10;
   m.meta_x_guion = Math.round((10 * m.meta_narracion) / m.guiones) / 10;

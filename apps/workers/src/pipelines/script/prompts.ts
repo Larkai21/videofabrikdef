@@ -166,7 +166,26 @@ export function craftRules(): string {
     // tres empezando igual: «Esa diferencia cambia…», «Esa variedad
     // significa…», «Esa política determina…». Esto estaba escrito, pero como
     // comentario sobre el ejemplo de oficio, no como regla.
-    'Ritmo: alterna frases cortas y medias, máximo 25 palabras por frase, una idea por frase. Puntuación limpia para marcar las respiraciones del locutor. La ÚLTIMA frase de cada escena es corta —ocho palabras o menos— y no resume lo que acabas de decir: dice la consecuencia, o abre lo siguiente. «Todo el contenido, desaparecido.» «Sin claves, tus datos son puro ruido.» Nunca empieces ese cierre con «Esa», «Eso» ni «Esto».',
+    // AQUÍ NO CABE UNA REGLA SOBRE CÓMO CERRAR LA ESCENA. Se intentó dos veces
+    // y las dos fallaron, cada una a un lado:
+    //
+    // - «la última frase es corta, ocho palabras o menos» → la métrica se
+    //   disparó del 11 % al 74 % y el texto EMPEORÓ. El modelo le pegaba a cada
+    //   escena un imperativo genérico: «Mantén el control local», «Tienes que
+    //   medir influencia real», «Decide según tu riesgo», «Sigue leyendo» (en
+    //   un vídeo). Es el tic de «Sí, pero:» movido al final. Si todas las
+    //   escenas rematan, ninguna remata.
+    // - «varía cómo cierras y nunca empieces por Esa/Eso/Esto» → volvió al 13,5 %,
+    //   la línea base, y tres de cada ocho cierres empezaban por «Eso». La regla
+    //   se ignora directamente.
+    //
+    // El diagnóstico sigue siendo bueno y está medido: el guion que se lee bien
+    // cierra con 11,2 palabras y el 30 % con ocho o menos; los generados, con
+    // 15,7 y el 10,6 %. Lo que no funciona es pedirlo AQUÍ. Este bloque son ya
+    // diez reglas largas y está saturado: las dos cosas que sí movieron la aguja
+    // esta sesión fueron estructurales (`sceneBlueprint` por movimientos) o
+    // mecánicas (avisos del linter), no una línea más de oficio.
+    'Ritmo: alterna frases cortas y medias, máximo 25 palabras por frase, una idea por frase. Puntuación limpia para marcar las respiraciones del locutor.',
     'Voz: segunda persona del singular, presente, voz activa. Le hablas a una persona, no a una audiencia. Como mucho una pregunta retórica cada tres escenas.',
     '',
     'Muletillas prohibidas, son marcas de texto generado:',
