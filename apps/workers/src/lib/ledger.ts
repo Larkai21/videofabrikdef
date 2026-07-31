@@ -1,8 +1,7 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { costLedger, videos, type Db } from '@fabrica/db';
 import type { CostOperation, CostProvider } from '@fabrica/shared';
-import { sql } from 'drizzle-orm';
 
 // Regla del ledger (docs/contratos.md §5): la fila se escribe ANTES de la
 // llamada externa (status pending) y se completa con la respuesta; una caída
@@ -61,8 +60,16 @@ export async function closeCost(
 }
 
 export async function failCost(db: Db, handle: CostHandle, message: string): Promise<void> {
+  // El error se AÑADE al meta, no lo sustituye. Sustituirlo borraba el contexto
+  // con el que se abrió la fila (modelo, consulta, variante del banco…), que es
+  // justo lo que hace falta para saber qué falló: una llamada fallida se ha
+  // pagado igual si llegó al proveedor, y sin ese contexto la fila solo dice
+  // que algo se rompió en algún sitio.
   await db
     .update(costLedger)
-    .set({ status: 'failed', meta: { error: message } })
+    .set({
+      status: 'failed',
+      meta: sql`coalesce(${costLedger.meta}, '{}'::jsonb) || ${JSON.stringify({ error: message })}::jsonb`,
+    })
     .where(eq(costLedger.id, handle.id));
 }

@@ -11,6 +11,12 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
+    // Sin esto, si el 5173 está ocupado Vite arranca en el 5174 y el dashboard
+    // carga pero NO trae datos: la API solo permite el 5173 por CORS
+    // (`apps/api/src/lib/origins.ts`), así que el navegador recibe la respuesta
+    // y la descarta sin cabecera. Falla en silencio y parece la API caída.
+    // Mejor no arrancar y decirlo.
+    strictPort: true,
     proxy: {
       '/files': { target: apiUrl, changeOrigin: true },
     },

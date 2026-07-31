@@ -40,6 +40,8 @@ import {
   type Scene,
 } from '@fabrica/shared';
 import { loadEnv } from '../src/lib/env.js';
+import { closeCost, failCost, openCost } from '../src/lib/ledger.js';
+import { usageCost } from '../src/pipelines/script/llm-call.js';
 import { createLlm } from '../src/providers/llm.js';
 import { downloadSources } from '../src/pipelines/script/research.js';
 import { scriptGenSchema } from '../src/pipelines/script/generate.js';
@@ -284,6 +286,10 @@ function comoDocumento(
 async function correr(variante: string, conjunto: 'dev' | 'control' | 'todos', n: number) {
   loadEnv();
   const llm = createLlm(logger);
+  const { db, client } = createDb();
+  // a qué canal se le imputa el gasto del banco
+  const [canal] = await db.select({ id: channels.id }).from(channels).limit(1);
+  const perfilCanalId = canal?.id ?? null;
   const casos = cargarCasos(conjunto);
   if (casos.length === 0) {
     console.error(`No hay casos en el conjunto "${conjunto}".`);
@@ -319,8 +325,22 @@ async function correr(variante: string, conjunto: 'dev' | 'control' | 'todos', n
             language: perfil.language,
             editedScenes: [],
           });
+          // El banco gasta dinero de verdad y tiene que verse. Sin esto, el
+          // ledger —y con él el coste del mes del dashboard— solo cuenta lo que
+          // pasa por la cola: marcaba 1,85 $ cuando la clave llevaba 3,05 $
+          // gastados, y esa diferencia son exactamente las tandas del banco.
+          // Va con `video_id` nulo porque no pertenece a ningún vídeo, y con la
+          // variante en `meta` para poder atribuir el gasto a cada vuelta.
+          const handle = await openCost(db, {
+            videoId: null,
+            channelId: perfilCanalId,
+            provider: llm.ledgerProvider,
+            operation: 'script',
+            meta: { banco: variante, caso: caso.id, muestra: muestra + 1, model: llm.model },
+          });
           try {
             const { data: gen, usage } = await llm.completeJson({
+              op: 'script',
               system,
               user,
               schema: scriptGenSchema,
@@ -355,9 +375,12 @@ async function correr(variante: string, conjunto: 'dev' | 'control' | 'todos', n
                 2,
               )}\n`,
             );
+            await closeCost(db, handle, usageCost(usage, llm.model));
             ok += 1;
             process.stdout.write('.');
           } catch (err) {
+            // la llamada fallida también se ha pagado si llegó al proveedor
+            await failCost(db, handle, err instanceof Error ? err.message : String(err));
             fallos += 1;
             process.stdout.write('x');
             logger.warn({ caso: caso.id, err }, 'guion fallido');
@@ -367,6 +390,7 @@ async function correr(variante: string, conjunto: 'dev' | 'control' | 'todos', n
     ),
   );
 
+  await client.end();
   const seg = ((Date.now() - empezado) / 1000).toFixed(0);
   console.log(`\n\n${ok} guiones en ${seg} s${fallos > 0 ? ` · ${fallos} fallidos` : ''}`);
   console.log(`   ${dir}`);
