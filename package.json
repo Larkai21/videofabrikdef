@@ -20,7 +20,8 @@
     "render:smoke": "pnpm --filter @fabrica/video render:smoke",
     "sfx": "pnpm --filter @fabrica/video sfx",
     "guion": "pnpm --filter @fabrica/workers guion",
-    "calidad": "pnpm --filter @fabrica/workers calidad"
+    "calidad": "pnpm --filter @fabrica/workers calidad",
+    "reescala:biblioteca": "pnpm --filter @fabrica/workers reescala:biblioteca"
   },
   "devDependencies": {
     "prettier": "^3.9.6",

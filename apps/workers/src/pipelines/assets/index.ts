@@ -1009,6 +1009,7 @@ async function ingestChosen(
   await downloadWithCap(downloadUrl, destPath, chosen.ref);
 
   try {
+    await reducirA1080(ctx, destPath);
     const probed = await probeMedia(destPath);
     return await insertIngestedAsset(ctx, video, target, chosen, {
       kind,
@@ -1022,6 +1023,60 @@ async function ingestChosen(
     // sin archivo huérfano en la biblioteca si el probe o el insert fallan
     await fs.unlink(destPath).catch(() => {});
     throw err;
+  }
+}
+
+// El render sale a 1920×1080. Un clip más ancho no aporta un píxel y en cambio
+// hay que decodificarlo entero en CADA fotograma del navegador headless.
+const ANCHO_RENDER = 1920;
+
+/**
+ * Baja a 1080p el clip que venga más grande. Determinista y en el sitio
+ * correcto: la ingesta, no el render (principio 6, el render no transcodifica).
+ *
+ * Por qué existe: un vídeo de este mismo canal murió con «Timeout (30000ms)
+ * exceeded rendering the component at frame 2597» y el beat de ese fotograma
+ * traía un clip de 3840×2160. En la biblioteca había 50 clips por encima de
+ * 1080p, 20 de ellos en 4K o más, así que era cuestión de qué vídeo tocaba.
+ *
+ * Best-effort: si ffmpeg falla, se sigue con el original. Un clip grande es un
+ * riesgo de timeout; no ingerirlo es una pérdida segura.
+ */
+async function reducirA1080(ctx: WorkerContext, filePath: string): Promise<void> {
+  const antes = await probeMedia(filePath);
+  if (antes.width === null || antes.width <= ANCHO_RENDER) return;
+  const tmp = `${filePath}.1080.mp4`;
+  try {
+    await execa('ffmpeg', [
+      '-nostdin',
+      '-loglevel',
+      'error',
+      '-y',
+      '-i',
+      filePath,
+      // -2 conserva la relación de aspecto y garantiza altura par (h264 la exige)
+      '-vf',
+      `scale=${ANCHO_RENDER}:-2`,
+      '-c:v',
+      'libx264',
+      '-preset',
+      'veryfast',
+      '-crf',
+      '20',
+      '-pix_fmt',
+      'yuv420p',
+      // el b-roll va mudo: la voz es la del TTS
+      '-an',
+      tmp,
+    ]);
+    await fs.rename(tmp, filePath);
+    ctx.logger.info(
+      { filePath, de: `${antes.width}x${antes.height ?? '?'}` },
+      'Clip reescalado a 1080p en la ingesta',
+    );
+  } catch (err) {
+    await fs.unlink(tmp).catch(() => {});
+    ctx.logger.warn({ err, filePath }, 'No se pudo reescalar el clip; se usa el original');
   }
 }
 
