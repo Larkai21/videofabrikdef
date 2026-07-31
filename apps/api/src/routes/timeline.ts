@@ -7,6 +7,7 @@ import {
   QUEUES,
   type AssetsMatchJob,
   type BeatCandidate,
+  type StoredSubvisual,
   type TimelineDto,
   type VideoState,
 } from '@fabrica/shared';
@@ -17,6 +18,36 @@ import { toFileUrl } from '../lib/files.js';
 import { loadAssetFiles } from './videos.js';
 
 type VideoRow = typeof videos.$inferSelect;
+
+/**
+ * Aplica la elección del humano al PRIMER sub-plano del beat.
+ *
+ * El primero y no todos porque la timeline enseña una ficha por beat: lo que el
+ * humano ha mirado y aprobado es ese plano. Los demás sub-planos son otros
+ * momentos del mismo beat, con su propia consulta, y cambiarlos sería decidir
+ * por él sobre algo que no ha visto.
+ */
+export function elegirEnSubplano(
+  visuals: StoredSubvisual[] | null,
+  candidate: BeatCandidate,
+  beatMs: number,
+): StoredSubvisual[] | null {
+  if (!visuals || visuals.length === 0) return visuals;
+  const [primero, ...resto] = visuals;
+  if (!primero) return visuals;
+  return [
+    {
+      ...primero,
+      status: 'locked',
+      candidates: [candidate, ...primero.candidates.filter((c) => c.ref !== candidate.ref)],
+      chosen_score: candidate.score,
+      chosen_origin: originLabel(candidate),
+      asset_id: libraryAssetId(candidate),
+      fit: provisionalFit(candidate, primero.to_ms - primero.from_ms || beatMs),
+    },
+    ...resto,
+  ];
+}
 
 async function loadVideo(ctx: ApiContext, id: string): Promise<VideoRow> {
   const [row] = await ctx.db.select().from(videos).where(eq(videos.id, id)).limit(1);
@@ -83,6 +114,20 @@ export function registerTimelineRoutes(app: FastifyInstance, ctx: ApiContext): v
           assetId: libraryAssetId(candidate),
           fit: provisionalFit(candidate, beatMs),
           discardReason: null,
+          // Y el sub-plano, o la elección del humano no llega al MP4.
+          //
+          // El beat guarda su elección en las columnas de arriba, pero la
+          // ingesta descarga lo que diga `visuals[*].candidates[0]`, que es
+          // otra lista. Resultado medido: en el vídeo de hoy elegí a mano los
+          // 25 planos y el render usó los 25 originales. El beat 0 decía
+          // «Pexels · video:6101367» (un juez con su mazo) y en pantalla salía
+          // un hacha partiendo leña, que era el candidato que la máquina había
+          // puesto primero.
+          //
+          // La puerta de curación llevaba siendo decorativa desde que existen
+          // los sub-planos, y no había forma de notarlo: la API respondía
+          // {ok:true} y la ficha del beat mostraba el origen correcto.
+          visuals: elegirEnSubplano(row.visuals, candidate, beatMs),
         })
         .where(eq(beats.id, row.id));
     };
