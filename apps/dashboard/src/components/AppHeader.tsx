@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import type { InboxDto } from '@fabrica/shared';
 import { useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { fileUrl, getInboxFor } from '../lib/api';
@@ -17,6 +18,39 @@ const NAV = [
   { label: 'Costes', to: '/costes' },
   { label: 'Ajustes', to: '/ajustes' },
 ];
+
+/**
+ * Queda poco saldo en la clave del proveedor.
+ *
+ * El umbral es el coste de UN vídeo largo redondeado hacia arriba (los reales
+ * han ido entre 0,058 y 0,195 $): por debajo de eso, la siguiente producción
+ * puede quedarse a medias. Y sin tope configurado no hay nada que avisar.
+ */
+export function saldoCritico(saldo: InboxDto['provider_balance']): boolean {
+  return saldo !== null && saldo.queda_usd !== null && saldo.queda_usd < 0.25;
+}
+
+/**
+ * El desglose va en el `title`: el coste del mes es una ESTIMACIÓN por tokens y
+ * el del proveedor es el real. Verlos juntos es lo que avisa cuando se separan
+ * —pasó: 1,85 $ estimados con la clave a 3,05 $ y devolviendo 403—, pero no
+ * merece sitio permanente en la barra.
+ */
+export function tituloDelCoste(inbox: InboxDto): string {
+  const partes = [
+    `Estimado este mes: ${fmtMoney(inbox.month_cost_usd)} de ${fmtMoney(inbox.month_budget_usd)}`,
+  ];
+  const p = inbox.provider_balance;
+  if (p !== null) {
+    partes.push(`Real en ${p.proveedor}: ${fmtMoney(p.gastado_usd)} gastados`);
+    if (p.tope_usd !== null) {
+      partes.push(
+        `Tope de la clave: ${fmtMoney(p.tope_usd)} · quedan ${fmtMoney(p.queda_usd ?? 0)}`,
+      );
+    }
+  }
+  return partes.join('\n');
+}
 
 export function AppHeader() {
   const { search, setSearch } = useSearch();
@@ -121,9 +155,19 @@ export function AppHeader() {
           </span>
         </div>
         {inbox !== undefined ? (
-          <CostBadge>
+          <CostBadge title={tituloDelCoste(inbox)}>
             {fmtMoney(inbox.month_cost_usd)} · {inbox.month_videos}{' '}
             {inbox.month_videos === 1 ? 'vídeo' : 'vídeos'}
+            {/* El saldo del proveedor solo aparece cuando importa: cuando se
+                está acabando. Enseñarlo siempre convierte en ruido el único
+                aviso que de verdad para la fábrica. */}
+            {saldoCritico(inbox.provider_balance) ? (
+              <strong style={{ marginLeft: 8, color: 'var(--danger)' }}>
+                {inbox.provider_balance!.queda_usd === 0
+                  ? 'clave sin saldo'
+                  : `quedan ${fmtMoney(inbox.provider_balance!.queda_usd!)}`}
+              </strong>
+            ) : null}
           </CostBadge>
         ) : null}
         {/* tema y densidad viven en Ajustes → Interfaz: el subbar del mock

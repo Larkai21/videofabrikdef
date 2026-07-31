@@ -2,14 +2,11 @@ import type { FastifyInstance } from 'fastify';
 import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { beats, channels, costLedger, ideas, sources, videos } from '@fabrica/db';
-import {
-  channelSettingsSchema,
-  type InboxDto,
-  type VideoState,
-} from '@fabrica/shared';
+import { channelSettingsSchema, type InboxDto, type VideoState } from '@fabrica/shared';
 import type { ApiContext } from '../lib/context.js';
 import { officialThumbnailUrl } from '../lib/files.js';
 import { videoTitle } from '../lib/master.js';
+import { saldoProveedor } from '../lib/saldo-proveedor.js';
 
 // multicanal (SPEC §14 S3): ?channel= filtra puertas, en curso, hechos y costes
 // por canal; sin el parámetro se devuelve todo (lo usan el MCP y los agregados)
@@ -108,7 +105,12 @@ export function registerInboxRoutes(app: FastifyInstance, ctx: ApiContext): void
       const rows = await ctx.db
         .select({ videoId: beats.videoId, status: beats.status })
         .from(beats)
-        .where(inArray(beats.videoId, timelineVideos.map((v) => v.id)));
+        .where(
+          inArray(
+            beats.videoId,
+            timelineVideos.map((v) => v.id),
+          ),
+        );
       for (const row of rows) {
         const agg = beatCounts.get(row.videoId) ?? { total: 0, locked: 0 };
         agg.total += 1;
@@ -179,6 +181,9 @@ export function registerInboxRoutes(app: FastifyInstance, ctx: ApiContext): void
         })),
     );
 
+    // el saldo del proveedor va en paralelo y nunca bloquea: si falla, null
+    const saldo = await saldoProveedor(app.log);
+
     const monthStart = sql`date_trunc('month', now())`;
     const [[costRow], [countRow]] = await Promise.all([
       ctx.db
@@ -208,7 +213,12 @@ export function registerInboxRoutes(app: FastifyInstance, ctx: ApiContext): void
 
     // fuentes de scraping caídas: fallos consecutivos altos en fuentes activas
     const staleRows = await ctx.db
-      .select({ id: sources.id, label: sources.label, url: sources.url, failures: sources.consecutiveFailures })
+      .select({
+        id: sources.id,
+        label: sources.label,
+        url: sources.url,
+        failures: sources.consecutiveFailures,
+      })
       .from(sources)
       .where(
         and(
@@ -225,6 +235,7 @@ export function registerInboxRoutes(app: FastifyInstance, ctx: ApiContext): void
       running,
       done,
       month_cost_usd: Number(costRow?.total ?? 0),
+      provider_balance: saldo,
       month_videos: Number(countRow?.n ?? 0),
       month_budget_usd: monthBudget,
       stale_sources: staleRows.map((s) => ({

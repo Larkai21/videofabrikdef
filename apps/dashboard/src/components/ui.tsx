@@ -124,8 +124,12 @@ export function ProgressBar({
   );
 }
 
-export function CostBadge({ children }: { children: ReactNode }) {
-  return <span className="badge-cost">{children}</span>;
+export function CostBadge({ children, title }: { children: ReactNode; title?: string }) {
+  return (
+    <span className="badge-cost" title={title}>
+      {children}
+    </span>
+  );
 }
 
 export interface Motivo {
@@ -280,10 +284,7 @@ export function EmptyState({ title, children }: { title: string; children?: Reac
         {title}
       </div>
       {children !== undefined ? (
-        <div
-          className="muted fs-sm"
-          style={{ maxWidth: 380, margin: '0 auto', lineHeight: 1.5 }}
-        >
+        <div className="muted fs-sm" style={{ maxWidth: 380, margin: '0 auto', lineHeight: 1.5 }}>
           {children}
         </div>
       ) : null}

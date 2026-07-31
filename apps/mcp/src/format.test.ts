@@ -59,6 +59,7 @@ const inboxFixture: InboxDto = {
   month_cost_usd: 1.23456,
   month_videos: 2,
   month_budget_usd: 25,
+  provider_balance: null,
   stale_sources: [],
 };
 

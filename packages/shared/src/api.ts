@@ -134,6 +134,22 @@ export const inboxDtoSchema = z.object({
   month_cost_usd: z.number(),
   month_videos: z.number(),
   month_budget_usd: z.number(),
+  /**
+   * Saldo REAL de la clave del proveedor, frente al `month_cost_usd`, que es
+   * una estimación a partir de los tokens. Null si no hay clave o si el
+   * proveedor no responde: es un dato de apoyo y nunca puede tumbar la bandeja.
+   *
+   * Existe porque los dos números se separaron: el ledger marcaba 1,85 $ con la
+   * clave a 3,05 $ y devolviendo 403. Verlos juntos es lo que avisa.
+   */
+  provider_balance: z
+    .object({
+      proveedor: z.literal('openrouter'),
+      gastado_usd: z.number(),
+      tope_usd: z.number().nullable(),
+      queda_usd: z.number().nullable(),
+    })
+    .nullable(),
   // fuentes de scraping caídas (fallos consecutivos): el funnel de ideas se seca
   // en silencio si no se avisa
   stale_sources: z.array(z.object({ id: z.string(), label: z.string(), failures: z.number() })),
