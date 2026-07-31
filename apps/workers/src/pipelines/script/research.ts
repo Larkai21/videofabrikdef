@@ -2,6 +2,7 @@ import { Readability } from '@mozilla/readability';
 import { JSDOM } from 'jsdom';
 import type pino from 'pino';
 import { RESEARCH_MAX_CHARS_PER_SOURCE } from '@fabrica/shared';
+import { esEnlaceGoogleNews, resolverEnlaceGoogleNews } from './google-news.js';
 
 const USER_AGENT = 'FabricaBot/0.1 (+contacto en README)';
 const FETCH_TIMEOUT_MS = 15_000;
@@ -54,11 +55,18 @@ export async function downloadSources(
   const docs: ResearchDoc[] = [];
   for (const ref of selected) {
     try {
-      const parsedUrl = new URL(ref.url);
+      // Los enlaces de Google News no llevan al artículo: devuelven el cascarón
+      // de su aplicación, del que Readability no saca nada. Se resuelven a la
+      // URL del medio antes de descargar; si no se puede, se sigue con la
+      // original y la fuente acabará sin texto, como hasta ahora.
+      const url = esEnlaceGoogleNews(ref.url)
+        ? ((await resolverEnlaceGoogleNews(logger, ref.url)) ?? ref.url)
+        : ref.url;
+      const parsedUrl = new URL(url);
       if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
         throw new Error(`Protocolo no permitido: ${parsedUrl.protocol}`);
       }
-      const res = await fetch(ref.url, {
+      const res = await fetch(url, {
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         headers: { 'user-agent': USER_AGENT },
       });
@@ -66,13 +74,20 @@ export async function downloadSources(
       const declared = Number(res.headers.get('content-length') ?? '0');
       if (declared > MAX_FETCH_BYTES) throw new Error(`Respuesta de ${declared} bytes rechazada`);
       const html = await readBodyCapped(res, MAX_FETCH_BYTES);
-      const dom = new JSDOM(html, { url: ref.url });
+      const dom = new JSDOM(html, { url });
       const article = new Readability(dom.window.document).parse();
       const text = (article?.textContent ?? '')
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, RESEARCH_MAX_CHARS_PER_SOURCE);
-      docs.push({ ...ref, title: ref.title ?? article?.title ?? undefined, text });
+      // la URL resuelta sustituye a la de Google News: es la que se cita
+      docs.push({
+        ...ref,
+        url,
+        ...(url !== ref.url ? { domain: parsedUrl.hostname } : {}),
+        title: ref.title ?? article?.title ?? undefined,
+        text,
+      });
     } catch (err) {
       logger.warn(
         { url: ref.url, err },
