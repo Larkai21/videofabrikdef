@@ -27,7 +27,7 @@ const logger = pino({ transport: { target: 'pino-pretty' } });
 const seco = process.argv.includes('--dry');
 
 async function main(): Promise<void> {
-  const { db, close } = createDb();
+  const { db, client } = createDb();
   const grandes = await db
     .select({ id: assets.id, path: assets.path, width: assets.width, height: assets.height })
     .from(assets)
@@ -98,7 +98,7 @@ async function main(): Promise<void> {
   }
 
   logger.info({ hechos, ahorro_mb: (ahorro / 1e6).toFixed(1) }, 'Terminado');
-  await close();
+  await client.end();
 }
 
 await main();
