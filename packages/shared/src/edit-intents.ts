@@ -30,11 +30,39 @@ export function normalizeWord(w: string): string {
     .replace(/[^\p{L}\p{N}]/gu, '');
 }
 
-/** ¿`word` aparece como token COMPLETO dentro de `text`? */
+/** Los tokens con contenido de un texto, ya normalizados. */
+function tokens(text: string): string[] {
+  return text
+    .split(/\s+/)
+    .map(normalizeWord)
+    .filter((t) => t.length > 0);
+}
+
+/**
+ * ¿Dónde empieza `needle` dentro de `haystack`, como secuencia de tokens
+ * COMPLETOS? -1 si no está.
+ *
+ * La secuencia importa: el contrato deja 40 caracteres a `trigger_word` y el
+ * guionista escribe «cadena de custodia» o «2 de agosto» con la misma
+ * naturalidad que escribe «sanciones». Comparando token a token, esas nunca
+ * casaban: el efecto se descartaba aunque la frase estuviera literal en la
+ * escena. Medido sobre las 5.594 intenciones del banco: 503 se caían por
+ * `trigger_ausente` y 280 de ellas —el 56 %— tenían su frase entera en el
+ * texto. Era el matcher, no el guionista.
+ */
+export function findTokenRun(haystack: readonly string[], needle: readonly string[]): number {
+  if (needle.length === 0 || needle.length > haystack.length) return -1;
+  for (let i = 0; i <= haystack.length - needle.length; i += 1) {
+    if (needle.every((n, k) => haystack[i + k] === n)) return i;
+  }
+  return -1;
+}
+
+/** ¿`word` (palabra o frase) aparece como secuencia de tokens completos en `text`? */
 export function wordInText(text: string, word: string): boolean {
-  const needle = normalizeWord(word);
+  const needle = tokens(word);
   if (needle.length === 0) return false;
-  return text.split(/\s+/).some((t) => normalizeWord(t) === needle);
+  return findTokenRun(tokens(text), needle) >= 0;
 }
 
 // Magnitudes escritas con letra. La narración dice «dos millones» y la tarjeta

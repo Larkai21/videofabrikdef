@@ -152,6 +152,32 @@ describe('validateSceneIntents', () => {
   });
 });
 
+describe('wordInText con frases', () => {
+  // 280 de las 503 intenciones que el banco perdía por «trigger ausente»
+  // tenían su frase ENTERA en el texto. Se caían por comparar token a token.
+  const TEXTO = 'La cadena de custodia empieza el 2 de agosto y no admite prórroga.';
+
+  it('encuentra la frase que está literal en la escena', () => {
+    expect(wordInText(TEXTO, 'cadena de custodia')).toBe(true);
+    expect(wordInText(TEXTO, '2 de agosto')).toBe(true);
+  });
+
+  it('sigue exigiendo tokens completos, no subcadenas', () => {
+    expect(wordInText(TEXTO, 'cadena de cust')).toBe(false);
+    expect(wordInText('La prórroga es única.', 'prórrog')).toBe(false);
+  });
+
+  it('la frase tiene que ir seguida y en orden', () => {
+    expect(wordInText(TEXTO, 'custodia cadena')).toBe(false);
+    expect(wordInText(TEXTO, 'cadena custodia')).toBe(false);
+  });
+
+  it('la tilde y la puntuación siguen sin contar', () => {
+    expect(wordInText('No admite prórroga, dice la norma.', 'prorroga')).toBe(true);
+    expect(wordInText(TEXTO, 'no admite prórroga')).toBe(true);
+  });
+});
+
 describe('efectos de lista', () => {
   const escenaCon = (intent: EditIntent) => ({
     section: 'body' as const,

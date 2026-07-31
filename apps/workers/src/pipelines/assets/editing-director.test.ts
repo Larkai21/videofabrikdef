@@ -289,6 +289,53 @@ describe('intentEdits (lo que el guion declara)', () => {
     expect([...r.covered].sort()).toEqual([0, 1]);
   });
 
+  it('ancla una frase entera, y en su PRIMERA palabra', () => {
+    // «cadena de custodia» cruza tres cues distintos: el anclaje tiene que ver
+    // las palabras seguidas, no cue a cue. Y entra cuando empieza a oírse.
+    const frase = [
+      { idx: 0, from_ms: 0, to_ms: 10_000, text: 'la cadena de custodia empieza hoy' },
+    ];
+    const dichas = [cue('cadena', 2_000), cue('de', 2_500), cue('custodia', 2_900)];
+    const escena = [
+      {
+        id: 'sc-body-1',
+        section: 'body' as const,
+        text: 'la cadena de custodia empieza hoy',
+        visual_query: 'x',
+        edit_intents: [
+          {
+            effect: 'callout' as const,
+            trigger_word: 'cadena de custodia',
+            card_text: 'cadena de custodia',
+          },
+        ],
+      },
+    ];
+    const r = intentEdits(params({ beats: frase, cues: dichas, scenes: escena }));
+    expect(r.edits.find((e) => e.type === 'text_callout')?.from_ms).toBe(2_000);
+    expect(r.dropped).toBe(0);
+  });
+
+  it('la frase a medias no ancla: se descarta como cualquier disparador ausente', () => {
+    const frase = [{ idx: 0, from_ms: 0, to_ms: 10_000, text: 'la cadena empieza hoy' }];
+    const escena = [
+      {
+        id: 'sc-body-1',
+        section: 'body' as const,
+        text: 'la cadena de custodia empieza hoy',
+        visual_query: 'x',
+        edit_intents: [
+          { effect: 'callout' as const, trigger_word: 'cadena de custodia', card_text: 'cadena' },
+        ],
+      },
+    ];
+    const r = intentEdits(
+      params({ beats: frase, cues: [cue('cadena', 2_000), cue('empieza', 2_500)], scenes: escena }),
+    );
+    expect(r.edits.filter((e) => e.type === 'text_callout')).toEqual([]);
+    expect(r.dropped).toBe(1);
+  });
+
   it('effect keyword produce keyword_highlight, que antes era imposible generar', () => {
     const kw = [
       { ...scenes[0]!, edit_intents: [{ effect: 'keyword' as const, trigger_word: 'coste' }] },

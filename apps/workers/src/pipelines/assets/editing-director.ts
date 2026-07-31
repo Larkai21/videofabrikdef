@@ -56,20 +56,34 @@ export interface EditingParams {
 // micro-fx y el tema de subtítulos, y antes cada uno tenía su copia
 const normalize = normalizeWord;
 
-// ms de la primera aparición (o solapada con un rango) de una palabra en cues.
+// Todas las palabras cronometradas del audio, en orden y aplanadas. El anclaje
+// necesita verlas seguidas porque un disparador puede ser una frase («cadena de
+// custodia») y las frases cruzan la frontera de un cue.
+function palabrasSeguidas(cues: Cue[]): Cue['words'] {
+  return cues.flatMap((c) => c.words);
+}
+
+// ms de la primera aparición (o solapada con un rango) de una palabra o frase.
+// Devuelve la PRIMERA palabra de la frase: es cuando el espectador empieza a
+// oírla, y por tanto cuando debe entrar el efecto.
 function findWordMs(
   cues: Cue[],
   needle: string,
   withinFrom = 0,
   withinTo = Infinity,
 ): Cue['words'][number] | null {
-  const n = normalize(needle);
-  if (n.length === 0) return null;
-  for (const cue of cues) {
-    for (const word of cue.words) {
-      if (word.from_ms < withinFrom || word.from_ms > withinTo) continue;
-      if (normalize(word.w) === n) return word;
-    }
+  const buscada = needle
+    .split(/\s+/)
+    .map(normalize)
+    .filter((t) => t.length > 0);
+  if (buscada.length === 0) return null;
+  const todas = palabrasSeguidas(cues);
+  const dichas = todas.map((w) => normalize(w.w));
+  for (let i = 0; i <= dichas.length - buscada.length; i += 1) {
+    const primera = todas[i];
+    if (primera === undefined || primera.from_ms < withinFrom || primera.from_ms > withinTo)
+      continue;
+    if (buscada.every((n, k) => dichas[i + k] === n)) return primera;
   }
   return null;
 }
@@ -123,10 +137,20 @@ interface Anchor {
   beat: DirectorBeat;
 }
 
+// Cuántas veces se dice la palabra o la frase. Sirve para decidir si un
+// disparador es inequívoco: si se dice una sola vez en todo el audio, se puede
+// anclar aunque caiga fuera de la ventana prevista para la escena.
 function countWordOccurrences(cues: Cue[], needle: string): number {
-  const n = normalize(needle);
+  const buscada = needle
+    .split(/\s+/)
+    .map(normalize)
+    .filter((t) => t.length > 0);
+  if (buscada.length === 0) return 0;
+  const dichas = palabrasSeguidas(cues).map((w) => normalize(w.w));
   let total = 0;
-  for (const cue of cues) for (const w of cue.words) if (normalize(w.w) === n) total++;
+  for (let i = 0; i <= dichas.length - buscada.length; i += 1) {
+    if (buscada.every((n, k) => dichas[i + k] === n)) total++;
+  }
   return total;
 }
 
