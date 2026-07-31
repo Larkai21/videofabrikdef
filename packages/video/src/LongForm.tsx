@@ -7,6 +7,7 @@ import { wipe } from '@remotion/transitions/wipe';
 import { hashSeed } from './seed';
 import {
   defaultDesign,
+  EDIT_RENDER_KIND,
   type ComponentType as KitType,
   type DesignTokens,
   type MasterVideoJson,
@@ -180,15 +181,10 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
     }
     return map;
   }, [master.edits, beats, fps]);
-  const overlayCues = effects.filter(
-    (e) =>
-      e.type === 'text_callout' ||
-      e.type === 'stat_card' ||
-      e.type === 'quote_card' ||
-      e.type === 'kinetic_text' ||
-      e.type === 'stat_odometer' ||
-      e.type === 'device_frame',
-  );
+  // La clasificación vive en el contrato (EDIT_RENDER_KIND) y no aquí porque
+  // aquí era una lista de literales: `pasos_flow` tenía componente, rama en
+  // EditOverlay y etiqueta en la timeline, y aun así no salía en pantalla.
+  const overlayCues = effects.filter((e) => EDIT_RENDER_KIND[e.type] === 'overlay');
   // Coordinación capítulos ↔ edición: una tarjeta de sección y un overlay de
   // contenido (callout/cifra/kinetic) que coincidan en el tiempo chocarían en
   // pantalla (ambos centrados). El overlay es específico del momento y manda:

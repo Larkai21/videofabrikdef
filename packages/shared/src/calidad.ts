@@ -1,6 +1,6 @@
 import { FX_CARD_GUARD_MS, RATIO_IMAGENES_MAX } from './constants.js';
 import { MAX_CARD_WORDS, normalizeWord, wordInText } from './edit-intents.js';
-import type { Edit, MasterVideoJson } from './master-json.js';
+import { EDIT_RENDER_KIND, type Edit, type MasterVideoJson } from './master-json.js';
 
 // Métricas de calidad de un vídeo terminado, calculadas SOLO con lo que ya
 // existe en el maestro. Sin esto, juzgar un cambio exige ver el MP4 entero y
@@ -65,17 +65,14 @@ export interface MetricasVideo {
 }
 
 /** Overlays que ocupan el centro de la pantalla y por tanto compiten entre sí. */
-const VISUALES = new Set([
-  'text_callout',
-  'stat_card',
-  'stat_odometer',
-  'quote_card',
-  'kinetic_text',
-  'device_frame',
-  'split_versus',
-  'pasos_flow',
-  'tendencia',
-]);
+// Los que cubren pantalla, derivados del contrato. Antes era otra lista de
+// literales escrita a mano, o sea otra oportunidad de que un efecto nuevo
+// contara en el informe pero no en el render (o al revés).
+const VISUALES = new Set<string>(
+  Object.entries(EDIT_RENDER_KIND)
+    .filter(([, kind]) => kind === 'overlay')
+    .map(([type]) => type),
+);
 
 /**
  * Palabras que no merecen resaltarse en pantalla: no aportan significado y

@@ -232,6 +232,42 @@ export const EDIT_TYPES = [
 export const editTypeSchema = z.enum(EDIT_TYPES);
 export type EditType = z.infer<typeof editTypeSchema>;
 
+/**
+ * Cómo se pinta cada efecto. Es un `Record` COMPLETO a propósito: añadir un
+ * tipo a `EDIT_TYPES` sin clasificarlo aquí no compila.
+ *
+ * Ese es todo el motivo de que exista. `pasos_flow` llegó al máster con sus
+ * items, tenía componente en `effects/`, tenía su rama en `EditOverlay` y su
+ * etiqueta en la timeline… y no salió en pantalla, porque el render decidía
+ * qué montar con una lista de literales escrita a mano que nadie comprobaba.
+ * Un tipo nuevo no se colaba: se caía, en silencio, después del render.
+ *
+ * - `overlay`: cubre la pantalla y se monta en su propia Sequence.
+ * - `anotacion`: se dibuja sobre el plano, con su propia capa.
+ * - `subtitulo`: modifica el subtítulo en vez de pintar encima.
+ * - `camara`: mueve el plano (no pinta nada propio).
+ * - `audio`: no se ve.
+ */
+export const EDIT_RENDER_KIND: Record<
+  EditType,
+  'overlay' | 'anotacion' | 'subtitulo' | 'camara' | 'audio'
+> = {
+  zoom_punch: 'camara',
+  keyword_highlight: 'subtitulo',
+  text_callout: 'overlay',
+  stat_card: 'overlay',
+  quote_card: 'overlay',
+  sfx: 'audio',
+  kinetic_text: 'overlay',
+  stat_odometer: 'overlay',
+  annotation: 'anotacion',
+  device_frame: 'overlay',
+  micro_fx: 'anotacion',
+  split_versus: 'overlay',
+  pasos_flow: 'overlay',
+  tendencia: 'overlay',
+};
+
 // Efectos de sonido integrados. Se sintetizan con ffmpeg en
 // packages/video/scripts/make-sfx.ts (deterministas y sin licencias) y el render
 // los carga por convención de nombre: public/sfx/<nombre>.wav. Añadir un nombre
@@ -410,9 +446,7 @@ export const masterVideoJsonV1 = z.object({
    * no, cambiar el ajuste re-califica en silencio todos los vídeos viejos y el
    * histórico deja de poder compararse consigo mismo.
    */
-  broll_telemetry: z
-    .object({ imagenes_max_pct: z.number().min(0).max(1) })
-    .optional(),
+  broll_telemetry: z.object({ imagenes_max_pct: z.number().min(0).max(1) }).optional(),
   seo: seoSchema.optional(),
   audio: audioSchema.optional(),
   cues: z.array(cueSchema).optional(),
