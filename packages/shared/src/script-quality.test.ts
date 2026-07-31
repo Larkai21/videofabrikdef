@@ -234,3 +234,81 @@ describe('cifra_sin_claim: solo las cifras que afirman algo', () => {
   // «uno de cada cuatro adultos» no se comprueba contra el research en absoluto.
   it.todo('las cifras escritas con letra no se comprueban');
 });
+
+describe('promesa_no_producible', () => {
+  const salta = (text: string): boolean =>
+    lintScenes([{ id: 's', text }], { claims: [] }).some((h) => h.kind === 'promesa_no_producible');
+
+  it('marca lo que la fábrica no puede entregar, con frases de guiones reales', () => {
+    // las cuatro salieron de vídeos publicados o del banco
+    expect(salta('En la demo usaré un libro técnico como ejemplo.')).toBe(true);
+    expect(salta('el flujo que te mostré te las entrega')).toBe(true);
+    expect(salta('descarga el pack del vídeo en el enlace')).toBe(true);
+    expect(salta('en el próximo vídeo desplegamos juntos un benchmark')).toBe(true);
+    expect(salta('dejo enlaces y un checklist descargable en la descripción')).toBe(true);
+  });
+
+  it('NO marca lo que el espectador sí puede hacer en sitios de terceros', () => {
+    // este canal habla de software: «descarga el repositorio» es contenido,
+    // no una promesa de adjunto. Confundirlos vaciaría los guiones técnicos.
+    expect(salta('Desde Hugging Face descarga el repositorio y elige la cuantización.')).toBe(
+      false,
+    );
+    expect(salta('Un repositorio y pesos abiertos permiten descargar el modelo.')).toBe(false);
+    expect(salta('Los capítulos están abajo, en la descripción del vídeo.')).toBe(false);
+  });
+});
+
+describe('meta_narracion', () => {
+  const salta = (text: string): boolean =>
+    lintScenes([{ id: 's', text }], { claims: [] }).some((h) => h.kind === 'meta_narracion');
+
+  it('marca el guion que anuncia su propio movimiento en vez de ejecutarlo', () => {
+    expect(salta('Aquí cumplo la promesa práctica: en la demo configuré y subí el libro.')).toBe(
+      true,
+    );
+    expect(salta('Lo contraintuitivo es que ahorrar tiempo puede costarte trabajo extra.')).toBe(
+      true,
+    );
+    expect(salta('PUNTO MEDIO: estas herramientas funcionan pero no son cajas negras.')).toBe(true);
+  });
+
+  it('no marca el contenido que simplemente es sorprendente', () => {
+    expect(salta('Ahorrar tiempo leyendo puede costarte más horas de las que ganas.')).toBe(false);
+  });
+});
+
+describe('objeciones_seguidas', () => {
+  const escena = (id: string, text: string) => ({ id, text });
+  const cuantos = (textos: string[]): number =>
+    lintScenes(
+      textos.map((t, i) => escena(`sc-body-${i + 1}`, t)),
+      { claims: [] },
+    ).filter((h) => h.kind === 'objeciones_seguidas').length;
+
+  it('deja pasar la alternancia: dos objeciones seguidas son tensión', () => {
+    expect(cuantos(['Pero hay un coste.', 'Sin embargo eso no siempre pasa.'])).toBe(0);
+  });
+
+  it('marca el bloque: tres o más son una lista de pegas', () => {
+    // literal de OIC6LvB17pOtsK3tOkbqx: tres escenas consecutivas de objeción
+    expect(
+      cuantos([
+        'Podrías pensar que dejar de usar modelos abiertos evita problemas.',
+        'También podrías creer que usar solo proveedores grandes te cubre.',
+        'Otra objeción común: los atacantes ya pueden acceder a modelos.',
+      ]),
+    ).toBe(1);
+  });
+
+  it('la racha se corta con una escena que avanza', () => {
+    expect(
+      cuantos([
+        'Pero hay un coste operativo que nadie cuenta.',
+        'Sin embargo, la cifra depende del sector.',
+        'Nvidia publicó sus resultados el martes.',
+        'Aunque el reglamento cambie, el contrato sigue.',
+      ]),
+    ).toBe(0);
+  });
+});

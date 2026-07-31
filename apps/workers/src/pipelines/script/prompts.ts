@@ -118,12 +118,30 @@ export function craftRules(): string {
   return [
     'Arco: el vídeo responde UNA sola pregunta central. El hook la plantea, el cuerpo la responde por partes y el cierre la cierra. Si una escena no empuja esa pregunta, sobra.',
     'Promesa y pago: lo que prometes en la primera escena se paga de forma explícita antes del cta, y el espectador tiene que reconocer que se le ha pagado.',
-    'Bucles abiertos: al cerrar un bloque deja una pregunta pendiente que obligue a seguir, y ciérrala como mucho dos escenas después. Nunca más de dos bucles abiertos a la vez, y ninguno sin cerrar al final.',
-    'Re-ganchos: cada tres o cuatro escenas renueva el interés con algo nuevo: un dato de los claims, un contraste o una consecuencia directa para quien escucha.',
+    // «Bucles abiertos» y «Re-ganchos» eran dos reglas que pedían lo mismo
+    // (renovar el interés cada pocas escenas); van fundidas para no gastar
+    // presupuesto de atención en decirlo dos veces.
+    'Bucles abiertos: al cerrar un bloque deja una pregunta pendiente que obligue a seguir, y ciérrala como mucho dos escenas después. Nunca más de dos bucles abiertos a la vez, ninguno sin cerrar al final, y cada tres o cuatro escenas renueva el interés con algo nuevo: un dato de los claims, un contraste o una consecuencia directa para quien escucha.',
     // «escribe el sí, pero» es una instrucción que el modelo cumplía al pie de
     // la letra: cuatro y hasta siete escenas seguidas abriendo con «Sí, pero:».
     // La regla tiene que pedir la PROPIEDAD (que haya objeción), no la frase.
-    'Tensión: alterna afirmación y objeción. Después de una idea fuerte, dile al espectador por qué podría no cumplirse en su caso, con una frase normal. Nunca uses la fórmula literal «sí, pero», ni ninguna otra muletilla de contraste repetida entre escenas.',
+    // Y ALTERNAR: medido en cuatro guiones de familias distintas, el modelo
+    // hacía el bloque de afirmaciones y luego el bloque de objeciones, hasta
+    // cuatro seguidas. Una lista de pegas no es tensión.
+    'Tensión: alterna afirmación y objeción. Después de una idea fuerte, dile al espectador por qué podría no cumplirse en su caso, con una frase normal. NUNCA dos escenas de objeción seguidas: entre una objeción y la siguiente tiene que ir una escena que avance. Nunca la fórmula literal «sí, pero», ni ninguna muletilla de contraste repetida.',
+    // El guion prometía demos, descargables y vídeos futuros que la fábrica no
+    // puede entregar: 5 de 11 guiones publicados. No hay ninguna regla de
+    // producibilidad y «faceless» a secas no se lo dice al modelo.
+    'Producible: este vídeo se monta con metraje de archivo y tarjetas de texto. No hay cámara, no hay pantalla compartida, no hay adjuntos y no hay vídeo siguiente comprometido. No prometas una demo, ni un descargable, ni un enlace en la descripción, ni «te muestro»: lo que no se pueda contar con la voz y ver en un clip de archivo, no existe.',
+    // Se probó aquí una regla de «no narres tu propio movimiento» y se quitó,
+    // pero NO porque empeorara: porque no se pudo demostrar que hiciera nada.
+    // Medido en el banco, dos corridas del MISMO prompt mueven `andamiaje` 31
+    // puntos sobre ~100 y `meta_narracion` 5 sobre ~15, así que con 6 casos ×
+    // 3 muestras cualquier efecto menor que eso es indistinguible del azar.
+    // El presupuesto de líneas de este bloque es escaso y una regla que no se
+    // puede medir no se gana su sitio. El arreglo del andamiaje no es otra
+    // línea aquí: es que `sceneBlueprint` deje de asignarle a cada escena un
+    // papel nombrable (S3).
     'Transiciones: cada escena arranca enlazando con la anterior, sin resumirla. Dos escenas seguidas no pueden empezar con el mismo tipo de frase.',
     'Concreción: cada bloque baja a un caso, una cifra de los claims o algo que se pueda ver. Prohibido encadenar dos escenas que solo generalicen.',
     'Ritmo: alterna frases cortas y medias, máximo 25 palabras por frase, una idea por frase. Puntuación limpia para marcar las respiraciones del locutor.',

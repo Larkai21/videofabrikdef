@@ -366,6 +366,9 @@ interface Metricas {
   escenas: number;
   encabezadas: number;
   andamiaje: number;
+  promesa_no_producible: number;
+  meta_narracion: number;
+  objeciones_seguidas: number;
   cliche: number;
   cifra_sin_claim: number;
   palabras_media: number;
@@ -380,6 +383,9 @@ function medir(variante: string): Metricas | null {
     escenas: 0,
     encabezadas: 0,
     andamiaje: 0,
+    promesa_no_producible: 0,
+    meta_narracion: 0,
+    objeciones_seguidas: 0,
     cliche: 0,
     cifra_sin_claim: 0,
     palabras_media: 0,
@@ -395,6 +401,9 @@ function medir(variante: string): Metricas | null {
     palabras += scriptWords(scenes);
     for (const h of lintScenes(scenes, { claims: caso?.research.claims ?? [] })) {
       if (h.kind === 'andamiaje') m.andamiaje += 1;
+      if (h.kind === 'promesa_no_producible') m.promesa_no_producible += 1;
+      if (h.kind === 'meta_narracion') m.meta_narracion += 1;
+      if (h.kind === 'objeciones_seguidas') m.objeciones_seguidas += 1;
       if (h.kind === 'cliche') m.cliche += 1;
       if (h.kind === 'cifra_sin_claim') m.cifra_sin_claim += 1;
     }
@@ -408,10 +417,43 @@ function imprimirMetricas(variante: string, m: Metricas): void {
   console.log(`\n${variante}: ${m.guiones} guiones · ${m.escenas} escenas`);
   console.log(`  encabezadas      ${m.encabezadas} de ${m.escenas} (${pct} %)`);
   console.log(`  andamiaje        ${m.andamiaje}`);
+  console.log(`  promesa impagable ${m.promesa_no_producible}`);
+  console.log(`  meta-narración   ${m.meta_narracion}`);
+  console.log(`  objeciones segui ${m.objeciones_seguidas}`);
   console.log(`  muletillas       ${m.cliche}`);
   console.log(`  cifra sin claim  ${m.cifra_sin_claim}`);
   console.log(`  palabras (media) ${m.palabras_media}`);
 }
+
+/**
+ * Cuánto se mueve cada métrica entre dos corridas del MISMO prompt.
+ *
+ * Medido el 31-jul-2026 con 6 casos × 3 muestras (variantes `s2` y `s2-bis`,
+ * prompt idéntico). No es una estimación: es la diferencia observada.
+ *
+ * Existe porque me pasó: leí un +13 y luego un +27 de `andamiaje` como si el
+ * prompt hubiera empeorado, escribí la conclusión en un comentario del código,
+ * y al correr el mismo prompt dos veces salió un −31. Todo lo que estaba
+ * interpretando cabía dentro del azar. El generador no fija `temperature` ni
+ * `seed` (verificado en `providers/llm.ts`), así que sin esta banda el bucle
+ * afina contra el ruido y cada vuelta deshace la anterior.
+ *
+ * Para bajar la banda hay dos vías, ninguna gratis: más muestras por caso, o
+ * comparar caso a caso en vez de en agregado. Mientras tanto, un cambio que no
+ * supere la banda NO se acepta como mejora.
+ */
+const BANDA_RUIDO: Record<keyof Metricas, number> = {
+  guiones: 0,
+  escenas: 0,
+  encabezadas: 31,
+  andamiaje: 31,
+  promesa_no_producible: 2,
+  meta_narracion: 5,
+  objeciones_seguidas: 1,
+  cliche: 1,
+  cifra_sin_claim: 0,
+  palabras_media: 30,
+};
 
 function diff(a: string, b: string): void {
   const ma = medir(a);
@@ -421,12 +463,21 @@ function diff(a: string, b: string): void {
     process.exit(1);
   }
   console.log(`\n${a} → ${b}\n`);
+  let algunaSenal = false;
   for (const k of Object.keys(ma) as (keyof Metricas)[]) {
     const d = mb[k] - ma[k];
+    const banda = BANDA_RUIDO[k];
+    const senal = Math.abs(d) > banda;
+    if (senal) algunaSenal = true;
     const flecha = d === 0 ? '=' : d < 0 ? '↓' : '↑';
+    const marca = d === 0 ? '' : senal ? '  ← señal' : `  (ruido: banda ±${banda})`;
     console.log(
-      `  ${k.padEnd(18)} ${String(ma[k]).padStart(5)} → ${String(mb[k]).padStart(5)}  ${flecha} ${d > 0 ? '+' : ''}${d}`,
+      `  ${k.padEnd(22)} ${String(ma[k]).padStart(5)} → ${String(mb[k]).padStart(5)}  ` +
+        `${flecha} ${d > 0 ? '+' : ''}${d}${marca}`,
     );
+  }
+  if (!algunaSenal) {
+    console.log('\n  Nada supera la banda de ruido: este cambio NO se puede llamar mejora.');
   }
 }
 

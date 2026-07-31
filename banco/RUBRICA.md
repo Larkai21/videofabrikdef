@@ -34,8 +34,27 @@ Tres reglas que impiden que esto degenere en opinión:
 - La mitad de los casos son **control** y no se miran durante el sprint. Correr
   `--casos control` avisa por pantalla. Si se lee un caso de control para decidir un
   cambio, ese caso deja de serlo y se sustituye.
-- **n ≥ 3 muestras por caso.** El generador no fija `temperature` ni `seed`: con una
-  muestra, la decisión de revertir la toma el ruido.
+- **n ≥ 3 muestras por caso, y ni con esas basta.** El generador no fija `temperature` ni
+  `seed`. Medido el 31-jul-2026 corriendo el MISMO prompt dos veces sobre los 6 casos dev
+  con 3 muestras:
+
+  | métrica | banda de ruido |
+  |---|---|
+  | escenas rotuladas / `andamiaje` | **±31** sobre ~100 |
+  | `palabras_media` | ±30 |
+  | `meta_narracion` | ±5 |
+  | `promesa_no_producible` | ±2 |
+  | `cliche`, `objeciones_seguidas` | ±1 |
+
+  `pnpm guion --diff` marca cada delta como «señal» o «ruido» contra esta banda. **Un
+  cambio que no la supere no se acepta como mejora**, por bien que suene la explicación.
+
+  Esto no es teoría: pasó. Se leyó un +13 y luego un +27 de `andamiaje` como si el prompt
+  hubiera empeorado, se escribió la conclusión en un comentario del código, y al medir el
+  ruido salió −31 con el prompt sin tocar. Todo lo interpretado cabía en el azar.
+
+  Para estrechar la banda hay dos vías, ninguna gratis: más muestras por caso, o comparar
+  caso a caso en vez de en agregado.
 - El banco **crece** dos casos por sprint, desde producción real. Un prompt no puede
   memorizar un conjunto que crece.
 
@@ -91,9 +110,9 @@ que hoy no se distingue un guion bueno de uno mediocre.
 
 | # | Comprobación | Cómo se mide | Estado hoy |
 |---|---|---|---|
-| 1 | Ninguna escena abre con rótulo | `andamiaje` del linter | 95 de 256 escenas del banco (37 %) |
-| 2 | Ninguna promesa impagable | linter, S2 | 5 de 11 guiones del corpus |
-| 3 | Ninguna mención de la fontanería | linter, S2 | 3 de 11 |
+| 1 | Ninguna escena abre con rótulo | `andamiaje` del linter | 91-122 de 256 escenas del banco. La horquilla ES la banda de ruido: no se puede afinar esta métrica con 6×3 |
+| 2 | Ninguna promesa impagable | `promesa_no_producible` | 13 → 8 tras S2 (señal). En el corpus, 5 de 11 guiones |
+| 3 | Ninguna mención de la fontanería | patrones de `research pack`, `no podemos confirmar` | **0**. Desapareció sola al arreglar el fetcher: el guion ya no confiesa que le falta material porque no le falta |
 | 4 | **Prueba de reordenación** | a mano: se intercambian 3 pares de escenas del cuerpo; en ≥2 el guion se rompe | JBbf y OZmR aguantan las tres |
 | 5 | **Prueba de corte** | a mano: se quita una escena cada vez; qué % no se echaría en falta. El umbral se calibra midiéndolo sobre un guion aprobado, no se inventa | sin calibrar |
 | 6 | Una entidad real por minuto, y el título elegido lleva nombre propio o cifra | métrica, S4. La heurística **excluye** las palabras en mayúscula de los rótulos, o `PUNTO` y `MEDIO` cuentan como entidades y arreglar el andamiaje baja la concreción | 7 de 11 guiones a cero |
@@ -120,3 +139,10 @@ las ocho.
 - **El research no es el cuello de botella del guion.** Arreglarlo era necesario (los dos
   casos con cero claims pasaron a 12 y 11), pero el guion con más material del corpus es
   el peor estructuralmente.
+- **Añadir reglas a `craftRules()` tiene rendimiento decreciente y no se puede medir.** En
+  S2 se metieron tres reglas a la vez (producibilidad, alternancia de objeciones, no narrar
+  el propio movimiento) y solo una dio señal: `promesa_no_producible` 13 → 8. Las otras dos
+  quedaron dentro del ruido. Además fue un error de método meter tres cambios en una vuelta:
+  con tres variables movidas a la vez no se puede atribuir nada. **Un cambio por vuelta.**
+- **Medir el ruido ANTES de interpretar un diff.** Cuesta una corrida (~5 min, 0,08 $) y
+  es lo único que separa iterar de dar vueltas.

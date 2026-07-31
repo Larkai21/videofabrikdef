@@ -94,6 +94,75 @@ export function escenasEncabezadas(scenes: readonly { text: string }[]): number 
   return scenes.filter((s) => abreConRotulo(s.text)).length;
 }
 
+/**
+ * Promesas que este formato NO puede cumplir.
+ *
+ * El canal monta con metraje de archivo: no hay cámara, no hay captura de
+ * pantalla y no hay adjuntos. Aun así, cinco de los once guiones publicados
+ * prometen una demo en pantalla o un descargable: «En la demo usaré un libro
+ * técnico como ejemplo», «el flujo que te mostré te las entrega», «descarga el
+ * pack del vídeo en el enlace», «en el próximo vídeo desplegamos juntos un
+ * benchmark… subimos el notebook».
+ *
+ * Es peor que un defecto de estilo: el guion le dice al espectador que ha visto
+ * algo que no ha visto. Y a diferencia de la fontanería —que desapareció sola
+ * al arreglar el research—, esto no depende del material: en el banco sigue
+ * apareciendo en diez escenas.
+ *
+ * Ojo con lo que NO es: «descarga el repositorio desde Hugging Face» le dice al
+ * espectador qué hacer en un sitio de terceros y es contenido legítimo. Por eso
+ * ningún patrón dispara con «descarga» a secas.
+ */
+const PROMESA_NO_PRODUCIBLE: readonly { id: string; re: RegExp }[] = [
+  { id: 'demo-en-pantalla', re: /\ben (la|esta|una) demo\b/i },
+  {
+    id: 'te-muestro',
+    // sin `\b` final: en JavaScript es ASCII, y tras “mostré” no hay frontera
+    // de palabra porque la é no cuenta como carácter de palabra
+    re: /\bte (muestro|mostré|enseño|enseñé)|como ves aquí|ves en pantalla/i,
+  },
+  {
+    id: 'descargable',
+    re: /\b(pack del vídeo|(checklist|plantilla|guía|hoja)s? descargables?|descargable en la descripción)\b/i,
+  },
+  {
+    id: 'en-la-descripcion',
+    re: /\b(dejo|dejaré|te dejo|tienes|pongo) (el |la |los |las |un |una )?(enlace|link|checklist|plantilla|pack|material)\w*\b/i,
+  },
+  { id: 'proximo-video', re: /\ben (el|un) próximo vídeo\b/i },
+];
+
+/**
+ * El guion narrando sus propios movimientos retóricos.
+ *
+ * Es el andamiaje un nivel más arriba: no anuncia el NOMBRE de la escena
+ * («PUNTO MEDIO:»), anuncia su FUNCIÓN («Aquí cumplo la promesa práctica»). Se
+ * escapa de `abreConRotulo` porque va dentro de una oración con verbo.
+ *
+ * Cumplir una promesa no se avisa, se hace. Observado en dos casos de familias
+ * distintas: `EKPfJAWT9OOMy3wF098Bp` («Aquí cumplo la promesa práctica», «Lo
+ * contraintuitivo es que ahorrar tiempo…») y `OIC6LvB17pOtsK3tOkbqx` («Lo
+ * contraintuitivo es que protegerse solo con cumplimiento jurídico…»).
+ */
+const META_NARRACION: readonly { id: string; re: RegExp }[] = [
+  {
+    id: 'cumplo-la-promesa',
+    re: /\b(cumplo|pago|cierro|aquí va) la promesa\b|\bpago de la promesa\b/i,
+  },
+  { id: 'lo-contraintuitivo', re: /\blo contraintuitivo\b/i },
+  { id: 'punto-medio', re: /\b(punto medio|re-?gancho)\b/i },
+];
+
+/**
+ * Aperturas de objeción. No se prohíben —la tensión es una regla de oficio y
+ * está bien— pero encadenarlas convierte el cuerpo en una lista de pegas.
+ */
+const OBJECION =
+  /^\s*(pero\b|sin embargo|s[íi],? pero|otra objeci|también podr|podr[íi]as (pensar|creer)|no obstante|aunque\b|otro (pero|inconveniente)|hay un pero|la pega)/i;
+
+/** Máximo de escenas de objeción seguidas antes de que sea un bloque, no alternancia. */
+export const MAX_OBJECIONES_SEGUIDAS = 2;
+
 // Unidades que hacen que un número sea narrativo o instructivo, no una prueba:
 // la edad de un personaje, el largo de un email que le pides al lector, una
 // duración. Ninguna de estas puede «no estar en el research», porque no es un
@@ -169,6 +238,9 @@ export function cifrasEvidenciales(texto: string): Set<string> {
 export type ScriptLintKind =
   | 'cliche'
   | 'andamiaje'
+  | 'promesa_no_producible'
+  | 'meta_narracion'
+  | 'objeciones_seguidas'
   | 'exclamacion'
   | 'frase_larga'
   | 'escena_corta'
@@ -218,6 +290,7 @@ export function lintScenes(
   const maxSentenceWords = opts.maxSentenceWords ?? 25;
   const claimTexts = opts.claims.map((c) => c.text);
   const hits: ScriptLintHit[] = [];
+  let objecionesSeguidas = 0;
 
   for (const scene of scenes) {
     for (const { id, re } of AI_CLICHES) {
@@ -233,6 +306,44 @@ export function lintScenes(
         kind: 'andamiaje',
         detail: `abre con el rótulo «${rotulo}:», y eso se locuta tal cual`,
       });
+    }
+
+    for (const { id, re } of PROMESA_NO_PRODUCIBLE) {
+      const m = re.exec(scene.text);
+      if (m) {
+        hits.push({
+          id: scene.id,
+          kind: 'promesa_no_producible',
+          detail: `promete «${m[0].trim()}» (${id}), y este vídeo se monta con metraje de archivo`,
+        });
+      }
+    }
+
+    for (const { id, re } of META_NARRACION) {
+      const m = re.exec(scene.text);
+      if (m) {
+        hits.push({
+          id: scene.id,
+          kind: 'meta_narracion',
+          detail: `narra su propio movimiento: «${m[0].trim()}» (${id})`,
+        });
+      }
+    }
+
+    // La objeción encadenada es un defecto del GUION, no de la escena: dos
+    // seguidas son alternancia, cuatro son una lista de pegas. Se cuelga de la
+    // escena que rompe la racha para que el refinado sepa cuál tocar.
+    if (OBJECION.test(scene.text)) {
+      objecionesSeguidas += 1;
+      if (objecionesSeguidas > MAX_OBJECIONES_SEGUIDAS) {
+        hits.push({
+          id: scene.id,
+          kind: 'objeciones_seguidas',
+          detail: `${objecionesSeguidas} escenas de objeción seguidas: el cuerpo se vuelve una lista de pegas`,
+        });
+      }
+    } else {
+      objecionesSeguidas = 0;
     }
 
     if (scene.text.includes('!') || scene.text.includes('¡')) {
@@ -287,6 +398,9 @@ export function lintScenes(
 export const BLOCKING_LINT_KINDS: readonly ScriptLintKind[] = [
   'cliche',
   'andamiaje',
+  'promesa_no_producible',
+  'meta_narracion',
+  'objeciones_seguidas',
   'cifra_sin_claim',
 ];
 
