@@ -19,7 +19,10 @@ export type SubtitleThemeProps = {
 // normaliza una palabra para comparar keywords (minúsculas, sin puntuación/acentos)
 function normalizeWord(w: string): string {
   // NFD separa los acentos y el filtro final los quita junto con la puntuación
-  return w.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '');
+  return w
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[^a-z0-9]/g, '');
 }
 
 // Reparte las palabras del cue en como máximo CUE_MAX_LINES líneas
@@ -118,32 +121,45 @@ export const SubtitlesBasicos: React.FC<SubtitleThemeProps> = ({
           lines.map((line, li) => (
             <div key={li}>
               {line.map((word, wi) => (
-                <span
-                  key={wi}
-                  style={{
-                    // keyword resaltada (del director): acento + más peso y
-                    // escala cuando ya se ha pronunciado
-                    color:
-                      highlightSet.has(normalizeWord(word.w)) && currentMs >= word.from_ms
-                        ? d.accent
-                        : wordColor(word, currentMs, d),
-                    fontWeight:
-                      highlightSet.has(normalizeWord(word.w)) && currentMs >= word.from_ms
-                        ? 800
-                        : undefined,
-                    // scale por palabra: transform en inline-block para no
-                    // descolocar la línea; el pop no altera el flujo del texto
-                    display: 'inline-block',
-                    transform: `scale(${
-                      (highlightSet.has(normalizeWord(word.w)) && currentMs >= word.from_ms
-                        ? 1.12
-                        : 1) * wordScale(word, currentMs)
-                    })`,
-                  }}
-                >
-                  {word.w}
-                  {wi < line.length - 1 ? ' ' : ''}
-                </span>
+                // El separador es un elemento propio con ancho fijo, y ancho
+                // de sobra. Antes era un espacio duro (\u00a0, ~0,25 em) dentro
+                // del span de la palabra, y en el vídeo se leía «qué
+                // sistemascubres»: la palabra resaltada crece un 12 % con
+                // `scale`, que NO ocupa más caja, así que ese 6 % por lado se
+                // mete en el hueco del vecino y se lo come casi entero.
+                //
+                // 0,36 em deja unos 8 px libres a 54 px de cuerpo incluso con
+                // el resalte puesto, y al ser constante no hace bailar la
+                // línea cuando el resalte entra y sale.
+                <React.Fragment key={wi}>
+                  <span
+                    style={{
+                      // keyword resaltada (del director): acento + más peso y
+                      // escala cuando ya se ha pronunciado
+                      color:
+                        highlightSet.has(normalizeWord(word.w)) && currentMs >= word.from_ms
+                          ? d.accent
+                          : wordColor(word, currentMs, d),
+                      fontWeight:
+                        highlightSet.has(normalizeWord(word.w)) && currentMs >= word.from_ms
+                          ? 800
+                          : undefined,
+                      // scale por palabra: transform en inline-block para no
+                      // descolocar la línea; el pop no altera el flujo del texto
+                      display: 'inline-block',
+                      transform: `scale(${
+                        (highlightSet.has(normalizeWord(word.w)) && currentMs >= word.from_ms
+                          ? 1.12
+                          : 1) * wordScale(word, currentMs)
+                      })`,
+                    }}
+                  >
+                    {word.w}
+                  </span>
+                  {wi < line.length - 1 ? (
+                    <span style={{ display: 'inline-block', width: '0.36em' }} />
+                  ) : null}
+                </React.Fragment>
               ))}
             </div>
           ))
