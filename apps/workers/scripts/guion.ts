@@ -1,0 +1,521 @@
+/**
+ * Banco de guiones: iterar el prompt sin pasar por la cola.
+ *
+ *   pnpm guion preparar                      # congela los briefs desde Postgres
+ *   pnpm guion --variante base --n 3         # escribe guiones del conjunto dev
+ *   pnpm guion --variante base --casos control
+ *   pnpm guion --medir base                  # tabla determinista de una corrida
+ *   pnpm guion --diff base v2                # qué subió y qué bajó
+ *   pnpm guion --leer base                   # lista los .md para leerlos a mano
+ *
+ * Por qué existe: hoy, para ver el efecto de tocar una línea de `prompts.ts`
+ * hace falta una idea con research en Postgres, Redis arriba, BullMQ
+ * despachando y pasar la puerta humana — y la salida es JSON. La cadena entera
+ * tarda 92 segundos (medido en cost_ledger), así que lo que hace inviable
+ * iterar veinte veces no es el reloj: es el estado. Esto quita el estado.
+ *
+ * El research se congela en el caso. No es solo por dinero (0,0028 $): es para
+ * que dos corridas de la misma variante se diferencien SOLO en el prompt. Si el
+ * research se rehiciera en cada vuelta, la mitad de la varianza vendría de la
+ * red y no habría forma de atribuir una mejora.
+ *
+ * Coste medido: 0,00514 $ por guion. Una vuelta de 6 casos × 3 muestras ≈ 0,09 $
+ * y 3-4 minutos de reloj con concurrencia 5.
+ */
+import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import path from 'node:path';
+import { createHash } from 'node:crypto';
+import pino from 'pino';
+import { eq } from 'drizzle-orm';
+import PQueue from 'p-queue';
+import { channels, createDb, ideas as ideasTable, videos } from '@fabrica/db';
+import {
+  channelSettingsSchema,
+  escenasEncabezadas,
+  lintScenes,
+  researchSchema,
+  type ChannelProfile,
+  type Research,
+  type Scene,
+} from '@fabrica/shared';
+import { loadEnv } from '../src/lib/env.js';
+import { createLlm } from '../src/providers/llm.js';
+import { downloadSources } from '../src/pipelines/script/research.js';
+import { scriptGenSchema } from '../src/pipelines/script/generate.js';
+import {
+  researchSystem,
+  researchUser,
+  scriptSystem,
+  scriptUser,
+} from '../src/pipelines/script/prompts.js';
+import { scriptWords, wordTarget } from '../src/pipelines/script/wordcount.js';
+
+const RAIZ = path.resolve(process.cwd(), '../../banco');
+const DIR_CASOS = path.join(RAIZ, 'casos');
+const DIR_CORRIDAS = path.join(RAIZ, 'corridas');
+const CONCURRENCIA = 5;
+
+interface Caso {
+  id: string;
+  /** dev se lee durante el sprint; control NO se mira hasta cerrar */
+  conjunto: 'dev' | 'control';
+  /** modo de fallo del material que representa este caso */
+  familia: string;
+  origen: { video_id: string; idea_id: string };
+  idea: { title: string; angle: string | null; summary: string; whyNow: string | null };
+  targetMinutes: number;
+  research: Research;
+  notas: string;
+}
+
+// Familias por MODO DE FALLO DEL MATERIAL, que es la taxonomía que sale del
+// corpus: lo que rompe el guion no es el tema, es qué trae el research.
+// La mitad va a control y no se mira hasta la portería.
+const REPARTO: Record<string, { conjunto: 'dev' | 'control'; familia: string; notas: string }> = {
+  JBbfvawGXzsXdA92L1zcH: {
+    conjunto: 'dev',
+    familia: 'research-rico',
+    notas:
+      '23 claims de HuggingFace, nombres propios a espuertas. Produjo el PEOR guion estructural del corpus: 16 de 19 escenas rotuladas, la ficha técnica leída en voz alta. Es la prueba de que arreglar el research no arregla el guion.',
+  },
+  IbDk9awikbto_TPi_cq8l: {
+    conjunto: 'dev',
+    familia: 'research-de-titular',
+    notas: '2 claims de un titular de Google News. El guion gira entero sobre una cifra del 25 %.',
+  },
+  EKPfJAWT9OOMy3wF098Bp: {
+    conjunto: 'dev',
+    familia: 'research-vacio',
+    notas:
+      'claims = []. Prometió una demo en pantalla en un canal sin cámara: «En la demo usaré un libro técnico».',
+  },
+  uVkNtcYIrYqEX8D3dG1Ah: {
+    conjunto: 'dev',
+    familia: 'research-de-tuit',
+    notas:
+      '1 claim de un tuit. 1008 palabras y CERO entidades reales. Le contó al espectador que el research pack era limitado.',
+  },
+  zZ0X0SRh7OusaNdtPK8dd: {
+    conjunto: 'dev',
+    familia: 'research-desalineado',
+    notas:
+      'Los 6 claims van de discapacidad, SSI y el «benefits cliff»; el guion va de ganar dinero con IA a los 38. El material no responde a la idea.',
+  },
+  OIC6LvB17pOtsK3tOkbqx: {
+    conjunto: 'dev',
+    familia: 'google-news-reparado',
+    notas:
+      'Su fuente es la que destapó el fetcher roto. Con el arreglo pasa de 1 claim («existe un artículo titulado…») a research real de computing.es.',
+  },
+  // ojo con los guiones: son ids de nanoid y hay que citarlos
+  'S5uiXZu-0z5yKqogXT-X2': {
+    conjunto: 'control',
+    familia: 'producto-repo',
+    notas: '11 claims de GitHub, el research más limpio del corpus.',
+  },
+  O9WieZkLPrbjAAXcDxq1f: {
+    conjunto: 'control',
+    familia: 'noticia-con-medio',
+    notas: '10 claims de techspot. Su guion es el único del corpus que se lee bien.',
+  },
+  CVj6w2e34mSz6BsAAFMET: {
+    conjunto: 'control',
+    familia: 'research-de-tuit',
+    notas: '9 claims de xcancel.',
+  },
+  OV2mHfxG8vxN9NxTxTiHo: {
+    conjunto: 'control',
+    familia: 'producto-repo',
+    notas: '4 claims de un blog técnico.',
+  },
+  OZmRIqZ2w_qwyAg_RYLDh: {
+    conjunto: 'control',
+    familia: 'research-vacio',
+    notas: 'claims = []. 16 de 18 escenas rotuladas: «Hardware:», «Modelos:», «Aplicaciones:».',
+  },
+  dLLuSGNMMCE45frc5iImQ: {
+    conjunto: 'control',
+    familia: 'research-de-titular',
+    notas: '2 claims de Google News, guion corto.',
+  },
+};
+
+const logger = pino({ level: process.env.LOG_LEVEL ?? 'warn' });
+
+function sha(s: string): string {
+  return createHash('sha1').update(s).digest('hex').slice(0, 12);
+}
+
+function gitSha(): string {
+  try {
+    // sin dependencias: el HEAD de .git basta y no exige que git esté en PATH
+    const head = readFileSync(path.resolve(process.cwd(), '../../.git/HEAD'), 'utf8').trim();
+    const ref = head.startsWith('ref: ') ? head.slice(5) : null;
+    if (!ref) return head.slice(0, 12);
+    return readFileSync(path.resolve(process.cwd(), '../../.git', ref), 'utf8')
+      .trim()
+      .slice(0, 12);
+  } catch {
+    return 'desconocido';
+  }
+}
+
+async function preparar(): Promise<void> {
+  loadEnv();
+  const { db, client } = createDb();
+  const llm = createLlm(logger);
+  mkdirSync(DIR_CASOS, { recursive: true });
+  let hechos = 0;
+  try {
+    for (const [videoId, meta] of Object.entries(REPARTO)) {
+      const destino = path.join(DIR_CASOS, `${videoId}.json`);
+      if (existsSync(destino)) {
+        console.log(`· ${videoId} ya congelado`);
+        continue;
+      }
+      const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
+      if (!video) {
+        console.log(`✗ ${videoId} no está en la BD; se omite`);
+        continue;
+      }
+      const [idea] = await db.select().from(ideasTable).where(eq(ideasTable.id, video.ideaId));
+      const [channel] = await db.select().from(channels).where(eq(channels.id, video.channelId));
+      if (!idea || !channel?.profile) {
+        console.log(`✗ ${videoId} sin idea o sin perfil; se omite`);
+        continue;
+      }
+      const settings = channelSettingsSchema.parse(channel.settings ?? {});
+      // el research se rehace CON EL FETCHER ARREGLADO y se congela
+      const docs = await downloadSources(logger, idea.sourceRefs ?? [], false);
+      const { data: research } = await llm.completeJson({
+        system: researchSystem(),
+        user: researchUser({ title: idea.title, angle: idea.angle, summary: idea.summary }, docs),
+        schema: researchSchema,
+        mockContext: { refs: idea.sourceRefs ?? [], ideaTitle: idea.title },
+      });
+      const caso: Caso = {
+        id: videoId,
+        conjunto: meta.conjunto,
+        familia: meta.familia,
+        origen: { video_id: videoId, idea_id: idea.id },
+        idea: {
+          title: idea.title,
+          angle: idea.angle,
+          summary: idea.summary,
+          whyNow: idea.whyNow,
+        },
+        targetMinutes: settings.target_minutes,
+        research,
+        notas: meta.notas,
+      };
+      writeFileSync(destino, `${JSON.stringify(caso, null, 2)}\n`);
+      const chars = docs.reduce((n, d) => n + d.text.length, 0);
+      console.log(
+        `✓ ${videoId.padEnd(22)} ${meta.conjunto.padEnd(8)} ${meta.familia.padEnd(22)} ` +
+          `${research.claims.length} claims · ${chars} chars descargados`,
+      );
+      hechos += 1;
+    }
+  } finally {
+    await client.end();
+  }
+  console.log(`\n${hechos} casos congelados en ${DIR_CASOS}`);
+}
+
+function cargarCasos(conjunto: 'dev' | 'control' | 'todos'): Caso[] {
+  if (!existsSync(DIR_CASOS)) {
+    console.error('No hay casos. Ejecuta antes: pnpm guion preparar');
+    process.exit(1);
+  }
+  return readdirSync(DIR_CASOS)
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => JSON.parse(readFileSync(path.join(DIR_CASOS, f), 'utf8')) as Caso)
+    .filter((c) => conjunto === 'todos' || c.conjunto === conjunto)
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+function comoDocumento(
+  caso: Caso,
+  gen: { script: { scenes: Scene[]; hook_notes: string }; seo: { titles: string[] } },
+): string {
+  const hits = lintScenes(gen.script.scenes, { claims: caso.research.claims });
+  const porTipo = new Map<string, number>();
+  for (const h of hits) porTipo.set(h.kind, (porTipo.get(h.kind) ?? 0) + 1);
+  const palabras = scriptWords(gen.script.scenes);
+  return [
+    `# ${gen.seo.titles[0] ?? '(sin título)'}`,
+    '',
+    `> ${caso.familia} · ${caso.id} · ${palabras} palabras · ${gen.script.scenes.length} escenas`,
+    '',
+    'Otros títulos propuestos:',
+    ...gen.seo.titles.slice(1).map((t) => `- ${t}`),
+    '',
+    '---',
+    '',
+    ...gen.script.scenes.flatMap((s) => [
+      `**${s.id}** · ${s.text.trim().split(/\s+/).length} palabras`,
+      '',
+      s.text,
+      '',
+    ]),
+    '---',
+    '',
+    '## Lo que dice el linter',
+    '',
+    porTipo.size === 0
+      ? 'Sin avisos.'
+      : [...porTipo.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, n]) => `- ${k}: ${n}`)
+          .join('\n'),
+    '',
+    `- escenas que abren con encabezado: ${escenasEncabezadas(gen.script.scenes)} de ${gen.script.scenes.length}`,
+    '',
+  ].join('\n');
+}
+
+async function correr(variante: string, conjunto: 'dev' | 'control' | 'todos', n: number) {
+  loadEnv();
+  const llm = createLlm(logger);
+  const casos = cargarCasos(conjunto);
+  if (casos.length === 0) {
+    console.error(`No hay casos en el conjunto "${conjunto}".`);
+    process.exit(1);
+  }
+  const dir = path.join(DIR_CORRIDAS, variante);
+  mkdirSync(dir, { recursive: true });
+  const cola = new PQueue({ concurrency: CONCURRENCIA });
+  const empezado = Date.now();
+  let ok = 0;
+  let fallos = 0;
+
+  console.log(
+    `${casos.length} casos × ${n} muestras = ${casos.length * n} guiones · variante "${variante}" · ${llm.model}\n`,
+  );
+
+  await Promise.all(
+    casos.flatMap((caso) =>
+      Array.from({ length: n }, (_, muestra) =>
+        cola.add(async () => {
+          const targetWords = wordTarget(caso.targetMinutes);
+          const perfil = perfilDelCanal();
+          const system = scriptSystem(perfil, targetWords);
+          const user = scriptUser({
+            idea: {
+              title: caso.idea.title,
+              angle: caso.idea.angle,
+              summary: caso.idea.summary,
+              whyNow: caso.idea.whyNow,
+            },
+            research: caso.research,
+            targetWords,
+            language: perfil.language,
+            editedScenes: [],
+          });
+          try {
+            const { data: gen, usage } = await llm.completeJson({
+              system,
+              user,
+              schema: scriptGenSchema,
+              mockContext: { ideaTitle: caso.idea.title },
+            });
+            const base = path.join(dir, `${caso.id}-${muestra + 1}`);
+            writeFileSync(`${base}.md`, comoDocumento(caso, gen));
+            writeFileSync(
+              `${base}.json`,
+              `${JSON.stringify(
+                {
+                  caso: caso.id,
+                  conjunto: caso.conjunto,
+                  familia: caso.familia,
+                  variante,
+                  muestra: muestra + 1,
+                  git_sha: gitSha(),
+                  // lo ÚNICO que permite decir dentro de tres meses «este guion
+                  // salió de este prompt»
+                  prompt_sha: sha(`${system}\n \n${user}`),
+                  modelo: llm.model,
+                  tokens: usage,
+                  script: gen.script,
+                  seo: gen.seo,
+                },
+                null,
+                2,
+              )}\n`,
+            );
+            ok += 1;
+            process.stdout.write('.');
+          } catch (err) {
+            fallos += 1;
+            process.stdout.write('x');
+            logger.warn({ caso: caso.id, err }, 'guion fallido');
+          }
+        }),
+      ),
+    ),
+  );
+
+  const seg = ((Date.now() - empezado) / 1000).toFixed(0);
+  console.log(`\n\n${ok} guiones en ${seg} s${fallos > 0 ? ` · ${fallos} fallidos` : ''}`);
+  console.log(`   ${dir}`);
+  console.log(`\nAhora: pnpm guion --medir ${variante}`);
+}
+
+interface Metricas {
+  guiones: number;
+  escenas: number;
+  encabezadas: number;
+  andamiaje: number;
+  cliche: number;
+  cifra_sin_claim: number;
+  palabras_media: number;
+}
+
+function medir(variante: string): Metricas | null {
+  const dir = path.join(DIR_CORRIDAS, variante);
+  if (!existsSync(dir)) return null;
+  const casos = new Map(cargarCasos('todos').map((c) => [c.id, c]));
+  const m: Metricas = {
+    guiones: 0,
+    escenas: 0,
+    encabezadas: 0,
+    andamiaje: 0,
+    cliche: 0,
+    cifra_sin_claim: 0,
+    palabras_media: 0,
+  };
+  let palabras = 0;
+  for (const f of readdirSync(dir).filter((x) => x.endsWith('.json'))) {
+    const j = JSON.parse(readFileSync(path.join(dir, f), 'utf8'));
+    const caso = casos.get(j.caso);
+    const scenes: Scene[] = j.script.scenes;
+    m.guiones += 1;
+    m.escenas += scenes.length;
+    m.encabezadas += escenasEncabezadas(scenes);
+    palabras += scriptWords(scenes);
+    for (const h of lintScenes(scenes, { claims: caso?.research.claims ?? [] })) {
+      if (h.kind === 'andamiaje') m.andamiaje += 1;
+      if (h.kind === 'cliche') m.cliche += 1;
+      if (h.kind === 'cifra_sin_claim') m.cifra_sin_claim += 1;
+    }
+  }
+  m.palabras_media = m.guiones > 0 ? Math.round(palabras / m.guiones) : 0;
+  return m;
+}
+
+function imprimirMetricas(variante: string, m: Metricas): void {
+  const pct = m.escenas > 0 ? Math.round((m.encabezadas / m.escenas) * 100) : 0;
+  console.log(`\n${variante}: ${m.guiones} guiones · ${m.escenas} escenas`);
+  console.log(`  encabezadas      ${m.encabezadas} de ${m.escenas} (${pct} %)`);
+  console.log(`  andamiaje        ${m.andamiaje}`);
+  console.log(`  muletillas       ${m.cliche}`);
+  console.log(`  cifra sin claim  ${m.cifra_sin_claim}`);
+  console.log(`  palabras (media) ${m.palabras_media}`);
+}
+
+function diff(a: string, b: string): void {
+  const ma = medir(a);
+  const mb = medir(b);
+  if (!ma || !mb) {
+    console.error(`Falta la corrida ${!ma ? a : b}.`);
+    process.exit(1);
+  }
+  console.log(`\n${a} → ${b}\n`);
+  for (const k of Object.keys(ma) as (keyof Metricas)[]) {
+    const d = mb[k] - ma[k];
+    const flecha = d === 0 ? '=' : d < 0 ? '↓' : '↑';
+    console.log(
+      `  ${k.padEnd(18)} ${String(ma[k]).padStart(5)} → ${String(mb[k]).padStart(5)}  ${flecha} ${d > 0 ? '+' : ''}${d}`,
+    );
+  }
+}
+
+// El perfil del canal se lee del propio banco para no depender de la BD al
+// correr: si cambia el perfil, cambian los guiones, y eso tiene que quedar
+// registrado como un cambio del banco, no colarse por debajo.
+let perfilCache: ChannelProfile | null = null;
+function perfilDelCanal(): ChannelProfile {
+  if (perfilCache) return perfilCache;
+  const f = path.join(RAIZ, 'perfil.json');
+  if (!existsSync(f)) {
+    console.error(`Falta ${f}. Ejecuta antes: pnpm guion preparar`);
+    process.exit(1);
+  }
+  perfilCache = JSON.parse(readFileSync(f, 'utf8')) as ChannelProfile;
+  return perfilCache;
+}
+
+function arg(nombre: string): string | undefined {
+  const i = process.argv.indexOf(`--${nombre}`);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+}
+
+async function main(): Promise<void> {
+  const cmd = process.argv[2];
+  if (cmd === 'preparar') {
+    await preparar();
+    await congelarPerfil();
+    return;
+  }
+  const medirVar = arg('medir');
+  if (medirVar !== undefined) {
+    const m = medir(medirVar);
+    if (!m) {
+      console.error(`No existe la corrida "${medirVar}".`);
+      process.exit(1);
+    }
+    imprimirMetricas(medirVar, m);
+    return;
+  }
+  const i = process.argv.indexOf('--diff');
+  if (i >= 0) {
+    diff(process.argv[i + 1]!, process.argv[i + 2]!);
+    return;
+  }
+  const leer = arg('leer');
+  if (leer !== undefined) {
+    const dir = path.join(DIR_CORRIDAS, leer);
+    for (const f of readdirSync(dir)
+      .filter((x) => x.endsWith('.md'))
+      .sort()) {
+      console.log(path.join(dir, f));
+    }
+    return;
+  }
+  const variante = arg('variante');
+  if (variante === undefined) {
+    console.error(
+      [
+        'Uso:',
+        '  pnpm guion preparar',
+        '  pnpm guion --variante <nombre> [--casos dev|control|todos] [--n 3]',
+        '  pnpm guion --medir <variante>',
+        '  pnpm guion --diff <a> <b>',
+        '  pnpm guion --leer <variante>',
+      ].join('\n'),
+    );
+    process.exit(1);
+  }
+  const conjunto = (arg('casos') ?? 'dev') as 'dev' | 'control' | 'todos';
+  if (conjunto === 'control') {
+    // Mirar el control durante la iteración lo convierte en dev y se pierde la
+    // única defensa contra el sobreajuste. No se bloquea, se deja constancia.
+    console.log('⚠ Estás corriendo el conjunto de CONTROL. Solo al cerrar un sprint.\n');
+  }
+  await correr(variante, conjunto, Number(arg('n') ?? 3));
+}
+
+async function congelarPerfil(): Promise<void> {
+  const { db, client } = createDb();
+  try {
+    const [canal] = await db.select().from(channels).limit(1);
+    if (canal?.profile) {
+      writeFileSync(path.join(RAIZ, 'perfil.json'), `${JSON.stringify(canal.profile, null, 2)}\n`);
+      console.log(`✓ perfil del canal congelado en ${path.join(RAIZ, 'perfil.json')}`);
+    }
+  } finally {
+    await client.end();
+  }
+}
+
+await main();

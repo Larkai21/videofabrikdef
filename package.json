@@ -18,7 +18,9 @@
     "db:migrate": "pnpm --filter @fabrica/db migrate",
     "db:seed": "pnpm --filter @fabrica/db seed",
     "render:smoke": "pnpm --filter @fabrica/video render:smoke",
-    "sfx": "pnpm --filter @fabrica/video sfx"
+    "sfx": "pnpm --filter @fabrica/video sfx",
+    "guion": "pnpm --filter @fabrica/workers guion",
+    "calidad": "pnpm --filter @fabrica/workers calidad"
   },
   "devDependencies": {
     "prettier": "^3.9.6",

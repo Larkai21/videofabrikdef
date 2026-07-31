@@ -1,0 +1,79 @@
+{
+  "id": "O9WieZkLPrbjAAXcDxq1f",
+  "conjunto": "control",
+  "familia": "noticia-con-medio",
+  "origen": {
+    "video_id": "O9WieZkLPrbjAAXcDxq1f",
+    "idea_id": "AWe6z4VMTu6F7pZ2uq5pi"
+  },
+  "idea": {
+    "title": "GrapheneOS borrado en control: qué significa para tu seguridad",
+    "angle": "analizar el incidente del borrado de un teléfono GrapheneOS y extraer medidas prácticas —incluyendo herramientas basadas en IA— para proteger datos y facilitar recuperación forense",
+    "summary": "Un pasajero estadounidense fue imputado después de que su teléfono con GrapheneOS se autoformateara durante un registro aeroportuario. Explicamos qué pudo pasar, qué límites tienen el cifrado y el diseño de sistemas como GrapheneOS, y qué pasos concretos puede adoptar un profesional hoy mismo, desde backups automatizados hasta herramientas de triage forense asistidas por IA.",
+    "whyNow": "Un ciudadano de EE. UU. ha sido imputado tras su teléfono GrapheneOS borrarse en un control aeroportuario.\nEl caso plantea dudas sobre controles, cifrado y recuperación, y abre espacio para soluciones prácticas con IA."
+  },
+  "targetMinutes": 7,
+  "research": {
+    "sources": [
+      {
+        "url": "https://www.techspot.com/news/113236-us-prosecutors-charge-atlanta-man-after-grapheneos-phone.html",
+        "title": "US citizen charged after GrapheneOS phone wipes during airport search",
+        "domain": "techspot.com",
+        "published_at": null
+      }
+    ],
+    "summary": "El artículo de TechSpot recoge un caso federal en Atlanta donde el fiscal acusa a un ciudadano estadounidense, Sam Tunick, después de que su teléfono con GrapheneOS se autoformateara durante un registro en el aeropuerto. El incidente ocurrió el 24 de enero en el Aeropuerto Internacional Hartsfield-Jackson de Atlanta: durante un control secundario varios agentes interrogaron a Tunick, le pidieron que desbloqueara su teléfono y le advirtieron que lo confiscarían si se negaba. Tras proporcionar el código, el dispositivo parecía reiniciarse y los datos se perdieron. La fiscalía trata la pérdida como una destrucción intencional de pruebas bajo una norma federal que penaliza destruir propiedad para evitar su incautación; la defensa sostiene que la búsqueda fue inconstitucional y que a Tunick se le negó repetidamente el derecho a un abogado. El artículo explica que GrapheneOS es un sistema operativo orientado a la privacidad, desarrollado de código abierto para teléfonos Google Pixel, que incluye una opción para borrar el teléfono mediante la introducción de un código. Expertos citados en la pieza —entre ellos Christophe Boutry y Bill Buddington de la EFF— señalan que la vía legal es inusual y subrayan preocupaciones sobre estigmatizar herramientas de privacidad. También se menciona contexto más amplio: autoridades europeas han tenido dificultades para acceder a dispositivos seguros, y en regiones como Cataluña agentes han llegado a perfilar a personas por llevar Pixel asumiendo que usan GrapheneOS. La cobertura conecta el caso con la investigación sobre protestas contra el proyecto \"Cop City\" y apunta el contraste entre capacidades técnicas de protección de datos y las prácticas policiales y legales en controles fronterizos y aeroportuarios. El artículo plantea preguntas sobre los límites del cifrado y del diseño de sistemas como GrapheneOS, sin ofrecer veredictos técnicos definitivos, y sitúa el episodio en debates sobre privacidad, perfilado y derechos en puntos de control fronterizo.",
+    "claims": [
+      {
+        "text": "Un ciudadano estadounidense, Sam Tunick, fue imputado tras el borrado de su teléfono con GrapheneOS durante un registro en un aeropuerto de Atlanta.",
+        "source_idx": 0
+      },
+      {
+        "text": "El incidente ocurrió el 24 de enero en el Aeropuerto Internacional Hartsfield-Jackson de Atlanta.",
+        "source_idx": 0
+      },
+      {
+        "text": "La fiscalía intenta procesar a Tunick bajo una ley federal que penaliza destruir propiedad para evitar su incautación.",
+        "source_idx": 0
+      },
+      {
+        "text": "Durante el interrogatorio, Tunick pidió hablar con un abogado cuatro veces y le negaron ese derecho, según una moción de la defensa.",
+        "source_idx": 0
+      },
+      {
+        "text": "Según la defensa, tras introducir el código el teléfono \"la pantalla se quedó en negro, parpadeó varias veces y el teléfono pareció reiniciarse\", resultando en la pérdida de datos.",
+        "source_idx": 0
+      },
+      {
+        "text": "GrapheneOS es un sistema operativo de código abierto diseñado para mejorar la privacidad y seguridad en teléfonos Google Pixel y permite, entre otras cosas, borrar el dispositivo introduciendo un código.",
+        "source_idx": 0
+      },
+      {
+        "text": "Expertos citados en el artículo (Christophe Boutry y Bill Buddington de la EFF) dijeron no haber visto antes un caso similar y calificaron el enfoque legal como inusual.",
+        "source_idx": 0
+      },
+      {
+        "text": "TechSpot se presenta como un medio con más de 25 años atendiendo a entusiastas de la tecnología.",
+        "source_idx": 0
+      },
+      {
+        "text": "El caso está vinculado al contexto de oposición al proyecto \"Cop City\", un centro de entrenamiento policial que, según el artículo, costó 109 millones de dólares.",
+        "source_idx": 0
+      },
+      {
+        "text": "En países como Francia y España, las autoridades han tenido dificultades para acceder a dispositivos asegurados; en Cataluña la policía ha perfilado a personas por llevar teléfonos Pixel asumiendo que usan GrapheneOS.",
+        "source_idx": 0
+      },
+      {
+        "text": "Un juez no se espera que resuelva la moción de la defensa hasta, al menos, finales de octubre (según la pieza informativa).",
+        "source_idx": 0
+      }
+    ],
+    "angles": [
+      "Implicaciones legales y de políticas públicas: examinar cómo la ley federal se aplica a conductas relacionadas con sistemas operativos de privacidad (posible precedente), límites a los derechos en puntos fronterizos/aeroportuarios y riesgo de criminalizar herramientas de seguridad.",
+      "Análisis técnico del incidente: explorar mecanismos de borrado en GrapheneOS y dispositivos Pixel, cómo puede suceder un autowipe o reinicio tras introducir un PIN, límites del cifrado frente a manipulación física/operativa y señales que distinguen un borrado intencional de un fallo/efecto secundario.",
+      "Medidas prácticas y respuesta forense asistida por IA: ofrecer pasos concretos para profesionales (políticas de backups cifrados y automatizados, separación de credenciales, configuraciones de bloqueo seguro, uso de herramientas de triage forense y flujos de trabajo potenciados por IA para recuperar metadatos, reconstruir timeline y preparar preservación legal de evidencia)."
+    ]
+  },
+  "notas": "10 claims de techspot. Su guion es el único del corpus que se lee bien."
+}

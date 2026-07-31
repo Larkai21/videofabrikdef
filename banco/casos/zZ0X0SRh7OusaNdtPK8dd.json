@@ -1,0 +1,55 @@
+{
+  "id": "zZ0X0SRh7OusaNdtPK8dd",
+  "conjunto": "dev",
+  "familia": "research-desalineado",
+  "origen": {
+    "video_id": "zZ0X0SRh7OusaNdtPK8dd",
+    "idea_id": "I6OeMYBo7C538zuUT4u0d"
+  },
+  "idea": {
+    "title": "Reconvertirte a los 38 con IA: pasos prácticos",
+    "angle": "Cómo usar herramientas de IA concretas para reconvertirte profesionalmente a los 38 y generar ingresos recurrentes desde ya",
+    "summary": "Guía rápida y accionable para profesionales que necesitan cambiar de actividad: cómo mapear tus habilidades, crear un portfolio y ofertas con ayuda de IA, y conseguir los primeros clientes en semanas. Incluye prompts, plantillas y flujos de trabajo para automatizar marketing y entregas y convertirlo en ingreso estable.",
+    "whyNow": "Los modelos de lenguaje y generadores de contenido han bajado la barrera para crear portfolios y propuestas profesionales en horas.\nAl mismo tiempo, plataformas y pymes están contratando habilidades inmediatas y la automatización permite escalar sin grandes inversiones."
+  },
+  "targetMinutes": 7,
+  "research": {
+    "sources": [
+      {
+        "url": "https://itsmevox.substack.com/p/im-38-and-i-cant-support-myself-anymore",
+        "title": "I'm 38 and I Can't Support Myself Anymore",
+        "domain": "itsmevox.substack.com",
+        "published_at": null
+      }
+    ],
+    "summary": "El ensayo personal \"I'm 38 and I Can't Support Myself Anymore\" narra la experiencia de una persona de 38 años que atraviesa precariedad económica y problemas de salud crónicos que le impiden trabajar de forma sostenida. El autor describe la sensación de pérdida de valía social vinculada a la incapacidad para generar ingresos y contextualiza esa experiencia en marcos culturales más amplios: la impronta de la ética protestante del trabajo, la cultura del hustle y la valorización de la productividad como medida de dignidad. Relata la tensión entre la necesidad práctica de sobrevivir y la vergüenza de depender de la familia —menciona haber pedido dinero a su madre—, así como las dificultades específicas que enfrentan las personas con discapacidad, desde los altos costos asociados a la salud hasta las barreras burocráticas en sistemas de asistencia. El texto cita datos y análisis que apuntan a la pobreza entre adultos con discapacidad en Estados Unidos y problematiza el diseño de las prestaciones sociales (por ejemplo, el llamado \"benefits cliff\") que obliga a elegir entre ingresos y acceso a apoyos. También explora el desgaste emocional de demostrar la legitimidad del sufrimiento cuando la discapacidad es invisible y critica cómo las expectativas culturales reducen la identidad a la capacidad productiva. En conjunto, el ensayo mezcla reflexión política, crítica cultural y testimonio personal para mostrar cómo los sistemas económicos y sociales dejan a muchas personas sin una red de seguridad digna cuando su salud impide la consistencia laboral.",
+    "claims": [
+      {
+        "text": "El/la autor/a tiene 38 años y afirma haber pedido dinero prestado a su madre por no poder mantenerse.",
+        "source_idx": 0
+      },
+      {
+        "text": "Casi una de cada cuatro personas adultas en edad de trabajar con discapacidad vive en pobreza en Estados Unidos, frente a menos de una de cada diez entre las personas sin discapacidad.",
+        "source_idx": 0
+      },
+      {
+        "text": "Los pagos del programa SSI en Estados Unidos se han mantenido muy por debajo del umbral de pobreza durante décadas, según un análisis citado del Roosevelt Institute (2024).",
+        "source_idx": 0
+      },
+      {
+        "text": "Cualquier cantidad pequeña de ahorros puede poner en peligro la elegibilidad para ciertos beneficios de discapacidad (problema conocido como \"benefits cliff\").",
+        "source_idx": 0
+      },
+      {
+        "text": "La enfermedad crónica y la discapacidad generan variaciones en la capacidad laboral: días en que se puede trabajar horas y otros en que mantenerse sentado es extremadamente difícil, lo que choca con la consistencia exigida por el mercado laboral.",
+        "source_idx": 0
+      }
+    ],
+    "angles": [
+      "Guía práctica de reconversión profesional con IA para quienes, a los 38 años, necesitan generar ingresos recurrentes pese a limitaciones de salud: herramientas, prompts y automatizaciones orientadas a crear ofertas y captar clientes en semanas.",
+      "Narrativa centrada en discapacidad y seguridad económica: cómo diseñar trayectorias laborales compatibles con flujos de energía variables y las restricciones del sistema de prestaciones (evitar el \"benefits cliff\") usando soluciones tecnológicas y modelos de ingresos flexibles.",
+      "Crítica social y política pública: analizar cómo la cultura del trabajo y el diseño de las prestaciones empujan a la precariedad, proponiendo intervenciones (políticas y comunitarias) y adaptaciones laborales que reduzcan la dependencia familiar y la estigmatización."
+    ]
+  },
+  "notas": "Los 6 claims van de discapacidad, SSI y el «benefits cliff»; el guion va de ganar dinero con IA a los 38. El material no responde a la idea."
+}

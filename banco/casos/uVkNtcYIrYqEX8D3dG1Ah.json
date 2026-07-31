@@ -1,0 +1,39 @@
+{
+  "id": "uVkNtcYIrYqEX8D3dG1Ah",
+  "conjunto": "dev",
+  "familia": "research-de-tuit",
+  "origen": {
+    "video_id": "uVkNtcYIrYqEX8D3dG1Ah",
+    "idea_id": "fAqYMn0-__RA3Burblf94"
+  },
+  "idea": {
+    "title": "Cuando las IA destruyen libros raros: qué ocurre y qué hacer",
+    "angle": "Explicar cómo y por qué algunas empresas de IA están destruyendo libros raros para crear datasets, qué riesgos legales y reputacionales implica y qué medidas prácticas pueden tomar bibliotecas, archivos y profesionales para proteger colecciones y usar datos de forma responsable.",
+    "summary": "Reportes recientes dicen que ciertas empresas de IA están desmantelando y destruyendo ejemplares únicos para obtener datos de entrenamiento, poniendo en riesgo patrimonio cultural y cumplimiento legal. En este vídeo explicamos las implicaciones prácticas para archivos, bibliotecas y gestores de datos, y proponemos pasos concretos para preservar colecciones y negociar acceso responsable a datos.",
+    "whyNow": "Informes recientes exponen casos concretos de empresas de IA que han destruido libros raros para crear datasets.\nAl mismo tiempo crece el escrutinio legal y público, y las instituciones buscan protocolos urgentes de preservación y contratos de datos."
+  },
+  "targetMinutes": 7,
+  "research": {
+    "sources": [
+      {
+        "url": "https://twitter.com/HedgieMarkets/status/2081534588485296565",
+        "title": "AI companies are shredding rare books —",
+        "domain": "twitter.com",
+        "published_at": null
+      }
+    ],
+    "summary": "En redes sociales ha circulado una acusación directa: empresas de inteligencia artificial están desmantelando y destruyendo ejemplares raros para extraer datos con los que entrenar modelos. La única fuente aportada en este dossier es un tuit que expresa esa afirmación pero no enlaza a un informe más amplio ni aporta evidencias documentadas en el texto accesible. Dado ese contexto, es importante separar lo que dice la acusación (que se están deshaciendo físicamente de libros raros para crear datasets) de cualquier deducción adicional no respaldada por la fuente original.\n\nSi la práctica sucediera tal y como se afirma, sus implicaciones serían varias: pérdida irreversible de patrimonio cultural y material primario para investigaciones, posibles infracciones legales relacionadas con la custodia de colecciones y propiedad, y riesgos reputacionales para instituciones y empresas implicadas. También surgirían preguntas sobre trazabilidad de datos: ¿cómo se documentó la procedencia del material escaneado o destruido?, ¿hubo consentimiento de propietarios o custodios?, y ¿qué políticas internas autorizaban la manipulación de colecciones físicas? Desde el punto de vista ético y de gobernanza de datos, el uso de materiales únicos levanta preocupaciones sobre transparencia, rendición de cuentas y responsabilidades de conservación.\n\nSin pruebas adicionales, sin embargo, no es posible confirmar alcance, actores ni frecuencia de las prácticas alegadas en el tuit. Para abordar la cuestión de manera responsable, bibliotecas, archivos y profesionales del patrimonio deberían adoptar medidas preventivas y de mitigación: revisar políticas de préstamo y desalojo de ejemplares, exigir contratos claros y auditables en casos de colaboración con empresas tecnológicas, documentar la procedencia y el estado físico de los objetos, priorizar alternativas digitales no destructivas y explorar acuerdos de acceso restringido o modelos de licencia que protejan materiales sensibles. También conviene impulsar investigación independiente que verifique las denuncias, y promover estándares sectoriales sobre digitalización ética y trazabilidad de datasets. En ausencia de documentación adicional, la discusión debe centrarse en evaluar riesgos potenciales, diseñar salvaguardas y pedir transparencia a las empresas tecnológicas y custodios de colecciones.",
+    "claims": [
+      {
+        "text": "AI companies are shredding rare books.",
+        "source_idx": 0
+      }
+    ],
+    "angles": [
+      "Riesgos legales y reputacionales: explicar qué leyes, responsabilidades de custodia y consecuencias públicas podrían derivarse si empresas o colaboradores destruyen materiales únicos para crear datasets.",
+      "Medidas prácticas de preservación: pasos concretos que bibliotecas, archivos y gestores pueden adoptar—contratos, políticas de préstamo, documentación de procedencia, alternativas de digitalización no destructiva y auditorías—para proteger colecciones.",
+      "Acceso responsable a datos y gobernanza: cómo negociar con empresas tecnológicas (licencias, acceso restringido, cláusulas de no-destrucción, trazabilidad de datos) y promover estándares sectoriales y transparencia para evitar el uso irresponsable de materiales culturales."
+    ]
+  },
+  "notas": "1 claim de un tuit. 1008 palabras y CERO entidades reales. Le contó al espectador que el research pack era limitado."
+}

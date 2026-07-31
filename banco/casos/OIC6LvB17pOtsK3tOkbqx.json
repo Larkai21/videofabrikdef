@@ -1,0 +1,67 @@
+{
+  "id": "OIC6LvB17pOtsK3tOkbqx",
+  "conjunto": "dev",
+  "familia": "google-news-reparado",
+  "origen": {
+    "video_id": "OIC6LvB17pOtsK3tOkbqx",
+    "idea_id": "fU0s7xOKThkn4qo6hLy_J"
+  },
+  "idea": {
+    "title": "Modelos de pesos abiertos: conflicto entre empresas y EEUU",
+    "angle": "Analizar el choque entre empresas que adoptan modelos de pesos abiertos y las medidas del gobierno de EEUU, y ofrecer pasos prácticos de riesgo, cumplimiento y estrategia para líderes técnicos y de compras.",
+    "summary": "Repaso claro del conflicto reciente entre empresas que distribuyen o usan modelos de pesos abiertos y las respuestas regulatorias y comerciales del gobierno estadounidense. Qué riesgos legales, de seguridad y de suministro implica para organizaciones y qué decisiones concretas pueden tomar hoy líderes técnicos y de compras.",
+    "whyNow": "Han surgido movimientos regulatorios y casos públicos que ponen en el foco a los modelos de pesos abiertos.\nEso cambia requisitos de cumplimiento y riesgo para empresas que ya usan o planean adoptar estos modelos."
+  },
+  "targetMinutes": 7,
+  "research": {
+    "sources": [
+      {
+        "url": "https://www.computing.es/inteligencia-artificial/empresas-como-meta-microsoft-y-nvidia-retan-a-eeuu-para-no-prohibir-los-modelos-de-ia-abiertos/",
+        "title": "Los modelos de pesos abiertos enfrentan a empresas contra EEUU - Computing BPS",
+        "domain": "computing.es",
+        "published_at": null
+      }
+    ],
+    "summary": "El artículo reporta una carta abierta enviada a la Casa Blanca por más de 70 empresas tecnológicas, principalmente estadounidenses, que solicita al Gobierno de Estados Unidos que no imponga prohibiciones sobre los modelos de inteligencia artificial de “pesos abiertos” (open-weight). Entre las firmas firmantes se citan empresas representativas como Nvidia, Microsoft, Dell, IBM y Meta, así como inversores de capital riesgo. La misiva argumenta que prohibiciones o restricciones prematuras sobre estos modelos podrían frenar la innovación, empujar a desarrolladores e investigación fuera de Estados Unidos y reducir la competitividad. Se explica que los modelos de pesos abiertos son aquellos cuyos parámetros entrenados se publican libremente para que terceros puedan descargar, modificar y ejecutar los modelos localmente, facilitando el acceso a startups, universidades y gobiernos para desarrollar herramientas especializadas sin altos costes de plataforma propietaria. Los firmantes sostienen que un ecosistema abierto es un indicador del liderazgo en IA y que la restricción del acceso no impediría a actores maliciosos, sino que limitaría la capacidad de los defensores para detectar y mitigar amenazas emergentes. El artículo también contextualiza la carta frente a estudios del Gobierno norteamericano —mencionando que la administración anterior (referida como Trump en el texto) había explorado supervisiones más estrictas sobre modelos de IA desarrollados en China—, motivadas por preocupaciones de seguridad nacional y uso indebido de tecnología estadounidense por compañías extranjeras. Jensen Huang, CEO de Nvidia, es citado advirtiendo sobre las “restricciones prematuras” que podrían reprimir la competencia o llevar la innovación a otros países. En conjunto, la pieza presenta el choque entre el sector privado que defiende apertura y el Ejecutivo preocupado por riesgos de seguridad/soberanía tecnológica, dejando claro el debate sobre el equilibrio entre innovación abierta y control regulatorio.",
+    "claims": [
+      {
+        "text": "Una carta abierta dirigida a la Casa Blanca por más de 70 empresas tecnológicas exige al Gobierno de Estados Unidos que evite realizar prohibiciones sobre los modelos de inteligencia artificial de ponderación abierta.",
+        "source_idx": 0
+      },
+      {
+        "text": "Entre las compañías firmantes se encuentran Nvidia, Microsoft, Dell, IBM y Meta, así como firmas de capital riesgo.",
+        "source_idx": 0
+      },
+      {
+        "text": "La administración (referida en el texto como Trump) ha estudiado realizar una supervisión más restrictiva sobre los modelos de IA de ponderación abierta desarrollados en China por posible impacto en la seguridad nacional.",
+        "source_idx": 0
+      },
+      {
+        "text": "Los modelos de IA de pesos abiertos son sistemas cuyos parámetros entrenados se publican de forma gratuita para que cualquier usuario u organización puedan hacer uso de ellos (descargar, modificar y ejecutar localmente).",
+        "source_idx": 0
+      },
+      {
+        "text": "Los firmantes sostienen que prohibir o restringir excesivamente los modelos de código abierto frenará la innovación y podría trasladar la investigación fuera de Estados Unidos.",
+        "source_idx": 0
+      },
+      {
+        "text": "Jensen Huang, director ejecutivo de Nvidia, advierte sobre las 'restricciones prematuras' que podrían reprimir la competencia o fomentar que la innovación en IA se traslade al extranjero.",
+        "source_idx": 0
+      },
+      {
+        "text": "Los firmantes argumentan que prohibir los pesos abiertos no detiene a los atacantes, sino que limita a los defensores, porque los investigadores requieren acceso total y sin restricciones para detectar y neutralizar amenazas emergentes.",
+        "source_idx": 0
+      },
+      {
+        "text": "El grupo declara que imponer límites llevaría a que la inteligencia artificial quede detrás de costosas plataformas propietarias, lo que limitaría las posibilidades de innovación para startups, universidades y gobiernos.",
+        "source_idx": 0
+      }
+    ],
+    "angles": [
+      "Regulatorio y de seguridad nacional: examinar las motivaciones del Gobierno de EEUU para restringir modelos de pesos abiertos (riesgos de transferencia de tecnología, uso indebido por actores extranjeros) y las implicaciones legales para empresas que distribuyen o usan esos modelos.",
+      "Competitividad e innovación empresarial: analizar cómo las restricciones afectarían a la cadena de valor de IA (startups, universidades, proveedores de hardware), la posible relocalización de I+D al extranjero y las estrategias empresariales para preservar acceso a talento y modelos.",
+      "Riesgo operativo y de cumplimiento para líderes técnicos y de compras: traducir el conflicto en pasos concretos —evaluación de riesgo de modelos open-weight, controles de seguridad y gobernanza, cláusulas contractuales con proveedores, mitigaciones de suministro de hardware y planes de continuidad— para tomar decisiones prácticas hoy."
+    ]
+  },
+  "notas": "Su fuente es la que destapó el fetcher roto. Con el arreglo pasa de 1 claim («existe un artículo titulado…») a research real de computing.es."
+}

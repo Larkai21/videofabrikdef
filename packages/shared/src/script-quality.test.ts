@@ -137,13 +137,50 @@ describe('andamiaje del prompt locutado', () => {
     expect(hits.some((h) => h.kind === 'andamiaje')).toBe(false);
   });
 
-  it('mide los encabezados aunque no los bloquee: 12 de 16 es un índice locutado', () => {
+  it('mide el agregado: doce de dieciséis escenas rotuladas no es un guion', () => {
     const escenas = [
       { text: 'Hardware: las entradas de capital apuntan a aceleradores.' },
       { text: 'Modelos: hay apuestas en modelos base y optimización.' },
       { text: 'Un contenedor sale de Shanghái y llega a Róterdam en treinta días.' },
     ];
     expect(escenasEncabezadas(escenas)).toBe(2);
+  });
+
+  it('caza los rótulos que el modelo se INVENTA, no solo los del prompt', () => {
+    // La lista blanca anterior cubría 28 de 400 escenas reales. Estas salieron
+    // del banco y ninguna aparece en prompts.ts: el modelo se las inventa, así
+    // que una lista nunca puede ir por delante.
+    for (const text of [
+      'Arquitectura: Kimi-K3 declara muchas capas y atención de largo alcance.',
+      'Demo rápida: puedes desplegar desde HuggingFace o la API pública.',
+      'Riesgos legales potenciales: sin pruebas no podemos afirmar infracciones.',
+      'Quién y dónde: la denuncia sale de una cuenta con pocos seguidores.',
+      'Cómo minimizar riesgos: exige metadatos que registren el origen.',
+    ]) {
+      const hits = lintScenes([{ id: 's', text }], { claims: [] });
+      expect(
+        hits.some((h) => h.kind === 'andamiaje'),
+        text,
+      ).toBe(true);
+    }
+  });
+
+  it('caza también los rótulos que salieron de arreglar el prompt', () => {
+    // Se reescribió sceneBlueprint para que los papeles fueran prosa y no
+    // etiquetas citables. En la primera tanda del banco el modelo escribió
+    // «Lo contraintuitivo:» seis veces y «Otra objeción:» cinco, copiando la
+    // redacción NUEVA. Cambiar el nombre del papel solo cambia el del rótulo.
+    for (const text of [
+      'Lo contraintuitivo: el coste no es técnico, es psicológico.',
+      'Otra objeción: no todos los nichos pagan igual.',
+      'Primer paso práctico: mapea en qué capa operas.',
+    ]) {
+      const hits = lintScenes([{ id: 's', text }], { claims: [] });
+      expect(
+        hits.some((h) => h.kind === 'andamiaje'),
+        text,
+      ).toBe(true);
+    }
   });
 
   it('no marca una escena que simplemente empieza por una palabra normal', () => {

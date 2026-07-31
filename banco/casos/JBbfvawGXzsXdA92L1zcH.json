@@ -1,0 +1,219 @@
+{
+  "id": "JBbfvawGXzsXdA92L1zcH",
+  "conjunto": "dev",
+  "familia": "research-rico",
+  "origen": {
+    "video_id": "JBbfvawGXzsXdA92L1zcH",
+    "idea_id": "Kogv5YOF0fHv7BaBdncp9"
+  },
+  "idea": {
+    "title": "Kimi-K3: qué trae y cómo usarlo hoy",
+    "angle": "Explicar las mejoras técnicas de Kimi-K3 y dar pasos prácticos para integrarlo en flujos de trabajo profesionales, con benchmark y demo.",
+    "summary": "Revisamos qué es Kimi-K3, qué cambia respecto a versiones anteriores y para qué casos sirve. Mostraremos pasos rápidos para desplegarlo desde HuggingFace y ejemplos prácticos de prompts y benchmarks.",
+    "whyNow": "Kimi-K3 se publicó en HuggingFace el 27/7 con modelos listos para descargar.\nEs una oportunidad para evaluar rendimiento y costes antes de adoptarlo en producción."
+  },
+  "targetMinutes": 7,
+  "research": {
+    "sources": [
+      {
+        "url": "https://huggingface.co/moonshotai/Kimi-K3",
+        "title": "Kimi-K3 Releases on HuggingFace 7/27",
+        "domain": "huggingface.co",
+        "published_at": "2026-07-27"
+      }
+    ],
+    "summary": "Kimi-K3 es un modelo multimodal de peso abierto presentado por Moonshot AI y publicado en Hugging Face. Se describe como un modelo de la clase ~3T de parámetros (2.8T parámetros totales) que introduce una nueva arquitectura basada en Kimi Delta Attention (KDA) y Attention Residuals (AttnRes), y que emplea una variante LatentMoE estable con 896 expertos de los cuales se activan 16 por token. El modelo incorpora un encoder de visión MoonViT-V2 (≈401M parámetros de visión), soporte nativo para texto e imágenes (y video en la descripción), y una ventana de contexto extremadamente larga de 1.000.000 de tokens. Kimi-K3 usa cuantización nativa MXFP4 para pesos y MXFP8 para activaciones, e incluye un modo de \"thinking\" preservado que devuelve razonamiento interno (reasoning_content) y admite ajuste del esfuerzo de razonamiento (low/high/max). La publicación incluye recomendaciones de despliegue (motores vLLM, SGLang, TokenSpeed), una API compatible con formatos OpenAI/Anthropic y guías para conservar el historial de pensamiento en interacciones multi-turno y llamadas a herramientas. Además, el release publica resultados de una batería amplia de benchmarks (razonamiento, código, tareas agenticas y multimodales), comparando Kimi-K3 con modelos de referencia como Claude Fable 5, GPT-5.6 Sol, Claude Opus 4.8 y GLM-5.2; en muchos tests Kimi-K3 aparece competitiva o por encima de alternativas (por ejemplo, GPQA Diamond 93.5, ProgramBench 77.8, BrowseComp 91.2) bajo condiciones de \"maximum reasoning effort\" y ajustes de muestras especificados. También se ofrecen instrucciones y ejemplos para usar el modelo (incluyendo fragmentos de código que muestran cómo preservar reasoning_content en llamadas de API) y se señala que tanto el código como los pesos se publican bajo la \"Kimi K3 License\". La página agrega métricas de adopción (descargas recientes y árboles de modelos) y referencias técnicas sobre dimensiones internas (capas, cabezas de atención, dimensiones ocultas, etc.) que apuntan a su orientación hacia trabajo de largo horizonte: codificación extensa, trabajo de conocimiento agentico y tareas multimodales complejas.",
+    "claims": [
+      {
+        "text": "Kimi K3 es un modelo de 2.8T parámetros totales.",
+        "source_idx": 0
+      },
+      {
+        "text": "Kimi K3 activa 104B parámetros por token (Activated Parameters 104B).",
+        "source_idx": 0
+      },
+      {
+        "text": "Número de capas: 93.",
+        "source_idx": 0
+      },
+      {
+        "text": "Composición de capas de atención: 69 KDA + 24 Gated MLA Attention.",
+        "source_idx": 0
+      },
+      {
+        "text": "Dimensión oculta: 7168.",
+        "source_idx": 0
+      },
+      {
+        "text": "Número de cabezas de atención: 96.",
+        "source_idx": 0
+      },
+      {
+        "text": "Latent MoE dimension: 3584; MoE hidden dimension (por experto): 3072.",
+        "source_idx": 0
+      },
+      {
+        "text": "Número de expertos MoE: 896; expertos activados por token: 16; expertos compartidos: 2.",
+        "source_idx": 0
+      },
+      {
+        "text": "Tamaño de vocabulario: 160K.",
+        "source_idx": 0
+      },
+      {
+        "text": "Longitud de contexto soportada: 1,048,576 tokens (1 millón de tokens).",
+        "source_idx": 0
+      },
+      {
+        "text": "Encoder de visión MoonViT-V2 con 401M parámetros.",
+        "source_idx": 0
+      },
+      {
+        "text": "Modos de cuantización: MXFP4 para pesos y MXFP8 para activaciones (quantization-aware training).",
+        "source_idx": 0
+      },
+      {
+        "text": "Kimi K3 fue diseñado para trabajo de largo horizonte: long-horizon coding, knowledge work agentic, visión nativa y ventanas de contexto largas.",
+        "source_idx": 0
+      },
+      {
+        "text": "Kimi K3 es \"el primer modelo abierto de clase 3T\" según el anuncio.",
+        "source_idx": 0
+      },
+      {
+        "text": "La licencia de los pesos y el repositorio es la 'Kimi K3 License' (pesos abiertos).",
+        "source_idx": 0
+      },
+      {
+        "text": "Descargas el último mes: 387,822.",
+        "source_idx": 0
+      },
+      {
+        "text": "Kimi K3 alcanza 93.5 en GPQA Diamond (benchmark de razonamiento/knowledge) con reasoning_effort='max' y temperature=1.0.",
+        "source_idx": 0
+      },
+      {
+        "text": "CritPt: 23.4 (razonamiento & knowledge benchmark).",
+        "source_idx": 0
+      },
+      {
+        "text": "AA-LCR: 74.7.",
+        "source_idx": 0
+      },
+      {
+        "text": "HLE-Full: 43.5 (sin herramientas) / 56.0 (con herramientas).",
+        "source_idx": 0
+      },
+      {
+        "text": "DeepSWE (coding): 67.5.",
+        "source_idx": 0
+      },
+      {
+        "text": "ProgramBench: 77.8.",
+        "source_idx": 0
+      },
+      {
+        "text": "Terminal-Bench 2.1 (Terminal competence): 88.3 con el Kimi Code harness.",
+        "source_idx": 0
+      },
+      {
+        "text": "FrontierSWE: 81.2.",
+        "source_idx": 0
+      },
+      {
+        "text": "SWE-Marathon: 42.0.",
+        "source_idx": 0
+      },
+      {
+        "text": "PostTrainBench: 36.6.",
+        "source_idx": 0
+      },
+      {
+        "text": "MLS-Bench-Lite: 48.3.",
+        "source_idx": 0
+      },
+      {
+        "text": "SciCode: 58.7.",
+        "source_idx": 0
+      },
+      {
+        "text": "Kimi Code Bench 2.0 (in-house): 72.9 con Kimi Code harness (73.7 con Claude Code harness).",
+        "source_idx": 0
+      },
+      {
+        "text": "Agentic BrowseComp: 91.2 (con estrategia de compactación de contexto a 300K tokens; 90.4 si se usa la ventana de 1M tokens sin manejo de contexto).",
+        "source_idx": 0
+      },
+      {
+        "text": "DeepSearchQA (F1): 95.0.",
+        "source_idx": 0
+      },
+      {
+        "text": "ResearchRubrics: 76.2.",
+        "source_idx": 0
+      },
+      {
+        "text": "GDPval-AA v2 (Elo): 1686.",
+        "source_idx": 0
+      },
+      {
+        "text": "Toolathlon-Verified: 76.5; MCPMark-Verified: 94.5; MCP-Atlas: 84.2.",
+        "source_idx": 0
+      },
+      {
+        "text": "AutomationBench: 30.8.",
+        "source_idx": 0
+      },
+      {
+        "text": "JobBench: 54.3.",
+        "source_idx": 0
+      },
+      {
+        "text": "AA-Briefcase (Elo): 1548.",
+        "source_idx": 0
+      },
+      {
+        "text": "Agents' Last Exam: 28.3.",
+        "source_idx": 0
+      },
+      {
+        "text": "APEX-Agents: 41.0.",
+        "source_idx": 0
+      },
+      {
+        "text": "OfficeQA Pro: 63.3; SpreadsheetBench 2: 34.8.",
+        "source_idx": 0
+      },
+      {
+        "text": "MCP-Atlas, AutomationBench y otros agentic/multi-turn benchmarks: Kimi K3 se evalúa con Kimi Code harness en las comparaciones reportadas.",
+        "source_idx": 0
+      },
+      {
+        "text": "Multimodal benchmarks: e.g., OmniDocBench 91.1; PerceptionBench 58.5; Video-MME 90.0; MMVU 82.1; MathVision 94.3/97.8 (sin/herramientas).",
+        "source_idx": 0
+      },
+      {
+        "text": "Todas las métricas de Kimi K3 se obtuvieron con reasoning_effort='max' y temperature=1.0, salvo indicación contraria en las notas.",
+        "source_idx": 0
+      },
+      {
+        "text": "Recomendaciones de inferencia: motores vLLM, SGLang y TokenSpeed; API pública en https://platform.kimi.ai con modelo 'kimi-k3' y compatibilidad OpenAI/Anthropic.",
+        "source_idx": 0
+      },
+      {
+        "text": "Kimi K3 siempre tiene 'thinking' habilitado y retorna reasoning_content; el campo top-level reasoning_effort admite 'low', 'high' y 'max' (por defecto 'max').",
+        "source_idx": 0
+      },
+      {
+        "text": "Para conversaciones multi-turn y llamadas a herramientas, se requiere reenviar el mensaje completo del asistente incluyendo reasoning_content y tool_calls tal como lo devuelve la API.",
+        "source_idx": 0
+      }
+    ],
+    "angles": [
+      "Ángulo técnico profundo: explicar las novedades arquitecturales (KDA, AttnRes, LatentMoE, esquema de expertos, cuantización MXFP4/MXFP8) y qué implican en eficiencia, memoria activada y escalado frente a Kimi-K2 y otros MoE contemporáneos.",
+      "Ángulo práctico / tutorial: pasos concretos para desplegar Kimi-K3 hoy (usar Hugging Face model page, opciones de inferencia recomendadas: vLLM/SGLang/TokenSpeed, API en platform.kimi.ai), cómo configurar reasoning_effort y preservar reasoning_content en flujos multi-turn, y ejemplos de prompts y uso con Kimi Code CLI.",
+      "Ángulo evaluación y benchmarking: desmontar las métricas publicadas (protocolos: 'max' reasoning, harnesses usados, diferencias por harness y uso de herramientas), reproducir un benchmark corto (p. ej. ProgramBench o Terminal-Bench 2.1) con instrucciones para replicar y un demo comparativo contra un modelo de referencia."
+    ]
+  },
+  "notas": "23 claims de HuggingFace, nombres propios a espuertas. Produjo el PEOR guion estructural del corpus: 16 de 19 escenas rotuladas, la ficha técnica leída en voz alta. Es la prueba de que arreglar el research no arregla el guion."
+}

@@ -8,7 +8,8 @@
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "calidad": "tsx scripts/calidad.ts"
+    "calidad": "tsx scripts/calidad.ts",
+    "guion": "tsx scripts/guion.ts"
   },
   "dependencies": {
     "@fabrica/db": "workspace:*",

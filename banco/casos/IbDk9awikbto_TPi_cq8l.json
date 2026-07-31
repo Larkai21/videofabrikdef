@@ -1,0 +1,87 @@
+{
+  "id": "IbDk9awikbto_TPi_cq8l",
+  "conjunto": "dev",
+  "familia": "research-de-titular",
+  "origen": {
+    "video_id": "IbDk9awikbto_TPi_cq8l",
+    "idea_id": "3sNem2sP3daiSqtwFUMjO"
+  },
+  "idea": {
+    "title": "Agentes de IA en la empresa: cómo lograr hasta 25% más productividad",
+    "angle": "Analizar datos reales sobre ganancias de productividad con agentes de IA y ofrecer una guía práctica para integrar agentes en procesos de la empresa (RRHH, soporte, ventas) con pasos, riesgos y métricas claras.",
+    "summary": "Repasamos la evidencia sobre ganancias de productividad atribuibles a agentes de IA y qué significa eso para equipos y directivos. Demo y checklist práctico para identificar tareas automatizables, elegir un agente y medir impacto en las primeras 8 semanas.",
+    "whyNow": "La adopción empresarial ya muestra mejoras de productividad de hasta 25%.\nLas herramientas de agentes están maduras y hay oportunidades inmediatas para pilotos internos."
+  },
+  "targetMinutes": 7,
+  "research": {
+    "sources": [
+      {
+        "url": "https://www.rrhhpress.com/tendencias/63971-agentes-ia-mejoran-productividad-empresas-25-por-ciento",
+        "title": "La adopción de agentes de inteligencia artificial ya impulsa mejoras de productividad de hasta un 25 % en las empresas - RRHH Press",
+        "domain": "rrhhpress.com",
+        "published_at": null
+      }
+    ],
+    "summary": "El artículo recoge conclusiones del informe de Bain & Company sobre el impacto de los agentes de inteligencia artificial (IA) en las empresas. Señala que, en organizaciones que ya integran agentes de IA en flujos de trabajo habituales, se observan mejoras de productividad de hasta el 25 % en equipos que incorporan estas herramientas de forma continua. Bain identifica un patrón de adopción en cuatro fases: una fase inicial donde entre el 5 % y el 10 % de los empleados usa IA, generando un incremento de productividad cercano al 5 %; una segunda fase en la que los pilotos se extienden y los equipos que integran la IA alcanzan mejoras de hasta el 25 %; una tercera fase en la que equipos pequeños (de una a tres personas) apoyados por agentes inteligentes multiplican por dos o por tres su productividad; y una cuarta fase —aún no alcanzada por grandes empresas— donde ese modelo se extendería a toda la organización. El informe destaca además una fuerte concentración del uso: el 5 % de los usuarios más activos consume más recursos de IA que el 95 % restante, lo que sugiere que las mayores mejoras se vinculan a la intensidad de uso más que al mero acceso. Bain argumenta que la contribución principal de la IA es la mejora en la calidad y velocidad de las decisiones y en la coordinación entre equipos, más que una reducción directa del coste laboral. En términos de costes operativos y consumo de infraestructura, la consultora proyecta que en tres o cuatro años los tokens, los agentes y los datos podrían representar entre el 20 % y el 30 % del gasto operativo en grandes tecnológicas, frente al 1 %-2 % en los ámbitos más avanzados actualmente. Entre diciembre de 2024 y diciembre de 2025 el precio unitario de los modelos habría caído alrededor de un 50 %, pero el consumo de tokens se multiplicó por 4,5 en el mismo periodo, de modo que el coste por tarea se habría mantenido estable. El informe concluye que las empresas que obtienen resultados no son necesariamente las que tienen más herramientas, sino las que redefinen procesos, miden la adopción y generan tracción interna para convertir potencial en resultados tangibles.",
+    "claims": [
+      {
+        "text": "Las empresas que incorporan agentes de inteligencia artificial en sus flujos de trabajo habituales ya logran mejoras de productividad de hasta el 25 %",
+        "source_idx": 0
+      },
+      {
+        "text": "En la primera fase, entre el 5 % y el 10 % de los empleados usa estas herramientas, lo que eleva la productividad media cerca de un 5 %",
+        "source_idx": 0
+      },
+      {
+        "text": "En la segunda fase, proyectos piloto extendidos a toda la organización elevan las ganancias hasta el 25 % en los equipos que integran la IA en su día a día",
+        "source_idx": 0
+      },
+      {
+        "text": "En la tercera fase, equipos de una a tres personas apoyados en agentes inteligentes multiplican por dos o por tres su productividad",
+        "source_idx": 0
+      },
+      {
+        "text": "Cuando entre el 10 % y el 15 % de la plantilla alcanza ese nivel, la velocidad de ejecución se duplica o triplica en las funciones clave",
+        "source_idx": 0
+      },
+      {
+        "text": "La cuarta fase, todavía no alcanzada por ninguna gran empresa, supondría extender ese modelo centrado en la IA al conjunto de la organización",
+        "source_idx": 0
+      },
+      {
+        "text": "El 5 % de los usuarios más activos consume más recursos de IA que el 95 % restante en conjunto",
+        "source_idx": 0
+      },
+      {
+        "text": "Bain & Company prevé que, en tres o cuatro años, los tokens, los agentes y los datos representen entre el 20 % y el 30 % del gasto operativo de las grandes tecnológicas",
+        "source_idx": 0
+      },
+      {
+        "text": "Actualmente, en los ámbitos más avanzados, esos costes representan alrededor del 1 %-2 % del gasto operativo",
+        "source_idx": 0
+      },
+      {
+        "text": "El precio unitario de los modelos ha caído un 50 % entre diciembre de 2024 y diciembre de 2025",
+        "source_idx": 0
+      },
+      {
+        "text": "El consumo de tokens se multiplicó por 4,5 entre diciembre de 2024 y diciembre de 2025",
+        "source_idx": 0
+      },
+      {
+        "text": "El coste por tarea se mantiene estable a medida que aumentan el uso y la complejidad de las operaciones",
+        "source_idx": 0
+      },
+      {
+        "text": "La principal contribución de la IA no está en el coste laboral, sino en la calidad y la velocidad de las decisiones y en la coordinación entre equipos",
+        "source_idx": 0
+      }
+    ],
+    "angles": [
+      "Validación y matización de las cifras de productividad: analizar la metodología del informe de Bain para entender qué medidas concretas (KPIs, tareas y horizontes temporales) sustentan los aumentos del 5 % al 25 %, y cómo trasladar esas métricas a distintos equipos (RRHH, soporte, ventas).",
+      "Guía práctica de integración por función: checklist y plan de 8 semanas para identificar tareas automatizables, seleccionar o configurar agentes, desplegar pilotos en RRHH, soporte y ventas, medir adopción y productividad (métricas sugeridas: tiempo por tarea, tasa de resolución, ingresos por vendedor, NPS interno) y evaluar riesgos operativos y de gobernanza.",
+      "Análisis de costes y riesgos operativos: modelar el impacto en gasto operativo (tokens/agentes/datos) frente a ahorro/productividad, evaluar concentración de consumo (5 % de usuarios) y proponer políticas de control de costes, seguridad y privacidad para evitar efectos adversos y asegurar que la mejora provenga de cambios en procesos y no solo de mayor consumo de IA."
+    ]
+  },
+  "notas": "2 claims de un titular de Google News. El guion gira entero sobre una cifra del 25 %."
+}

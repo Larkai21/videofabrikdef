@@ -1,0 +1,75 @@
+{
+  "flags": {
+    "ai_disclosure": true,
+    "packaging_first": false
+  },
+  "style": {
+    "banned": [
+      "clickbait vacío",
+      "AGI mañana"
+    ],
+    "stock_query_lang": "en",
+    "visual_prompt_suffix": "clean tech aesthetic, cinematic lighting, no text"
+  },
+  "voice": {
+    "rate": "-8%",
+    "provider": "edge",
+    "voice_id": "es-ES-AlvaroNeural"
+  },
+  "pillars": [
+    {
+      "name": "Actualidad IA",
+      "description": "Lanzamientos y movimientos de la semana con lectura práctica",
+      "example_queries": [
+        "nuevo modelo lenguaje",
+        "lanzamiento openai anthropic"
+      ]
+    },
+    {
+      "name": "Explicadores",
+      "description": "Conceptos evergreen: cómo funciona X, por qué importa Y",
+      "example_queries": [
+        "mixture of experts",
+        "coste inferencia"
+      ]
+    }
+  ],
+  "version": "1",
+  "identity": {
+    "name": "Señal y ruido",
+    "tone": [
+      "explicativo",
+      "sin hipérbole",
+      "concreto"
+    ],
+    "audience": "Profesionales curiosos sin tiempo para leer papers",
+    "positioning": "Qué acaba de salir en IA y qué puedes hacer tú con ello"
+  },
+  "language": "es",
+  "brand_design": {
+    "muted": "#aab6cc",
+    "accent": "#7aa2ff",
+    "surface": "#111a2e",
+    "accent_fg": "#0b0f19",
+    "background": "#0b0f19",
+    "foreground": "#f4f6fb",
+    "font_family": "Inter"
+  },
+  "title_patterns": [
+    {
+      "source": "mined",
+      "example": "Por qué todos copian a DeepSeek",
+      "template": "Por qué {X} está {verbo}"
+    },
+    {
+      "source": "mined",
+      "example": "El modelo que abarató la inteligencia",
+      "template": "El {cosa} que {consecuencia}"
+    }
+  ],
+  "high_cpm_topics": [
+    "herramientas empresa",
+    "productividad",
+    "cloud"
+  ]
+}

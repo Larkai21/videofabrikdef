@@ -42,7 +42,9 @@ export const seoGenSchema = z.object({
   thumbnails: z.array(z.object({ text: z.string(), visual: z.string() })).min(2),
 });
 
-const scriptGenSchema = z.object({
+// lo usa también el banco de guiones (`scripts/guion.ts`), que llama al mismo
+// prompt sin pasar por la cola ni por la máquina de estados
+export const scriptGenSchema = z.object({
   script: z.object({
     scenes: z.array(genSceneSchema).min(3),
     hook_notes: z.string(),
@@ -284,7 +286,8 @@ export async function handleScriptGenerate(
     if (!row || (row.state !== 'idea_aprobada' && row.state !== 'guion_borrador')) return false;
     const freshSeo = row.master.seo;
     const titlePicked = row.titleChosen !== null || freshSeo?.chosen_idx != null;
-    const seo: Seo = titlePicked && freshSeo ? freshSeo : resolveSeo(freshSeo ?? existingSeo, gen.seo);
+    const seo: Seo =
+      titlePicked && freshSeo ? freshSeo : resolveSeo(freshSeo ?? existingSeo, gen.seo);
     const freshEdited = (row.master.script?.scenes ?? []).filter((s) => s.edited_by_human);
     const finalScenes = freshEdited.length > 0 ? mergeHumanEdits(scenes, freshEdited) : scenes;
     const master: MasterVideoJson = {

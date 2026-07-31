@@ -1,0 +1,59 @@
+{
+  "id": "OV2mHfxG8vxN9NxTxTiHo",
+  "conjunto": "control",
+  "familia": "producto-repo",
+  "origen": {
+    "video_id": "OV2mHfxG8vxN9NxTxTiHo",
+    "idea_id": "XDxHL-L23VJaJglafiMvz"
+  },
+  "idea": {
+    "title": "PGSimCity: cómo funciona PostgreSQL y qué puedes hacer",
+    "angle": "usar PGSimCity para entender y optimizar PostgreSQL en producción",
+    "summary": "Presentamos PGSimCity, una simulación visual que revela los internals clave de PostgreSQL. Explicamos qué significan buffers, WAL y checkpoints y mostramos pequeñas pruebas y ajustes prácticos que puedes aplicar hoy para mejorar rendimiento.",
+    "whyNow": "PGSimCity acaba de publicarse y abre acceso a simulaciones interactivas de internals.\nSi gestionas bases de datos, puedes usarlo ya para diagnosticar y probar ajustes antes de aplicarlos en producción."
+  },
+  "targetMinutes": 7,
+  "research": {
+    "sources": [
+      {
+        "url": "https://nikolays.github.io/PGSimCity",
+        "title": "PGSimCity - How PostgreSQL Works",
+        "domain": "nikolays.github.io",
+        "published_at": null
+      }
+    ],
+    "summary": "PGSimCity es una visualización educativa independiente que pretende exponer los internals de PostgreSQL mediante una metáfora visual tipo ciudad. El proyecto se presenta como no comercial y orientado a la enseñanza: muestra componentes y comportamientos clave del motor de PostgreSQL (como estructuras de memoria, buffers, WAL y procesos de checkpoint) mediante una simulación interactiva que facilita la comprensión de procesos internos que, de otro modo, son abstractos. El autor advierte explícitamente que la herramienta es un prototipo activo y no revisado, por lo que puede contener errores o inexactitudes en el modelo y en las explicaciones; invita a los usuarios a reportar problemas o proponer correcciones mediante issues o pull requests en el repositorio. También aclara que el proyecto no está afiliado ni respaldado por Electronic Arts Inc., y reconoce que “SimCity” es una marca registrada de esa compañía. \n\nPara el objetivo propuesto —usar PGSimCity como base para entender y optimizar PostgreSQL en producción— la visualización aporta un valor pedagógico claro: ayuda a relacionar conceptos como buffers compartidos, escritura adelantada (WAL) y puntos de control (checkpoints) con efectos observables en carga y latencias. Sin embargo, debido a su naturaleza de prototipo no revisado, cualquier recomendación operativa derivada de la simulación debe validarse con pruebas en entornos controlados y contrastarse con la documentación oficial y mediciones reales de producción. El proyecto funciona además como punto de entrada comunitario: los usuarios pueden contribuir a mejorar modelos, corregir explicaciones y extender la simulación para que refleje escenarios de producción más realistas.",
+    "claims": [
+      {
+        "text": "PGSimCity is an independent, non-commercial educational visualization of PostgreSQL internals.",
+        "source_idx": 0
+      },
+      {
+        "text": "It is not affiliated with, sponsored, endorsed, or approved by Electronic Arts Inc.",
+        "source_idx": 0
+      },
+      {
+        "text": "SimCity is a trademark of Electronic Arts Inc.",
+        "source_idx": 0
+      },
+      {
+        "text": "A working model of the PostgreSQL engine loading the city code… Early, unreviewed prototype.",
+        "source_idx": 0
+      },
+      {
+        "text": "It almost certainly contains inaccuracies in both the model and explanations.",
+        "source_idx": 0
+      },
+      {
+        "text": "Found one? Open an issue or send a pull request.",
+        "source_idx": 0
+      }
+    ],
+    "angles": [
+      "Explicativo/educativo: usar PGSimCity como herramienta visual para explicar conceptos internos de PostgreSQL (buffers, WAL, checkpoints) a una audiencia técnica o mixto-técnica.",
+      "Práctico/operacional: emplear PGSimCity como apoyo para diseñar pequeñas pruebas y ajustes en entornos controlados y luego validar cambios en producción, enfatizando limitaciones del prototipo.",
+      "Comunitario/desarrollo: presentar PGSimCity como un proyecto abierto donde la comunidad puede contribuir corrigiendo modelos e inexactitudes para que la simulación sea más fiel a escenarios reales de PostgreSQL."
+    ]
+  },
+  "notas": "4 claims de un blog técnico."
+}

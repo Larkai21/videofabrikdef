@@ -1,0 +1,67 @@
+{
+  "id": "dLLuSGNMMCE45frc5iImQ",
+  "conjunto": "control",
+  "familia": "research-de-titular",
+  "origen": {
+    "video_id": "dLLuSGNMMCE45frc5iImQ",
+    "idea_id": "ZaSczT9Ac3rCnel0-VC0i"
+  },
+  "idea": {
+    "title": "Claude Cowork: la IA que observa y reproduce tu forma de trabajar",
+    "angle": "Explicar qué puede y qué no puede hacer el modo Cowork de Claude para automatizar tareas personales y de equipo",
+    "summary": "Analizamos cómo funciona el nuevo modo Cowork de Claude: qué datos recoge, cómo modela tus acciones y qué tipos de tareas puede imitar en un entorno laboral. Mostraremos ejemplos prácticos y límites legales y de seguridad para que decidas si merece la pena probarlo en tu equipo.",
+    "whyNow": "Anthropic ha lanzado públicamente el modo Cowork en las últimas semanas, integrado en su interfaz y APIs.\nLa capacidad de la IA para observar flujos de trabajo y replicarlos tiene implicaciones directas para productividad, privacidad y cumplimiento."
+  },
+  "targetMinutes": 7,
+  "research": {
+    "sources": [
+      {
+        "url": "https://www.elperiodico.com/es/tecnologia/20260728/ia-claude-cowork-nuevo-modo-funcion-grabar-imitar-habilidades-dv-132766780",
+        "title": "Así funciona el nuevo modo de Claude Cowork: la IA ya puede ver cómo trabajas e imitarte - El Periódico",
+        "domain": "elperiodico.com",
+        "published_at": "2026-07-28"
+      }
+    ],
+    "summary": "Anthropic ha presentado en su ecosistema Cowork una función denominada Claude Cowork que permite a la IA observar rutinas de trabajo en pantalla y convertirlas en \"habilidades\" replicables. Según la compañía, el flujo propuesto consiste en grabar la pantalla mientras se realiza una tarea y explicar los pasos en voz alta; Claude procesaría ese material para extraer un procedimiento que pueda repetir. La opción aparece en la interfaz del chat mediante el botón '+' y está disponible en los planes de suscripción Pro, Max y Team. Además de la grabación de pantalla, Anthropic ha ampliado las capacidades de voz del asistente: los modos de voz ahora usan modelos más potentes del catálogo (se citan modelos como Claude Opus y Sonnet) y pueden acceder a herramientas conectadas durante la conversación, por ejemplo correo y calendario. El despliegue del modo de voz incluye más idiomas —entre ellos español, francés, hindi y japonés— y se anuncia en beta pública en móvil, escritorio y web. El artículo sitúa estas novedades en el contexto de un mercado de IA cada vez más multimodal y competitivo, donde grandes modelos con \"billones de parámetros\" dominan las mejoras funcionales y de interacción. El texto también caracteriza a Cowork como un asistente que no se limita a responder preguntas, sino que actúa \"directamente en tu escritorio\" para ejecutar tareas repetitivas. Desde una perspectiva práctica, la función promete automatizar rutinas personales y de equipo mediante la imitación de acciones humanas, pero plantea preguntas evidentes sobre límites operativos, seguridad de los datos grabados, permisos para acceder a herramientas y riesgos legales derivados de reproducir flujos de trabajo que contengan datos sensibles o propiedad intelectual. En conjunto, la nota ofrece una descripción general de la mecánica anunciada y del posicionamiento comercial de Anthropic, sin entrar en pruebas independientes de eficacia, precisión en la reproducción de tareas ni en auditorías de privacidad del proceso.",
+    "claims": [
+      {
+        "text": "Claude Cowork permite grabar la pantalla mientras haces una tarea, explicar los pasos en voz alta y Claude la convierte en una habilidad que puede repetir.",
+        "source_idx": 0
+      },
+      {
+        "text": "La opción está disponible haciendo clic en el botón '+' en la barra de texto del chat y solo se encuentra dentro del ecosistema Cowork en los planes de suscripción Pro, Max y Team.",
+        "source_idx": 0
+      },
+      {
+        "text": "El modo de voz de Claude ahora usa modelos más capaces, incluidos Claude Opus y Sonnet.",
+        "source_idx": 0
+      },
+      {
+        "text": "El asistente puede acceder a las herramientas que has conectado en mitad de la conversación, como tu correo y tu calendario.",
+        "source_idx": 0
+      },
+      {
+        "text": "El modo de voz admite más idiomas, en todos los planes, incluidos español, francés, hindi y japonés.",
+        "source_idx": 0
+      },
+      {
+        "text": "El despliegue del modo de voz arrancó en beta pública en móvil, escritorio y web.",
+        "source_idx": 0
+      },
+      {
+        "text": "Los avances en IA están impulsados por modelos con billones de parámetros y capacidades multimodales según el artículo.",
+        "source_idx": 0
+      },
+      {
+        "text": "Cowork es descrito como un asistente virtual de oficina que no se limita a responder preguntas, sino que entra directamente a tu escritorio para llevar a cabo el trabajo físico y repetitivo por ti.",
+        "source_idx": 0
+      }
+    ],
+    "angles": [
+      "Capacidades técnicas y límites: explicar qué tipos de tareas (rutinarias vs. creativas, con/ sin datos sensibles, interacción con otras apps) Claude Cowork puede imitar fielmente, cómo se construye una \"habilidad\" a partir de una grabación y qué errores o fallos esperar (robustez, precisión, dependencia de contexto).",
+      "Privacidad, seguridad y cumplimiento: detallar qué datos se recopilan al grabar pantalla y audio, riesgos de exfiltración o almacenamiento de información sensible, requisitos de consentimiento en equipos, y obligaciones legales o contractuales (protección de datos, propiedad intelectual) que las empresas deben considerar antes de desplegar Cowork.",
+      "Impacto operativo y retorno de inversión en equipos: evaluar cuándo merece la pena adoptar Cowork en flujos de trabajo (ahorro de tiempo, escalabilidad, capacitación), estrategias para gobernanza interna (control de acceso, auditoría de habilidades, validación humana) y posibles resistencias del equipo por motivos laborales o de confianza."
+    ]
+  },
+  "notas": "2 claims de Google News, guion corto."
+}

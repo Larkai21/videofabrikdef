@@ -1,0 +1,115 @@
+{
+  "id": "S5uiXZu-0z5yKqogXT-X2",
+  "conjunto": "control",
+  "familia": "producto-repo",
+  "origen": {
+    "video_id": "S5uiXZu-0z5yKqogXT-X2",
+    "idea_id": "kiwG21WSf8s9SFBt1qPWC"
+  },
+  "idea": {
+    "title": "OpenAI libera Codex Security: qué cambia para desarrolladores",
+    "angle": "Explicar qué es Codex Security ahora que es open source, qué aporta a la auditoría y generación de código seguro, y cómo pueden usarlo y evaluarlo los equipos técnicos sin leer el repositorio línea por línea.",
+    "summary": "Analizamos qué contiene el repositorio open source de Codex Security, qué módulos y modelos incorpora y cómo puede integrarse en flujos de trabajo de revisión de código y CI. Damos pasos prácticos para probarlo, evaluar su fiabilidad y contribuir a su mejora sin perder tiempo en detalles académicos.",
+    "whyNow": "OpenAI ha publicado recientemente el código de Codex Security, dejando accesible la herramienta a la comunidad.\nEso abre oportunidades inmediatas para integrar, auditar y mejorar detección de riesgos en pipelines de desarrollo."
+  },
+  "targetMinutes": 7,
+  "research": {
+    "sources": [
+      {
+        "url": "https://github.com/openai/codex-security",
+        "title": "OpenAI just open-sourced Codex Security",
+        "domain": "github.com",
+        "published_at": null
+      }
+    ],
+    "summary": "OpenAI ha publicado como código abierto el proyecto Codex Security, una herramienta ofrecida como CLI y SDK TypeScript para detectar, validar y corregir vulnerabilidades de seguridad en código. El repositorio incluye documentación y guías de inicio rápido que describen requisitos de entorno (versiones específicas de Node.js y Python), opciones de autenticación (clave de API o inicio de sesión de ChatGPT), y usos tanto interactivos como no interactivos/CI. Codex Security guarda el historial de escaneos en un directorio de estado persistente, permite comparar escaneos con identificadores BEFORE_SCAN_ID y AFTER_SCAN_ID para emparejar hallazgos por causa raíz y clasifica hallazgos como nuevos, persistentes, reabiertos, resueltos o desconocidos cuando la cobertura es incompleta. La herramienta soporta ejecución mediante npm/npx, ofrece una API TypeScript sencilla (ej., instanciar CodexSecurity, run(\".\") y close()), y documenta un modo de escaneo más intenso (por ejemplo --model gpt-5.6-terra --effort high). Para integraciones a gran escala, provee una imagen oficial y configuración Docker Compose para escaneos no interactivos y reanudables sobre revisiones Git inmutables, con soporte para almacenamiento privado de resultados y opciones de endurecimiento (AppArmor). Las credenciales pueden almacenarse en un backend de credenciales del sistema; en CI se prefiere pasar OPENAI_API_KEY o CODEX_API_KEY como variables de entorno (estas claves se usan por escaneo y no se guardan en el keyring). El repositorio también documenta ajustes de configuración (directorio de estado alternativo mediante CODEX_SECURITY_STATE_DIR), límites de agentes, variables de entorno, y rutas para ajustar el balance entre cobertura y tiempo (deep-scan, multi-agent). En conjunto, el proyecto apunta a integrarse en flujos de trabajo de revisión de código y CI, ofreciendo tanto una experiencia interactiva para equipos como modos automatizados reproducibles, y provee suficientes puntos de entrada para que equipos técnicos prueben y evalúen su utilidad sin leer todo el código fuente línea a línea.",
+    "claims": [
+      {
+        "text": "Codex Security es una CLI y SDK TypeScript para encontrar, validar y arreglar vulnerabilidades de seguridad en tu código.",
+        "source_idx": 0
+      },
+      {
+        "text": "Requiere Node.js 22.13.0 o posterior en la línea de lanzamiento 22.x, Node.js 24.x, o Node.js 26.x.",
+        "source_idx": 0
+      },
+      {
+        "text": "Requiere Python 3.10 o posterior.",
+        "source_idx": 0
+      },
+      {
+        "text": "Para mejores resultados recomiendan que tu cuenta esté verificada para Trusted Access.",
+        "source_idx": 0
+      },
+      {
+        "text": "Instalación y comandos de inicio rápido: npm install @openai/codex-security; npx @openai/codex-security login; npx @openai/codex-security scan .",
+        "source_idx": 0
+      },
+      {
+        "text": "Ejemplo de escaneo usando un modelo y esfuerzo: npx @openai/codex-security scan . --model gpt-5.6-terra --effort high.",
+        "source_idx": 0
+      },
+      {
+        "text": "En CI, se deben establecer OPENAI_API_KEY o CODEX_API_KEY en lugar de iniciar sesión interactivamente.",
+        "source_idx": 0
+      },
+      {
+        "text": "Las claves de API pasadas como variables de entorno se usan para el escaneo actual y nunca se almacenan en el home de credenciales de Codex o en el keyring del sistema.",
+        "source_idx": 0
+      },
+      {
+        "text": "El inicio de sesión local respeta el backend de credenciales configurado de Codex, incluyendo un keyring del sistema requerido por un dispositivo gestionado.",
+        "source_idx": 0
+      },
+      {
+        "text": "Codex Security guarda credenciales de login y de escaneo en el mismo directorio de estado privado y persistente.",
+        "source_idx": 0
+      },
+      {
+        "text": "Si hay tanto un inicio de sesión de ChatGPT como una API key, los escaneos interactivos preguntan cuál credencial usar; los escaneos no interactivos usan la precedencia de API key existente.",
+        "source_idx": 0
+      },
+      {
+        "text": "Para seleccionar explícitamente la credencial: npx @openai/codex-security scan . --auth chatgpt o --auth api-key.",
+        "source_idx": 0
+      },
+      {
+        "text": "Para hacer que el inicio de sesión de ChatGPT sea el predeterminado automático, desconfigura las API keys: unset OPENAI_API_KEY CODEX_API_KEY.",
+        "source_idx": 0
+      },
+      {
+        "text": "El historial de escaneos se guarda en el directorio de estado del workbench de Codex Security; si no puede escribirse, se puede definir CODEX_SECURITY_STATE_DIR a un directorio escribible fuera del repositorio.",
+        "source_idx": 0
+      },
+      {
+        "text": "Los escaneos comparan BEFORE_SCAN_ID y AFTER_SCAN_ID, emparejando hallazgos por causa raíz y reaprovechando coincidencias guardadas para identificar hallazgos nuevos, persistentes, reabiertos, resueltos o desconocidos.",
+        "source_idx": 0
+      },
+      {
+        "text": "Los hallazgos faltantes permanecen desconocidos cuando la cobertura es incompleta o cuando su ubicación original no fue revisada.",
+        "source_idx": 0
+      },
+      {
+        "text": "Ejemplo de uso del SDK TypeScript: import { CodexSecurity } from \"@openai/codex-security\"; const security = new CodexSecurity(); const result = await security.run(\".\"); console.log(result.reportPath); await security.close();",
+        "source_idx": 0
+      },
+      {
+        "text": "Existe una imagen oficial y configuración Docker Compose para escaneos en bloque no interactivos y reanudables de repositorios fijados a revisiones Git inmutables.",
+        "source_idx": 0
+      },
+      {
+        "text": "La configuración en contenedor documenta autenticación, almacenamiento privado de resultados y endurecimiento opcional con AppArmor en Ubuntu.",
+        "source_idx": 0
+      },
+      {
+        "text": "La documentación cubre ayuda completa de comandos, valores por defecto de runtime, límites nativos de trabajadores multi-agente, variables de entorno, configuración de deep-scan y opciones del SDK.",
+        "source_idx": 0
+      }
+    ],
+    "angles": [
+      "Guía práctica para equipos técnicos: pasos rápidos para integrar Codex Security en pipelines CI/CD, cómo configurar credenciales de forma segura, y cómo ejecutar escaneos reanudables en contenedores sin inspeccionar todo el repositorio.",
+      "Evaluación y auditoría de la herramienta: cómo probar la fiabilidad de los hallazgos (comparación BEFORE/AFTER, cobertura de escaneo, clasificación de hallazgos), métricas a recoger y pruebas para calibrar false positives/negatives.",
+      "Contribución y personalización: qué partes del repositorio miran primero (CLI/SDK, configuraciones de deep-scan, imágenes Docker), cómo extender o adaptar flujos para proyectos grandes y mejores prácticas para colaborar sin leer línea por línea."
+    ]
+  },
+  "notas": "11 claims de GitHub, el research más limpio del corpus."
+}

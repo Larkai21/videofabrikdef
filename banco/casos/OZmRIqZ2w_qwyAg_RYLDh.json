@@ -1,0 +1,79 @@
+{
+  "id": "OZmRIqZ2w_qwyAg_RYLDh",
+  "conjunto": "control",
+  "familia": "research-vacio",
+  "origen": {
+    "video_id": "OZmRIqZ2w_qwyAg_RYLDh",
+    "idea_id": "ouLqYO52qAFVnVeP1H32m"
+  },
+  "idea": {
+    "title": "Dónde invierten los fondos en la IA: capas, riesgos y oportunidades",
+    "angle": "Mapa práctico de dónde está entrando el capital en la cadena de valor de la IA y qué significa para profesionales, inversores y líderes de producto.",
+    "summary": "Desgranamos cómo se distribuye la inversión en hardware, modelos, plataformas, aplicaciones y servicios de IA. Qué sectores reciben más capital, qué riesgos emergen y cómo traducir esa información en decisiones prácticas para tu empresa o cartera.",
+    "whyNow": "La última oleada de rondas y spin‑outs muestra cambios claros en prioridades de inversión tras la explosión de modelos generativos.\nNuevas regulaciones y avances técnicos están redistribuyendo capital entre infra, modelos y aplicaciones accesibles."
+  },
+  "targetMinutes": 7,
+  "research": {
+    "sources": [
+      {
+        "url": "https://www.fundssociety.com/es/opinion/bor26-la-opcionalidad-entra-en-las-valoraciones-de-la-ia-como-analizar-las-distintas-capas-del-ecosistema/",
+        "title": "La opcionalidad entra en las valoraciones de la IA: cómo analizar las distintas capas del ecosistema - Funds Society",
+        "domain": "fundssociety.com",
+        "published_at": null
+      }
+    ],
+    "summary": "El texto plantea a la inteligencia artificial como una cadena de valor compuesta por capas —desde los modelos y plataformas en el núcleo hasta semiconductores, nube, redes, centros de datos, refrigeración y generación eléctrica en la periferia—, y propone leer la inversión en IA desde esa estructura. No todas las capas comparten el mismo perfil de riesgo/retorno: las capas centrales (modelos, plataformas, servicios que monetizan la IA) están más cerca del cliente y de flujos de caja predecibles; las intermedias (infraestructura en la nube, chips, redes) ofrecen apalancamiento directo al ciclo de inversión y mayor ciclicidad; y las periféricas (centros de datos, energía, equipamiento) pueden beneficiarse de cuellos de botella temporales pero tienen perfiles económicos cíclicos. \n\nUna tesis central es que las valoraciones actuales combinan dos componentes: flujos de caja “ordinarios” y una prima por opcionalidad —es decir, una apuesta a que la IA amplíe el mercado, margenes o cree nuevos negocios—. Las mejores historias de inversión son negocios con flujos de caja resilientes que además conservan una opción de crecimiento ligada a la IA; las más frágiles dependen casi por completo de que esa opción se materialice pronto. \n\nSe identifican tres riesgos relevantes: 1) concentración —el gasto en IA depende de pocos grandes compradores cuya retirada o cambio de prioridades afectaría a toda la cadena—; 2) circularidad —partes del ecosistema se venden, financian y validan entre sí, creando bucles que pueden sostenerse por confianza más que por retornos reales—; y 3) el “muro” tecnológico —la posibilidad de que los modelos agoten el conocimiento humano accesible y muestren rendimientos decrecientes, impidiendo avances hacia AGI, o bien que la IA evolucione hacia la creación de nuevo conocimiento y rompa esas limitaciones. \n\nComo conclusión práctica, el autor sugiere evaluar cuánto de una valoración proviene de flujos de caja versus opcionalidad, y posicionarse según cómo cada capa captura valor: estabilidad y protección a la baja en el núcleo, apalancamiento cíclico en capas intermedias y exposición a cuellos de botella en la periferia.",
+    "claims": [
+      {
+        "text": "La IA debe entenderse como una cadena de valor con capas: núcleo (modelos y plataformas), capas intermedias (cloud, semiconductores, redes) y periféricas (centros de datos, refrigeración, equipamiento eléctrico y generación de energía).",
+        "source_idx": 0
+      },
+      {
+        "text": "La exposición a la IA no se limita a modelos y plataformas; alrededor del núcleo están los sistemas que permiten la escala como semiconductores, nube, redes, centros de datos, refrigeración y generación de energía.",
+        "source_idx": 0
+      },
+      {
+        "text": "Las valoraciones de empresas relacionadas con la IA combinan flujos de caja esperados y una prima de opcionalidad sobre beneficios futuros ligados a la IA.",
+        "source_idx": 0
+      },
+      {
+        "text": "Los negocios más sólidos en IA son aquellos con flujos de caja existentes y resilientes que además tienen una opción de IA; los más frágiles dependen de que la opción se materialice rápidamente.",
+        "source_idx": 0
+      },
+      {
+        "text": "Las capas interiores están más cerca de la monetización y de la relación con el cliente; las exteriores pueden beneficiarse de cuellos de botella pero tienen un perfil económico más cíclico.",
+        "source_idx": 0
+      },
+      {
+        "text": "El primer riesgo financiero es la concentración: gran parte del gasto en IA depende de un número reducido de grandes compradores.",
+        "source_idx": 0
+      },
+      {
+        "text": "El segundo riesgo financiero es la circularidad: partes del ecosistema se venden, financian o validan entre sí, creando bucles que pueden ser frágiles si dependen más de la confianza que del retorno para el usuario final.",
+        "source_idx": 0
+      },
+      {
+        "text": "El mayor riesgo tecnológico es que los modelos choquen con un “muro”: los modelos pueden agotar el conocimiento humano accesible y mostrar rendimientos decrecientes, impidiendo avances hacia AGI.",
+        "source_idx": 0
+      },
+      {
+        "text": "En el escenario alternativo al muro, si los modelos generan nuevo conocimiento, podrían acelerar la ciencia y mejorar la infraestructura, reduciendo dependencias y permitiendo rendimientos exponenciales.",
+        "source_idx": 0
+      },
+      {
+        "text": "La analogía con la era puntocom es útil pero imperfecta: Internet se basó en protocolos abiertos y estables; la IA actual está dominada por modelos de frontera privados, intensivos en capital y que forman parte de la ventaja competitiva.",
+        "source_idx": 0
+      },
+      {
+        "text": "La pregunta de inversión adecuada no es si una acción es 'de IA', sino cuánto de su valoración viene de flujos de caja versus cuánto de la opción relacionada con la IA y qué debe ocurrir para que ambas partes sean válidas.",
+        "source_idx": 0
+      }
+    ],
+    "angles": [
+      "Mapa práctico de capital: inventario capa por capa (modelos, plataformas, cloud, chips, centros de datos, energía) con ejemplos de cómo cada una captura valor y qué métricas financieras/importantes mirar (flujos de caja vs. opcionalidad).",
+      "Riesgos sistémicos y tácticos para inversores y líderes de producto: concentración de demanda, circularidad entre actores, y el 'muro' tecnológico —cómo planificar escenarios (decreciente vs. exponencial) y qué señales monitorizar.",
+      "Estrategias de posicionamiento para profesionales y empresas: cuándo priorizar resiliencia de flujos de caja (servicios y aplicaciones cerca del cliente), cuándo buscar apalancamiento cíclico (infraestructura y semiconductores) y cómo traducir la opcionalidad en decisiones de producto, inversión y hiring."
+    ]
+  },
+  "notas": "claims = []. 16 de 18 escenas rotuladas: «Hardware:», «Modelos:», «Aplicaciones:»."
+}

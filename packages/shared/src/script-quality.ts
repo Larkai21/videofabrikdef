@@ -39,45 +39,59 @@ export const AI_CLICHES: readonly { id: string; re: RegExp }[] = [
   { id: 'y-es-que', re: /(^|[.;]\s+)y es que\b/i },
 ];
 
-/**
- * Rótulos de andamiaje: el papel que el prompt le asigna a la escena, escrito
- * dentro del texto que se locuta.
- *
- * Es el defecto más caro que ha tenido el guion, porque no se queda en el
- * papel: se oye. Medido sobre los diez vídeos producidos, 18 escenas empiezan
- * por «PUNTO MEDIO:», «GIRO:», «Sí, pero:», «Caso:», «Contexto social:» o
- * «Pago de la promesa:», y esas palabras están en el MP4. El juez les dio 4 de
- * 5 en estructura y en estilo sin mencionarlo ni una vez, que es la prueba de
- * que un juez con rúbrica no sustituye a una comprobación mecánica.
- *
- * La causa era `sceneBlueprint()` emitiendo los papeles en mayúsculas y con dos
- * puntos —la forma exacta de un encabezado—, así que el modelo los leía como
- * parte del formato de salida. El prompt ya está arreglado; esto es la red que
- * garantiza que, si vuelve a filtrarse, no llega al audio.
- */
-export const ANDAMIAJE =
-  /^\s*(punto medio|giro|s[íi],? pero|caso|contexto( social)?|pago(\s+\d+|\s+de la promesa)?|desarrollo|complicaci[óo]n|re-?gancho|cierre|hook|gancho|conclusi[óo]n|primera idea|segunda idea|tercera idea|cuarta idea|quinta idea|paso (uno|dos|tres|cuatro|cinco|\d+))\s*[:—-]/i;
+// El rótulo de andamiaje es el defecto más caro que ha tenido el guion, porque
+// no se queda en el papel: se oye. El locutor dice «PUNTO MEDIO» y «Pago de la
+// promesa», y eso está en el MP4 de vídeos publicados. El juez les dio 4 de 5 en
+// estructura y en estilo sin mencionarlo ni una vez — la prueba de que una
+// rúbrica no sustituye a una comprobación mecánica.
+const ROTULO = /^\s*[«"']?([^.!?:]{1,45}):\s+\S/;
+
+// Formas verbales finitas frecuentes. Si el arranque tiene una, es una ORACIÓN
+// y los dos puntos son un recurso retórico legítimo: «No fue un fallo: fue el
+// diseño» está bien escrito y no se toca.
+const VERBO_FINITO =
+  /\b(es|son|fue|fueron|era|eran|hay|est[áa]|est[áa]n|tiene|tienen|dice|dicen|hace|hacen|puede|pueden|va|van|sabe|sabes|quieres|empieza|deja|has|he|viene|sirve|funciona|pas[óo]|pasa|cruza|saca|llega|sale|ves|significa|importa|cambia|ocurre|ocurri[óo]|parece|resulta|conviene)\b/i;
+
+// …salvo que el rótulo sea una enumeración. «Paso dos:», «Primer paso práctico:»
+// y «Segunda idea:» llevan verbo o no según la redacción, pero son índices en
+// los dos casos.
+const ENUMERACION =
+  /\b(paso|fase|punto|idea|raz[óo]n|clave|control|regla|bloque)\b|^\s*(primer|segund|tercer|cuart|quint)/i;
 
 /**
- * Escena que abre con un ENCABEZADO en vez de con una frase.
+ * ¿La escena abre con un RÓTULO en vez de con una frase?
  *
- * Distinto de ANDAMIAJE y deliberadamente NO bloqueante, porque aquí sí hay
- * juicio: «No fue un fallo: fue el diseño» usa los dos puntos como recurso
- * retórico y está bien escrito, mientras que «Hardware: las entradas de capital
- * suelen apuntar a aceleradores» es una viñeta leída en voz alta. La diferencia
- * es si delante de los dos puntos hay una oración o una etiqueta, y eso no se
- * decide con una expresión regular sin un analizador morfológico.
+ * Medido sobre 400 escenas reales (256 del banco + 144 de los vídeos
+ * publicados): **205 abren así**. Y la lista de rótulos no tiene fondo, porque
+ * el modelo se los inventa: «Arquitectura:», «Demo rápida:», «Quién y dónde:»,
+ * «Cómo minimizar riesgos:», «Lo que cambia:». Por eso esto NO puede ser una
+ * lista blanca — la que había cubría 28 de 400.
  *
- * Se mide porque el dato importa aunque no se pueda bloquear: 81 de las 144
- * escenas producidas (56 %) abren así, y un vídeo entero —OZmRIqZ2w— tiene 12
- * de 16 escenas encabezadas. Eso no es un guion, es un índice locutado. El
- * número va al juez y al informe; la decisión sigue siendo humana.
+ * La prueba de que la causa es estructural y no de vocabulario: el prompt
+ * emitía los papeles en mayúsculas («PUNTO MEDIO», «GIRO») y se reescribió en
+ * prosa para que no fueran citables. En la primera tanda del banco tras ese
+ * cambio, el modelo escribió «Lo contraintuitivo:» seis veces y «Otra
+ * objeción:» cinco — copiando la redacción NUEVA. Cambiar el nombre del papel
+ * solo cambia el nombre del rótulo. Mientras el blueprint asigne a cada escena
+ * un papel nombrable, el modelo lo va a anunciar, así que hace falta esta red.
  */
-export const ENCABEZADO = /^\s*[«"']?[\p{Lu}][^.!?]{0,28}:\s+\p{L}/u;
+export function abreConRotulo(texto: string): boolean {
+  const m = ROTULO.exec(texto);
+  const prefijo = m?.[1];
+  if (prefijo === undefined) return false;
+  if (prefijo.trim().split(/\s+/).length > 6) return false;
+  if (ENUMERACION.test(prefijo)) return true;
+  return !VERBO_FINITO.test(prefijo);
+}
 
-/** Cuántas escenas abren con encabezado en vez de con una frase. */
+/**
+ * Cuántas escenas abren con rótulo. La MISMA regla que bloquea, expuesta como
+ * número para el informe y para el banco: un guion con doce de dieciséis
+ * escenas rotuladas no es un guion, es un índice locutado, y eso se ve en el
+ * agregado antes que escena a escena.
+ */
 export function escenasEncabezadas(scenes: readonly { text: string }[]): number {
-  return scenes.filter((s) => ENCABEZADO.test(s.text)).length;
+  return scenes.filter((s) => abreConRotulo(s.text)).length;
 }
 
 // Unidades que hacen que un número sea narrativo o instructivo, no una prueba:
@@ -212,12 +226,12 @@ export function lintScenes(
         hits.push({ id: scene.id, kind: 'cliche', detail: `muletilla «${m[0].trim()}» (${id})` });
     }
 
-    const andamiaje = ANDAMIAJE.exec(scene.text);
-    if (andamiaje) {
+    if (abreConRotulo(scene.text)) {
+      const rotulo = scene.text.split(':')[0]?.trim() ?? '';
       hits.push({
         id: scene.id,
         kind: 'andamiaje',
-        detail: `empieza con el rótulo «${andamiaje[0].trim()}»: eso se locuta tal cual`,
+        detail: `abre con el rótulo «${rotulo}:», y eso se locuta tal cual`,
       });
     }
 

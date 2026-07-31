@@ -1,0 +1,83 @@
+{
+  "id": "EKPfJAWT9OOMy3wF098Bp",
+  "conjunto": "dev",
+  "familia": "research-vacio",
+  "origen": {
+    "video_id": "EKPfJAWT9OOMy3wF098Bp",
+    "idea_id": "4ZngMqbreYQdDAgOKRNjV"
+  },
+  "idea": {
+    "title": "Habla con tus libros: herramientas IA para consultar textos",
+    "angle": "Demostrar de forma práctica cómo usar las nuevas herramientas que permiten 'conversar' con libros y documentos: flujo de trabajo, demo rápida con una obra y limitaciones (licencia, memoria, veracidad). Enfocar en beneficios para profesionales que necesitan extraer ideas, resumir y buscar citas sin leer todo el texto.",
+    "summary": "Repaso práctico de las nuevas herramientas que convierten libros y PDFs en asistentes conversacionales: cómo configurarlas, casos de uso útiles para profesionales y riesgos a vigilar. Incluye demostración real con un libro, comparación de precisión y consejos para integrar resultados en el trabajo diario.",
+    "whyNow": "Varias herramientas comerciales y open source han lanzado funciones para indexar y chatear con libros en las últimas semanas.\nEso cambia cómo se extrae conocimiento de textos largos y puede ahorrar tiempo a profesionales que necesitan respuestas rápidas y citas verificables."
+  },
+  "targetMinutes": 7,
+  "research": {
+    "sources": [
+      {
+        "url": "https://www.france24.com/es/minuto-a-minuto/20260728-nuevas-herramientas-de-ia-ofrecen-a-los-lectores-conversar-con-los-libros",
+        "title": "Nuevas herramientas de IA ofrecen a los lectores conversar con los libros - France 24",
+        "domain": "france24.com",
+        "published_at": "2026-07-28"
+      }
+    ],
+    "summary": "Los avances recientes en inteligencia artificial han dado lugar a herramientas que permiten a los lectores “conversar” con libros y documentos, transformando textos en interfaces conversacionales. Plataformas en fase de prueba como Sinai.ai y My Smart Book, funciones integradas en grandes actores como Audible y Kindle de Amazon, y propuestas de empresas de voz como ElevenLabs prometen responder preguntas sobre el contenido, explicar conceptos, contextualizar personajes o retomar la lectura justo donde se dejó. Estas soluciones varían en diseño: algunas se apoyan directamente en el contenido íntegro del libro para generar respuestas, mientras que otras trabajan mediante resúmenes, extracciones de ideas o “bibliotecas de conceptos” que evitan reproducir citas textuales. El artículo destaca diferencias en el tratamiento de derechos de autor y modelos de negocio. Sinai.ai afirma operar solo con obras de dominio público o con autorizaciones explícitas y propone un esquema de “derechos de IA” que remunera a autores y editoriales; también asegura estar en negociaciones con varias grandes editoriales. Por el contrario, hay herramientas que permiten al usuario cargar cualquier libro sin filtros de derechos y servicios (o herramientas populares) que no aplican control sobre contenido protegido, lo que genera preocupación entre autores y gremios. La Authors Guild criticó la función “Ask this Book” de Amazon por presuntamente usar contenidos sin autorización ni retribución y por impedir a autores o editoriales excluir sus obras. Además de las controversias legales y de remuneración, se señalan cuestionamientos sobre veracidad, memoria y límites técnicos: cómo las herramientas resumen, cuándo citan fuentes, riesgos de inexactitud y el impacto en la experiencia lectora. En suma, estas tecnologías ofrecen beneficios claros para profesionales —acceso rápido a ideas, búsquedas de citas, resúmenes y extracción de conceptos—, pero plantean interrogantes jurídicos, éticos y prácticos que condicionarán su adopción y formas de integración en flujos de trabajo profesionales.",
+    "claims": [
+      {
+        "text": "Plataformas como Sinai.ai y My Smart Book permiten a los usuarios conversar con el contenido de un libro mediante chatbots basados en IA.",
+        "source_idx": 0
+      },
+      {
+        "text": "Audible lanzó en el último trimestre de 2025 una función llamada \"Ask a Question\" para hacer preguntas sobre el audiolibro que el usuario escucha.",
+        "source_idx": 0
+      },
+      {
+        "text": "Kindle tiene una función llamada \"Ask this Book\" que permite interrogar al libro electrónico.",
+        "source_idx": 0
+      },
+      {
+        "text": "ElevenLabs creó \"ElevenReader Voice Chat\", que convierte cualquier libro en una conversación bidireccional.",
+        "source_idx": 0
+      },
+      {
+        "text": "Sinai.ai afirma trabajar solo con libros de dominio público o con obras para las que cuenta con autorización del autor, sus herederos o la editorial.",
+        "source_idx": 0
+      },
+      {
+        "text": "Sinai.ai dice haber creado un sistema de \"derechos de IA\" para remunerar a autores y editoriales y asegura negociar con editoriales como Hachette, Penguin Random House, Simon & Schuster, HarperCollins y Macmillan.",
+        "source_idx": 0
+      },
+      {
+        "text": "iChatbook declara que su producto es \"una biblioteca de conceptos, ideas y datos\" que resume y explica ideas clave en lugar de reproducir texto literal.",
+        "source_idx": 0
+      },
+      {
+        "text": "Algunas plataformas, como Myreader, permiten a los usuarios cargar cualquier libro, aunque esté protegido por derechos de autor.",
+        "source_idx": 0
+      },
+      {
+        "text": "NotebookLM (rebautizada como Gemini Notebook) y herramientas como BookWorm AI no filtran por derechos de autor según el artículo.",
+        "source_idx": 0
+      },
+      {
+        "text": "La Authors Guild criticó la función \"Ask this Book\" de Amazon por considerar que utiliza contenidos sin autorización ni ofrecer compensación a autores y editoriales.",
+        "source_idx": 0
+      },
+      {
+        "text": "Usuarios pueden explorar la psicología de un personaje, el contexto histórico de la trama o un concepto filosófico sin salir de la obra, según testimonios recogidos.",
+        "source_idx": 0
+      },
+      {
+        "text": "Sinai.ai afirma haber firmado acuerdos con numerosas editoriales en Estados Unidos y con grandes nombres en Oriente Medio.",
+        "source_idx": 0
+      }
+    ],
+    "angles": [
+      "Demostración práctica paso a paso: tutorial enfocando el flujo de trabajo para convertir un PDF/libro en un asistente conversacional, con una demo real que muestre configuración, subida, prompts efectivos y extracción de citas para uso profesional.",
+      "Análisis crítico de derechos y modelos de remuneración: comparar empresas que negocian licencias y pagan a autores frente a servicios que usan o permiten el uso de obras protegidas sin controles, y las implicaciones legales y éticas para editores y autores.",
+      "Evaluación de fiabilidad y límites técnicos para profesionales: comparar precisión de respuestas, riesgos de alucinaciones, problemas de memoria y trazabilidad de fuentes; recomendaciones para integrar resultados en flujos de trabajo (verificación, citación, control de versiones)."
+    ]
+  },
+  "notas": "claims = []. Prometió una demo en pantalla en un canal sin cámara: «En la demo usaré un libro técnico»."
+}
