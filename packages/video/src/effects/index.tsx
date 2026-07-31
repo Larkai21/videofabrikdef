@@ -353,10 +353,15 @@ export const StatOdometer: React.FC<{ value: string; label?: string; design?: De
   const target = Number.parseInt(raw.replace(/[.,\s]/g, ''), 10);
   const valid = raw !== '' && Number.isFinite(target);
 
-  // el conteo corre sobre el tramo central del efecto
+  // El conteo va con outExpo, no con outCubic: arranca rápido y frena al final.
+  // Es la nota literal de `hero-stat.html` en el catálogo de motion graphics —
+  // «un contador lineal parece un cronómetro; este parece que aterriza en la
+  // cifra»— y aquí estaba con outCubic, que frena menos y se queda a medias.
   const startF = Math.round(durationInFrames * 0.12);
   const countF = Math.max(1, Math.round(durationInFrames * 0.5));
-  const p = span(frame, startF, countF, Ease.outCubic);
+  const p = span(frame, startF, countF, Ease.outExpo);
+  // 0,85 de la subida: la etiqueta espera a que la cifra aterrice
+  const etiqueta = span(frame, startF + countF * 0.85, Math.max(1, countF * 0.35), Ease.outCubic);
   const current = valid ? target * p : 0;
   const numDigits = valid ? Math.max(1, String(target).length) : 0;
   const RIGIDEZ = 0.7;
@@ -432,8 +437,22 @@ export const StatOdometer: React.FC<{ value: string; label?: string; design?: De
           )}
           {suffix ? <span>{suffix}</span> : null}
         </div>
+        {/* La etiqueta entra DESPUÉS de que el contador haya parado. Si entra
+            antes compite con la cifra y no se lee ninguna de las dos: es la
+            coreografía de `hero-stat.html`, que retrasa la nota al 85 % de la
+            subida del contador. Aquí entraba a la vez que todo lo demás. */}
         {label !== undefined && label.trim() !== '' ? (
-          <div style={{ fontSize: 30, fontWeight: 500, color: d.foreground }}>{label}</div>
+          <div
+            style={{
+              fontSize: 30,
+              fontWeight: 500,
+              color: d.foreground,
+              opacity: etiqueta,
+              transform: `translateY(${(1 - etiqueta) * 14}px)`,
+            }}
+          >
+            {label}
+          </div>
         ) : null}
       </div>
     </AbsoluteFill>

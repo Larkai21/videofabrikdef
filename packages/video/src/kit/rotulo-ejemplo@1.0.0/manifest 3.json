@@ -1,0 +1,8 @@
+{
+  "version": "1",
+  "type": "lower_third",
+  "name": "rotulo-ejemplo",
+  "component_version": "1.0.0",
+  "props_schema": "./schema.ts",
+  "assets": []
+}

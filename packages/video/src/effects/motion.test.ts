@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clamp, Ease, mix, noise, pulse, span, typed } from './motion';
+import { ciclo, clamp, Ease, mix, noise, pulse, reposo, span, typed } from './motion';
 
 describe('Ease', () => {
   it('todas las curvas anclan en 0→0 y 1→1', () => {
@@ -95,5 +95,46 @@ describe('helpers', () => {
     expect(mix(0, 10, 0.5)).toBe(5);
     expect(mix(4, 8, 0)).toBe(4);
     expect(mix(4, 8, 1)).toBe(8);
+  });
+});
+
+// El catálogo de origen fija el sobrepaso máximo en el 6 % y comprueba el valor
+// resolviéndolo, no leyéndolo. Se hace igual aquí: si alguien toca la constante
+// de `outBack6`, esto se entera.
+describe('calibración del rebote', () => {
+  const pico = (f: (t: number) => number): number =>
+    Math.max(...Array.from({ length: 1001 }, (_, i) => f(i / 1000)));
+
+  it('outBack6 se pasa un 6 %, ni más ni menos', () => {
+    const p = pico(Ease.outBack6);
+    expect(p).toBeGreaterThan(1.05);
+    expect(p).toBeLessThanOrEqual(1.065);
+  });
+
+  it('el outBack clásico se pasa un 10 %: por eso existe outBack6', () => {
+    expect(pico(Ease.outBack)).toBeGreaterThan(1.09);
+  });
+
+  it('inCubic arranca quieto y acelera', () => {
+    expect(Ease.inCubic(0.25)).toBeLessThan(0.25);
+    expect(Ease.inCubic(0)).toBe(0);
+    expect(Ease.inCubic(1)).toBe(1);
+  });
+});
+
+describe('ciclo y reposo', () => {
+  it('el overlay entra, se queda y sale', () => {
+    expect(ciclo(0, 4, 0.4, 0.4).v).toBeCloseTo(0, 5);
+    expect(ciclo(2, 4, 0.4, 0.4).v).toBeCloseTo(1, 5);
+    expect(ciclo(4, 4, 0.4, 0.4).v).toBeCloseTo(0, 5);
+  });
+
+  it('sin salida se queda hasta el final', () => {
+    expect(ciclo(4, 4, 0.4, 0).v).toBeCloseTo(1, 5);
+  });
+
+  it('reposo recorre el tramo entre entrada y salida', () => {
+    expect(reposo(0.2, 0.4, 4, 0.4)).toBeCloseTo(0, 5);
+    expect(reposo(4, 0.4, 4, 0.4)).toBeCloseTo(1, 5);
   });
 });

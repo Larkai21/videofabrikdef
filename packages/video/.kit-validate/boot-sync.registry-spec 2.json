@@ -1,0 +1,40 @@
+{
+  "components": [
+    {
+      "type": "lower_third",
+      "name": "lower-third-ia",
+      "version": "0.1.0",
+      "source_dir": "/Users/quantum/Documents/GitHub/videofabric/library/components/ch-ia-tech/lower_third/lower-third-ia@0.1.0"
+    },
+    {
+      "type": "title_card",
+      "name": "title-card-ia",
+      "version": "0.1.0",
+      "source_dir": "/Users/quantum/Documents/GitHub/videofabric/library/components/ch-ia-tech/title_card/title-card-ia@0.1.0"
+    },
+    {
+      "type": "intro",
+      "name": "intro-ia",
+      "version": "0.1.0",
+      "source_dir": "/Users/quantum/Documents/GitHub/videofabric/library/components/ch-ia-tech/intro/intro-ia@0.1.0"
+    },
+    {
+      "type": "intro",
+      "name": "intro-ia",
+      "version": "0.1.1",
+      "source_dir": "/Users/quantum/Documents/GitHub/videofabric/library/components/ch-ia-tech/intro/intro-ia@0.1.1"
+    },
+    {
+      "type": "lower_third",
+      "name": "rotulo-ejemplo",
+      "version": "1.0.0",
+      "source_dir": "/Users/quantum/Documents/GitHub/videofabric/library/components/ch-ia-tech/lower_third/rotulo-ejemplo@1.0.0"
+    },
+    {
+      "type": "outro",
+      "name": "outro-ia",
+      "version": "0.1.0",
+      "source_dir": "/Users/quantum/Documents/GitHub/videofabric/library/components/ch-ia-tech/outro/outro-ia@0.1.0"
+    }
+  ]
+}
