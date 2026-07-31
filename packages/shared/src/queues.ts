@@ -69,6 +69,10 @@ export interface ScriptRefineJob {
   // instrucciones por escena del juez; sin ellas el refinado reescribe a ciegas.
   // Opcional para no romper los jobs que ya estén en vuelo.
   notes?: Array<{ id: string; axis: string; issue: string; fix: string }>;
+  // Vuelta de reparación. La primera la encola el juez y no la trae; la
+  // segunda la encola el propio refinado cuando el linter demuestra que el
+  // arreglo no se aplicó. Existe para que ese reintento tenga tope.
+  pass?: number;
 }
 
 // Brief de miniatura de alta conversión (LLM): escribe outputs/<id>/

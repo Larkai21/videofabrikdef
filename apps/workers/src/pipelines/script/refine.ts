@@ -1,6 +1,16 @@
 import { and, eq } from 'drizzle-orm';
 import { channels, videos } from '@fabrica/db';
-import { QUEUES, type MasterVideoJson, type Scene, type ScriptRefineJob } from '@fabrica/shared';
+import {
+  ARREGLO_POR_AVISO,
+  BLOCKING_LINT_KINDS,
+  JOBS,
+  QUEUES,
+  blockingSceneIds,
+  lintScenes,
+  type MasterVideoJson,
+  type Scene,
+  type ScriptRefineJob,
+} from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
 import { refineOutputSchema } from './generate.js';
 import { keepValidIntents } from './intents.js';
@@ -52,8 +62,44 @@ export function instruccionesDeRefinado(
   return lineas.join('\n');
 }
 
+/**
+ * Cuántas veces se le puede pedir lo mismo al modelo. Dos: la del juez y una de
+ * insistencia. A la tercera ya no es el modelo teniendo un mal día, es el prompt.
+ */
+const MAX_VUELTAS = 2;
+
+/**
+ * Lo que sigue mal DESPUÉS de reescribir, con la instrucción para el reintento.
+ *
+ * Existe porque nadie comprobaba que el arreglo se hubiera aplicado: el juez
+ * pedía la reparación, el refinado escribía algo, y ahí terminaba la cadena.
+ * Visto en producción: una escena que abría con el rótulo «Qué hacer ya:» llegó
+ * a la puerta humana con el rótulo intacto, después de pasar por el refinado,
+ * con la nota del juez diciendo exactamente que lo quitara.
+ *
+ * La comprobación es gratis —el linter es determinista, no hay llamada— y por
+ * eso puede correr siempre en vez de fiarse de que el modelo obedeció.
+ */
+export function loQueSigueMal(
+  reescritas: readonly Scene[],
+  claims: readonly { text: string }[],
+): Array<{ id: string; axis: string; issue: string; fix: string }> {
+  const hits = lintScenes(reescritas, { claims });
+  const malas = new Set(blockingSceneIds(hits));
+  return hits
+    .filter((h) => malas.has(h.id) && BLOCKING_LINT_KINDS.includes(h.kind))
+    .map((h) => ({
+      id: h.id,
+      axis: h.kind,
+      // que el reintento SEPA que ya se intentó: si no, el modelo vuelve a
+      // hacer la misma reescritura y el aviso sobrevive otra vuelta
+      issue: `sigue igual tras un intento de arreglo: ${h.detail}`,
+      fix: ARREGLO_POR_AVISO[h.kind] ?? 'reescribe la escena corrigiendo eso.',
+    }));
+}
+
 export async function handleScriptRefine(ctx: WorkerContext, data: ScriptRefineJob): Promise<void> {
-  const { videoId, patchTargets, reasons, notes } = data;
+  const { videoId, patchTargets, reasons, notes, pass = 1 } = data;
   const [video] = await ctx.db.select().from(videos).where(eq(videos.id, videoId));
   if (!video) throw new Error(`Vídeo no encontrado: ${videoId}`);
   if (video.state !== 'guion_borrador') {
@@ -128,12 +174,44 @@ export async function handleScriptRefine(ctx: WorkerContext, data: ScriptRefineJ
     ctx.logger.warn({ videoId }, 'Refinado descartado: el estado cambió durante la reescritura');
     return;
   }
+  // ¿Se aplicó el arreglo? Hasta ahora nadie lo comprobaba: el juez pedía la
+  // reparación, el refinado escribía algo y ahí terminaba la cadena. Visto en
+  // producción: una escena que abría con el rótulo «Qué hacer ya:» llegó a la
+  // puerta humana con el rótulo intacto después de pasar por el refinado, con
+  // la nota del juez diciendo exactamente que lo quitara.
+  //
+  // La comprobación es GRATIS —el linter es determinista, no hay llamada— y
+  // solo se reintenta lo que sigue mal, con tope de una vuelta: si a la segunda
+  // el modelo tampoco lo arregla, es un problema de prompt y lo verá el humano
+  // en la puerta, que para eso está.
+  const otraVuelta = loQueSigueMal(
+    scenes.filter((s) => targetIds.has(s.id)),
+    video.master.research?.claims ?? [],
+  );
+  if (otraVuelta.length > 0 && pass < MAX_VUELTAS) {
+    await ctx.queues.script.add(JOBS.script.refine, {
+      videoId,
+      patchTargets: otraVuelta.map((n) => n.id),
+      reasons,
+      notes: otraVuelta,
+      pass: pass + 1,
+    } satisfies ScriptRefineJob);
+  } else if (otraVuelta.length > 0) {
+    ctx.logger.warn(
+      { videoId, escenas: otraVuelta.map((n) => n.id) },
+      'El refinado no consiguió quitar el aviso duro; el guion llega a la puerta con él',
+    );
+  }
+
   await ctx.publishEvent({
     type: 'job_progress',
     video_id: videoId,
     queue: QUEUES.script,
     progress: 100,
-    detail: `Guion refinado en ${targets.length} escenas`,
+    detail:
+      otraVuelta.length > 0 && pass < MAX_VUELTAS
+        ? `Guion refinado en ${targets.length} escenas; ${otraVuelta.length} necesitan otra vuelta`
+        : `Guion refinado en ${targets.length} escenas`,
   });
   await ctx.publishEvent({ type: 'inbox_changed' });
 }

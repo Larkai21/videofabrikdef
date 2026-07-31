@@ -1,6 +1,6 @@
 import type { Scene } from '@fabrica/shared';
 import { describe, expect, it } from 'vitest';
-import { instruccionesDeRefinado } from './refine.js';
+import { instruccionesDeRefinado, loQueSigueMal } from './refine.js';
 
 function escena(id: string, text: string): Scene {
   return { id, section: 'body', text, visual_query: 'q' };
@@ -58,5 +58,40 @@ describe('instruccionesDeRefinado', () => {
     expect(out).toContain('motivo suelto');
     expect(out).toContain('Texto a reescribir:');
     expect(out).not.toContain('Arreglo pedido');
+  });
+});
+
+describe('loQueSigueMal', () => {
+  // El caso real: el juez pidió «elimina la locución literal del rótulo», el
+  // refinado reescribió la escena, y el rótulo seguía ahí. Nadie lo comprobaba.
+  const CON_ROTULO = escena(
+    'sc-body-11',
+    'Qué hacer ya: ejecuta una checklist mínima antes de la fecha clave. Inventario de sistemas, matriz de roles, capturas de avisos publicados y copia de contratos.',
+  );
+
+  it('caza el aviso duro que el refinado no quitó', () => {
+    const pendiente = loQueSigueMal([CON_ROTULO], []);
+    expect(pendiente).toHaveLength(1);
+    expect(pendiente[0]?.id).toBe('sc-body-11');
+    expect(pendiente[0]?.axis).toBe('andamiaje');
+    expect(pendiente[0]?.fix).not.toBe('');
+  });
+
+  it('le dice al reintento que ya se intentó, o repetiría la misma reescritura', () => {
+    expect(loQueSigueMal([CON_ROTULO], [])[0]?.issue).toContain('sigue igual');
+  });
+
+  it('una escena que quedó bien no vuelve a la cola', () => {
+    const arreglada = escena(
+      'sc-body-11',
+      'Antes de esa fecha te hace falta una lista corta y cerrada: inventario de sistemas, matriz de roles, capturas de los avisos publicados y copia de los contratos.',
+    );
+    expect(loQueSigueMal([arreglada], [])).toEqual([]);
+  });
+
+  it('los avisos blandos no cuentan: solo se insiste con lo que bloquea', () => {
+    // una escena corta dispara `escena_corta`, que no es bloqueante
+    const corta = escena('sc-body-2', 'Es corta y no dice gran cosa.');
+    expect(loQueSigueMal([corta], [])).toEqual([]);
   });
 });
