@@ -1,0 +1,14 @@
+{
+  "video_id": "VnAHZKG_bWBNfsqfRzxF4",
+  "titulo": "Compraron un millón de libros (y los escanearon): implicaciones para ti",
+  "aprobado_por": "Claude, 31-jul-2026, leído entero",
+  "por_que": [
+    "Cero escenas con rótulo, cero meta-narración, cero objeciones encadenadas y cero promesas que la fábrica no pueda pagar. Lo único que marca el linter son cuatro frases largas.",
+    "Longitud real de producción: 16 escenas y 807 palabras. El otro candidato limpio del corpus (O9WieZkLPrbjAAXcDxq1f) tiene 309 palabras y salió de un generador anterior, así que anclar el juez ahí sería calibrarlo contra otro formato.",
+    "Salió del sistema tal y como está hoy: research con el fetcher arreglado, cuerpo por movimientos, título con cifra."
+  ],
+  "no_es_perfecto": [
+    "Solo 2 entidades nombradas distintas en todo el guion, por debajo de la media del corpus (6,9). Si algún día la concreción entra en la portería, este control habrá que sustituirlo.",
+    "Cuatro frases pasan de 25 palabras."
+  ]
+}

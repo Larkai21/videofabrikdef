@@ -31,6 +31,7 @@ import PQueue from 'p-queue';
 import { channels, createDb, ideas as ideasTable, videos } from '@fabrica/db';
 import {
   channelSettingsSchema,
+  entidadesNombradas,
   escenasEncabezadas,
   lintScenes,
   palabrasDelCierre,
@@ -679,11 +680,94 @@ function arg(nombre: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
+/**
+ * La portería: las comprobaciones DETERMINISTAS de las ocho de la rúbrica.
+ *
+ * Las otras cuatro —reordenación, corte, dónde se paga la promesa y el minuto
+ * tres— son de juicio y viven en los veredictos; esto no las sustituye ni las
+ * finge. Devuelve código de salida para poder ponerlo en un gate.
+ *
+ * El conjunto de CONTROL se evalúa aquí y solo aquí: si se mira antes, deja de
+ * ser control y se pierde la única defensa contra el sobreajuste.
+ */
+function porteria(variante: string): void {
+  const dir = path.join(DIR_CORRIDAS, variante);
+  if (!existsSync(dir)) {
+    console.error(`No existe la corrida "${variante}".`);
+    process.exit(1);
+  }
+  const casos = new Map(cargarCasos('todos').map((c) => [c.id, c]));
+  const ficheros = readdirSync(dir).filter((f) => f.endsWith('.json'));
+  let fallos = 0;
+  const porCaso = new Map<
+    string,
+    {
+      rotuladas: number;
+      promesas: number;
+      fontaneria: number;
+      entidades: number;
+      escenas: number;
+      conjunto: string;
+    }
+  >();
+
+  for (const f of ficheros) {
+    const j = JSON.parse(readFileSync(path.join(dir, f), 'utf8'));
+    const scenes: Scene[] = j.script.scenes;
+    const caso = casos.get(j.caso);
+    const hits = lintScenes(scenes, { claims: caso?.research.claims ?? [] });
+    const ent = new Set<string>();
+    for (const s of scenes) for (const e of entidadesNombradas(s.text)) ent.add(e);
+    const acc = porCaso.get(j.caso) ?? {
+      rotuladas: 0,
+      promesas: 0,
+      fontaneria: 0,
+      entidades: 0,
+      escenas: 0,
+      conjunto: caso?.conjunto ?? '?',
+    };
+    acc.rotuladas += escenasEncabezadas(scenes);
+    acc.escenas += scenes.length;
+    acc.promesas += hits.filter((h) => h.kind === 'promesa_no_producible').length;
+    acc.fontaneria += hits.filter((h) => h.kind === 'meta_narracion').length;
+    acc.entidades += ent.size;
+    porCaso.set(j.caso, acc);
+  }
+
+  console.log(`\nPortería · ${variante} · ${ficheros.length} guiones de ${porCaso.size} casos\n`);
+  const linea = (ok: boolean, txt: string) => {
+    if (!ok) fallos += 1;
+    console.log(`  ${ok ? '✓' : '✗'} ${txt}`);
+  };
+  for (const [id, a] of [...porCaso.entries()].sort()) {
+    const pct = a.escenas > 0 ? Math.round((100 * a.rotuladas) / a.escenas) : 0;
+    console.log(`\n  ${id.slice(0, 12)} (${a.conjunto})`);
+    linea(
+      a.rotuladas === 0,
+      `1· ninguna escena abre con rótulo — ${a.rotuladas} de ${a.escenas} (${pct} %)`,
+    );
+    linea(a.promesas === 0, `2· ninguna promesa impagable — ${a.promesas}`);
+    linea(a.fontaneria === 0, `3· ninguna meta-narración — ${a.fontaneria}`);
+    linea(a.entidades > 0, `6· nombra algo real — ${a.entidades} entidades distintas`);
+  }
+  console.log(
+    '\n  4· reordenación · 5· corte · 7· dónde se paga la promesa · 8· minuto tres',
+    '\n     Son de JUICIO: se leen los guiones y se escribe el veredicto. La portería no los finge.',
+  );
+  console.log(`\n${fallos === 0 ? 'PASA' : `NO PASA: ${fallos} comprobaciones fallidas`}`);
+  process.exit(fallos === 0 ? 0 : 1);
+}
+
 async function main(): Promise<void> {
   const cmd = process.argv[2];
   if (cmd === 'preparar') {
     await preparar();
     await congelarPerfil();
+    return;
+  }
+  const port = arg('porteria');
+  if (port !== undefined) {
+    porteria(port);
     return;
   }
   const medirVar = arg('medir');
@@ -721,6 +805,7 @@ async function main(): Promise<void> {
         '  pnpm guion --medir <variante>',
         '  pnpm guion --diff <a> <b>',
         '  pnpm guion --leer <variante>',
+        '  pnpm guion --porteria <variante>',
       ].join('\n'),
     );
     process.exit(1);

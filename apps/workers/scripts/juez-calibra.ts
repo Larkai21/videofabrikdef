@@ -35,51 +35,60 @@ const relleno = (n: number, base: string): Scene[] =>
   Array.from({ length: n }, (_, i) => escena(`sc-body-${i + 1}`, base));
 
 /**
- * El control es un guion REAL de outputs/, no uno escrito para el test: un
- * fixture corto y honesto puntúa bajo por fino, no por malo, y entonces la
- * separación no mide lo que se cree que mide.
+ * El control es un guion REAL de outputs/ NOMBRADO A MANO en
+ * `banco/control-juez.json`, no uno escrito para el test ni elegido por una
+ * heurística.
+ *
+ * Antes se cogía «el más largo que haya», y eso es exactamente lo que rompió el
+ * arnés: el más largo del corpus es `JBbfvawGXzsXdA92L1zcH`, que el linter
+ * determinista marca 29 veces —16 de sus 19 escenas abren con rótulo, y promete
+ * un vídeo futuro—. El arnés le estaba exigiendo al juez que APROBARA un guion
+ * malo mientras se le pedía suspender los fixtures malos. Con eso no se puede
+ * calibrar nada.
+ *
+ * Un fixture corto y honesto tampoco vale: puntúa bajo por fino, no por malo.
  */
-function controlReal(): { nombre: string; malo: boolean; scenes: Scene[] } | null {
-  const dir = process.env.OUTPUTS_DIR ?? path.resolve(process.cwd(), '../../outputs');
-  let ids: string[] = [];
+function controlReal(): {
+  nombre: string;
+  malo: boolean;
+  scenes: Scene[];
+  title?: string;
+  claims: readonly { text: string }[];
+} | null {
+  const raiz = path.resolve(process.cwd(), '../..');
+  const fichero = path.join(raiz, 'banco', 'control-juez.json');
+  let elegido: { video_id: string };
   try {
-    ids = readdirSync(dir);
+    elegido = JSON.parse(readFileSync(fichero, 'utf8')) as { video_id: string };
+  } catch {
+    console.error(
+      `Falta ${fichero}. El control del arnés se NOMBRA a mano: es el guion contra el que\n` +
+        'se calibra el juez y elegirlo por una heurística ya salió mal una vez.',
+    );
+    return null;
+  }
+  const dir = process.env.OUTPUTS_DIR ?? path.join(raiz, 'outputs');
+  try {
+    const m = JSON.parse(readFileSync(path.join(dir, elegido.video_id, 'master.json'), 'utf8')) as {
+      script?: { scenes?: Scene[] };
+      seo?: { titles?: string[]; chosen_idx?: number | null };
+      research?: { claims?: { text: string }[] };
+    };
+    const scenes = m.script?.scenes ?? [];
+    if (scenes.length === 0) return null;
+    const t = m.seo?.titles?.[m.seo.chosen_idx ?? 0];
+    return {
+      nombre: `control aprobado (${elegido.video_id.slice(0, 8)}, ${scenes.length} escenas)`,
+      malo: false,
+      scenes,
+      // su propio título y sus propios claims: juzgarlo contra el título de otro
+      // tema daba promesa=0, que es correcto pero no dice nada del juez
+      ...(t !== undefined ? { title: t } : {}),
+      claims: m.research?.claims ?? [],
+    };
   } catch {
     return null;
   }
-  // el más largo que haya: el formato objetivo es el de 6-9 minutos
-  let mejor: {
-    id: string;
-    scenes: Scene[];
-    title?: string;
-    claims: readonly { text: string }[];
-  } | null = null;
-  for (const id of ids) {
-    try {
-      const m = JSON.parse(readFileSync(path.join(dir, id, 'master.json'), 'utf8')) as {
-        script?: { scenes?: Scene[] };
-        seo?: { titles?: string[]; chosen_idx?: number | null };
-        research?: { claims?: { text: string }[] };
-      };
-      const sc = m.script?.scenes ?? [];
-      if (sc.length > (mejor?.scenes.length ?? 0)) {
-        const t = m.seo?.titles?.[m.seo.chosen_idx ?? 0];
-        mejor = { id, scenes: sc, claims: m.research?.claims ?? [], ...(t ? { title: t } : {}) };
-      }
-    } catch {
-      continue;
-    }
-  }
-  if (mejor === null) return null;
-  return {
-    nombre: `control real (${mejor.id.slice(0, 8)}, ${mejor.scenes.length} escenas)`,
-    malo: false,
-    scenes: mejor.scenes,
-    // su propio título y sus propios claims: juzgarlo contra el título de otro
-    // tema daba promesa=0, que es correcto pero no dice nada del juez
-    ...(mejor.title !== undefined ? { title: mejor.title } : {}),
-    claims: mejor.claims,
-  };
 }
 
 const FIXTURES: Array<{

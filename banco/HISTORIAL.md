@@ -18,6 +18,8 @@ Una fila por vuelta. Sin esto, dentro de tres semanas no se sabe qué cambio pro
 
 | 31-jul-2026 | `s4-huecos` | c0d0747 | nombrar la escena de cada tarjeta (`huecosDeTarjeta`) en vez de pedirlas «repartidas» | escenas con intención **81 → 49**; cobertura de la ÚLTIMA escena del cuerpo **6/6 → 0/6** | **REVERTIDO.** Acotar los huecos acota también el techo: el modelo se ciñe al mínimo |
 
+| 31-jul-2026 | `control` | 3f471d9 | **primera evaluación del conjunto de control**, sin haberlo mirado en todo el sprint | rotuladas **12,5 %** (dev 16,7 %, corpus 37,9 %) · promesas impagables **0** · meta-narración **0** | **el control va mejor que dev: no hay sobreajuste.** La portería devuelve NO PASA porque la comprobación 1 exige CERO rótulos |
+
 ## Los minutos mudos: dos hipótesis falsas y una causa real
 
 El vídeo salió con 1 tarjeta y cinco minutos mudos de seis. Tres intentos:

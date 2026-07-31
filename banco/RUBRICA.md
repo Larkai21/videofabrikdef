@@ -113,7 +113,7 @@ que hoy no se distingue un guion bueno de uno mediocre.
 | 1 | Ninguna escena abre con rótulo | `andamiaje` del linter | 91-122 de 256 escenas del banco. La horquilla ES la banda de ruido: no se puede afinar esta métrica con 6×3 |
 | 2 | Ninguna promesa impagable | `promesa_no_producible` | 13 → 8 tras S2 (señal). En el corpus, 5 de 11 guiones |
 | 3 | Ninguna mención de la fontanería | patrones de `research pack`, `no podemos confirmar` | **0**. Desapareció sola al arreglar el fetcher: el guion ya no confiesa que le falta material porque no le falta |
-| 4 | **Prueba de reordenación** | a mano: se intercambian 3 pares de escenas del cuerpo; en ≥2 el guion se rompe | JBbf y OZmR aguantan las tres |
+| 4 | **Prueba de reordenación** | a mano: se intercambian 3 pares de escenas del cuerpo; en ≥2 el guion se rompe | pasa en el caso leído tras los movimientos; JBbf y OZmR la aguantaban antes |
 | 5 | **Prueba de corte** | a mano: se quita una escena cada vez; qué % no se echaría en falta. El umbral se calibra midiéndolo sobre un guion aprobado, no se inventa | sin calibrar |
 | 6 | Una entidad real por minuto, y el título elegido lleva nombre propio o cifra | métrica, S4. La heurística **excluye** las palabras en mayúscula de los rótulos, o `PUNTO` y `MEDIO` cuentan como entidades y arreglar el andamiaje baja la concreción | 7 de 11 guiones a cero |
 | 7 | La promesa se paga en una frase citable | a mano, se cita | — |
@@ -121,6 +121,27 @@ que hoy no se distingue un guion bueno de uno mediocre.
 
 **Línea de meta:** tres casos de **control** consecutivos, de familias distintas, que pasen
 las ocho.
+
+### Primera evaluación del control — 31-jul-2026
+
+El conjunto de control se corrió por primera vez al cerrar el sprint, sin haberlo mirado
+antes. Es el número que dice si las mejoras generalizan o si solo se afinó contra los seis
+casos de desarrollo.
+
+| | corpus publicado | dev | **control** |
+|---|---|---|---|
+| escenas rotuladas | 37,9 % | 16,7 % | **12,5 %** |
+| promesas impagables / guion | 0,7 | 0,8 | **0** |
+| meta-narración / guion | 0,5 | 0 | **0** |
+| guiones sin ninguna entidad | 1 de 11 | 0 de 6 | **0 de 6** |
+
+**El control va mejor que dev.** No hay sobreajuste: lo que se arregló era estructural
+(`sceneBlueprint` por movimientos, el fetcher, los avisos del linter) y por eso viaja a
+casos que el prompt nunca vio.
+
+`pnpm guion --porteria control` devuelve **NO PASA**: 6 comprobaciones fallidas, las seis
+de la comprobación 1, porque ningún guion llega a CERO escenas rotuladas. Bajar del 37,9 %
+al 12,5 % no es lo mismo que llegar a cero, y la portería no se afloja para que pase.
 
 ## Lo que ya se aprendió, para no repetirlo
 
@@ -165,3 +186,17 @@ las ocho.
   añadidas esta sesión no movieron nada medible. Lo que sí movió la aguja fue estructural
   (`sceneBlueprint` por movimientos: rótulos del 37,9 % al 14,7 %) o mecánico (avisos del
   linter). Antes de escribir una regla nueva ahí, buscar dónde está la causa.
+
+
+## El control del arnés del juez
+
+`banco/control-juez.json` nombra el guion contra el que se calibra el juez, y se nombra A
+MANO por una razón concreta: `juez-calibra.ts` lo elegía como «el más largo de outputs/»,
+que es `JBbfvawGXzsXdA92L1zcH` — el guion que el linter marca 29 veces, con 16 de sus 19
+escenas rotuladas y una promesa impagable. El arnés le exigía al juez APROBAR un guion malo
+mientras le pedía suspender los fixtures malos. Con eso no se puede calibrar nada.
+
+El control actual es `VnAHZKG_bWBNfsqfRzxF4`, leído entero: cero rótulos, cero
+meta-narración, cero promesas impagables, longitud real de producción. Su punto flojo está
+anotado en el propio fichero — solo 2 entidades distintas — para que quien lo sustituya
+sepa por qué.
