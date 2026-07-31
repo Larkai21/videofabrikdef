@@ -114,7 +114,14 @@ export function escenasEncabezadas(scenes: readonly { text: string }[]): number 
  * ningún patrón dispara con «descarga» a secas.
  */
 const PROMESA_NO_PRODUCIBLE: readonly { id: string; re: RegExp }[] = [
-  { id: 'demo-en-pantalla', re: /\ben (la|esta|una) demo\b/i },
+  // «en la demo» no basta: leyendo el banco apareció «Empezamos con una demo
+  // práctica» y «Vas a ver cómo configurar uno», que prometen lo mismo con otra
+  // preposición. Se pide el verbo delante para no marcar «la demo de OpenAI»,
+  // que sería contenido legítimo.
+  {
+    id: 'demo-en-pantalla',
+    re: /\ben (la|esta|una) demo\b|\b(hacemos|haremos|hago|empezamos con|empiezo con|monto|montamos|verás|vas a ver|veremos|te enseño) (una |la |esta )?demo\b/i,
+  },
   {
     id: 'te-muestro',
     // sin `\b` final: en JavaScript es ASCII, y tras “mostré” no hay frontera

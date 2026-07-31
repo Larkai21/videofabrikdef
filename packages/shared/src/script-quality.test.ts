@@ -246,6 +246,8 @@ describe('promesa_no_producible', () => {
     expect(salta('descarga el pack del vídeo en el enlace')).toBe(true);
     expect(salta('en el próximo vídeo desplegamos juntos un benchmark')).toBe(true);
     expect(salta('dejo enlaces y un checklist descargable en la descripción')).toBe(true);
+    // esta se escapó del primer patrón por la preposición: la cazó leer el banco
+    expect(salta('Empezamos con una demo práctica y un flujo que puedas aplicar ya.')).toBe(true);
   });
 
   it('NO marca lo que el espectador sí puede hacer en sitios de terceros', () => {
@@ -256,6 +258,8 @@ describe('promesa_no_producible', () => {
     );
     expect(salta('Un repositorio y pesos abiertos permiten descargar el modelo.')).toBe(false);
     expect(salta('Los capítulos están abajo, en la descripción del vídeo.')).toBe(false);
+    // hablar de la demo de otro es contenido, no una promesa propia
+    expect(salta('La demo de OpenAI duró doce minutos y enseñó tres funciones.')).toBe(false);
   });
 });
 

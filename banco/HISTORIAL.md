@@ -8,6 +8,8 @@ Una fila por vuelta. Sin esto, dentro de tres semanas no se sabe qué cambio pro
 | 31-jul-2026 | `s2-producible` | (sin commitear) | tres reglas a la vez en `craftRules()`: producibilidad, alternancia de objeciones, «no narres tu movimiento» + fusión de «Bucles abiertos» y «Re-ganchos» | `promesa_no_producible` 13→2, `cliche` 4→1. `andamiaje` 95→108 | **método mal**: tres variables a la vez, no se puede atribuir |
 | 31-jul-2026 | `s2` | (sin commitear) | igual pero sin la regla «Invisible» | `promesa_no_producible` 13→8 (señal), `cliche` 4→1 (señal). `andamiaje` 95→122 | se queda |
 | 31-jul-2026 | `s2-bis` | (sin commitear) | **nada: el mismo prompt que `s2`** | `andamiaje` 122→91 | **medición del ruido**. Banda ±31 en `andamiaje`, ±5 en `meta_narracion`, ±2 en `promesa_no_producible` |
+| 31-jul-2026 | `sem-a` / `sem-b` | 8b4e544 | se añadió `seed` al proveedor y se corrió dos veces el mismo prompt con la misma semilla | tasa de rótulos 38,2 % → 30,5 % | **la semilla NO se honra**: gpt-5-mini razona antes de responder. Descartada como vía. Con cuatro corridas idénticas (47,7 / 35,5 / 38,2 / 30,5) la banda queda en **±20 puntos de tasa** |
+| 31-jul-2026 | `s3-movimientos` | 8b4e544 | **un solo cambio**: `sceneBlueprint` deja de asignar un papel por escena y reparte el cuerpo en movimientos definidos por la pregunta que responden | tasa de rótulos **37,9 % → 14,7 %** (banda ±20) · meta-narración 1,0 → **0** por guion | **se queda**. Es el cambio más grande medido hasta ahora |
 
 ## Lo que salió de la vuelta de S2
 

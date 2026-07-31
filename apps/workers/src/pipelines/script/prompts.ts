@@ -9,63 +9,77 @@ import type { ResearchDoc } from './research.js';
 import { sceneTarget } from './wordcount.js';
 
 /**
- * Papel de cada escena del cuerpo, con rangos de ids concretos.
+ * El cuerpo repartido en MOVIMIENTOS, cada uno definido por la pregunta que
+ * responde. No hay un papel por escena, y esa es toda la idea.
  *
- * El reparto anterior era una frase fija —«1-2 de contexto, 3 o 4 bloques de
- * desarrollo, 1 de giro y 1-2 de conclusión»— que describe entre 6 y 9 escenas.
- * A dos minutos sobraba; a siete minutos el cuerpo son catorce escenas y al
- * modelo no le quedaba más salida que estirar cada bloque, que es exactamente
- * «aplanarse en el minuto tres», escrito en el propio prompt. Con un papel
- * nombrado por tramo de ids, no puede difuminarlo.
+ * Historia de este bloque, porque explica por qué está escrito así:
+ *
+ * 1. Primero era una frase fija («1-2 de contexto, 3-4 de desarrollo, 1 de giro,
+ *    1-2 de conclusión»), que describe 6-9 escenas. A siete minutos el cuerpo
+ *    son catorce y al modelo solo le quedaba estirar: el guion se aplanaba en el
+ *    minuto tres.
+ * 2. Se pasó a un papel nombrado por tramo de ids. El modelo LOCUTÓ los nombres:
+ *    28 de 144 escenas de vídeos publicados abren con «PUNTO MEDIO:», «GIRO:» o
+ *    «Pago de la promesa:», y esas palabras están en el MP4.
+ * 3. Se reescribieron los papeles en prosa, sin mayúsculas, con la instrucción
+ *    explícita de no escribirlos. El modelo escribió «Lo contraintuitivo:» seis
+ *    veces y «Otra objeción:» cinco — copiando la redacción nueva. Cambiar el
+ *    nombre del papel solo cambia el nombre del rótulo.
+ *
+ * La conclusión de (3) es que el problema no es cómo se llama el papel: es que
+ * exista un papel por escena. Un papel es una etiqueta, y una etiqueta se
+ * anuncia. Una PREGUNTA no: no se puede abrir una escena con «¿Qué falla si lo
+ * intenta?:», y responderla obliga a encadenar con la anterior en vez de
+ * catalogar.
  */
 export function sceneBlueprint(bodyCount: number): string {
   if (bodyCount <= 0) return '';
-  // proporciones del arco; se reparten y el resto va a desarrollo
-  const contexto = Math.max(1, Math.round(bodyCount * 0.15));
-  const cierre = Math.max(1, Math.round(bodyCount * 0.15));
-  const giro = bodyCount >= 6 ? 1 : 0;
-  const desarrollo = Math.max(1, bodyCount - contexto - cierre - giro);
   const id = (n: number): string => `sc-body-${n}`;
   const tramo = (desde: number, cuantas: number): string =>
     cuantas <= 1 ? id(desde) : `${id(desde)}–${id(desde + cuantas - 1)}`;
 
+  // Las preguntas son el arco: qué pasa → por qué ahora → qué te cambia → qué
+  // falla → qué haces. A cuerpo corto se funden las de en medio.
+  const preguntas =
+    bodyCount >= 12
+      ? [
+          '¿qué ha pasado exactamente, y a quién?',
+          '¿por qué pasa ahora y no antes?',
+          '¿qué cambia esto para quien está escuchando?',
+          '¿qué falla cuando lo intenta de verdad?',
+          '¿qué hace el lunes por la mañana?',
+        ]
+      : bodyCount >= 6
+        ? [
+            '¿qué ha pasado exactamente, y a quién?',
+            '¿qué cambia esto para quien está escuchando?',
+            '¿qué falla cuando lo intenta de verdad?',
+            '¿qué hace el lunes por la mañana?',
+          ]
+        : ['¿qué ha pasado exactamente, y a quién?', '¿qué cambia para quien está escuchando?'];
+
+  // reparto de escenas entre movimientos, el resto a los primeros
+  const base = Math.floor(bodyCount / preguntas.length);
+  const sobran = bodyCount - base * preguntas.length;
   let n = 1;
-  const partes: string[] = [];
-  partes.push(`${tramo(n, contexto)}: el caso concreto — qué ha pasado, quién y dónde.`);
-  n += contexto;
-  if (bodyCount >= 8) {
-    // el punto medio es donde se pierde a la audiencia de un vídeo largo
-    const mitad = Math.floor(desarrollo / 2);
-    partes.push(`${tramo(n, mitad)}: desarrollo, UNA idea propia por escena.`);
-    n += mitad;
-    partes.push(`${id(n)}: re-gancho fuerte que cambia lo que el espectador creía hasta ahora.`);
-    n += 1;
-    partes.push(
-      `${tramo(n, desarrollo - mitad - 1)}: la objeción a lo anterior, escrita como frase normal.`,
-    );
-    n += desarrollo - mitad - 1;
-  } else {
-    partes.push(`${tramo(n, desarrollo)}: desarrollo, UNA idea propia por escena.`);
-    n += desarrollo;
-  }
-  if (giro === 1) {
-    partes.push(`${id(n)}: lo contraintuitivo, o el coste que nadie cuenta.`);
-    n += 1;
-  }
-  partes.push(`${tramo(n, cierre)}: cumple la promesa del titular, de forma explícita.`);
+  const movimientos = preguntas.map((pregunta, i) => {
+    const cuantas = base + (i < sobran ? 1 : 0);
+    const t = tramo(n, cuantas);
+    n += cuantas;
+    return `- ${t} responden: ${pregunta}`;
+  });
+
   return [
-    // ESTO SON INSTRUCCIONES, NO TEXTO. El modelo copiaba literalmente los
-    // rótulos al guion y el locutor los decía en voz alta: 18 escenas de los
-    // vídeos ya publicados empiezan por «PUNTO MEDIO:», «GIRO:», «Sí, pero:»,
-    // «Caso:» o «Contexto social:». Salían en mayúsculas y con dos puntos, que
-    // es exactamente la forma de un encabezado, así que el modelo las leía como
-    // parte del formato de salida. Por eso ahora se describe el PAPEL de la
-    // escena en prosa, sin etiquetas, y se dice explícitamente que no se
-    // escriban. El linter lo comprueba (`script-quality.ts`).
-    'Papel de cada escena del cuerpo (respeta los ids). Son indicaciones para ti:',
-    'NUNCA escribas estos papeles dentro del texto de la escena, ni como',
-    'encabezado ni entre paréntesis. El texto es lo que se locuta tal cual.',
-    ...partes.map((p) => `- ${p}`),
+    'El cuerpo son movimientos, no una lista de apartados. Cada movimiento',
+    'responde UNA pregunta y deja abierta la del siguiente:',
+    ...movimientos,
+    '',
+    'Estas preguntas son para ti y NO se escriben en el guion: ni como pregunta,',
+    'ni como título, ni como encabezado con dos puntos. El texto de cada escena',
+    'es lo que se locuta tal cual, así que no puede contener ninguna palabra que',
+    'describa la función de la escena.',
+    'La escena N responde algo que dejó abierto la N-1 y deja otra cosa abierta.',
+    'Si dos escenas se pueden intercambiar sin que chirríe, sobra una.',
   ].join('\n');
 }
 

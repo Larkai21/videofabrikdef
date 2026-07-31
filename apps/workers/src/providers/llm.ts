@@ -17,6 +17,12 @@ export interface CompleteJsonOptions<S extends z.ZodType> {
   user: string;
   schema: S;
   maxOutputTokens?: number;
+  // Semilla de muestreo. NO la usa el pipeline: es para el banco de guiones,
+  // donde comparar dos variantes del prompt exige que la única diferencia sea
+  // el prompt. Medido sin ella, dos corridas del MISMO prompt mueven los
+  // avisos de rótulo 31 puntos sobre ~100, que es más que cualquier efecto que
+  // se quiera detectar. Es «best effort» en la API: puede no honrarse.
+  seed?: number;
   // contexto arbitrario que los mocks usan para derivar salidas deterministas
   mockContext?: Record<string, unknown>;
 }
@@ -116,6 +122,7 @@ class OpenAiLlm implements LlmProvider {
         response_format: { type: 'json_object' },
         max_completion_tokens: Math.max(opts.maxOutputTokens ?? 8_000, 2_000),
         ...(reasoningFamily ? { reasoning_effort: 'low' as const } : {}),
+        ...(opts.seed !== undefined ? { seed: opts.seed } : {}),
         messages: [
           {
             role: 'system',

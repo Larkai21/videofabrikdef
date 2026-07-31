@@ -14,26 +14,36 @@ describe('sceneBlueprint', () => {
     }
   });
 
-  it('en formato largo introduce re-gancho y giro, y en corto no los fuerza', () => {
-    // Este test afirmaba que el plano contuviera «PUNTO MEDIO» y «GIRO» en
-    // mayúsculas. Estaba fijando el bug: el modelo copiaba esos rótulos al
-    // texto de la escena y el locutor los decía en voz alta en el MP4. Lo que
-    // hay que garantizar es el ARCO (que a lo largo haya re-gancho central y
-    // giro, y a lo corto no), no las palabras con que se le pide.
+  it('reparte el cuerpo en movimientos con una pregunta cada uno', () => {
+    // No hay un papel por escena: eso es lo que el modelo locutaba. Una
+    // pregunta no se puede usar como encabezado de escena.
     const largo = sceneBlueprint(14);
-    expect(largo).toContain('re-gancho fuerte');
-    expect(largo).toContain('lo contraintuitivo');
-    expect(largo).not.toMatch(/PUNTO MEDIO|GIRO/);
-
-    const corto = sceneBlueprint(3);
-    expect(corto).not.toContain('re-gancho fuerte');
-    expect(corto).toContain('sc-body-3');
+    expect(largo).toContain('¿qué ha pasado exactamente, y a quién?');
+    expect(largo).toContain('¿qué hace el lunes por la mañana?');
+    expect(largo).not.toMatch(/PUNTO MEDIO|GIRO|re-gancho fuerte|lo contraintuitivo/i);
   });
 
-  it('avisa de que los papeles no se escriben dentro del guion', () => {
-    // la instrucción explícita es la primera línea de defensa; el linter
-    // (`andamiaje` en script-quality.ts) es la segunda
-    expect(sceneBlueprint(14)).toContain('NUNCA escribas estos papeles');
+  it('cubre TODAS las escenas del cuerpo, sin huecos ni solapes', () => {
+    for (const n of [3, 4, 7, 14, 20]) {
+      const plano = sceneBlueprint(n);
+      const cubiertas = new Set<number>();
+      for (const m of plano.matchAll(/sc-body-(\d+)(?:–sc-body-(\d+))?/g)) {
+        const desde = Number(m[1]);
+        const hasta = Number(m[2] ?? m[1]);
+        for (let i = desde; i <= hasta; i++) {
+          expect(cubiertas.has(i), `sc-body-${i} repetido con n=${n}`).toBe(false);
+          cubiertas.add(i);
+        }
+      }
+      expect(
+        [...cubiertas].sort((a, b) => a - b),
+        `n=${n}`,
+      ).toEqual(Array.from({ length: n }, (_, i) => i + 1));
+    }
+  });
+
+  it('dice explícitamente que las preguntas no se escriben', () => {
+    expect(sceneBlueprint(14)).toContain('NO se escriben en el guion');
   });
 
   it('sin cuerpo no dice nada', () => {

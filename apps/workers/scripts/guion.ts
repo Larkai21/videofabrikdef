@@ -142,6 +142,12 @@ const REPARTO: Record<string, { conjunto: 'dev' | 'control'; familia: string; no
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'warn' });
 
+/** Semilla determinista por caso y muestra. */
+function semilla(casoId: string, muestra: number): number {
+  const h = createHash('sha1').update(`${casoId}:${muestra}`).digest();
+  return h.readUInt32BE(0);
+}
+
 function sha(s: string): string {
   return createHash('sha1').update(s).digest('hex').slice(0, 12);
 }
@@ -317,6 +323,11 @@ async function correr(variante: string, conjunto: 'dev' | 'control' | 'todos', n
               system,
               user,
               schema: scriptGenSchema,
+              // La semilla depende del CASO y de la MUESTRA, nunca de la
+              // variante: así la muestra 2 del caso X se compara con la muestra
+              // 2 del caso X de la otra variante, y la única diferencia entre
+              // las dos es el prompt. Sin esto el diff mide sobre todo azar.
+              seed: semilla(caso.id, muestra),
               mockContext: { ideaTitle: caso.idea.title },
             });
             const base = path.join(dir, `${caso.id}-${muestra + 1}`);
@@ -372,6 +383,10 @@ interface Metricas {
   cliche: number;
   cifra_sin_claim: number;
   palabras_media: number;
+  // tasas: lo único comparable entre corridas de distinto tamaño
+  rotuladas_pct: number;
+  promesas_x_guion: number;
+  meta_x_guion: number;
 }
 
 function medir(variante: string): Metricas | null {
@@ -389,6 +404,9 @@ function medir(variante: string): Metricas | null {
     cliche: 0,
     cifra_sin_claim: 0,
     palabras_media: 0,
+    rotuladas_pct: 0,
+    promesas_x_guion: 0,
+    meta_x_guion: 0,
   };
   let palabras = 0;
   for (const f of readdirSync(dir).filter((x) => x.endsWith('.json'))) {
@@ -409,6 +427,15 @@ function medir(variante: string): Metricas | null {
     }
   }
   m.palabras_media = m.guiones > 0 ? Math.round(palabras / m.guiones) : 0;
+  // Las tasas son lo que se compara. Comparar CONTEOS entre corridas mezcla
+  // «menos rótulos» con «menos escenas»: las corridas del mismo prompt han
+  // salido con 256, 272 y 288 escenas, así que un −27 en el conteo podía ser
+  // simplemente un guion más corto.
+  const porCien = (n: number) => (m.escenas > 0 ? Math.round((1000 * n) / m.escenas) / 10 : 0);
+  const porGuion = (n: number) => (m.guiones > 0 ? Math.round((10 * n) / m.guiones) / 10 : 0);
+  m.rotuladas_pct = porCien(m.andamiaje);
+  m.promesas_x_guion = porGuion(m.promesa_no_producible);
+  m.meta_x_guion = porGuion(m.meta_narracion);
   return m;
 }
 
@@ -423,48 +450,115 @@ function imprimirMetricas(variante: string, m: Metricas): void {
   console.log(`  muletillas       ${m.cliche}`);
   console.log(`  cifra sin claim  ${m.cifra_sin_claim}`);
   console.log(`  palabras (media) ${m.palabras_media}`);
+  console.log(`  ── tasas ──`);
+  console.log(`  rotuladas        ${m.rotuladas_pct} % de las escenas`);
+  console.log(`  promesas/guion   ${m.promesas_x_guion}`);
+  console.log(`  meta/guion       ${m.meta_x_guion}`);
 }
 
 /**
  * Cuánto se mueve cada métrica entre dos corridas del MISMO prompt.
  *
- * Medido el 31-jul-2026 con 6 casos × 3 muestras (variantes `s2` y `s2-bis`,
- * prompt idéntico). No es una estimación: es la diferencia observada.
+ * Medido sobre CUATRO corridas idénticas (`s2`, `s2-bis`, `sem-a`, `sem-b`),
+ * 6 casos × 3 muestras cada una. La tasa de escenas rotuladas salió 48 %, 36 %,
+ * 38 % y 31 %: media 38, desviación 7,1 puntos entre corridas, así que la banda
+ * de una DIFERENCIA a dos sigmas es ±20 puntos. Los conteos crudos llevan banda
+ * proporcionalmente mayor porque además cambia el número de escenas.
  *
  * Existe porque me pasó: leí un +13 y luego un +27 de `andamiaje` como si el
  * prompt hubiera empeorado, escribí la conclusión en un comentario del código,
- * y al correr el mismo prompt dos veces salió un −31. Todo lo que estaba
- * interpretando cabía dentro del azar. El generador no fija `temperature` ni
- * `seed` (verificado en `providers/llm.ts`), así que sin esta banda el bucle
- * afina contra el ruido y cada vuelta deshace la anterior.
+ * y al correr el mismo prompt otra vez salió −31.
  *
- * Para bajar la banda hay dos vías, ninguna gratis: más muestras por caso, o
- * comparar caso a caso en vez de en agregado. Mientras tanto, un cambio que no
- * supere la banda NO se acepta como mejora.
+ * La semilla NO es una salida: se añadió `seed` al proveedor y se probó con dos
+ * corridas idénticas; la banda no bajó. gpt-5-mini razona antes de responder y
+ * la semilla no se honra. Lo único que estrecha la banda es subir las muestras,
+ * y va con la raíz: pasar de 3 a 12 muestras por caso la deja en ±10 puntos.
+ *
+ * Un cambio que no supere la banda NO se acepta como mejora.
  */
 const BANDA_RUIDO: Record<keyof Metricas, number> = {
   guiones: 0,
   escenas: 0,
   encabezadas: 31,
   andamiaje: 31,
-  promesa_no_producible: 2,
-  meta_narracion: 5,
-  objeciones_seguidas: 1,
+  promesa_no_producible: 9,
+  meta_narracion: 6,
+  objeciones_seguidas: 4,
   cliche: 1,
   cifra_sin_claim: 0,
-  palabras_media: 30,
+  palabras_media: 33,
+  rotuladas_pct: 20,
+  promesas_x_guion: 0.6,
+  meta_x_guion: 0.4,
 };
 
+/**
+ * Mide varias corridas juntas. Comparar UNA corrida contra UNA corrida es la
+ * trampa que esto viene a evitar: con una banda de ±20 puntos, el resultado
+ * depende de contra cuál de las corridas de línea base se compare. Agrupando,
+ * la línea base gana precisión con la raíz del número de corridas.
+ *
+ *   pnpm guion --diff s2,s2-bis,sem-a,sem-b s3-movimientos
+ */
+function medirVarias(nombres: string[]): Metricas | null {
+  const ms = nombres.map(medir);
+  if (ms.some((m) => m === null)) return null;
+  const vivos = ms as Metricas[];
+  const suma = (k: keyof Metricas) => vivos.reduce((n, m) => n + m[k], 0);
+  const m: Metricas = {
+    guiones: suma('guiones'),
+    escenas: suma('escenas'),
+    encabezadas: suma('encabezadas'),
+    andamiaje: suma('andamiaje'),
+    promesa_no_producible: suma('promesa_no_producible'),
+    meta_narracion: suma('meta_narracion'),
+    objeciones_seguidas: suma('objeciones_seguidas'),
+    cliche: suma('cliche'),
+    cifra_sin_claim: suma('cifra_sin_claim'),
+    // medias, no sumas
+    palabras_media: Math.round(
+      vivos.reduce((n, x) => n + x.palabras_media * x.guiones, 0) / suma('guiones'),
+    ),
+    rotuladas_pct: 0,
+    promesas_x_guion: 0,
+    meta_x_guion: 0,
+  };
+  m.rotuladas_pct = Math.round((1000 * m.andamiaje) / m.escenas) / 10;
+  m.promesas_x_guion = Math.round((10 * m.promesa_no_producible) / m.guiones) / 10;
+  m.meta_x_guion = Math.round((10 * m.meta_narracion) / m.guiones) / 10;
+  return m;
+}
+
 function diff(a: string, b: string): void {
-  const ma = medir(a);
-  const mb = medir(b);
+  const nombresA = a.split(',');
+  const nombresB = b.split(',');
+  const ma = medirVarias(nombresA);
+  const mb = medirVarias(nombresB);
   if (!ma || !mb) {
-    console.error(`Falta la corrida ${!ma ? a : b}.`);
+    console.error(`Falta alguna corrida de ${!ma ? a : b}.`);
     process.exit(1);
+  }
+  if (nombresA.length > 1 || nombresB.length > 1) {
+    console.log(
+      `\n  línea base: ${nombresA.length} corrida(s), ${ma.guiones} guiones · ` +
+        `variante: ${nombresB.length} corrida(s), ${mb.guiones} guiones`,
+    );
   }
   console.log(`\n${a} → ${b}\n`);
   let algunaSenal = false;
+  const tamanoDistinto = ma.guiones !== mb.guiones;
+  const soloTasas: (keyof Metricas)[] = [
+    'guiones',
+    'escenas',
+    'rotuladas_pct',
+    'promesas_x_guion',
+    'meta_x_guion',
+    'palabras_media',
+  ];
   for (const k of Object.keys(ma) as (keyof Metricas)[]) {
+    // con corridas de distinto tamaño, los conteos crudos comparan manzanas con
+    // peras: 80 rótulos en 544 escenas es la mitad de tasa que 83 en 272
+    if (tamanoDistinto && !soloTasas.includes(k)) continue;
     const d = mb[k] - ma[k];
     const banda = BANDA_RUIDO[k];
     const senal = Math.abs(d) > banda;

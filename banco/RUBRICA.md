@@ -124,12 +124,22 @@ las ocho.
 
 ## Lo que ya se aprendió, para no repetirlo
 
-- **Cambiar el nombre del papel solo cambia el nombre del rótulo.** `sceneBlueprint`
-  emitía «PUNTO MEDIO» y «GIRO» en mayúsculas y el modelo los locutaba. Se reescribió el
-  blueprint en prosa para que no fueran citables, y en la primera tanda del banco el
-  modelo escribió «Lo contraintuitivo:» seis veces y «Otra objeción:» cinco — copiando la
-  redacción nueva. Mientras el blueprint asigne a cada escena un papel nombrable, el
-  modelo lo va a anunciar. El arreglo de verdad es estructural (S3), no de vocabulario.
+- **Un papel por escena es una etiqueta, y una etiqueta se anuncia. RESUELTO.**
+  `sceneBlueprint` emitía «PUNTO MEDIO» y «GIRO» en mayúsculas y el modelo los locutaba.
+  Se reescribieron en prosa y el modelo escribió «Lo contraintuitivo:» seis veces —
+  copiando la redacción nueva. La conclusión no era «buscar mejores palabras» sino que
+  sobraba el papel por escena. Al repartir el cuerpo en **movimientos definidos por la
+  pregunta que responden**, la tasa de escenas rotuladas cayó de 37,9 % a 14,7 % (banda
+  ±20) y la meta-narración desapareció (1,0 → 0 por guion). Una pregunta no se puede usar
+  de encabezado, y responderla obliga a encadenar con la escena anterior.
+- **La semilla no sirve para estrechar la banda.** Se añadió `seed` al proveedor y se
+  midió: gpt-5-mini razona antes de responder y no la honra. Lo único que la estrecha es
+  subir las muestras, y va con la raíz.
+- **Comparar una corrida contra una corrida es la trampa.** Con banda ±20, el mismo
+  resultado sale «señal» o «ruido» según contra cuál de las corridas base se compare.
+  `--diff` acepta varias separadas por coma y las agrupa; y con corridas de distinto
+  tamaño solo compara TASAS, porque 80 rótulos en 544 escenas es la mitad de tasa que 83
+  en 272.
 - **Una lista blanca de rótulos no puede ganar.** El modelo se los inventa:
   «Arquitectura:», «Demo rápida:», «Quién y dónde:», «Lo que cambia:». La lista blanca
   cubría 28 de 400 escenas reales; la regla genérica, 188.
