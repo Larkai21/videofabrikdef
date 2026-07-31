@@ -388,6 +388,18 @@ const META_NARRACION: readonly { id: string; re: RegExp }[] = [
   },
   { id: 'lo-contraintuitivo', re: /\blo contraintuitivo\b/i },
   { id: 'punto-medio', re: /\b(punto medio|re-?gancho)\b/i },
+  // La escena que le cuenta al espectador lo que está viendo. Apareció al
+  // añadir los efectos de lista: le pedí al refinado que dejara la enumeración
+  // al gráfico y escribió, literalmente, «No repitas cada punto en voz alta; el
+  // gráfico lo muestra». El motion graphic no se menciona, se ve.
+  //
+  // Escrita estrecha a propósito: exige el verbo que señala. Sin él, «el
+  // esquema» y «en voz alta» disparaban en 13 escenas legítimas del banco
+  // («el esquema MoE activa 16 expertos por token»); con él, 0 de 5.104.
+  {
+    id: 'senala-el-grafico',
+    re: /\b(?:el|este|ese) (?:gr[áa]fico|r[óo]tulo|esquema|diagrama) (?:ya |te )?(?:lo|la|los|las) (?:muestra|ense[ñn]a|dice|resume)\b|\b(?:lo|la|los|las) (?:ves|tienes|dejo) (?:aqu[íi] )?en (?:pantalla|el gr[áa]fico)\b|\bcomo (?:ves|puedes ver) (?:aqu[íi] )?(?:en pantalla|en el gr[áa]fico)\b|\bmira (?:la pantalla|el gr[áa]fico)\b/i,
+  },
 ];
 
 /**
@@ -714,7 +726,7 @@ export const ARREGLO_POR_AVISO: Record<string, string> = {
   promesa_no_producible:
     'quita la promesa: este vídeo se monta con metraje de archivo, no hay demo en pantalla, ni descargables, ni enlaces, ni vídeo siguiente comprometido.',
   meta_narracion:
-    'quita la frase que anuncia lo que estás haciendo. Cumplir la promesa no se avisa, se hace.',
+    'quita la frase que anuncia lo que estás haciendo o lo que se ve en pantalla. Cumplir la promesa no se avisa, se hace, y el gráfico no se menciona: se ve.',
   objeciones_seguidas:
     'esta escena es la tercera objeción seguida: conviértela en una que AVANCE el argumento en vez de poner otra pega.',
   cliche: 'quita la muletilla y di lo mismo con palabras propias.',

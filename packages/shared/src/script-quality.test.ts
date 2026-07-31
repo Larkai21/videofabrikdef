@@ -277,8 +277,23 @@ describe('meta_narracion', () => {
     expect(salta('PUNTO MEDIO: estas herramientas funcionan pero no son cajas negras.')).toBe(true);
   });
 
+  it('marca la escena que le cuenta al espectador lo que está viendo', () => {
+    // salió del refinado al pedirle que dejara la lista al gráfico: escribió
+    // la instrucción en la narración en vez de obedecerla
+    expect(salta('No repitas cada punto en voz alta; el gráfico lo muestra.')).toBe(true);
+    expect(salta('Los cuatro pasos los tienes en pantalla mientras hablo.')).toBe(true);
+    expect(salta('Como puedes ver en pantalla, la curva se dispara en enero.')).toBe(true);
+  });
+
   it('no marca el contenido que simplemente es sorprendente', () => {
     expect(salta('Ahorrar tiempo leyendo puede costarte más horas de las que ganas.')).toBe(false);
+  });
+
+  it('no marca al que habla DE esquemas y pantallas, que es media mitad del nicho', () => {
+    // sin el verbo que señala, «el esquema» disparaba en 13 escenas del banco
+    expect(salta('El esquema MoE declara 896 expertos y activa 16 por token.')).toBe(false);
+    expect(salta('Inicias una grabación de pantalla y narras en voz alta los pasos.')).toBe(false);
+    expect(salta('Ese esquema reduce el coste de inferencia sin tocar la calidad.')).toBe(false);
   });
 });
 
