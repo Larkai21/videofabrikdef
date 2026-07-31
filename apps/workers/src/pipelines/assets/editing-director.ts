@@ -632,10 +632,12 @@ export function spreadByWindows<T>(
     at: (t: T) => number;
     score: (t: T) => number;
     reject?: (t: T) => boolean;
+    /** suelo del ancho de ventana; ver la nota sobre la rejilla del informe */
+    minWindowMs?: number;
   },
 ): { kept: T[]; dropped: T[] } {
   if (opts.budget <= 0 || items.length === 0) return { kept: [], dropped: [...items] };
-  const windowMs = Math.max(1, opts.durationMs / opts.budget);
+  const windowMs = Math.max(1, opts.minWindowMs ?? 0, opts.durationMs / opts.budget);
   const porVentana = new Map<number, T[]>();
   for (const item of items) {
     const w = Math.floor(opts.at(item) / windowMs);
@@ -709,6 +711,13 @@ export function dedupeAndCap(
     at: (e) => e.from_ms,
     // lo DECLARADO por el guion gana a lo inferido por reglas o por la IA
     score: puntua,
+    // NO se fuerza aquí una ventana de un minuto. Se probó, con la idea de
+    // alinear la rejilla del reparto (duración/presupuesto, 51 s) con la del
+    // informe (minutos de reloj). Medido sobre un vídeo real: costó una tarjeta
+    // de cinco y NO quitó ni un minuto mudo, porque los minutos mudos no venían
+    // de la rejilla — venían de que en el primer y el último minuto no había ni
+    // un solo candidato. Eso se arregla arriba, en qué escenas declara tarjeta
+    // el guion, no aquí.
   }).kept;
   // conserva SFX/keyword; recorta los "pop" cuyos overlays fueron descartados
   const keptVisualFroms = new Set(visuals.map((v) => v.from_ms));

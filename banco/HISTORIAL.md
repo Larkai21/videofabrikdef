@@ -16,6 +16,27 @@ Una fila por vuelta. Sin esto, dentro de tres semanas no se sabe qué cambio pro
 
 | 31-jul-2026 | `s4-titulos` | 46c9350 | los patrones del perfil pasan de 2 a 6 y el prompt deja de pedir «cada título aplicando uno de estos patrones»: ahora exige que los tres se diferencien en FORMA, que alguno nombre algo del research, y prohíbe «Por qué» | títulos que empiezan por «Por qué»: **100 % → 0 %** (54 títulos). Aperturas repartidas entre «Cómo», «Habla», nombres propios | **se queda** |
 
+| 31-jul-2026 | `s4-huecos` | c0d0747 | nombrar la escena de cada tarjeta (`huecosDeTarjeta`) en vez de pedirlas «repartidas» | escenas con intención **81 → 49**; cobertura de la ÚLTIMA escena del cuerpo **6/6 → 0/6** | **REVERTIDO.** Acotar los huecos acota también el techo: el modelo se ciñe al mínimo |
+
+## Los minutos mudos: dos hipótesis falsas y una causa real
+
+El vídeo salió con 1 tarjeta y cinco minutos mudos de seis. Tres intentos:
+
+1. **«El guion no declara repartido».** Falso: declaró 8 intenciones y 7 anclaban
+   correctamente en el audio.
+2. **«Las rejillas no encajan»** — el reparto usa ventanas de duración/presupuesto (51 s) y
+   el informe cuenta por minuto de reloj. Se alineó a 60 s y salió PEOR: 4 tarjetas en vez
+   de 5 y los mismos 2 minutos mudos. Revertido.
+3. **La causa real**: `dedupeAndCap` deja un overlay por beat elegido por prioridad de tipo,
+   y `zoom_punch` (4) aplastaba a `text_callout` (2) antes de que la bonificación de
+   «declarado» pudiera salvarla. Arreglado → 5 tarjetas en vez de 1, reparto de
+   `[0 0 0 1 0 0]` a `[0 1 2 1 1 0]`.
+
+Y el intento de «nombrar los huecos» fue contraproducente por su cuenta: medido, bajó las
+declaraciones de 81 a 49. La lección se repite: **acotar dónde puede declarar el modelo
+acota también cuánto declara**. El reparto en el tiempo ya lo hace el montador; del guion
+hace falta cantidad y cobertura, no puntería.
+
 ## La vuelta del ritmo: dos intentos, los dos fallidos, y lo que enseñan
 
 El diagnóstico era bueno y está medido: el único guion del corpus que se lee bien cierra

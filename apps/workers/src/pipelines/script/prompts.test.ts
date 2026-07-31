@@ -1,6 +1,6 @@
 import { demoProfile } from '@fabrica/shared';
 import { describe, expect, it } from 'vitest';
-import { huecosDeTarjeta, sceneBlueprint, scriptSystem } from './prompts.js';
+import { sceneBlueprint, scriptSystem } from './prompts.js';
 
 describe('sceneBlueprint', () => {
   // El reparto anterior era una frase fija que describía 6-9 escenas de cuerpo.
@@ -56,8 +56,8 @@ describe('scriptSystem', () => {
     const s = scriptSystem(demoProfile, 875);
     // 875 palabras ≈ 7 min × 1,2 tarjetas/min ≈ 8, y ahora se nombra la escena
     // de cada una: «repartidas» no bastaba y dejaba tres minutos mudos de siete
-    expect(s).toMatch(/en CADA UNA de estas escenas/);
-    expect(s).toContain('sc-body-2');
+    expect(s).toMatch(/Declara \d+ o más de tipo tarjeta/);
+    expect(s).toContain('incluidas la primera y la última');
     expect(s).not.toContain('de 0 a 2 por escena');
   });
 
@@ -73,44 +73,5 @@ describe('scriptSystem', () => {
     expect(s).toContain('"effect":"stat"');
     // el ejemplo es de tema ajeno al canal, para dar la forma sin el contenido
     expect(s).toContain('contenedores');
-  });
-});
-
-describe('huecosDeTarjeta', () => {
-  // El montador reparte bien en el tiempo, pero una ventana sin nada declarado
-  // se queda muda: [1 2 0 0 1 1 2 0] en el último vídeo, con 18 intenciones.
-  it('reparte los huecos por todo el cuerpo, no en bloque', () => {
-    const h = huecosDeTarjeta(14, 8);
-    expect(h).toHaveLength(8);
-    const n = h.map((id) => Number(id.replace('sc-body-', '')));
-    // el primero pronto y el último tarde: cubre el guion entero
-    expect(n[0]).toBeLessThanOrEqual(3);
-    expect(n[n.length - 1]!).toBeGreaterThanOrEqual(11);
-    // sin dos seguidas
-    for (let i = 1; i < n.length; i++) expect(n[i]! - n[i - 1]!).toBeGreaterThanOrEqual(1);
-  });
-
-  it('no pisa la primera ni la última escena del cuerpo', () => {
-    const h = huecosDeTarjeta(14, 8);
-    expect(h).not.toContain('sc-body-1');
-    expect(h).not.toContain('sc-body-14');
-  });
-
-  it('no pide más tarjetas que escenas disponibles', () => {
-    expect(huecosDeTarjeta(4, 20).length).toBeLessThanOrEqual(3);
-    expect(huecosDeTarjeta(0, 8)).toEqual([]);
-    expect(huecosDeTarjeta(14, 0)).toEqual([]);
-  });
-
-  it('nunca repite una escena', () => {
-    for (const [b, p] of [
-      [14, 8],
-      [6, 5],
-      [3, 3],
-      [20, 12],
-    ] as [number, number][]) {
-      const h = huecosDeTarjeta(b, p);
-      expect(new Set(h).size, `${b}/${p}`).toBe(h.length);
-    }
   });
 });
