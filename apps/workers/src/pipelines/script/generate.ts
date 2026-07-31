@@ -5,7 +5,6 @@ import {
   channelSettingsSchema,
   editIntentSchema,
   JOBS,
-  MAX_INTENTS_PER_SCENE,
   QUEUES,
   researchSchema,
   type ChannelProfile,
@@ -28,10 +27,22 @@ const genSceneSchema = z.object({
   text: z.string().min(1),
   visual_query: z.string().min(1),
   emphasis: z.boolean().optional(),
-  // intención visual declarada por el propio guionista; se valida después con
-  // sweepIntents, no aquí: un refine en el esquema del LLM tumbaría el guion
-  // entero por una intención mal escrita
-  edit_intents: z.array(editIntentSchema).max(MAX_INTENTS_PER_SCENE).optional(),
+  // Intención visual declarada por el propio guionista. Se valida después con
+  // sweepIntents, NO aquí: un rechazo en el esquema del LLM tumba el guion
+  // entero por una intención de más.
+  //
+  // Eso es exactamente lo que decía este comentario y lo que la línea de abajo
+  // hacía al revés: llevaba `.max(MAX_INTENTS_PER_SCENE)`, y el modelo declara
+  // tres intenciones en la escena 0 con la frecuencia suficiente como para
+  // tumbar 2 de cada 18 generaciones incluso después del reintento. Medido en
+  // seis tandas del banco: 12 guiones perdidos de 152, un 8 %, y en producción
+  // sería un vídeo en incidencia por una etiqueta de más.
+  //
+  // El tope sigue existiendo donde importa: `validateSceneIntents` descarta las
+  // que pasan de MAX_INTENTS_PER_SCENE con motivo `exceso`, y el esquema del
+  // maestro (`master-json.ts`) lo exige en lo que se persiste. Aquí se lee con
+  // tolerancia, como ya se hace con `edits` y con `scene_notes`.
+  edit_intents: z.array(editIntentSchema).optional(),
 });
 
 // exportado: packaging_first genera SOLO esta parte (packaging.ts)

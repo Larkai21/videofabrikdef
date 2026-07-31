@@ -1,5 +1,6 @@
 import type { Scene } from '@fabrica/shared';
 import { describe, expect, it } from 'vitest';
+import { MAX_INTENTS_PER_SCENE } from '@fabrica/shared';
 import { countIntents, intentWarning, keepValidIntents, sweepIntents } from './intents.js';
 
 const CLAIMS = [{ text: 'ya son 2 millones de usuarios' }];
@@ -70,7 +71,9 @@ describe('intentWarning', () => {
   });
 
   it('concuerda el singular', () => {
-    expect(intentWarning([{ sceneId: 'a', effect: 'callout', reason: 'sin_copy' }])).toContain('un efecto');
+    expect(intentWarning([{ sceneId: 'a', effect: 'callout', reason: 'sin_copy' }])).toContain(
+      'un efecto',
+    );
   });
 });
 
@@ -103,5 +106,31 @@ describe('countIntents', () => {
         },
       ]),
     ).toBe(3);
+  });
+});
+
+describe('lectura tolerante de las intenciones del LLM', () => {
+  // El esquema con el que se LEE la salida del modelo llevaba
+  // `.max(MAX_INTENTS_PER_SCENE)`, y una escena con tres intenciones tumbaba el
+  // guion entero: 12 generaciones perdidas de 152 en seis tandas del banco. En
+  // producción sería un vídeo en incidencia por una etiqueta de más.
+  it('acepta más intenciones de las permitidas y las recorta después', () => {
+    const escena: Scene = {
+      id: 'sc-hook',
+      section: 'hook',
+      text: 'Nvidia levantó 300 millones y el mercado cambió de golpe esta semana.',
+      visual_query: 'chips',
+      edit_intents: [
+        { effect: 'kinetic', trigger_word: 'Nvidia', card_text: 'Nvidia' },
+        { effect: 'kinetic', trigger_word: 'mercado', card_text: 'Mercado' },
+        { effect: 'kinetic', trigger_word: 'semana', card_text: 'Semana' },
+      ],
+    };
+    // el esquema de lectura NO rechaza las tres…
+    expect(escena.edit_intents).toHaveLength(3);
+    // …y el barrido deja como mucho MAX_INTENTS_PER_SCENE, con motivo
+    const barrido = sweepIntents([escena], []);
+    expect(barrido.scenes[0]!.edit_intents?.length ?? 0).toBeLessThanOrEqual(MAX_INTENTS_PER_SCENE);
+    expect(barrido.dropped.some((d) => d.reason === 'exceso')).toBe(true);
   });
 });

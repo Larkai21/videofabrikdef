@@ -8,15 +8,59 @@ import { ledgeredLlmJson } from './llm-call.js';
 import { refineSystem } from './prompts.js';
 import { countWords } from './wordcount.js';
 
-export async function handleScriptRefine(
-  ctx: WorkerContext,
-  data: ScriptRefineJob,
-): Promise<void> {
-  const { videoId, patchTargets, reasons } = data;
+/**
+ * El encargo que recibe el refinado, con el arreglo concreto de cada escena y
+ * sus vecinas alrededor.
+ *
+ * `ScriptRefineJob.notes` existe en el contrato desde el principio, con un
+ * comentario que dice «sin ellas el refinado reescribe a ciegas», y `judge.ts`
+ * las rellena con `{axis, issue, fix}` por escena. Pero la palabra `notes` no
+ * aparecía en este fichero: se leían solo `patchTargets` y `reasons`, así que
+ * el refinado recibía la lista de motivos del guion ENTERO y tenía que adivinar
+ * cuál corresponde a cuál escena.
+ *
+ * Y va la escena anterior y la siguiente como contexto de solo lectura, porque
+ * una de las reglas de oficio es «cada escena arranca enlazando con la
+ * anterior» y era imposible de cumplir sin verla.
+ */
+export function instruccionesDeRefinado(
+  todas: readonly Scene[],
+  objetivos: readonly Scene[],
+  reasons: readonly string[],
+  notes: readonly { id: string; axis: string; issue: string; fix: string }[],
+): string {
+  const porId = new Map(notes.map((n) => [n.id, n]));
+  const idx = new Map(todas.map((s, i) => [s.id, i]));
+  const lineas: string[] = [];
+  if (reasons.length > 0) lineas.push(`Motivos generales del juez: ${reasons.join('; ')}`);
+  lineas.push('Reescribe SOLO estas escenas, manteniendo su longitud aproximada.');
+  for (const s of objetivos) {
+    const i = idx.get(s.id) ?? -1;
+    const previa = i > 0 ? todas[i - 1] : undefined;
+    const siguiente = i >= 0 ? todas[i + 1] : undefined;
+    lineas.push('');
+    lineas.push(`## ${s.id}`);
+    const nota = porId.get(s.id);
+    if (nota) {
+      lineas.push(`Problema (${nota.axis}): ${nota.issue}`);
+      lineas.push(`Arreglo pedido: ${nota.fix}`);
+    }
+    if (previa) lineas.push(`Escena anterior (NO la reescribas): ${previa.text}`);
+    lineas.push(`Texto a reescribir: ${s.text}`);
+    if (siguiente) lineas.push(`Escena siguiente (NO la reescribas): ${siguiente.text}`);
+  }
+  return lineas.join('\n');
+}
+
+export async function handleScriptRefine(ctx: WorkerContext, data: ScriptRefineJob): Promise<void> {
+  const { videoId, patchTargets, reasons, notes } = data;
   const [video] = await ctx.db.select().from(videos).where(eq(videos.id, videoId));
   if (!video) throw new Error(`Vídeo no encontrado: ${videoId}`);
   if (video.state !== 'guion_borrador') {
-    ctx.logger.info({ videoId, state: video.state }, 'Refinado omitido: el guion ya no está en borrador');
+    ctx.logger.info(
+      { videoId, state: video.state },
+      'Refinado omitido: el guion ya no está en borrador',
+    );
     return;
   }
   const script = video.master.script;
@@ -46,11 +90,7 @@ export async function handleScriptRefine(
     channelId: video.channelId,
     op: 'refine',
     system: refineSystem(profile),
-    user: [
-      `Motivos del juez: ${reasons.join('; ') || 'ajuste dirigido'}`,
-      'Reescribe SOLO estas escenas manteniendo su longitud aproximada:',
-      ...targets.map((s) => `- ${s.id}: ${s.text}`),
-    ].join('\n'),
+    user: instruccionesDeRefinado(script.scenes, targets, reasons, notes ?? []),
     schema: refineOutputSchema,
     mockContext: {
       scenes: targets.map((s) => ({
