@@ -20,7 +20,7 @@ Una fila por vuelta. Sin esto, dentro de tres semanas no se sabe qué cambio pro
 
 | 31-jul-2026 | `control` | 3f471d9 | **primera evaluación del conjunto de control**, sin haberlo mirado en todo el sprint | rotuladas **12,5 %** (dev 16,7 %, corpus 37,9 %) · promesas impagables **0** · meta-narración **0** | **el control va mejor que dev: no hay sobreajuste.** La portería devuelve NO PASA porque la comprobación 1 exige CERO rótulos |
 
-| 31-jul-2026 |  + reparación | eb66c7a | aviso `cierre_resumen` bloqueante, tope de reparación 4→8, e instrucción por aviso | `cierre_resumen` **56 → 7** · rotuladas 6,3 % → **1,0 %** · promesas 0,5 → 0,1 · meta 0,1 → **0** | **se queda.** El ritmo se ataca nombrando el defecto y reparándolo, no con reglas de oficio |
+| 31-jul-2026 | `s6-rotulos` + reparación | eb66c7a | aviso `cierre_resumen` bloqueante, tope de reparación 4→8, e instrucción por aviso | `cierre_resumen` **56 → 7** · rotuladas 6,3 % → **1,0 %** · promesas 0,5 → 0,1 · meta 0,1 → **0** | **se queda.** El ritmo se ataca nombrando el defecto y reparándolo, no con reglas de oficio |
 
 ## Los minutos mudos: dos hipótesis falsas y una causa real
 
