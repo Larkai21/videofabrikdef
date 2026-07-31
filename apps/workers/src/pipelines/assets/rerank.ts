@@ -31,8 +31,10 @@ import { ledgeredLlmJson } from '../ideas/llm-call.js';
  */
 
 export const rerankSchema = z.object({
-  beats: z.array(
+  planos: z.array(
     z.object({
+      // posición en la lista que se le dio, no el idx del beat: un beat puede
+      // traer varios planos y el modelo confundía los dos números
       idx: z.number().int().nonnegative(),
       // 1..n = ese candidato; 0 = ninguno sirve
       elegido: z.number().int().nonnegative(),
@@ -40,18 +42,33 @@ export const rerankSchema = z.object({
   ),
 });
 
-export interface RerankBeat {
-  idx: number;
+/**
+ * La unidad que se juzga es el SUB-PLANO, no el beat.
+ *
+ * Un beat de 10 s puede llevar hasta tres planos con consultas distintas, y
+ * cada uno tiene su propia lista de candidatos. Juzgar a nivel de beat y
+ * aplicar el veredicto al primero sería la misma clase de fallo que la puerta
+ * de curación rota: decidir sobre una estructura y escribir en otra.
+ */
+export interface RerankPlano {
+  beatIdx: number;
+  vIdx: number;
   /** lo que se oye en ese hueco */
   text: string;
+  /** el plano que pidió el director de b-roll, como contexto de lo buscado */
+  query: string;
   candidates: BeatCandidate[];
 }
 
 export interface RerankResult {
-  /** candidatos reordenados por beat; solo los beats que el juez tocó */
-  orden: Map<number, BeatCandidate[]>;
-  /** beats en los que el juez dice que NINGÚN candidato pega */
-  sinPlano: Set<number>;
+  /** candidatos reordenados, por `${beatIdx}:${vIdx}`; solo los que el juez tocó */
+  orden: Map<string, BeatCandidate[]>;
+  /** sub-planos en los que el juez dice que NINGÚN candidato pega */
+  sinPlano: Set<string>;
+}
+
+export function claveDe(p: { beatIdx: number; vIdx: number }): string {
+  return `${p.beatIdx}:${p.vIdx}`;
 }
 
 /** Cuántos finalistas se le enseñan al juez. Más allá el prompt crece sin dar. */
@@ -64,7 +81,7 @@ function pieDeFoto(c: BeatCandidate): string {
   return `[${kind}] ${cap.replace(/\s+/g, ' ').slice(0, 140)}`;
 }
 
-export function buildRerankPrompt(beats: RerankBeat[]): { system: string; user: string } {
+export function buildRerankPrompt(planos: RerankPlano[]): { system: string; user: string } {
   const system = [
     'Eres montador de un canal de YouTube. Para cada beat te doy lo que se OYE',
     'y los pies de foto de los planos de archivo disponibles.',
@@ -74,17 +91,23 @@ export function buildRerankPrompt(beats: RerankBeat[]): { system: string; user: 
     'no ilustra «una multa», ni una sala de reuniones ilustra «un contrato».',
     'Si ninguno lo cumple, responde 0. Vale la pena responder 0: un plano que no',
     'pega se nota más que la falta de un plano concreto.',
-    'Responde SOLO JSON: {"beats":[{"idx":number,"elegido":number}]}, con elegido',
-    'entre 1 y el número de candidatos de ese beat, o 0 si ninguno sirve.',
+    'Responde SOLO JSON: {"planos":[{"idx":number,"elegido":number}]}, con idx el',
+    'número de PLANO tal cual te lo doy y elegido entre 1 y el número de',
+    'candidatos de ese plano, o 0 si ninguno sirve.',
   ].join('\n');
 
-  const user = beats
-    .map((b) => {
-      const opciones = b.candidates
+  const user = planos
+    .map((p, i) => {
+      const opciones = p.candidates
         .slice(0, MAX_CANDIDATOS)
-        .map((c, i) => `    ${i + 1}. ${pieDeFoto(c)}`)
+        .map((c, k) => `    ${k + 1}. ${pieDeFoto(c)}`)
         .join('\n');
-      return `BEAT ${b.idx}\n  se oye: ${b.text.replace(/\s+/g, ' ').slice(0, 220)}\n  candidatos:\n${opciones}`;
+      return [
+        `PLANO ${i}`,
+        `  se oye: ${p.text.replace(/\s+/g, ' ').slice(0, 220)}`,
+        `  se buscaba: ${p.query}`,
+        `  candidatos:\n${opciones}`,
+      ].join('\n');
     })
     .join('\n\n');
 
@@ -98,24 +121,24 @@ export function buildRerankPrompt(beats: RerankBeat[]): { system: string; user: 
  * siguen siendo las alternativas que ve el humano en la ficha.
  */
 export function aplicarVeredicto(
-  beats: RerankBeat[],
+  planos: RerankPlano[],
   veredicto: { idx: number; elegido: number }[],
 ): RerankResult {
-  const orden = new Map<number, BeatCandidate[]>();
-  const sinPlano = new Set<number>();
-  const porIdx = new Map(beats.map((b) => [b.idx, b]));
+  const orden = new Map<string, BeatCandidate[]>();
+  const sinPlano = new Set<string>();
   for (const v of veredicto) {
-    const beat = porIdx.get(v.idx);
-    if (!beat || beat.candidates.length === 0) continue;
+    const plano = planos[v.idx];
+    if (!plano || plano.candidates.length === 0) continue;
+    const clave = claveDe(plano);
     if (v.elegido === 0) {
-      sinPlano.add(v.idx);
+      sinPlano.add(clave);
       continue;
     }
-    const elegido = beat.candidates[v.elegido - 1];
-    // fuera de rango: el juez se inventó un número. No se toca ese beat.
+    const elegido = plano.candidates[v.elegido - 1];
+    // fuera de rango: el juez se inventó un número. No se toca ese plano.
     if (!elegido) continue;
-    if (elegido === beat.candidates[0]) continue; // ya estaba primero
-    orden.set(v.idx, [elegido, ...beat.candidates.filter((c) => c !== elegido)]);
+    if (elegido === plano.candidates[0]) continue; // ya estaba primero
+    orden.set(clave, [elegido, ...plano.candidates.filter((c) => c !== elegido)]);
   }
   return { orden, sinPlano };
 }
@@ -127,10 +150,10 @@ export function aplicarVeredicto(
  */
 export async function rerankBeats(
   ctx: WorkerContext,
-  params: { videoId: string; channelId: string; beats: RerankBeat[] },
+  params: { videoId: string; channelId: string; planos: RerankPlano[] },
 ): Promise<RerankResult> {
   const vacio: RerankResult = { orden: new Map(), sinPlano: new Set() };
-  const conCandidatos = params.beats.filter((b) => b.candidates.length >= 2);
+  const conCandidatos = params.planos.filter((p) => p.candidates.length >= 2);
   if (conCandidatos.length === 0) return vacio;
 
   const { system, user } = buildRerankPrompt(conCandidatos);
@@ -142,9 +165,9 @@ export async function rerankBeats(
       system,
       user,
       schema: rerankSchema,
-      mockContext: { beats: conCandidatos.map((b) => ({ idx: b.idx })) },
+      mockContext: { planos: conCandidatos.map((_, i) => ({ idx: i })) },
     });
-    return aplicarVeredicto(conCandidatos, data.beats);
+    return aplicarVeredicto(conCandidatos, data.planos);
   } catch (err) {
     ctx.logger.warn(
       { err, videoId: params.videoId },

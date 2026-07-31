@@ -122,10 +122,10 @@ export function buildMockEditing(mockContext: Record<string, unknown>): {
  * de foto y cualquier otra elección sería aleatoria disfrazada de criterio.
  */
 export function buildMockRerank(mockContext: Record<string, unknown>): {
-  beats: { idx: number; elegido: number }[];
+  planos: { idx: number; elegido: number }[];
 } {
-  const beats = Array.isArray(mockContext.beats) ? (mockContext.beats as { idx: number }[]) : [];
-  return { beats: beats.map((b) => ({ idx: b.idx, elegido: 1 })) };
+  const planos = Array.isArray(mockContext.planos) ? (mockContext.planos as { idx: number }[]) : [];
+  return { planos: planos.map((p) => ({ idx: p.idx, elegido: 1 })) };
 }
 
 export function registerAssetsMocks(): void {

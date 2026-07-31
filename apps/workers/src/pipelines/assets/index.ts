@@ -141,6 +141,16 @@ function toBeatKind(assetKind: string): 'clip' | 'image' {
   return assetKind === 'clip' ? 'clip' : 'image';
 }
 
+/**
+ * El id de biblioteca de un candidato, o null si es de stock (y entonces lo
+ * resuelve la ingesta al descargar). Misma regla que la API en su `choose`:
+ * si el elegido cambia, `asset_id` tiene que cambiar con él o la ingesta
+ * reutiliza el asset del elegido anterior.
+ */
+function libIdDe(cand: BeatCandidate): string | null {
+  return cand.provider === 'library' ? cand.ref.replace('library:', '') : null;
+}
+
 function originLabel(cand: BeatCandidate): string {
   if (cand.provider === 'library') {
     const title = (cand.meta?.title as string | undefined) ?? '';
@@ -827,39 +837,80 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
   //
   // Medido sobre 25 beats curados a mano: los planos que un espectador
   // rechazaría bajan de 8 a 1 (ver rerank.ts). El coseno no puede hacer esto:
-  // los seis candidatos de un beat caben en 0,037 y el suelo del modelo para
-  // pares no relacionados es 0,72-0,78.
+  // los seis candidatos caben en 0,037 y el suelo del modelo para pares no
+  // relacionados es 0,72-0,78.
+  //
+  // Se juzga POR SUB-PLANO y se escribe en `visuals`, que es de donde tira la
+  // ingesta. Reordenar solo `beats.candidates` habría sido decorativo: es
+  // exactamente el fallo que tenía la puerta de curación humana.
   if (fullRun) {
-    const paraJuez = beatRows
-      .filter((b) => b.status !== 'locked')
-      .map((b) => ({ idx: b.idx, text: b.text, candidates: b.candidates ?? [] }));
+    const planos = beatRows
+      .filter((b) => b.status !== 'locked' && b.visuals && b.visuals.length > 0)
+      .flatMap((b) =>
+        (b.visuals ?? []).map((v, vIdx) => ({
+          beatIdx: b.idx,
+          vIdx,
+          text: b.text,
+          query: v.visual_query,
+          candidates: v.candidates,
+        })),
+      );
     const { orden, sinPlano } = await rerankBeats(ctx, {
       videoId,
       channelId: video.channelId,
-      beats: paraJuez,
+      planos,
     });
     for (const b of beatRows) {
-      const nuevo = orden.get(b.idx);
-      const rechazado = sinPlano.has(b.idx);
-      if (!nuevo && !rechazado) continue;
-      if (nuevo) b.candidates = nuevo;
-      // «Ninguno pega» no descarta el beat: sin generación de imagen no hay
-      // plan B, y un hueco sin plano no se puede renderizar. Lo que hace es
-      // quitarle el verde: ese beat lo mira el humano sí o sí.
-      const status = rechazado ? ('review' as const) : b.status;
-      b.status = status;
+      if (!b.visuals || b.visuals.length === 0) continue;
+      let tocado = false;
+      const visuals = b.visuals.map((v, vIdx) => {
+        const clave = `${b.idx}:${vIdx}`;
+        const nuevo = orden.get(clave);
+        const rechazado = sinPlano.has(clave);
+        if (!nuevo && !rechazado) return v;
+        tocado = true;
+        return {
+          ...v,
+          ...(nuevo
+            ? {
+                candidates: nuevo,
+                chosen_origin: originLabel(nuevo[0]!),
+                // el coseno mostrado tiene que ser el del plano que se ve, no
+                // el del que la máquina había puesto primero
+                chosen_score: nuevo[0]!.score,
+                asset_id: libIdDe(nuevo[0]!),
+              }
+            : {}),
+          // «Ninguno pega» no descarta el plano: sin generación de imagen no
+          // hay plan B y un hueco vacío no se renderiza. Lo que hace es
+          // quitarle el verde, para que ese plano lo mire el humano sí o sí.
+          ...(rechazado ? { status: 'review' as const } : {}),
+        };
+      });
+      if (!tocado) continue;
+      // el beat hereda del plano principal (convención compartida con la API)
+      const principal = visuals[0]!;
+      const algunoEnRevision = visuals.some((v) => v.status !== 'auto_ok');
+      b.visuals = visuals;
+      b.candidates = principal.candidates;
       await db
         .update(beatsTable)
         .set({
-          ...(nuevo ? { candidates: nuevo, chosenOrigin: originLabel(nuevo[0]!) } : {}),
-          status,
-          ...(rechazado ? { discardReason: 'ningún plano ilustra lo que se dice' } : {}),
+          visuals,
+          candidates: principal.candidates,
+          chosenOrigin: principal.chosen_origin,
+          chosenScore: principal.chosen_score,
+          assetId: principal.asset_id,
+          ...(algunoEnRevision ? { status: 'review' as const } : {}),
+          ...(sinPlano.has(`${b.idx}:0`)
+            ? { discardReason: 'ningún plano ilustra lo que se dice' }
+            : {}),
         })
-        .where(eq(beatsTable.id, b.id));
+        .where(and(eq(beatsTable.id, b.id), ne(beatsTable.status, 'locked')));
     }
     if (orden.size > 0 || sinPlano.size > 0) {
       logger.info(
-        { videoId, reordenados: orden.size, sinPlano: sinPlano.size },
+        { videoId, reordenados: orden.size, sinPlano: sinPlano.size, planos: planos.length },
         'El juez de planos reordenó finalistas',
       );
     }
