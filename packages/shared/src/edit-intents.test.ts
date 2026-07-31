@@ -8,7 +8,10 @@ import {
   type EditIntent,
 } from './edit-intents.js';
 
-const CLAIMS = [{ text: 'el índice subió un 70% en enero' }, { text: 'ya son 2 millones de usuarios' }];
+const CLAIMS = [
+  { text: 'el índice subió un 70% en enero' },
+  { text: 'ya son 2 millones de usuarios' },
+];
 
 function escena(text: string, intents: EditIntent[], section: 'hook' | 'body' | 'cta' = 'body') {
   return { section, text, edit_intents: intents };
@@ -89,9 +92,7 @@ describe('validateSceneIntents', () => {
     expect(sinValor.dropped[0]?.reason).toBe('sin_valor');
 
     const inventada = validateSceneIntents(
-      escena('subió mucho el índice', [
-        { effect: 'stat', trigger_word: 'índice', value: '4500' },
-      ]),
+      escena('subió mucho el índice', [{ effect: 'stat', trigger_word: 'índice', value: '4500' }]),
       CLAIMS,
     );
     expect(inventada.dropped[0]?.reason).toBe('cifra_sin_respaldo');
@@ -109,7 +110,9 @@ describe('validateSceneIntents', () => {
 
   it('la tipografía cinética solo va en el gancho', () => {
     const r = validateSceneIntents(
-      escena('esto cambia todo', [{ effect: 'kinetic', trigger_word: 'cambia', card_text: 'todo cambia' }]),
+      escena('esto cambia todo', [
+        { effect: 'kinetic', trigger_word: 'cambia', card_text: 'todo cambia' },
+      ]),
       CLAIMS,
     );
     expect(r.dropped[0]?.reason).toBe('kinetic_fuera_hook');
@@ -146,5 +149,79 @@ describe('validateSceneIntents', () => {
 
   it('una escena sin intenciones no produce nada', () => {
     expect(validateSceneIntents({ section: 'body', text: 'lo que sea' }, CLAIMS).kept).toEqual([]);
+  });
+});
+
+describe('efectos de lista', () => {
+  const escenaCon = (intent: EditIntent) => ({
+    section: 'body' as const,
+    text: 'Los pesos abiertos y la API cerrada compiten por el mismo presupuesto.',
+    edit_intents: [intent],
+  });
+
+  it('una comparación necesita exactamente dos lados', () => {
+    const base = { effect: 'comparacion' as const, trigger_word: 'compiten' };
+    expect(
+      validateSceneIntents(escenaCon({ ...base, items: ['Pesos abiertos', 'API cerrada'] }), [])
+        .kept,
+    ).toHaveLength(1);
+    for (const items of [undefined, [], ['solo uno'], ['a', 'b', 'c']]) {
+      const r = validateSceneIntents(escenaCon({ ...base, ...(items ? { items } : {}) }), []);
+      expect(r.kept, JSON.stringify(items)).toHaveLength(0);
+      expect(r.dropped[0]?.reason).toBe('items_mal');
+    }
+  });
+
+  it('los pasos van de dos a cuatro', () => {
+    const base = { effect: 'pasos' as const, trigger_word: 'compiten' };
+    expect(
+      validateSceneIntents(escenaCon({ ...base, items: ['Descarga', 'Ajusta', 'Mide'] }), []).kept,
+    ).toHaveLength(1);
+    expect(
+      validateSceneIntents(escenaCon({ ...base, items: ['a', 'b', 'c', 'd', 'e'] }), []).kept,
+    ).toHaveLength(0);
+  });
+
+  it('un rótulo de lista NO puede ser una frase: se lee en pantalla', () => {
+    const r = validateSceneIntents(
+      escenaCon({
+        effect: 'comparacion',
+        trigger_word: 'compiten',
+        items: ['Pesos abiertos', 'una manera bastante más cerrada de hacer lo mismo'],
+      }),
+      [],
+    );
+    expect(r.kept).toHaveLength(0);
+    expect(r.dropped[0]?.reason).toBe('items_mal');
+  });
+
+  it('la tendencia exige cifra y dirección, y la cifra tiene que estar respaldada', () => {
+    const claims = [{ text: 'el índice subió un 70% en enero' }];
+    const ok = validateSceneIntents(
+      escenaCon({
+        effect: 'tendencia',
+        trigger_word: 'compiten',
+        value: '70%',
+        style: 'sube',
+      }),
+      claims,
+    );
+    expect(ok.kept).toHaveLength(1);
+
+    // sin dirección no se sabe si la curva sube o baja
+    expect(
+      validateSceneIntents(
+        escenaCon({ effect: 'tendencia', trigger_word: 'compiten', value: '70%' }),
+        claims,
+      ).dropped[0]?.reason,
+    ).toBe('sin_valor');
+
+    // y la regla factual vale igual que para stat
+    expect(
+      validateSceneIntents(
+        escenaCon({ effect: 'tendencia', trigger_word: 'compiten', value: '99%', style: 'baja' }),
+        claims,
+      ).dropped[0]?.reason,
+    ).toBe('cifra_sin_respaldo');
   });
 });

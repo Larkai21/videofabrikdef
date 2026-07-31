@@ -4,6 +4,7 @@ import { defaultDesign, hexToRgba, type DesignTokens } from '@fabrica/shared';
 import { displayText, FONT_FAMILY } from '../fonts';
 import { hashSeed } from '../seed';
 import { clamp, Ease, mix, noise, pulse, span, typed } from './motion';
+import { familias, R, S, SENAL, T } from './tokens';
 
 // Biblioteca de efectos de edición: overlays deterministas que el director de
 // edición coloca en la línea de tiempo para que el vídeo se sienta editado. Cada
@@ -959,6 +960,245 @@ export const Ambience: React.FC<{ design?: DesignTokens }> = ({ design }) => {
           <rect width="100%" height="100%" filter={`url(#grain-${seed})`} />
         </svg>
       </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
+// ---- Los tres del catálogo de motion graphics -------------------------------
+// Portados de `editor-youtube/templates/`: split-versus, pasos-flow y
+// green-spike/red-crash. Existen por un motivo editorial, no por tener más
+// efectos: son las tres formas en que un guion de este nicho se pone a
+// ENUMERAR, y enumerar en voz alta es lo que produce los rótulos locutados que
+// costó todo un sprint quitar. Si la lista se dibuja, la voz puede dejar de
+// recitarla.
+
+/**
+ * Dos cosas enfrentadas. El corte se abre DESDE EL CENTRO hacia los dos
+ * extremos, con `inOutCubic` y no `outCubic`.
+ *
+ * La nota es literal de `split-versus.html` y explica por qué: «una punta que
+ * traza arranca contra el material y frena contra él. Con outCubic el trazo
+ * aparece hecho a medias en el primer fotograma y se lee como un barrido
+ * automático, que es justo lo que esto no es».
+ */
+export const SplitVersus: React.FC<{ items: string[]; design?: DesignTokens }> = ({
+  items,
+  design,
+}) => {
+  const d = design ?? defaultDesign();
+  const frame = useCurrentFrame();
+  const { opacity } = useInOut();
+  const [a, b] = items;
+  if (a === undefined || b === undefined) return null;
+
+  const corte = span(frame, 4, 16, Ease.inOutCubic);
+  // el trazo gana CUERPO al abrirse: 2 px de raya a 13 px de canto
+  const grosor = mix(2, 13, corte);
+  const ladoA = span(frame, 8, 14, Ease.outCubic);
+  const ladoB = span(frame, 13, 14, Ease.outCubic);
+
+  const lado = (texto: string, p: number, desde: number): React.ReactNode => (
+    <div
+      style={{
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: `0 ${S[6]}px`,
+        opacity: p,
+        transform: `translateX(${(1 - p) * desde}px)`,
+        ...displayText(800),
+        fontSize: T.xl,
+        lineHeight: 1.1,
+        color: d.foreground,
+        textAlign: 'center',
+      }}
+    >
+      {texto}
+    </div>
+  );
+
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+      <div
+        style={{
+          opacity,
+          display: 'flex',
+          alignItems: 'stretch',
+          width: 1500,
+          height: 260,
+          borderRadius: R.lg,
+          ...glassSurface(d),
+          overflow: 'hidden',
+        }}
+      >
+        {lado(a, ladoA, -40)}
+        <div
+          style={{
+            width: grosor,
+            alignSelf: 'stretch',
+            background: d.accent,
+            // se abre desde el centro: el canto se apoya en la junta
+            clipPath: `inset(${((1 - corte) * 50).toFixed(2)}% 0 ${((1 - corte) * 50).toFixed(2)}% 0)`,
+          }}
+        />
+        {lado(b, ladoB, 40)}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/**
+ * Un proceso de 2 a 4 estaciones, escalonadas en el tiempo.
+ *
+ * El hueco entre fichas es de 40 px y no de 22, que es la corrección anotada en
+ * `pasos-flow.html`: el cromo de la ficha activa se sale 14 px por arriba y 16
+ * por abajo, así que con 22 se solapaba sobre el título de la de al lado.
+ */
+export const PasosFlow: React.FC<{ items: string[]; design?: DesignTokens }> = ({
+  items,
+  design,
+}) => {
+  const d = design ?? defaultDesign();
+  const frame = useCurrentFrame();
+  const { opacity } = useInOut();
+  const pasos = items.filter((s) => s.trim() !== '').slice(0, 4);
+  if (pasos.length < 2) return null;
+  const ESCALON = 9; // frames entre estaciones
+
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+      <div style={{ opacity, display: 'flex', gap: 40, alignItems: 'stretch' }}>
+        {pasos.map((paso, i) => {
+          const p = span(frame, 4 + i * ESCALON, 14, Ease.outBack6);
+          return (
+            <div
+              key={`${i}-${paso}`}
+              style={{
+                opacity: Math.min(1, p),
+                transform: `translateY(${(1 - Math.min(1, p)) * 22}px) scale(${0.94 + 0.06 * Math.min(1, p)})`,
+                ...glassSurface(d, { accent: i === pasos.length - 1 }),
+                borderRadius: R.md,
+                padding: `${S[5]}px ${S[6]}px`,
+                minWidth: 240,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: S[2],
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: familias(d).mono,
+                  fontSize: T.xs,
+                  letterSpacing: '0.22em',
+                  color: d.accent,
+                }}
+              >
+                {String(i + 1).padStart(2, '0')}
+              </div>
+              <div
+                style={{
+                  ...displayText(700),
+                  fontSize: T.lg,
+                  lineHeight: 1.15,
+                  color: d.foreground,
+                }}
+              >
+                {paso}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/**
+ * Una cifra que se dispara o se hunde.
+ *
+ * El perfil de la curva es deliberado y viene de `green-spike.html`: «casi
+ * plano al principio y disparado al final. Una recta diagonal dice "sube";
+ * esto dice "se dispara", que es la palabra que lo activa».
+ *
+ * El color NO sale de la paleta del canal: verde de acierto y rojo de choque
+ * son señales, y su significado no se negocia por coherencia de marca. Es la
+ * misma regla que aplica el catálogo de origen.
+ */
+export const Tendencia: React.FC<{
+  value: string;
+  direccion: string;
+  label?: string;
+  design?: DesignTokens;
+}> = ({ value, direccion, label, design }) => {
+  const d = design ?? defaultDesign();
+  const frame = useCurrentFrame();
+  const { opacity } = useInOut();
+  const sube = direccion !== 'baja';
+  const color = sube ? SENAL.ok : SENAL.no;
+  const ANCHO = 640;
+  const ALTO = 300;
+
+  // el perfil literal del original; para «baja» se invierte en vertical
+  const perfil: [number, number][] = [
+    [0, 0],
+    [0.22, 0.06],
+    [0.4, 0.02],
+    [0.58, 0.22],
+    [0.74, 0.3],
+    [0.88, 0.62],
+    [1, 1],
+  ];
+  const trazo = span(frame, 6, 26, Ease.outCubic);
+  const puntos = perfil
+    .map(([x, y]) => {
+      const yy = sube ? y : 1 - y;
+      return `${(x * ANCHO).toFixed(1)},${((1 - yy) * ALTO).toFixed(1)}`;
+    })
+    .join(' ');
+
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+      <div
+        style={{
+          opacity,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: S[3],
+        }}
+      >
+        <div
+          style={{
+            ...displayText(800),
+            fontSize: T.hero,
+            lineHeight: 1,
+            color,
+            letterSpacing: '-0.04em',
+            fontVariantNumeric: 'tabular-nums',
+            ...scrim(d, { fuerza: 0.7 }),
+            padding: `${S[2]}px ${S[5]}px`,
+          }}
+        >
+          {value}
+        </div>
+        <svg width={ANCHO} height={ALTO} viewBox={`0 0 ${ANCHO} ${ALTO}`}>
+          <polyline
+            points={puntos}
+            fill="none"
+            stroke={color}
+            strokeWidth={8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            pathLength={1}
+            strokeDasharray={1}
+            strokeDashoffset={1 - trazo}
+          />
+        </svg>
+        {label !== undefined && label.trim() !== '' ? (
+          <div style={{ fontSize: T.md, fontWeight: 600, color: d.foreground }}>{label}</div>
+        ) : null}
+      </div>
     </AbsoluteFill>
   );
 };

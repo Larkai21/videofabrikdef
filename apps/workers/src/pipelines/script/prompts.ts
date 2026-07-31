@@ -259,6 +259,13 @@ export function scriptSystem(profile: ChannelProfile, targetWords: number): stri
     '- trigger_word: una palabra EXACTA que tú acabas de escribir en el `text` de ESA MISMA escena. No vale una palabra de otra escena, ni una variante, ni una que no se pronuncie. Si no puedes citar una literal, no declares la intención.',
     `- card_text: el copy de la tarjeta, de 2 a 4 palabras, sentence case, sin comillas ni signos. Resume la frase, no añade información nueva ni la contradice. Va EN ${profile.language === 'en' ? 'INGLÉS' : 'ESPAÑOL'}, el idioma del guion: es texto que el espectador lee en pantalla, no una consulta de archivo.`,
     '- effect: callout (etiqueta que refuerza la idea) · stat (cifra) · quote (frase citable) · kinetic (solo en el hook, como mucho uno en todo el guion) · keyword (resaltar esa palabra en el subtítulo) · annotation (marca de «mira esto») · device (una web o un comando concretos).',
+    // Los tres de lista existen para que la VOZ deje de enumerar: si el gráfico
+    // dibuja los pasos, la narración no tiene que decir «Primero:», «Segundo:».
+    // Ese era el defecto que quedaba tras arreglar los rótulos del blueprint.
+    '- Y tres más para cuando la escena ENUMERA, que es justo cuando el texto se llena de «Primero:», «Segundo:» y deja de sonar a alguien hablando. Si declaras uno de estos, escribe la escena en prosa normal y deja que el gráfico haga la lista:',
+    '  · comparacion — dos cosas enfrentadas. `items` con EXACTAMENTE dos rótulos de 2 a 4 palabras («Pesos abiertos» / «API cerrada»).',
+    '  · pasos — un proceso de 2 a 4 estaciones. `items` con un rótulo corto por paso, en orden.',
+    '  · tendencia — una cifra que se dispara o se hunde. `value` con la cifra (de los claims), `style` con «sube» o «baja», y `card_text` como etiqueta.',
     '- Para effect=stat: value en DÍGITOS y claim_idx OBLIGATORIO, el índice del claim del que sale la cifra. Si la cifra no está en los claims, NO declares el stat: la misma regla factual del guion vale para lo que aparece en pantalla.',
     // un solo ejemplo, de tema deliberadamente ajeno al canal: da la forma sin
     // contaminar el contenido. La prosa ya tiene few-shot; las intenciones no

@@ -64,6 +64,8 @@ export interface EffectCue {
   value?: string;
   label?: string;
   keyword?: string;
+  /** rótulos de los efectos de lista: split_versus (2) y pasos_flow (2-4) */
+  items?: string[];
   // SfxName y no string: el nivel de volumen se indexa con esto
   sfx?: SfxName;
   style?: string;
@@ -109,6 +111,7 @@ export function computeEffectsTrack(
       ...('value' in e && e.value !== undefined ? { value: e.value } : {}),
       ...('label' in e && e.label !== undefined ? { label: e.label } : {}),
       ...('keyword' in e ? { keyword: e.keyword } : {}),
+      ...('items' in e && e.items !== undefined ? { items: e.items } : {}),
       ...('sfx' in e ? { sfx: e.sfx } : {}),
       ...('style' in e && e.style !== undefined ? { style: e.style } : {}),
     };

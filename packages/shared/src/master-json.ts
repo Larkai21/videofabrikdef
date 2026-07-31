@@ -219,6 +219,15 @@ export const EDIT_TYPES = [
   // acento gráfico de menos de segundo y medio anclado a UNA palabra
   // pronunciada (ver micro-fx.ts); `style` elige la forma
   'micro_fx',
+  // Los tres del catálogo de motion graphics. Existen porque son las tres
+  // formas en que el guion se pone a enumerar, y enumerar en voz alta es lo que
+  // produce los rótulos locutados: si la lista se dibuja, la voz puede callarse.
+  // dos cosas enfrentadas (antes/ahora, A/B); usa `items` con exactamente dos
+  'split_versus',
+  // un proceso de 2 a 4 estaciones escalonadas; usa `items`
+  'pasos_flow',
+  // una cifra que se dispara o se hunde; `value` + `style` (sube|baja) + `label`
+  'tendencia',
 ] as const;
 export const editTypeSchema = z.enum(EDIT_TYPES);
 export type EditType = z.infer<typeof editTypeSchema>;
@@ -285,6 +294,27 @@ export const editSchema = z.discriminatedUnion('type', [
     ...editBase,
     type: z.literal('stat_odometer'),
     value: z.string().min(1),
+    label: z.string().optional(),
+  }),
+  // Los tres del catálogo de motion graphics. `items` son rótulos cortos que se
+  // leen en pantalla mientras la voz sigue: si la lista se DIBUJA, la narración
+  // puede dejar de recitarla, que es la causa de los rótulos locutados.
+  z.object({
+    ...editBase,
+    type: z.literal('split_versus'),
+    items: z.array(z.string().min(1)).length(2),
+  }),
+  z.object({
+    ...editBase,
+    type: z.literal('pasos_flow'),
+    items: z.array(z.string().min(1)).min(2).max(4),
+  }),
+  z.object({
+    ...editBase,
+    type: z.literal('tendencia'),
+    value: z.string().min(1),
+    /** sube | baja: el perfil de la curva, no un color de marca */
+    style: z.string().min(1),
     label: z.string().optional(),
   }),
   // annotation es la única sin payload obligatorio: es una marca sobre el b-roll

@@ -54,6 +54,9 @@ const EDIT_LABELS: Record<EditType, string> = {
   annotation: 'Marca a mano',
   device_frame: 'Marco de navegador',
   micro_fx: 'Acento',
+  split_versus: 'Comparación',
+  pasos_flow: 'Pasos',
+  tendencia: 'Tendencia',
   sfx: 'Sonido',
 };
 

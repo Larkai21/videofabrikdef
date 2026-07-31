@@ -233,6 +233,30 @@ describe('computeEffectsTrack', () => {
     expect(computeEffectsTrack(makeDemoMaster(), 30, 0)).toEqual([]);
   });
 
+  it('los efectos de lista llegan al render con sus items', () => {
+    // `items` es el único campo del contrato que no es un escalar, y el mapeo
+    // se hace campo a campo: si alguien añade un efecto de lista y olvida la
+    // línea, el gráfico se pinta vacío sin que falle nada. Esto lo caza.
+    const master = makeDemoMaster({ audioPath: 'demo/silence.wav' });
+    master.edits = [
+      {
+        type: 'split_versus',
+        from_ms: 0,
+        to_ms: 3400,
+        items: ['Pesos abiertos', 'API cerrada'],
+      },
+      { type: 'pasos_flow', from_ms: 4000, to_ms: 8200, items: ['Descarga', 'Ajusta', 'Mide'] },
+      { type: 'tendencia', from_ms: 9000, to_ms: 12000, value: '70%', style: 'sube', label: 'uso' },
+    ];
+    const effects = computeEffectsTrack(master, 30, 0);
+    expect(effects[0]).toMatchObject({
+      type: 'split_versus',
+      items: ['Pesos abiertos', 'API cerrada'],
+    });
+    expect(effects[1]).toMatchObject({ type: 'pasos_flow', items: ['Descarga', 'Ajusta', 'Mide'] });
+    expect(effects[2]).toMatchObject({ type: 'tendencia', value: '70%', style: 'sube' });
+  });
+
   it('mapea los efectos nuevos (kinetic_text, stat_odometer) por passthrough', () => {
     const master = makeDemoMaster({ audioPath: 'demo/silence.wav' });
     master.edits = [

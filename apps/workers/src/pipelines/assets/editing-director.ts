@@ -85,6 +85,11 @@ const DUR_MS: Record<string, number> = {
   kinetic_text: 2400,
   annotation: 1800,
   device_frame: 2600,
+  // Los de lista duran más: hay que LEERLOS, no solo verlos pasar. Los pasos
+  // van escalonados, así que el último aparece cuando ya han pasado ~1,2 s.
+  split_versus: 3400,
+  pasos_flow: 4200,
+  tendencia: 3000,
 };
 
 // dominio mencionado en la narración (grapheneos.org, github.com…) → marco de
@@ -207,6 +212,38 @@ export function intentEdits(params: EditingParams): IntentPlacement {
             text: card,
           });
           edits.push({ type: 'sfx', from_ms: atMs, to_ms: atMs + 400, sfx: 'pop' });
+          break;
+        case 'comparacion':
+          edits.push({
+            type: 'split_versus',
+            from_ms: atMs,
+            to_ms: win(DUR_MS.split_versus!),
+            beat_idx: beat.idx,
+            items: (intent.items ?? []).slice(0, 2),
+          });
+          edits.push({ type: 'sfx', from_ms: atMs, to_ms: atMs + 400, sfx: 'deslizar' });
+          break;
+        case 'pasos':
+          edits.push({
+            type: 'pasos_flow',
+            from_ms: atMs,
+            to_ms: win(DUR_MS.pasos_flow!),
+            beat_idx: beat.idx,
+            items: (intent.items ?? []).slice(0, 4),
+          });
+          edits.push({ type: 'sfx', from_ms: atMs, to_ms: atMs + 400, sfx: 'clic' });
+          break;
+        case 'tendencia':
+          edits.push({
+            type: 'tendencia',
+            from_ms: atMs,
+            to_ms: win(DUR_MS.tendencia!),
+            beat_idx: beat.idx,
+            value: intent.value ?? '',
+            style: intent.style ?? 'sube',
+            ...(intent.card_text ? { label: intent.card_text } : {}),
+          });
+          edits.push({ type: 'sfx', from_ms: atMs, to_ms: atMs + 400, sfx: 'riser' });
           break;
         case 'quote':
           edits.push({
@@ -583,6 +620,11 @@ const VISUAL_TYPES = new Set([
   'quote_card',
   'kinetic_text',
   'device_frame',
+  // Los tres de lista ocupan el centro como cualquier tarjeta: si no compiten,
+  // se solaparían con un callout en el mismo beat.
+  'split_versus',
+  'pasos_flow',
+  'tendencia',
 ]);
 /**
  * ¿Vale la pena llamar a la capa de IA del director?
@@ -604,6 +646,11 @@ export function hacenFaltaMasTarjetas(puestas: readonly Edit[], durationMs: numb
 // centro del gancho: nunca se recorta. odómetro/tarjeta valen igual que stat.
 const PRIORITY: Record<string, number> = {
   kinetic_text: 6,
+  // Los de lista valen como una tarjeta de dato: son el contenido de la escena,
+  // no un adorno. Si compiten con un zoom, gana el gráfico.
+  split_versus: 5,
+  pasos_flow: 5,
+  tendencia: 5,
   device_frame: 5,
   stat_odometer: 5,
   stat_card: 5,

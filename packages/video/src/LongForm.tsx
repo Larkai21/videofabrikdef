@@ -21,10 +21,13 @@ import {
   DeviceFrame,
   KineticText,
   MicroFx,
+  PasosFlow,
   ProgressBar,
   QuoteCard,
+  SplitVersus,
   StatCard,
   StatOdometer,
+  Tendencia,
   TextCallout,
 } from './effects';
 import { ensureFontLoaded, FONT_FAMILY } from './fonts';
@@ -67,7 +70,11 @@ const SFX_VOLUME: Record<SfxName, number> = {
 // de capítulo; en cortes normales rota entre fundido, slide y wipe. El tipo y la
 // dirección derivan de hashSeed → reproducible.
 const DIRS = ['from-left', 'from-right', 'from-top', 'from-bottom'] as const;
-function pickTransition(kind: 'cut' | 'section', i: number, seedBase: string): TransitionPresentation<Record<string, unknown>> {
+function pickTransition(
+  kind: 'cut' | 'section',
+  i: number,
+  seedBase: string,
+): TransitionPresentation<Record<string, unknown>> {
   const seed = hashSeed(`${seedBase}:trans:${i}`);
   const dir = DIRS[seed % 4]!;
   if (kind === 'section') {
@@ -94,6 +101,18 @@ const EditOverlay: React.FC<{ cue: EffectCue; design: DesignTokens }> = ({ cue, 
   }
   if (cue.type === 'device_frame') {
     return <DeviceFrame text={cue.text ?? ''} style={cue.style} design={design} />;
+  }
+  if (cue.type === 'split_versus') return <SplitVersus items={cue.items ?? []} design={design} />;
+  if (cue.type === 'pasos_flow') return <PasosFlow items={cue.items ?? []} design={design} />;
+  if (cue.type === 'tendencia') {
+    return (
+      <Tendencia
+        value={cue.value ?? ''}
+        direccion={cue.style ?? 'sube'}
+        label={cue.label}
+        design={design}
+      />
+    );
   }
   return null;
 };
@@ -193,7 +212,12 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
 
   const audioEl = audio && isRenderableSrc(audio.path) ? <Audio src={toSrc(audio.path)} /> : null;
   const subtitlesEl = (
-    <Subtitles cues={cues} themeRef={themeRef} design={design} highlightKeywords={highlightKeywords} />
+    <Subtitles
+      cues={cues}
+      themeRef={themeRef}
+      design={design}
+      highlightKeywords={highlightKeywords}
+    />
   );
 
   // pista de b-roll con transiciones: solape compensado para que el corte
@@ -321,17 +345,32 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
       {/* overlays de edición: callouts, tarjetas de dato y citas sobre todo lo
           demás (bajo intro/outro, que se pintan después y cubren la pantalla) */}
       {overlayCues.map((cue, i) => (
-        <Sequence key={`fx-${i}`} from={cue.from} durationInFrames={cue.durationInFrames} name={cue.type}>
+        <Sequence
+          key={`fx-${i}`}
+          from={cue.from}
+          durationInFrames={cue.durationInFrames}
+          name={cue.type}
+        >
           <EditOverlay cue={cue} design={design} />
         </Sequence>
       ))}
       {annotationCues.map((cue, i) => (
-        <Sequence key={`anot-${i}`} from={cue.from} durationInFrames={cue.durationInFrames} name="anotación">
+        <Sequence
+          key={`anot-${i}`}
+          from={cue.from}
+          durationInFrames={cue.durationInFrames}
+          name="anotación"
+        >
           <Annotation shape={cue.style} text={cue.text} seed={cue.from} design={design} />
         </Sequence>
       ))}
       {microCues.map((cue, i) => (
-        <Sequence key={`micro-${i}`} from={cue.from} durationInFrames={cue.durationInFrames} name="micro-fx">
+        <Sequence
+          key={`micro-${i}`}
+          from={cue.from}
+          durationInFrames={cue.durationInFrames}
+          name="micro-fx"
+        >
           <MicroFx shape={cue.style} design={design} />
         </Sequence>
       ))}

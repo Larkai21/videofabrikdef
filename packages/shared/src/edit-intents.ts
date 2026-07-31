@@ -84,6 +84,14 @@ export const INTENT_EFFECTS = [
   'keyword', // → keyword_highlight
   'annotation', // → annotation
   'device', // → device_frame
+  // Los tres siguientes salen del catálogo de motion graphics y existen por un
+  // motivo editorial concreto, no por tener más efectos: son las tres formas en
+  // que un guion de este nicho se pone a ENUMERAR, y enumerar en voz alta es lo
+  // que produce los rótulos que costó todo un sprint quitar. Si la lista se
+  // dibuja, la narración puede dejar de recitarla.
+  'comparacion', // → split_versus · dos cosas enfrentadas (antes/ahora, A/B)
+  'pasos', // → pasos_flow · un proceso de 2 a 4 estaciones
+  'tendencia', // → tendencia · una cifra que se dispara o se hunde
 ] as const;
 export const intentEffectSchema = z.enum(INTENT_EFFECTS);
 export type IntentEffect = z.infer<typeof intentEffectSchema>;
@@ -110,8 +118,14 @@ export const editIntentSchema = z.object({
   label: z.string().max(40).optional(),
   /** Solo effect='stat': índice en research.claims del que sale la cifra. */
   claim_idx: z.number().int().nonnegative().optional(),
-  /** annotation: circle|underline|arrow|strike|check · device: browser|phone */
+  /** annotation: circle|underline|arrow|strike|check · device: browser|phone · tendencia: sube|baja */
   style: z.string().max(16).optional(),
+  /**
+   * Las piezas de un efecto de lista: los dos lados de una `comparacion` o las
+   * estaciones de unos `pasos`. Cada una es un rótulo corto, no una frase: lo
+   * que se lee en pantalla mientras la voz sigue hablando.
+   */
+  items: z.array(z.string().min(1).max(40)).max(4).optional(),
 });
 export type EditIntent = z.infer<typeof editIntentSchema>;
 
@@ -122,6 +136,7 @@ export type IntentDropReason =
   | 'cifra_sin_respaldo'
   | 'copy_largo'
   | 'kinetic_fuera_hook'
+  | 'items_mal'
   | 'exceso';
 
 export interface IntentCheck {
@@ -136,6 +151,18 @@ const NEEDS_COPY = new Set<IntentEffect>(['callout', 'quote', 'kinetic', 'device
  * lo descartado con su motivo, para poder avisar al humano en vez de colocar un
  * efecto en el sitio equivocado.
  */
+/**
+ * Cuántas piezas necesita cada efecto de lista, y cuántas admite.
+ *
+ * La comparación son DOS lados exactos: con uno no hay comparación y con tres
+ * es otra cosa. Los pasos van de dos a cuatro; con cinco la ficha no cabe en
+ * pantalla a 1080p y con uno no es un proceso.
+ */
+const ITEMS_EXIGIDOS: Partial<Record<IntentEffect, [number, number]>> = {
+  comparacion: [2, 2],
+  pasos: [2, 4],
+};
+
 export function validateSceneIntents(
   scene: { section: 'hook' | 'body' | 'cta'; text: string; edit_intents?: EditIntent[] },
   claims: readonly { text: string }[],
@@ -169,6 +196,31 @@ export function validateSceneIntents(
       drop(intent, 'copy_largo');
       continue;
     }
+    // Los efectos de lista se pintan a partir de `items`, así que sin ellos no
+    // hay nada que dibujar. Se comprueba aquí y no en el esquema Zod para no
+    // tumbar el guion entero por una intención mal formada: la lectura de la
+    // salida del LLM es tolerante a propósito.
+    if (ITEMS_EXIGIDOS[intent.effect] !== undefined) {
+      const [minimo, maximo] = ITEMS_EXIGIDOS[intent.effect]!;
+      const items = (intent.items ?? []).map((s) => s.trim()).filter((s) => s !== '');
+      const largos = items.some((s) => s.split(/\s+/).length > MAX_CARD_WORDS);
+      if (items.length < minimo || items.length > maximo || largos) {
+        drop(intent, 'items_mal');
+        continue;
+      }
+    }
+    if (intent.effect === 'tendencia') {
+      const value = (intent.value ?? '').trim();
+      const dir = (intent.style ?? '').trim();
+      if (value === '' || (dir !== 'sube' && dir !== 'baja')) {
+        drop(intent, 'sin_valor');
+        continue;
+      }
+      if (!figureBackedBy(value, [scene.text, ...claims.map((c) => c.text)])) {
+        drop(intent, 'cifra_sin_respaldo');
+        continue;
+      }
+    }
     if (intent.effect === 'stat') {
       const value = (intent.value ?? '').trim();
       if (value === '') {
@@ -197,5 +249,6 @@ export const DROP_LABELS: Record<IntentDropReason, string> = {
   cifra_sin_respaldo: 'la cifra no aparece en la escena ni en el research',
   copy_largo: 'el texto de la tarjeta pasa de cuatro palabras',
   kinetic_fuera_hook: 'la tipografía cinética solo va en el gancho',
+  items_mal: 'el gráfico de lista no trae los elementos que necesita, o son demasiado largos',
   exceso: 'la escena declaraba más efectos de los permitidos',
 };

@@ -72,6 +72,9 @@ const VISUALES = new Set([
   'quote_card',
   'kinetic_text',
   'device_frame',
+  'split_versus',
+  'pasos_flow',
+  'tendencia',
 ]);
 
 /**
