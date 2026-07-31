@@ -147,6 +147,21 @@ vueltas seguidas dieron 7,6 % y 9,4 %, que están dentro de la banda, con un ras
 patrones distintos y uno o dos casos cada uno. No hay una regla más que escribir. Lo que
 baja del 8 % al 1 % es la reparación, no el prompt.
 
+**Y lo mismo con el RITMO, que era el único eje sin resolver.** Dos reglas de oficio
+fallaron (una disparó la métrica al 74 % empeorando el texto, la otra se ignoró). La forma
+que sí funciona es nombrar el defecto y repararlo: `cierre_resumen` marca la escena que se
+cierra resumiéndose —113 de 480 cierres del banco, con 14-32 palabras que repiten lo
+recién dicho— y la reparación lo baja de 56 a 7.
+
+Dos cosas hicieron falta para llegar a ese 7, y las dos son de la misma familia:
+
+1. **Subir el tope de escenas reparables de 4 a 8.** Un guion de 16 escenas saca 5-7 avisos
+   duros, así que el tope mordía. No cuesta más llamadas: `instruccionesDeRefinado` mete
+   todas las escenas objetivo en UNA petición.
+2. **Darle a cada aviso su instrucción** (`ARREGLO_POR_AVISO`). Los avisos del linter
+   llegaban a `patch_targets` sin decir qué arreglar, así que el refinado reescribía a ojo
+   y a veces reintroducía el defecto: con instrucción, 56 → 7; sin ella se quedaba en 19.
+
 ### Primera evaluación del control — 31-jul-2026
 
 El conjunto de control se corrió por primera vez al cerrar el sprint, sin haberlo mirado

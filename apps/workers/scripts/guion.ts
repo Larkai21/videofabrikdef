@@ -30,7 +30,9 @@ import { eq } from 'drizzle-orm';
 import PQueue from 'p-queue';
 import { channels, createDb, ideas as ideasTable, videos } from '@fabrica/db';
 import {
+  ARREGLO_POR_AVISO,
   BLOCKING_LINT_KINDS,
+  MAX_ESCENAS_A_REPARAR,
   blockingSceneIds,
   channelSettingsSchema,
   entidadesNombradas,
@@ -410,6 +412,7 @@ interface Metricas {
   promesa_no_producible: number;
   meta_narracion: number;
   objeciones_seguidas: number;
+  cierre_resumen: number;
   cliche: number;
   cifra_sin_claim: number;
   palabras_media: number;
@@ -435,6 +438,7 @@ function medir(variante: string): Metricas | null {
     promesa_no_producible: 0,
     meta_narracion: 0,
     objeciones_seguidas: 0,
+    cierre_resumen: 0,
     cliche: 0,
     cifra_sin_claim: 0,
     palabras_media: 0,
@@ -460,6 +464,7 @@ function medir(variante: string): Metricas | null {
       if (h.kind === 'promesa_no_producible') m.promesa_no_producible += 1;
       if (h.kind === 'meta_narracion') m.meta_narracion += 1;
       if (h.kind === 'objeciones_seguidas') m.objeciones_seguidas += 1;
+      if (h.kind === 'cierre_resumen') m.cierre_resumen += 1;
       if (h.kind === 'cliche') m.cliche += 1;
       if (h.kind === 'cifra_sin_claim') m.cifra_sin_claim += 1;
     }
@@ -513,6 +518,7 @@ function imprimirMetricas(variante: string, m: Metricas): void {
   console.log(`  promesa impagable ${m.promesa_no_producible}`);
   console.log(`  meta-narración   ${m.meta_narracion}`);
   console.log(`  objeciones segui ${m.objeciones_seguidas}`);
+  console.log(`  cierre-resumen   ${m.cierre_resumen}`);
   console.log(`  muletillas       ${m.cliche}`);
   console.log(`  cifra sin claim  ${m.cifra_sin_claim}`);
   console.log(`  palabras (media) ${m.palabras_media}`);
@@ -555,6 +561,7 @@ const BANDA_RUIDO: Record<keyof Metricas, number> = {
   promesa_no_producible: 9,
   meta_narracion: 6,
   objeciones_seguidas: 4,
+  cierre_resumen: 12,
   cliche: 1,
   cifra_sin_claim: 0,
   palabras_media: 33,
@@ -590,6 +597,7 @@ function medirVarias(nombres: string[]): Metricas | null {
     promesa_no_producible: suma('promesa_no_producible'),
     meta_narracion: suma('meta_narracion'),
     objeciones_seguidas: suma('objeciones_seguidas'),
+    cierre_resumen: suma('cierre_resumen'),
     cliche: suma('cliche'),
     cifra_sin_claim: suma('cifra_sin_claim'),
     // medias, no sumas
@@ -807,7 +815,7 @@ async function reparar(variante: string): Promise<void> {
         const caso = casos.get(j.caso);
         const scenes: Scene[] = j.script.scenes;
         const hits = lintScenes(scenes, { claims: caso?.research.claims ?? [] });
-        const duros = blockingSceneIds(hits).slice(0, 4);
+        const duros = blockingSceneIds(hits).slice(0, MAX_ESCENAS_A_REPARAR);
         if (duros.length === 0) {
           writeFileSync(path.join(destino, f), JSON.stringify(j, null, 2));
           process.stdout.write('.');
@@ -820,10 +828,7 @@ async function reparar(variante: string): Promise<void> {
             id,
             axis: h.kind,
             issue: h.detail,
-            fix:
-              h.kind === 'andamiaje'
-                ? 'reescribe la escena para que empiece con una frase normal, sin rótulo ni dos puntos al principio'
-                : 'reescribe la escena corrigiendo eso, conservando el contenido',
+            fix: ARREGLO_POR_AVISO[h.kind] ?? 'reescribe la escena corrigiendo eso.',
           };
         });
         try {

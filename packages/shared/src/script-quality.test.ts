@@ -316,3 +316,31 @@ describe('objeciones_seguidas', () => {
     ).toBe(0);
   });
 });
+
+describe('cierre_resumen', () => {
+  const salta = (text: string): boolean =>
+    lintScenes([{ id: 's', text }], { claims: [] }).some((h) => h.kind === 'cierre_resumen');
+
+  it('marca la escena que se cierra resumiéndose, con frases reales del banco', () => {
+    expect(
+      salta(
+        'Hay dos tipos de plataforma. Esa diferencia condiciona la precisión que puedes exigir y si tendrás citas textuales verificables.',
+      ),
+    ).toBe(true);
+    expect(
+      salta(
+        'Los sistemas indexan distinto. Esos problemas no son imposibles, pero exigen vigilancia y protocolos sencillos antes de usarlo.',
+      ),
+    ).toBe(true);
+  });
+
+  it('NO marca el remate corto: el demostrativo no es el problema', () => {
+    // «Eso lo cambia todo» es un buen cierre. Lo que sobra es el resumen largo.
+    expect(salta('El contrato ya no te cubre. Eso lo cambia todo.')).toBe(false);
+    expect(salta('Sin las claves, tus datos son puro ruido.')).toBe(false);
+  });
+
+  it('se repara: entra en los avisos que disparan la reescritura', () => {
+    expect(BLOCKING_LINT_KINDS).toContain('cierre_resumen');
+  });
+});

@@ -391,6 +391,44 @@ const META_NARRACION: readonly { id: string; re: RegExp }[] = [
 ];
 
 /**
+ * La escena que se cierra resumiéndose a sí misma.
+ *
+ * Es el defecto de ritmo, y costó tres intentos dar con la forma de atacarlo.
+ * Los dos primeros fueron reglas de oficio en `craftRules` y los dos fallaron:
+ * pedir «la última frase es corta» disparó la métrica al 74 % y empeoró el
+ * texto (cada escena rematada con «Decide según tu riesgo», «Sigue leyendo»);
+ * pedir «varía cómo cierras» se ignoró directamente.
+ *
+ * El defecto sí es nombrable, y esta es su forma exacta: 113 de 480 cierres del
+ * banco (23 %) abren con un demostrativo que apunta hacia atrás y siguen 14-32
+ * palabras explicando lo que se acaba de decir. «Esa diferencia condiciona la
+ * precisión que puedes exigir y si tendrás citas textuales verificables.»
+ * Comparar con el guion que se lee bien: «Sin claves, tus datos son puro ruido.»
+ *
+ * Va con tope de longitud porque el demostrativo NO es el problema: «Eso lo
+ * cambia todo.» es un buen remate. El problema es el resumen largo.
+ *
+ * Bloqueante, para que lo arregle la pasada de reparación: es el mecanismo que
+ * ha demostrado funcionar, y a diferencia de una regla en el prompt solo toca
+ * las escenas que de verdad tienen el defecto.
+ */
+const CIERRE_RESUMEN =
+  /^\s*(Esa|Eso|Esos|Esas|Este|Esta|Estos|Estas|Por eso|As[íi] que|Con eso|Todo esto|En conjunto|Es decir)\b/;
+const CIERRE_RESUMEN_MIN_PALABRAS = 10;
+
+/** ¿La escena se cierra resumiéndose en vez de rematar? */
+export function cierraResumiendo(texto: string): boolean {
+  const fs = texto
+    .trim()
+    .split(/(?<=[.;:?!])\s+/)
+    .filter((s) => s.trim().length > 0);
+  const ultima = fs[fs.length - 1];
+  if (ultima === undefined) return false;
+  if (!CIERRE_RESUMEN.test(ultima)) return false;
+  return ultima.trim().split(/\s+/).length >= CIERRE_RESUMEN_MIN_PALABRAS;
+}
+
+/**
  * Aperturas de objeción. No se prohíben —la tensión es una regla de oficio y
  * está bien— pero encadenarlas convierte el cuerpo en una lista de pegas.
  */
@@ -478,6 +516,7 @@ export type ScriptLintKind =
   | 'promesa_no_producible'
   | 'meta_narracion'
   | 'objeciones_seguidas'
+  | 'cierre_resumen'
   | 'exclamacion'
   | 'frase_larga'
   | 'escena_corta'
@@ -588,6 +627,14 @@ export function lintScenes(
       objecionesSeguidas = 0;
     }
 
+    if (cierraResumiendo(scene.text)) {
+      hits.push({
+        id: scene.id,
+        kind: 'cierre_resumen',
+        detail: 'la escena se cierra resumiéndose a sí misma en vez de rematar',
+      });
+    }
+
     if (scene.text.includes('!') || scene.text.includes('¡')) {
       hits.push({ id: scene.id, kind: 'exclamacion', detail: 'lleva exclamación' });
     }
@@ -636,6 +683,45 @@ export function lintScenes(
   return hits;
 }
 
+/**
+ * Cuántas escenas puede reescribir el refinado de una tacada.
+ *
+ * Era 4 y el tope mordía: los avisos duros de un guion de 16 escenas salen a
+ * 5-7 (sobre todo `cierre_resumen`, que aparece en el 23 % de las escenas), así
+ * que la reparación se quedaba a medias. Medido: 56 → 24, no a cero.
+ *
+ * Subirlo NO cuesta más llamadas —`instruccionesDeRefinado` mete todas las
+ * escenas objetivo en UNA petición— solo un prompt algo más largo. El tope
+ * sigue existiendo para que una reescritura no se coma medio guion: si un guion
+ * tiene más de 8 escenas malas, el problema es el guion y hay que regenerarlo,
+ * no parchearlo.
+ */
+export const MAX_ESCENAS_A_REPARAR = 8;
+
+/**
+ * Qué hay que hacer con cada aviso duro, en la lengua del refinado.
+ *
+ * Los avisos del linter llegaban a `patch_targets` SIN instrucción: el refinado
+ * sabía qué escena tocar pero no qué arreglar, así que reescribía a ojo y a
+ * veces reintroducía el mismo defecto. Es el mismo agujero que tenía
+ * `ScriptRefineJob.notes` antes de conectarlo.
+ */
+export const ARREGLO_POR_AVISO: Record<string, string> = {
+  andamiaje:
+    'reescribe la escena para que empiece con una frase normal: sin rótulo, sin etiqueta y sin dos puntos en las primeras palabras.',
+  cierre_resumen:
+    'cambia SOLO la última frase: ahora resume lo que acabas de decir. Sustitúyela por una corta que diga la consecuencia o abra lo siguiente, y que NO empiece por «Esa», «Eso», «Esos», «Por eso» ni «Así que».',
+  promesa_no_producible:
+    'quita la promesa: este vídeo se monta con metraje de archivo, no hay demo en pantalla, ni descargables, ni enlaces, ni vídeo siguiente comprometido.',
+  meta_narracion:
+    'quita la frase que anuncia lo que estás haciendo. Cumplir la promesa no se avisa, se hace.',
+  objeciones_seguidas:
+    'esta escena es la tercera objeción seguida: conviértela en una que AVANCE el argumento en vez de poner otra pega.',
+  cliche: 'quita la muletilla y di lo mismo con palabras propias.',
+  cifra_sin_claim:
+    'la cifra no está en el research: quítala o reformula la frase sin ella. No la sustituyas por otra.',
+};
+
 /** Los avisos que obligan a retocar la escena aunque el juez no la marque. */
 export const BLOCKING_LINT_KINDS: readonly ScriptLintKind[] = [
   'cliche',
@@ -643,6 +729,7 @@ export const BLOCKING_LINT_KINDS: readonly ScriptLintKind[] = [
   'promesa_no_producible',
   'meta_narracion',
   'objeciones_seguidas',
+  'cierre_resumen',
   'cifra_sin_claim',
 ];
 
