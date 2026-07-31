@@ -28,6 +28,9 @@ export const COST_OPERATIONS = [
   'idea_writeup',
   'profile_synthesis',
   'broll_director',
+  // relectura de los finalistas por un modelo que LEE los pies de foto: el
+  // coseno mete los seis candidatos de un beat en 0,037 y no los separa
+  'broll_rerank',
   'chapter_director',
   'editing_director',
   'vlm_caption',

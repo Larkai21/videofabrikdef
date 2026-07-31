@@ -8,8 +8,29 @@ import type { DirectorBeat as EditingBeat } from './editing-director.js';
 // beats consecutivos salen distintos (imita el comportamiento real sin claves).
 
 const STOP = new Set([
-  'para', 'con', 'los', 'las', 'del', 'que', 'una', 'unos', 'unas', 'por', 'como',
-  'más', 'pero', 'sus', 'este', 'esta', 'sin', 'sobre', 'entre', 'the', 'and', 'with', 'for',
+  'para',
+  'con',
+  'los',
+  'las',
+  'del',
+  'que',
+  'una',
+  'unos',
+  'unas',
+  'por',
+  'como',
+  'más',
+  'pero',
+  'sus',
+  'este',
+  'esta',
+  'sin',
+  'sobre',
+  'entre',
+  'the',
+  'and',
+  'with',
+  'for',
 ]);
 
 function firstKeyword(text: string, avoid: Set<string>): string | null {
@@ -20,7 +41,10 @@ function firstKeyword(text: string, avoid: Set<string>): string | null {
 function keywordsOf(text: string, avoid: Set<string>, limit: number): string[] {
   const out: string[] = [];
   for (const raw of text.split(/\s+/)) {
-    const norm = raw.toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}]/gu, '');
+    const norm = raw
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[^\p{L}\p{N}]/gu, '');
     const clean = raw.replace(/[^\p{L}\p{N}]/gu, '');
     if (norm.length >= 4 && !STOP.has(norm) && !avoid.has(norm)) {
       avoid.add(norm);
@@ -63,7 +87,10 @@ export function buildMockChapters(mockContext: Record<string, unknown>): {
   for (let i = 0; i < beats.length; i += step) {
     const beat = beats[i]!;
     const kw = firstKeyword(beat.text ?? '', new Set());
-    segments.push({ title: kw ? `Sección ${kw}` : `Sección ${beat.idx}`, start_beat_idx: beat.idx });
+    segments.push({
+      title: kw ? `Sección ${kw}` : `Sección ${beat.idx}`,
+      start_beat_idx: beat.idx,
+    });
   }
   return { segments };
 }
@@ -71,7 +98,12 @@ export function buildMockChapters(mockContext: Record<string, unknown>): {
 // Mock del director de edición: propone un callout con la primera keyword útil
 // de algunos beats (uno de cada tres) para imitar la selección de momentos.
 export function buildMockEditing(mockContext: Record<string, unknown>): {
-  moments: { beat_idx: number; type: 'callout' | 'stat' | 'quote'; text?: string; keyword?: string }[];
+  moments: {
+    beat_idx: number;
+    type: 'callout' | 'stat' | 'quote';
+    text?: string;
+    keyword?: string;
+  }[];
 } {
   const beats = Array.isArray(mockContext.beats) ? (mockContext.beats as EditingBeat[]) : [];
   const moments: { beat_idx: number; type: 'callout'; text: string }[] = [];
@@ -84,8 +116,21 @@ export function buildMockEditing(mockContext: Record<string, unknown>): {
   return { moments };
 }
 
+/**
+ * El juez de planos, en mock: deja el orden como está (elegido = 1). Es el
+ * comportamiento correcto sin proveedor, porque el mock no puede leer los pies
+ * de foto y cualquier otra elección sería aleatoria disfrazada de criterio.
+ */
+export function buildMockRerank(mockContext: Record<string, unknown>): {
+  beats: { idx: number; elegido: number }[];
+} {
+  const beats = Array.isArray(mockContext.beats) ? (mockContext.beats as { idx: number }[]) : [];
+  return { beats: beats.map((b) => ({ idx: b.idx, elegido: 1 })) };
+}
+
 export function registerAssetsMocks(): void {
   registerMockOp('broll_director', ({ mockContext }) => buildMockBroll(mockContext));
+  registerMockOp('broll_rerank', ({ mockContext }) => buildMockRerank(mockContext));
   registerMockOp('chapter_director', ({ mockContext }) => buildMockChapters(mockContext));
   registerMockOp('editing_director', ({ mockContext }) => buildMockEditing(mockContext));
 }

@@ -49,6 +49,7 @@ import { directBroll } from './broll-director.js';
 import { directChapters } from './chapter-director.js';
 import { directEdits } from './editing-director.js';
 import { pickFinalists, repartirPlazas } from './finalists.js';
+import { rerankBeats } from './rerank.js';
 import { computeFit, kenburnsEffect } from './fit.js';
 import { cosEfectivo, identityRefs, selectPick, type PoolEntry } from './pick.js';
 import { registerAssetsMocks } from './mocks.js';
@@ -817,6 +818,51 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
       progress: Math.round(((i + 1) / beatRows.length) * 100),
       detail: `Beat ${beat.idx + 1} de ${beatRows.length} con candidatos`,
     });
+  }
+
+  // Juez de planos: con TODOS los beats ya resueltos, una sola llamada relee los
+  // finalistas y reordena. Va aquí y no dentro de la cascada porque el juez
+  // necesita ver los seis candidatos ya elegidos, y porque una llamada por
+  // vídeo cuesta lo que 25 no costarían.
+  //
+  // Medido sobre 25 beats curados a mano: los planos que un espectador
+  // rechazaría bajan de 8 a 1 (ver rerank.ts). El coseno no puede hacer esto:
+  // los seis candidatos de un beat caben en 0,037 y el suelo del modelo para
+  // pares no relacionados es 0,72-0,78.
+  if (fullRun) {
+    const paraJuez = beatRows
+      .filter((b) => b.status !== 'locked')
+      .map((b) => ({ idx: b.idx, text: b.text, candidates: b.candidates ?? [] }));
+    const { orden, sinPlano } = await rerankBeats(ctx, {
+      videoId,
+      channelId: video.channelId,
+      beats: paraJuez,
+    });
+    for (const b of beatRows) {
+      const nuevo = orden.get(b.idx);
+      const rechazado = sinPlano.has(b.idx);
+      if (!nuevo && !rechazado) continue;
+      if (nuevo) b.candidates = nuevo;
+      // «Ninguno pega» no descarta el beat: sin generación de imagen no hay
+      // plan B, y un hueco sin plano no se puede renderizar. Lo que hace es
+      // quitarle el verde: ese beat lo mira el humano sí o sí.
+      const status = rechazado ? ('review' as const) : b.status;
+      b.status = status;
+      await db
+        .update(beatsTable)
+        .set({
+          ...(nuevo ? { candidates: nuevo, chosenOrigin: originLabel(nuevo[0]!) } : {}),
+          status,
+          ...(rechazado ? { discardReason: 'ningún plano ilustra lo que se dice' } : {}),
+        })
+        .where(eq(beatsTable.id, b.id));
+    }
+    if (orden.size > 0 || sinPlano.size > 0) {
+      logger.info(
+        { videoId, reordenados: orden.size, sinPlano: sinPlano.size },
+        'El juez de planos reordenó finalistas',
+      );
+    }
   }
 
   // Directores de capítulos y de EDICIÓN: sobre los beats (timings de la ley del

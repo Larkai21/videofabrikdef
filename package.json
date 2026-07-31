@@ -21,7 +21,8 @@
     "sfx": "pnpm --filter @fabrica/video sfx",
     "guion": "pnpm --filter @fabrica/workers guion",
     "calidad": "pnpm --filter @fabrica/workers calidad",
-    "reescala:biblioteca": "pnpm --filter @fabrica/workers reescala:biblioteca"
+    "reescala:biblioteca": "pnpm --filter @fabrica/workers reescala:biblioteca",
+    "rerank": "pnpm --filter @fabrica/workers rerank"
   },
   "devDependencies": {
     "prettier": "^3.9.6",

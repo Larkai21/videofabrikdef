@@ -266,6 +266,14 @@ export function scriptSystem(profile: ChannelProfile, targetWords: number): stri
     '  · comparacion — dos cosas enfrentadas. `items` con EXACTAMENTE dos rótulos de 2 a 4 palabras («Pesos abiertos» / «API cerrada»).',
     '  · pasos — un proceso de 2 a 4 estaciones. `items` con un rótulo corto por paso, en orden.',
     '  · tendencia — una cifra que se dispara o se hunde. `value` con la cifra (de los claims), `style` con «sube» o «baja», y `card_text` como etiqueta.',
+    // El archivo de stock no tiene el sujeto del que hablamos. Comprobado:
+    // buscar «hugging face model page» devuelve gente abrazándose y «llama open
+    // source model» devuelve llamas en los Andes. Si el nombre no se pone en
+    // pantalla como rótulo, el espectador no lo ve NUNCA, por bueno que sea el
+    // b-roll: se queda mirando un portátil genérico mientras se habla de algo
+    // con nombre y apellidos.
+    '- Cuando nombres por primera vez un producto, un modelo, una empresa o una ley concretos, declara un callout con ESE nombre en card_text (p. ej. «Reglamento europeo de IA», «Llama 3»). Es el único momento en que el espectador puede leerlo: el archivo de vídeo no tiene planos de cosas con nombre propio, así que si no va en un rótulo no aparece en ninguna parte.',
+    '- Y si lo que nombras tiene una dirección web o un comando, declara un device con ella en card_text: el marco de navegador la escribe en pantalla.',
     '- Para effect=stat: value en DÍGITOS y claim_idx OBLIGATORIO, el índice del claim del que sale la cifra. Si la cifra no está en los claims, NO declares el stat: la misma regla factual del guion vale para lo que aparece en pantalla.',
     // un solo ejemplo, de tema deliberadamente ajeno al canal: da la forma sin
     // contaminar el contenido. La prosa ya tiene few-shot; las intenciones no
