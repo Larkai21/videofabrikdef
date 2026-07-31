@@ -10,7 +10,7 @@
 |---|---|---|---|
 | promesa | 2 | 3 | El gancho promete tres cosas concretas y el cuerpo entrega dos. Sigue prometiendo una demo. |
 | estructura | 2 | **4** | El cuerpo encadena. Ya no es un manual. |
-| ritmo | 3 | 3 | Escenas de 36 a 52 palabras. Sigue sin un golpe corto. |
+| ritmo | 3 | 3 | Ver la corrección de abajo: el defecto no es el que escribí. |
 | factualidad | 4 | 4 | Sinai.ai, My Smart Book. |
 | estilo | 2 | **4** | Cero rótulos. Cero meta-narración. |
 
@@ -77,3 +77,32 @@ Contra las cuatro corridas de línea base agrupadas (67 guiones):
 Con un solo cambio de variable. La hipótesis era que el problema no es cómo se llama el
 papel de la escena sino que exista un papel por escena, porque un papel es una etiqueta y
 una etiqueta se anuncia. Se confirma.
+
+
+## CORRECCIÓN (misma sesión, tras medir)
+
+Escribí «sigue sin un golpe corto» y es **falso**. Medido sobre las 544 escenas de esta
+corrida, el 32 % de las frases tienen ocho palabras o menos y los 34 guiones tienen al
+menos una. El golpe corto existe; lo que falla es **dónde cae**.
+
+La medida que sí separa es la **última frase de cada escena**:
+
+| | última frase de escena | ≤8 palabras | última frase del gancho |
+|---|---|---|---|
+| `O9WieZkLPrbjAAXcDxq1f` (el que se lee bien) | 11,2 palabras | **30 %** | **4** |
+| banco `s3-movimientos` | 15,9 | 11 % | 19,8 |
+| corpus publicado | 17,1 | 8 % | 18,8 |
+
+Y no es solo largo. O9Wie cierra en consecuencia:
+
+> «Todo el contenido, desaparecido.» · «Sin claves, tus datos son puro ruido.» · «La misma
+> función que te blinda puede volverse en tu contra.»
+
+El banco cierra resumiendo lo que acaba de decir, y las tres empiezan igual:
+
+> «**Esa diferencia** cambia qué respuestas esperas…» · «**Esa variedad** significa que
+> puedes escoger…» · «**Esa política** determina si puedes usar una obra protegida…»
+
+`craftRules()` ya lo dice, pero enterrado en el comentario del ejemplo: «una última frase
+que empuja hacia la escena siguiente». Está como observación sobre el ejemplo, no como
+regla.

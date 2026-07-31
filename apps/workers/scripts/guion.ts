@@ -33,6 +33,7 @@ import {
   channelSettingsSchema,
   escenasEncabezadas,
   lintScenes,
+  palabrasDelCierre,
   researchSchema,
   type ChannelProfile,
   type Research,
@@ -387,6 +388,10 @@ interface Metricas {
   rotuladas_pct: number;
   promesas_x_guion: number;
   meta_x_guion: number;
+  /** palabras de la última frase de cada escena, en media */
+  cierre_medio: number;
+  /** % de escenas que cierran con ocho palabras o menos */
+  cierres_cortos_pct: number;
 }
 
 function medir(variante: string): Metricas | null {
@@ -407,8 +412,11 @@ function medir(variante: string): Metricas | null {
     rotuladas_pct: 0,
     promesas_x_guion: 0,
     meta_x_guion: 0,
+    cierre_medio: 0,
+    cierres_cortos_pct: 0,
   };
   let palabras = 0;
+  const cierres: number[] = [];
   for (const f of readdirSync(dir).filter((x) => x.endsWith('.json'))) {
     const j = JSON.parse(readFileSync(path.join(dir, f), 'utf8'));
     const caso = casos.get(j.caso);
@@ -417,6 +425,7 @@ function medir(variante: string): Metricas | null {
     m.escenas += scenes.length;
     m.encabezadas += escenasEncabezadas(scenes);
     palabras += scriptWords(scenes);
+    for (const s of scenes) cierres.push(palabrasDelCierre(s.text));
     for (const h of lintScenes(scenes, { claims: caso?.research.claims ?? [] })) {
       if (h.kind === 'andamiaje') m.andamiaje += 1;
       if (h.kind === 'promesa_no_producible') m.promesa_no_producible += 1;
@@ -433,6 +442,14 @@ function medir(variante: string): Metricas | null {
   // simplemente un guion más corto.
   const porCien = (n: number) => (m.escenas > 0 ? Math.round((1000 * n) / m.escenas) / 10 : 0);
   const porGuion = (n: number) => (m.guiones > 0 ? Math.round((10 * n) / m.guiones) / 10 : 0);
+  m.cierre_medio =
+    cierres.length > 0
+      ? Math.round((10 * cierres.reduce((a, b) => a + b, 0)) / cierres.length) / 10
+      : 0;
+  m.cierres_cortos_pct =
+    cierres.length > 0
+      ? Math.round((1000 * cierres.filter((n) => n <= 8).length) / cierres.length) / 10
+      : 0;
   m.rotuladas_pct = porCien(m.andamiaje);
   m.promesas_x_guion = porGuion(m.promesa_no_producible);
   m.meta_x_guion = porGuion(m.meta_narracion);
@@ -454,6 +471,7 @@ function imprimirMetricas(variante: string, m: Metricas): void {
   console.log(`  rotuladas        ${m.rotuladas_pct} % de las escenas`);
   console.log(`  promesas/guion   ${m.promesas_x_guion}`);
   console.log(`  meta/guion       ${m.meta_x_guion}`);
+  console.log(`  cierre de escena ${m.cierre_medio} palabras · ${m.cierres_cortos_pct} % de ≤8`);
 }
 
 /**
@@ -490,6 +508,12 @@ const BANDA_RUIDO: Record<keyof Metricas, number> = {
   rotuladas_pct: 20,
   promesas_x_guion: 0.6,
   meta_x_guion: 0.4,
+  // Sobre cientos de cierres por corrida esta métrica es MUY estable, que es lo
+  // que la hace útil: cinco corridas dieron 15,0 / 15,3 / 15,8 / 15,9 / 16,2
+  // (sd 0,45) y 7,6 / 8,8 / 11,2 / 12,1 / 13,3 % (sd 2,3). Objetivo, medido
+  // sobre el único guion del corpus que se lee bien: 11,2 palabras y 30 %.
+  cierre_medio: 1.3,
+  cierres_cortos_pct: 7,
 };
 
 /**
@@ -522,6 +546,12 @@ function medirVarias(nombres: string[]): Metricas | null {
     rotuladas_pct: 0,
     promesas_x_guion: 0,
     meta_x_guion: 0,
+    cierre_medio:
+      Math.round((10 * vivos.reduce((n, x) => n + x.cierre_medio * x.escenas, 0)) / m.escenas) / 10,
+    cierres_cortos_pct:
+      Math.round(
+        (10 * vivos.reduce((n, x) => n + x.cierres_cortos_pct * x.escenas, 0)) / m.escenas,
+      ) / 10,
   };
   m.rotuladas_pct = Math.round((1000 * m.andamiaje) / m.escenas) / 10;
   m.promesas_x_guion = Math.round((10 * m.promesa_no_producible) / m.guiones) / 10;
@@ -554,6 +584,8 @@ function diff(a: string, b: string): void {
     'promesas_x_guion',
     'meta_x_guion',
     'palabras_media',
+    'cierre_medio',
+    'cierres_cortos_pct',
   ];
   for (const k of Object.keys(ma) as (keyof Metricas)[]) {
     // con corridas de distinto tamaño, los conteos crudos comparan manzanas con

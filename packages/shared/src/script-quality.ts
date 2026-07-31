@@ -95,6 +95,33 @@ export function escenasEncabezadas(scenes: readonly { text: string }[]): number 
 }
 
 /**
+ * El cierre de una escena, en palabras de su última frase.
+ *
+ * Es la medida de ritmo que sí separa, y costó llegar a ella. La desviación
+ * típica del largo de ESCENA ordena el corpus al revés. «Hay frases cortas»
+ * tampoco vale: el 32 % de las frases de cualquier guion tienen ocho palabras o
+ * menos y todos los guiones tienen alguna. Lo que falla es DÓNDE cae el golpe.
+ *
+ * Medido: `O9WieZkLPrbjAAXcDxq1f` —el único guion del corpus que se lee bien—
+ * cierra sus escenas con 11,2 palabras de media y el 30 % con ocho o menos; su
+ * gancho cierra con CUATRO: «Todo el contenido, desaparecido.» Los guiones
+ * generados cierran con 16-17 palabras y solo el 8-11 % por debajo de ocho.
+ *
+ * Y no es solo el largo: los cierres generados resumen la escena y empiezan
+ * todos igual («Esa diferencia cambia…», «Esa variedad significa…», «Esa
+ * política determina…»), mientras que los buenos cierran en consecuencia («Sin
+ * claves, tus datos son puro ruido»).
+ */
+export function palabrasDelCierre(texto: string): number {
+  const fs = texto
+    .trim()
+    .split(/(?<=[.;:?!])\s+/)
+    .filter((s) => s.trim().length > 0);
+  const ultima = fs[fs.length - 1];
+  return ultima === undefined ? 0 : ultima.trim().split(/\s+/).length;
+}
+
+/**
  * Promesas que este formato NO puede cumplir.
  *
  * El canal monta con metraje de archivo: no hay cámara, no hay captura de
@@ -292,7 +319,12 @@ export function lintScenes(
   scenes: readonly { id: string; text: string }[],
   opts: LintOptions,
 ): ScriptLintHit[] {
-  const minWords = opts.minWords ?? 40;
+  // 25, no 40. El mínimo de 40 marcaba 178 de 256 escenas del banco y, en
+  // producción, hizo que el juez pidiera ALARGAR el gancho. El guion que mejor
+  // se lee del corpus tiene escenas de 31 palabras: a 40, una escena-golpe es
+  // un error. El aviso sigue existiendo para la escena que de verdad no dice
+  // nada, que es de lo que iba.
+  const minWords = opts.minWords ?? 25;
   const maxWords = opts.maxWords ?? 70;
   const maxSentenceWords = opts.maxSentenceWords ?? 25;
   const claimTexts = opts.claims.map((c) => c.text);

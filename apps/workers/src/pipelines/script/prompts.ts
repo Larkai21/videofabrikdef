@@ -158,7 +158,15 @@ export function craftRules(): string {
     // papel nombrable (S3).
     'Transiciones: cada escena arranca enlazando con la anterior, sin resumirla. Dos escenas seguidas no pueden empezar con el mismo tipo de frase.',
     'Concreción: cada bloque baja a un caso, una cifra de los claims o algo que se pueda ver. Prohibido encadenar dos escenas que solo generalicen.',
-    'Ritmo: alterna frases cortas y medias, máximo 25 palabras por frase, una idea por frase. Puntuación limpia para marcar las respiraciones del locutor.',
+    // «Alterna frases cortas y medias» ya estaba y se cumple: el 32 % de las
+    // frases tienen ocho palabras o menos y todos los guiones tienen alguna.
+    // Lo que falla es DÓNDE cae el golpe. El guion del corpus que se lee bien
+    // cierra sus escenas con 11 palabras de media y el 30 % con ocho o menos;
+    // los generados, con 16 y solo el 11 %. Y cierran resumiendo lo dicho, los
+    // tres empezando igual: «Esa diferencia cambia…», «Esa variedad
+    // significa…», «Esa política determina…». Esto estaba escrito, pero como
+    // comentario sobre el ejemplo de oficio, no como regla.
+    'Ritmo: alterna frases cortas y medias, máximo 25 palabras por frase, una idea por frase. Puntuación limpia para marcar las respiraciones del locutor. La ÚLTIMA frase de cada escena es corta —ocho palabras o menos— y no resume lo que acabas de decir: dice la consecuencia, o abre lo siguiente. «Todo el contenido, desaparecido.» «Sin claves, tus datos son puro ruido.» Nunca empieces ese cierre con «Esa», «Eso» ni «Esto».',
     'Voz: segunda persona del singular, presente, voz activa. Le hablas a una persona, no a una audiencia. Como mucho una pregunta retórica cada tres escenas.',
     '',
     'Muletillas prohibidas, son marcas de texto generado:',
