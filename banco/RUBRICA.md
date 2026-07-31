@@ -122,6 +122,31 @@ que hoy no se distingue un guion bueno de uno mediocre.
 **Línea de meta:** tres casos de **control** consecutivos, de familias distintas, que pasen
 las ocho.
 
+### La pasada de REPARACIÓN, que el banco no estaba midiendo
+
+El guion que se publica NO es el que sale del generador. El juez llama al refinado con las
+escenas que el linter marca como duras (`blockingSceneIds` → `patch_targets`, y `andamiaje`
+es una de ellas), así que hasta cuatro escenas se reescriben antes de llegar a la puerta
+humana. El banco medía solo lo primero: su número de rótulos era el de ANTES de reparar.
+
+`pnpm guion --reparar <variante>` cierra el bucle y demuestra que CIERRA — si el refinado
+reescribiera una escena y le volviera a poner un rótulo, no serviría de nada:
+
+| | dev | control |
+|---|---|---|
+| escenas rotuladas, generador | 6,3 % | 7,3 % |
+| escenas rotuladas, **tras reparar** | **1,0 %** | **1,0 %** |
+| muletillas | 4 → **0** | 1 → **0** |
+| casos con CERO rótulos | 3 de 6 | **4 de 6** |
+
+Las comparaciones antes/después son PAREADAS —los mismos guiones— así que la banda de
+ruido no aplica y `--diff` lo dice en pantalla.
+
+**Dónde está el techo.** El generador se estanca en torno al 8 % de escenas rotuladas: dos
+vueltas seguidas dieron 7,6 % y 9,4 %, que están dentro de la banda, con un rastro de 24
+patrones distintos y uno o dos casos cada uno. No hay una regla más que escribir. Lo que
+baja del 8 % al 1 % es la reparación, no el prompt.
+
 ### Primera evaluación del control — 31-jul-2026
 
 El conjunto de control se corrió por primera vez al cerrar el sprint, sin haberlo mirado

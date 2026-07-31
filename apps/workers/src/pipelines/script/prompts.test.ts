@@ -19,7 +19,12 @@ describe('sceneBlueprint', () => {
     // pregunta no se puede usar como encabezado de escena.
     const largo = sceneBlueprint(14);
     expect(largo).toContain('¿qué ha pasado exactamente, y a quién?');
-    expect(largo).toContain('¿qué hace el lunes por la mañana?');
+    expect(largo).toContain('¿qué puede hacer con esto quien lo ha escuchado?');
+    // La pregunta anterior era «¿qué hace el lunes por la mañana?» y el modelo
+    // la citaba como rótulo: «El lunes por la mañana:» apareció 3 veces en los
+    // guiones del banco. Cualquier frase concreta que se ponga aquí se puede
+    // copiar como encabezado, así que las preguntas tienen que ser abstractas.
+    expect(largo).not.toContain('lunes por la mañana');
     expect(largo).not.toMatch(/PUNTO MEDIO|GIRO|re-gancho fuerte|lo contraintuitivo/i);
   });
 

@@ -30,6 +30,8 @@ import { eq } from 'drizzle-orm';
 import PQueue from 'p-queue';
 import { channels, createDb, ideas as ideasTable, videos } from '@fabrica/db';
 import {
+  BLOCKING_LINT_KINDS,
+  blockingSceneIds,
   channelSettingsSchema,
   entidadesNombradas,
   escenasEncabezadas,
@@ -45,8 +47,10 @@ import { closeCost, failCost, openCost } from '../src/lib/ledger.js';
 import { usageCost } from '../src/pipelines/script/llm-call.js';
 import { createLlm } from '../src/providers/llm.js';
 import { downloadSources } from '../src/pipelines/script/research.js';
-import { scriptGenSchema } from '../src/pipelines/script/generate.js';
+import { refineOutputSchema, scriptGenSchema } from '../src/pipelines/script/generate.js';
+import { instruccionesDeRefinado } from '../src/pipelines/script/refine.js';
 import {
+  refineSystem,
   researchSystem,
   researchUser,
   scriptSystem,
@@ -629,6 +633,14 @@ function diff(a: string, b: string): void {
   }
   console.log(`\n${a} → ${b}\n`);
   let algunaSenal = false;
+  // Comparación PAREADA: los mismos guiones antes y después (una reparación).
+  // La banda de ruido mide la varianza entre corridas INDEPENDIENTES; aplicarla
+  // aquí escondería un efecto real, porque el azar del muestreo es el mismo a
+  // los dos lados.
+  const pareada = nombresB.length === 1 && nombresB[0] === `${nombresA[0]}-reparado`;
+  if (pareada) {
+    console.log('  (comparación pareada: mismos guiones antes y después, la banda no aplica)');
+  }
   const tamanoDistinto = ma.guiones !== mb.guiones;
   const soloTasas: (keyof Metricas)[] = [
     'guiones',
@@ -645,7 +657,7 @@ function diff(a: string, b: string): void {
     // peras: 80 rótulos en 544 escenas es la mitad de tasa que 83 en 272
     if (tamanoDistinto && !soloTasas.includes(k)) continue;
     const d = mb[k] - ma[k];
-    const banda = BANDA_RUIDO[k];
+    const banda = pareada ? 0 : BANDA_RUIDO[k];
     const senal = Math.abs(d) > banda;
     if (senal) algunaSenal = true;
     const flecha = d === 0 ? '=' : d < 0 ? '↓' : '↑';
@@ -758,11 +770,101 @@ function porteria(variante: string): void {
   process.exit(fallos === 0 ? 0 : 1);
 }
 
+/**
+ * La pasada de REPARACIÓN, que el banco no estaba midiendo.
+ *
+ * En producción, el juez llama al refinado con las escenas que el linter marca
+ * como duras (`blockingSceneIds` → `patch_targets`), y `andamiaje` es una de
+ * ellas. O sea que el guion que se publica NO es el que sale del generador: es
+ * el que sale del generador con hasta cuatro escenas reescritas.
+ *
+ * El banco medía solo lo primero, así que su número de rótulos era el de ANTES
+ * de reparar. Esto cierra el bucle: coge una corrida, repara lo que el linter
+ * marcaría, y vuelve a medir. Es también la prueba de que el bucle CIERRA: si
+ * el refinado reescribe una escena y le vuelve a poner un rótulo, no sirve.
+ */
+async function reparar(variante: string): Promise<void> {
+  loadEnv();
+  const llm = createLlm(logger);
+  const dir = path.join(DIR_CORRIDAS, variante);
+  if (!existsSync(dir)) {
+    console.error(`No existe la corrida "${variante}".`);
+    process.exit(1);
+  }
+  const casos = new Map(cargarCasos('todos').map((c) => [c.id, c]));
+  const perfil = perfilDelCanal();
+  const destino = path.join(DIR_CORRIDAS, `${variante}-reparado`);
+  mkdirSync(destino, { recursive: true });
+  const cola = new PQueue({ concurrency: CONCURRENCIA });
+  let tocados = 0;
+  let escenasReescritas = 0;
+
+  const ficheros = readdirSync(dir).filter((f) => f.endsWith('.json'));
+  await Promise.all(
+    ficheros.map((f) =>
+      cola.add(async () => {
+        const j = JSON.parse(readFileSync(path.join(dir, f), 'utf8'));
+        const caso = casos.get(j.caso);
+        const scenes: Scene[] = j.script.scenes;
+        const hits = lintScenes(scenes, { claims: caso?.research.claims ?? [] });
+        const duros = blockingSceneIds(hits).slice(0, 4);
+        if (duros.length === 0) {
+          writeFileSync(path.join(destino, f), JSON.stringify(j, null, 2));
+          process.stdout.write('.');
+          return;
+        }
+        const objetivos = scenes.filter((s) => duros.includes(s.id));
+        const notas = duros.map((id) => {
+          const h = hits.find((x) => x.id === id && BLOCKING_LINT_KINDS.includes(x.kind))!;
+          return {
+            id,
+            axis: h.kind,
+            issue: h.detail,
+            fix:
+              h.kind === 'andamiaje'
+                ? 'reescribe la escena para que empiece con una frase normal, sin rótulo ni dos puntos al principio'
+                : 'reescribe la escena corrigiendo eso, conservando el contenido',
+          };
+        });
+        try {
+          const { data } = await llm.completeJson({
+            op: 'refine',
+            system: refineSystem(perfil),
+            user: instruccionesDeRefinado(scenes, objetivos, [], notas),
+            schema: refineOutputSchema,
+            mockContext: { scenes: objetivos.map((s) => ({ id: s.id, seed: s.id, words: 50 })) },
+          });
+          const nuevos = new Map(data.scenes.map((s) => [s.id, s.text]));
+          j.script.scenes = scenes.map((s) => {
+            const t = nuevos.get(s.id);
+            return t !== undefined && duros.includes(s.id) ? { ...s, text: t } : s;
+          });
+          tocados += 1;
+          escenasReescritas += duros.length;
+          process.stdout.write('r');
+        } catch {
+          process.stdout.write('x');
+        }
+        writeFileSync(path.join(destino, f), JSON.stringify(j, null, 2));
+      }),
+    ),
+  );
+  console.log(
+    `\n\n${tocados} de ${ficheros.length} guiones reparados · ${escenasReescritas} escenas reescritas`,
+  );
+  console.log(`\nAhora: pnpm guion --diff ${variante} ${variante}-reparado`);
+}
+
 async function main(): Promise<void> {
   const cmd = process.argv[2];
   if (cmd === 'preparar') {
     await preparar();
     await congelarPerfil();
+    return;
+  }
+  const rep = arg('reparar');
+  if (rep !== undefined) {
+    await reparar(rep);
     return;
   }
   const port = arg('porteria');
@@ -806,6 +908,7 @@ async function main(): Promise<void> {
         '  pnpm guion --diff <a> <b>',
         '  pnpm guion --leer <variante>',
         '  pnpm guion --porteria <variante>',
+        '  pnpm guion --reparar <variante>',
       ].join('\n'),
     );
     process.exit(1);

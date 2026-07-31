@@ -44,17 +44,17 @@ export function sceneBlueprint(bodyCount: number): string {
     bodyCount >= 12
       ? [
           '¿qué ha pasado exactamente, y a quién?',
-          '¿por qué pasa ahora y no antes?',
+          '¿qué lo ha hecho posible justo en este momento?',
           '¿qué cambia esto para quien está escuchando?',
           '¿qué falla cuando lo intenta de verdad?',
-          '¿qué hace el lunes por la mañana?',
+          '¿qué puede hacer con esto quien lo ha escuchado?',
         ]
       : bodyCount >= 6
         ? [
             '¿qué ha pasado exactamente, y a quién?',
             '¿qué cambia esto para quien está escuchando?',
             '¿qué falla cuando lo intenta de verdad?',
-            '¿qué hace el lunes por la mañana?',
+            '¿qué puede hacer con esto quien lo ha escuchado?',
           ]
         : ['¿qué ha pasado exactamente, y a quién?', '¿qué cambia para quien está escuchando?'];
 
@@ -80,6 +80,12 @@ export function sceneBlueprint(bodyCount: number): string {
     'describa la función de la escena.',
     'La escena N responde algo que dejó abierto la N-1 y deja otra cosa abierta.',
     'Si dos escenas se pueden intercambiar sin que chirríe, sobra una.',
+    // Lo que queda de rótulos tras arreglar el blueprint son enumeraciones
+    // («Primero:», «Segundo problema:», «Paso tres:») y marcadores de discurso
+    // («Ahora bien:», «Pero ojo:», «En resumen:»). Va aquí y no en craftRules
+    // porque este es el bloque que ha movido la aguja; craftRules está saturado
+    // y tres reglas añadidas allí no midieron nada.
+    'NINGUNA escena empieza por un ordinal ni por un conector seguido de dos puntos: nada de «Primero:», «Segundo:», «Tercero:», «Paso dos:», «Ahora bien:», «Pero ojo:», «En resumen:», «En números:». Si necesitas enumerar, hazlo dentro de la frase, no como encabezado. La primera palabra de una escena es la primera palabra de una oración normal.',
   ].join('\n');
 }
 
