@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { suficienciaResearch } from './suficiencia.js';
 import type { Research } from './master-json.js';
 
+const RANGO = { min: 5, max: 12 };
+
 function research(textos: string[]): Research {
   return {
     sources: [{ url: 'https://x', title: 't', domain: 'x', published_at: null }],
@@ -11,67 +13,73 @@ function research(textos: string[]): Research {
   } as Research;
 }
 
+/** n claims con dato, para mover la palanca sin escribir cuarenta frases */
+function conDatos(n: number): Research {
+  return research(Array.from({ length: n }, (_, i) => `Nvidia publicó el dato ${i + 1} en 2026`));
+}
+
 describe('suficienciaResearch', () => {
-  it('un artículo de verdad da para los siete minutos', () => {
-    // JBbfvawGXzsXdA92L1zcH: 12 653 caracteres de HuggingFace
-    const v = suficienciaResearch(
-      research([
-        'Kimi-K3 declara 1 billón de parámetros',
-        'Moonshot AI publica los pesos bajo licencia propia',
-        'MoonViT-V2 integra visión con 400M de parámetros',
-      ]),
-      12_653,
-      7,
-    );
+  // Los cuatro casos son de los briefs REALES del banco, con sus cifras.
+  it('el research más rico se va al máximo del canal', () => {
+    // JBbfvawGXzsXdA92L1zcH: 46 claims con dato, 12 653 caracteres de HuggingFace
+    const v = suficienciaResearch(conDatos(46), 12_653, RANGO);
     expect(v.nivel).toBe('suficiente');
-    expect(v.minutosMax).toBe(7);
+    expect(v.minutos).toBe(12);
   });
 
-  it('un tuit sin texto descargado NO da siete minutos', () => {
-    // uVkNtcYIrYqEX8D3dG1Ah: 1 claim, 0 caracteres (Twitter bloquea al bot).
-    // El sistema le pidió 875 palabras y salieron mil de generalidades.
-    const v = suficienciaResearch(research(['AI companies are shredding rare books']), 0, 7);
+  it('la noticia intermedia manda, y cae DENTRO del rango', () => {
+    // OIC6LvB17pOtsK3tOkbqx: 7 datos, 2 707 caracteres de computing.es
+    const v = suficienciaResearch(conDatos(7), 2_707, RANGO);
+    expect(v.nivel).toBe('suficiente');
+    expect(v.minutos).toBe(5.5);
+    expect(v.motivo).toContain('dentro del rango');
+  });
+
+  it('lo justo se publica al mínimo, sin rellenar hasta el objetivo viejo', () => {
+    // zZ0X0SRh7OusaNdtPK8dd: 4 datos pero 9 404 caracteres
+    const v = suficienciaResearch(conDatos(4), 9_404, RANGO);
     expect(v.nivel).toBe('justo');
-    expect(v.minutosMax).toBe(2);
-    expect(v.motivo).toContain('más corto y más denso');
+    expect(v.minutos).toBe(5);
+    expect(v.minutosPorMaterial).toBeLessThan(5);
   });
 
-  it('un claim que solo dice que existe un artículo no cuenta como dato', () => {
-    // el claim REAL de OIC6 antes de arreglar el fetcher
-    const v = suficienciaResearch(
-      research(['Existe un artículo titulado sobre los modelos de pesos abiertos']),
-      0,
-      7,
-    );
-    // «Existe» va al principio de frase, así que no cuenta como nombre propio
-    expect(v.claimsConDato).toBe(0);
-    expect(v.minutosMax).toBe(2);
-  });
-
-  it('sin claims y sin texto no hay vídeo, y se dice', () => {
-    const v = suficienciaResearch(research([]), 0, 7);
+  it('un tuit sin texto descargado NO es un vídeo', () => {
+    // uVkNtcYIrYqEX8D3dG1Ah: 1 claim, 0 caracteres (Twitter bloquea al bot).
+    // Antes se le pedían 875 palabras y salían mil de generalidades.
+    const v = suficienciaResearch(conDatos(1), 0, RANGO);
     expect(v.nivel).toBe('insuficiente');
-    expect(v.minutosMax).toBe(0);
-    expect(v.motivo).toContain('revisa la fuente');
+    expect(v.minutos).toBe(0);
+    expect(v.motivo).toContain('Revisa la fuente');
   });
 
-  it('NUNCA se alarga el vídeo por encima de lo pedido', () => {
-    // el material puede dar para más; la duración la manda el canal
-    const v = suficienciaResearch(
-      research(Array.from({ length: 40 }, (_, i) => `Dato ${i} con Nombre Propio y 30 %`)),
-      50_000,
-      7,
-    );
-    expect(v.minutosMax).toBe(7);
+  it('muchos claims con poco texto detrás NO alargan el vídeo', () => {
+    // El research puede sacar diez claims de un titular; sin texto no hay con
+    // qué desarrollarlos, así que el techo lo pone lo descargado.
+    const v = suficienciaResearch(conDatos(20), 600, RANGO);
+    expect(v.minutosPorMaterial).toBe(4);
+    expect(v.nivel).toBe('justo');
   });
 
-  it('no exige dos fuentes: eso apagaría la fábrica', () => {
-    // los once vídedos del corpus tienen UNA sola fuente
-    const v = suficienciaResearch(
-      research(['El índice subió un 70 % según Gartner', 'Nvidia vendió 3 millones de chips']),
-      4_085,
-      7,
+  it('la longitud VARÍA con el material: eso es todo el cambio', () => {
+    const largos = [1, 4, 7, 11, 20, 46].map(
+      (n) => suficienciaResearch(conDatos(n), 5_000, RANGO).minutos,
     );
-    expect(v.nivel).toBe('suficiente');
+    // sin repetir siempre el mismo número, y monótono
+    expect(new Set(largos).size).toBeGreaterThan(3);
+    for (let i = 1; i < largos.length; i++) expect(largos[i]!).toBeGreaterThanOrEqual(largos[i - 1]!);
+  });
+
+  it('nunca se sale del rango que fija el canal', () => {
+    for (const n of [0, 1, 5, 20, 100]) {
+      const v = suficienciaResearch(conDatos(n), 50_000, RANGO);
+      if (v.nivel === 'insuficiente') continue;
+      expect(v.minutos).toBeGreaterThanOrEqual(RANGO.min);
+      expect(v.minutos).toBeLessThanOrEqual(RANGO.max);
+    }
+  });
+
+  it('un rango de un solo valor se comporta como el número fijo de antes', () => {
+    const v = suficienciaResearch(conDatos(20), 8_000, { min: 7, max: 7 });
+    expect(v.minutos).toBe(7);
   });
 });

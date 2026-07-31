@@ -431,7 +431,7 @@ export function Radar({
         <CajonIdea
           idea={abierta}
           puesto={ranking.findIndex((i) => i.id === abierta.id) + 1}
-          minutos={settingsQ.data?.target_minutes ?? null}
+          minutos={settingsQ.data ? settingsQ.data.duracion.max : null}
           costeMedio={costeMedio}
           generando={generateMut.isPending}
           onGenerar={() => generateMut.mutate(abierta)}

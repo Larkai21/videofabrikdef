@@ -189,7 +189,6 @@ export async function handleScriptGenerate(
     return;
   }
   const settings = channelSettingsSchema.parse(channel.settings ?? {});
-  const targetWords = wordTarget(settings.target_minutes);
 
   const progress = (p: number, detail: string) =>
     ctx.publishEvent({
@@ -221,7 +220,7 @@ export async function handleScriptGenerate(
   // limitado»). No se apaga la fábrica: si de verdad no hay nada, incidencia;
   // si hay poco, se escribe más corto.
   const caracteres = docs.reduce((n, d) => n + d.text.length, 0);
-  const suficiencia = suficienciaResearch(research, caracteres, settings.target_minutes);
+  const suficiencia = suficienciaResearch(research, caracteres, settings.duracion);
   if (suficiencia.nivel === 'insuficiente') {
     await markIncident(ctx.db, videoId, {
       message: suficiencia.motivo,
@@ -243,7 +242,7 @@ export async function handleScriptGenerate(
       'Research corto: se acorta el vídeo en vez de rellenarlo',
     );
   }
-  const targetWordsReal = wordTarget(suficiencia.minutosMax);
+  const targetWordsReal = wordTarget(suficiencia.minutos);
 
   await progress(55, 'Redactando guion y paquete SEO');
   const prevScenes = video.master.script?.scenes ?? [];

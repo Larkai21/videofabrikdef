@@ -101,7 +101,33 @@ export const channelSettingsSchema = z.object({
   anti_repeat_n: z.number().int().default(8),
   monthly_budget_usd: z.number().default(15),
   // duración objetivo de locución en minutos (SPEC: 6–9; corto para pruebas)
+  /**
+   * Duración objetivo en minutos. Se conserva por compatibilidad con los
+   * ajustes ya guardados y como TECHO por defecto de `duracion`; lo que manda
+   * es el rango.
+   */
   target_minutes: z.number().default(7),
+  /**
+   * Rango editorial de duración. La longitud REAL la decide el material: una
+   * noticia con dos datos no da un vídeo de doce minutos, y una con veinte no
+   * cabe en cinco.
+   *
+   * Antes era un número fijo y el material solo podía ACORTAR (y solo hasta un
+   * suelo de 2 min), así que todos los vídeos salían pidiendo las mismas 875
+   * palabras y el que no daba para tanto se rellenaba. Con un rango, el número
+   * fijo pasa a ser lo que siempre debió ser: los bordes de lo que este canal
+   * publica.
+   *
+   * Por debajo del mínimo NO se acorta: se abre incidencia. Si el material no
+   * da ni para el vídeo más corto del canal, el problema es la idea.
+   */
+  duracion: z
+    .object({
+      min: z.number().min(1).max(60),
+      max: z.number().min(1).max(60),
+    })
+    .refine((d) => d.min <= d.max, { message: 'el mínimo no puede pasar del máximo' })
+    .default({ min: 5, max: 12 }),
   // componentes activos del brand kit por tipo: refs "nombre@versión" del
   // registry; los vídeos nacen con esta selección en master.brand
   brand_components: z

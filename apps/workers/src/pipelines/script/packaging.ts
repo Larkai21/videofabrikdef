@@ -85,7 +85,10 @@ export async function handleScriptPackaging(
     schema: packagingGenSchema,
     mockContext: {
       ideaTitle: idea.title,
-      targetMinutes: settings.target_minutes,
+      // packaging_first escribe el TÍTULO antes que el guion, así que aquí
+      // todavía no se sabe cuánto material habrá: se usa el punto medio del
+      // rango como orientación de formato, no como compromiso de duración.
+      targetMinutes: (settings.duracion.min + settings.duracion.max) / 2,
       aiDisclosure: profile.flags.ai_disclosure,
       packagingOnly: true,
     },

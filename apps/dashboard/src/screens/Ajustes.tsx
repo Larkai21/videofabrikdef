@@ -71,26 +71,29 @@ function InterfazCard() {
 // guardan como texto para no pelear con el teclado; se validan al guardar)
 interface ProdDraft {
   monthly_budget_usd: string;
-  target_minutes: string;
+  duracion_min: string;
+  duracion_max: string;
   anti_repeat_n: string;
   background_music: boolean;
 }
 
 function parseProd(draft: ProdDraft): {
   monthly_budget_usd: number;
-  target_minutes: number;
+  duracion: { min: number; max: number };
   anti_repeat_n: number;
   background_music: boolean;
 } | null {
   const budget = Number(draft.monthly_budget_usd.replace(',', '.'));
-  const minutes = Number(draft.target_minutes.replace(',', '.'));
+  const min = Number(draft.duracion_min.replace(',', '.'));
+  const max = Number(draft.duracion_max.replace(',', '.'));
   const antiRepeat = Number(draft.anti_repeat_n);
   if (!Number.isFinite(budget) || budget <= 0) return null;
-  if (!Number.isFinite(minutes) || minutes < 0.5 || minutes > 20) return null;
+  const rangoOk = (n: number) => Number.isFinite(n) && n >= 1 && n <= 60;
+  if (!rangoOk(min) || !rangoOk(max) || min > max) return null;
   if (!Number.isInteger(antiRepeat) || antiRepeat < 0) return null;
   return {
     monthly_budget_usd: budget,
-    target_minutes: minutes,
+    duracion: { min, max },
     anti_repeat_n: antiRepeat,
     background_music: draft.background_music,
   };
@@ -163,7 +166,8 @@ function AjustesCanal({ channel }: { channel: ChannelDto }) {
     if (prod === null && settingsQ.data !== undefined) {
       setProd({
         monthly_budget_usd: String(settingsQ.data.monthly_budget_usd),
-        target_minutes: String(settingsQ.data.target_minutes),
+        duracion_min: String(settingsQ.data.duracion.min),
+        duracion_max: String(settingsQ.data.duracion.max),
         anti_repeat_n: String(settingsQ.data.anti_repeat_n),
         background_music: settingsQ.data.background_music,
       });
@@ -310,16 +314,34 @@ function AjustesCanal({ channel }: { channel: ChannelDto }) {
                 />
               </label>
               <label style={{ display: 'block' }}>
-                <span className="field-label">Duración objetivo · minutos de locución</span>
-                <input
-                  className="control"
-                  type="number"
-                  min={0.5}
-                  max={20}
-                  step={0.5}
-                  value={prod.target_minutes}
-                  onChange={(e) => setProd({ ...prod, target_minutes: e.target.value })}
-                />
+                <span className="field-label">Duración · minutos de locución, mínimo y máximo</span>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    className="control"
+                    type="number"
+                    min={1}
+                    max={60}
+                    step={0.5}
+                    aria-label="Duración mínima en minutos"
+                    value={prod.duracion_min}
+                    onChange={(e) => setProd({ ...prod, duracion_min: e.target.value })}
+                  />
+                  <span className="muted fs-sm">a</span>
+                  <input
+                    className="control"
+                    type="number"
+                    min={1}
+                    max={60}
+                    step={0.5}
+                    aria-label="Duración máxima en minutos"
+                    value={prod.duracion_max}
+                    onChange={(e) => setProd({ ...prod, duracion_max: e.target.value })}
+                  />
+                </div>
+                <span className="muted fs-sm" style={{ display: 'block', marginTop: 4 }}>
+                  La longitud real la decide el material de cada noticia dentro de este rango.
+                  Si no da ni para el mínimo, el vídeo se para y te avisa en vez de rellenarlo.
+                </span>
               </label>
               <label style={{ display: 'block' }}>
                 <span className="field-label">Anti repetición · vídeos recientes a evitar</span>
