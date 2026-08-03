@@ -1,6 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
-import { defaultDesign, hexToRgba, type DesignTokens } from '@fabrica/shared';
+import { defaultDesign, formatCifra, hexToRgba, tokenCifra, type DesignTokens } from '@fabrica/shared';
 import { displayText, FONT_FAMILY } from '../fonts';
 import { hashSeed } from '../seed';
 import { clamp, Ease, mix, noise, pulse, span, typed } from './motion';
@@ -139,19 +139,15 @@ export const StatCard: React.FC<{ value: string; label?: string; design?: Design
   const { opacity, enter } = useInOut();
   // parte numérica para el count-up; el resto (símbolos) se conserva. El conteo
   // corre sobre el primer ~55% del efecto con outExpo (rápido y luego frena),
-  // más satisfactorio que el spring anterior.
-  const match = value.match(/-?\d[\d.,]*/);
+  // más satisfactorio que el spring anterior. El formato sale del formateador
+  // compartido: la misma convención que el odómetro y que el informe audita
+  // («17000» se pinta «17.000» en cada paso del conteo, no solo al final).
+  const token = tokenCifra(value);
   let display = value;
-  if (match) {
-    const raw = match[0];
-    const target = Number.parseFloat(raw.replace(/,/g, ''));
-    if (Number.isFinite(target)) {
-      const countFrames = Math.max(1, Math.round(durationInFrames * 0.55));
-      const p = span(frame, 0, countFrames, Ease.outExpo);
-      const decimals = raw.includes('.') ? (raw.split('.')[1]?.length ?? 0) : 0;
-      const current = (target * p).toFixed(decimals);
-      display = value.replace(raw, current);
-    }
+  if (token) {
+    const countFrames = Math.max(1, Math.round(durationInFrames * 0.55));
+    const p = span(frame, 0, countFrames, Ease.outExpo);
+    display = value.replace(token.raw, formatCifra(token.target * p, token));
   }
   return (
     <AbsoluteFill
