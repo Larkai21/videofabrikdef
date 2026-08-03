@@ -259,6 +259,12 @@ interface MatchDeps {
   // ajuste del canal (`broll_imagenes_max_pct`) y se congelan en el maestro.
   imagenesPorPool: number;
   imagenHandicap: number;
+  // techo del canal y cuenta corriente del vídeo: las palancas de arriba son
+  // por pool y no vigilan el agregado (ver exigeClipPorCuota). Mutables: los
+  // actualiza matchBeat tras cada elección.
+  imagenesMaxPct: number;
+  imagenesElegidas: number;
+  planosResueltos: number;
 }
 
 /**
@@ -276,6 +282,29 @@ export function palancasImagen(pct: number): { imagenesPorPool: number; imagenHa
     // techo 0 = «quiero todo vídeo»: preferencia fuerte, nunca prohibición
     imagenHandicap: pct === 0 ? 0.05 : IMAGE_HANDICAP,
   };
+}
+
+/**
+ * ¿Este plano tiene que ser CLIP por cuota?
+ *
+ * Las dos palancas de `palancasImagen` son por POOL: cuántas de las seis plazas
+ * de finalista pueden ir a imágenes, y cuánto tiene que ganar una imagen para
+ * llevarse el plano. Ninguna mira el vídeo entero, así que cada beat decidía
+ * por su cuenta y el resultado agregado no lo vigilaba nadie: 13 de 31 planos
+ * (42 %) contra un techo del 30 %, medido en un vídeo real.
+ *
+ * Y no es que las imágenes ganen por ser mejores: el pie de foto de una foto de
+ * Pexels es el `alt` que escribió una persona (13,7 palabras de media) y el de
+ * un clip es el slug de la URL (2,0). Compiten con textos que no son
+ * comparables, así que sin una cuota global el sesgo se acumula.
+ *
+ * Se lleva la cuenta corriente y se exige clip en cuanto la siguiente imagen
+ * pasaría del techo. Es autocorrectivo y no necesita saber cuántos planos
+ * tendrá el vídeo, que en ese momento todavía no se sabe.
+ */
+export function exigeClipPorCuota(imagenes: number, planos: number, pct: number): boolean {
+  if (pct >= 1) return false;
+  return imagenes + 1 > (planos + 1) * pct;
 }
 
 interface ResolvedVisual {
@@ -583,7 +612,14 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
       // al elegir: así el candidato repetido ni siquiera compite y la cascada
       // sigue buscando en el stock en vez de conformarse con el repetido.
       vetoedRefs: new Set([...deps.usedRefs, ...(vIdx === 0 ? vetoedRefs : [])]),
+      // cuota global de imágenes: sin esto cada beat decide por su cuenta y el
+      // agregado se va del techo sin que nadie lo mire
+      ...(exigeClipPorCuota(deps.imagenesElegidas, deps.planosResueltos, deps.imagenesMaxPct)
+        ? { exigeClip: true }
+        : {}),
     });
+    deps.planosResueltos += 1;
+    if (res.chosen.kind === 'image') deps.imagenesElegidas += 1;
     resolved.push({ span, res });
   }
 
@@ -627,6 +663,8 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
             // así que aquí el material sobra y se pide movimiento.
             exigeClip: true,
           });
+          deps.planosResueltos += 1;
+          if (extra.chosen.kind === 'image') deps.imagenesElegidas += 1;
           capped.push({ span: { ...rv.span, from_ms, to_ms }, res: extra });
         }
       }
@@ -813,8 +851,20 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
     recentIds,
     usedRefs,
     prevVec: null,
+    imagenesMaxPct,
+    // En un re-match parcial la cuenta arranca con lo que ya hay bloqueado: si
+    // no, los beats que se rehacen creerían que el vídeo va a cero imágenes.
+    imagenesElegidas: 0,
+    planosResueltos: 0,
     ...palancas,
   };
+  for (const row of allRows) {
+    if (fullRun || targetIdxs.has(row.idx)) continue;
+    for (const v of row.visuals ?? []) {
+      deps.planosResueltos += 1;
+      if ((v.candidates[0]?.meta?.kind ?? 'clip') === 'image') deps.imagenesElegidas += 1;
+    }
+  }
   for (let i = 0; i < beatRows.length; i++) {
     const beat = beatRows[i];
     if (!beat) continue;

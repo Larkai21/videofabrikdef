@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { exigeClipPorCuota } from './index.js';
 import type { StockResult } from '../../providers/stock.js';
 import { interleaveByProvider, pickFinalists, repartirPlazas } from './finalists.js';
 
@@ -130,5 +131,45 @@ describe('pickFinalists', () => {
     // luego en computeFit habiendo desplazado ya a otro candidato
     expect(out.filter((r) => r.meta.kind === 'clip').map((r) => r.ref)).toEqual(['largo']);
     expect(out).toHaveLength(6);
+  });
+});
+
+describe('exigeClipPorCuota', () => {
+  // Las palancas de palancasImagen son POR POOL y nadie miraba el agregado:
+  // 13 de 31 planos (42 %) contra un techo del 30 %, medido en un vídeo real.
+  const T = 0.3;
+
+  it('el primer plano no puede ser imagen: una sola imagen ya es el 100 %', () => {
+    expect(exigeClipPorCuota(0, 0, T)).toBe(true);
+  });
+
+  it('deja pasar una imagen en cuanto cabe bajo el techo', () => {
+    // con 3 planos resueltos, la cuarta pieza puede ser la primera imagen: 1/4 = 25 %
+    expect(exigeClipPorCuota(0, 3, T)).toBe(false);
+  });
+
+  it('vuelve a exigir clip cuando la siguiente imagen se pasaría', () => {
+    // 1 imagen de 4 planos = 25 %; una segunda de 5 sería el 40 %
+    expect(exigeClipPorCuota(1, 4, T)).toBe(true);
+  });
+
+  it('converge al techo en vez de quedarse por debajo para siempre', () => {
+    let imagenes = 0;
+    for (let planos = 0; planos < 30; planos += 1) {
+      if (!exigeClipPorCuota(imagenes, planos, T)) imagenes += 1;
+    }
+    // 30 planos con techo 0,3 → ni por encima ni muy por debajo
+    expect(imagenes).toBeLessThanOrEqual(9);
+    expect(imagenes).toBeGreaterThanOrEqual(8);
+  });
+
+  it('un techo de 1 no restringe nada: el canal que quiera solo fotos puede', () => {
+    expect(exigeClipPorCuota(50, 50, 1)).toBe(false);
+  });
+
+  it('un techo de 0 exige clip siempre; la red del pool sigue siendo del pool', () => {
+    // palancasImagen conserva una plaza de imagen aunque el techo sea 0: esto
+    // es una preferencia fuerte, no una prohibición, y se comprueba ahí
+    expect(exigeClipPorCuota(0, 10, 0)).toBe(true);
   });
 });
