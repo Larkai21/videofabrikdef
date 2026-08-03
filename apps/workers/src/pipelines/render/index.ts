@@ -127,8 +127,12 @@ async function writeOutputs(outDir: string, master: RenderableMaster): Promise<v
   // (sin React), con la misma degradación que el layout: ref no registrada o
   // sin duración fija → la intro no se monta → offset 0.
   const introRef = master.brand?.components.intro;
-  const introFrames =
-    introRef !== undefined ? (componentMeta[introRef]?.fixed_duration_frames ?? 0) : 0;
+  const metaIntro = introRef !== undefined ? componentMeta[introRef] : undefined;
+  // el gate del layout es DOBLE: ref registrado BAJO EL TIPO intro y con
+  // duración fija. Replicar solo la duración calculaba el offset de una intro
+  // que la composición no monta (reproducido con components.intro apuntando a
+  // una outro: +4 s falsos en todos los capítulos).
+  const introFrames = metaIntro?.type === 'intro' ? (metaIntro.fixed_duration_frames ?? 0) : 0;
   const introMs = Math.round((introFrames / master.video.fps) * 1000);
   const chapters =
     master.segments && master.segments.length >= 2

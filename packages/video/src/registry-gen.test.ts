@@ -27,12 +27,12 @@ describe('generateRegistrySource', () => {
     // se leen de las constantes: si no, cambiar una duración obliga a tocar el
     // test y es fácil olvidar regenerar el registry
     expect(src).toContain(
-      `'intro-basica@0.1.0': { fixed_duration_frames: ${INTRO_BASICA_DURATION_FRAMES} },`,
+      `'intro-basica@0.1.0': { type: 'intro', fixed_duration_frames: ${INTRO_BASICA_DURATION_FRAMES} },`,
     );
     expect(src).toContain(
-      `'outro-basica@0.1.0': { fixed_duration_frames: ${OUTRO_BASICA_DURATION_FRAMES} },`,
+      `'outro-basica@0.1.0': { type: 'outro', fixed_duration_frames: ${OUTRO_BASICA_DURATION_FRAMES} },`,
     );
-    expect(src).toContain("'subtitulos-basicos@0.1.0': {},");
+    expect(src).toContain("'subtitulos-basicos@0.1.0': { type: 'subtitle_theme' },");
     // y no arrastra ni un import: esa es su razón de existir
     expect(src).not.toContain('import ');
   });
@@ -48,8 +48,8 @@ describe('generateRegistrySource', () => {
       { type: 'transition', name: 'cortina', version: '1.2.0', fixed_duration_frames: 24 },
       { type: 'lower_third', name: 'rotulo-a', version: '1.0.0' },
     ]);
-    expect(src).toContain("'cortina@1.2.0': { fixed_duration_frames: 24 },");
-    expect(src).toContain("'rotulo-a@1.0.0': {},");
+    expect(src).toContain("'cortina@1.2.0': { type: 'transition', fixed_duration_frames: 24 },");
+    expect(src).toContain("'rotulo-a@1.0.0': { type: 'lower_third' },");
   });
 
   it('rechaza duraciones fijas que no son enteros positivos', () => {

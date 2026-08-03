@@ -109,24 +109,35 @@ export const BUILTIN_REFS: readonly string[] = BUILTINS.map((b) => b.line.ref);
  */
 export function generateMetaSource(entries: KitRegistryEntry[]): string {
   const clean = dedupe(entries);
-  const metaByRef = new Map<string, number | undefined>();
-  for (const builtin of BUILTINS) metaByRef.set(builtin.line.ref, builtin.fixedDurationFrames);
+  const metaByRef = new Map<string, { type: ComponentType; frames: number | undefined }>();
+  for (const builtin of BUILTINS) {
+    metaByRef.set(builtin.line.ref, { type: builtin.type, frames: builtin.fixedDurationFrames });
+  }
   for (const entry of clean) {
-    metaByRef.set(`${entry.name}@${entry.version}`, entry.fixed_duration_frames);
+    metaByRef.set(`${entry.name}@${entry.version}`, {
+      type: entry.type,
+      frames: entry.fixed_duration_frames,
+    });
   }
   const metaLines = [...metaByRef.keys()]
     .sort((a, b) => a.localeCompare(b))
     .map((ref) => {
-      const frames = metaByRef.get(ref);
-      return frames === undefined
-        ? `  '${ref}': {},`
-        : `  '${ref}': { fixed_duration_frames: ${frames} },`;
+      const m = metaByRef.get(ref)!;
+      return m.frames === undefined
+        ? `  '${ref}': { type: '${m.type}' },`
+        : `  '${ref}': { type: '${m.type}', fixed_duration_frames: ${m.frames} },`;
     });
   return `// GENERADO por packages/video/scripts/generate-registry.ts — NO EDITAR A MANO.
 // Metadatos del manifest por ref, en fichero propio y SIN imports de React:
 // lo consume el worker de render (offset de capítulos) además de la
 // composición. Ver registry-gen.ts (generateMetaSource).
+//
+// Lleva el TIPO porque el layout monta un slot solo si el ref está registrado
+// BAJO ESE TIPO: un consumidor que mire solo la duración replicaría a medias la
+// degradación y calcularía offsets de una intro que no se monta (reproducido:
+// components.intro apuntando a una outro desplazaba los capítulos 4 s).
 export interface KitComponentMeta {
+  type: string;
   fixed_duration_frames?: number;
 }
 

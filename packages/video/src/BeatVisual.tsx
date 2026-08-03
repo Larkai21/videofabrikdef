@@ -284,16 +284,28 @@ export const BeatVisual: React.FC<BeatVisualProps> = ({
               vIdx === visuals.length - 1
                 ? durationInFrames
                 : msToFrames(sv.to_ms - beat.from_ms, fps);
-            // Las partes no-últimas se EXTIENDEN los frames del fade: la
-            // siguiente Sequence (más arriba en el AbsoluteFill) funde sobre
-            // este plano aún en marcha, no sobre el fondo desnudo. Sin esto el
-            // «crossfade» era un destello del lienzo de 200 ms en cada
-            // frontera, y el troceo multiplica fronteras.
-            const dur = Math.max(1, rawEnd - from + (vIdx < visuals.length - 1 ? fade : 0));
+            // Fundido SOLO entre assets distintos. Entre partes del mismo
+            // asset (troceo: re-encuadres de una imagen, jump cuts de un clip)
+            // el corte va seco: un jump cut disuelto 200 ms es un tirón
+            // amortiguado, no un corte — y amortiguarlo era exactamente lo que
+            // el troceo quería evitar.
+            const mismoAssetQueSig =
+              vIdx < visuals.length - 1 && visuals[vIdx + 1]?.asset?.id === sv.asset?.id;
+            const mismoAssetQueAnt = vIdx > 0 && visuals[vIdx - 1]?.asset?.id === sv.asset?.id;
+            const fadeEntrada = vIdx === 0 || mismoAssetQueAnt ? 0 : fade;
+            // Las partes no-últimas se EXTIENDEN los frames del fade de la
+            // SIGUIENTE: esa Sequence (más arriba en el AbsoluteFill) funde
+            // sobre este plano aún en marcha, no sobre el fondo desnudo. Sin
+            // esto el «crossfade» era un destello del lienzo de 200 ms en cada
+            // frontera.
+            const dur = Math.max(
+              1,
+              rawEnd - from + (vIdx < visuals.length - 1 && !mismoAssetQueSig ? fade : 0),
+            );
             const seed = hashSeed(`${videoId}:${beat.idx}:${vIdx}`);
             return (
               <Sequence key={vIdx} from={from} durationInFrames={dur} name={`Plano ${vIdx + 1}`}>
-                <FadeIn fadeFrames={vIdx === 0 ? 0 : fade}>
+                <FadeIn fadeFrames={fadeEntrada}>
                   <AssetVisual asset={sv.asset} seed={seed} durationInFrames={dur} fps={fps} />
                 </FadeIn>
               </Sequence>

@@ -29,11 +29,11 @@ function testView(): KitView {
       subtitle_theme: { 'subtitulos-basicos@0.1.0': {} },
     },
     {
-      'intro-test@1.0.0': { fixed_duration_frames: 60 },
-      'outro-test@1.0.0': { fixed_duration_frames: 90 },
-      'portada-test@1.0.0': {},
-      'rotulo-test@1.0.0': {},
-      'subtitulos-basicos@0.1.0': {},
+      'intro-test@1.0.0': { type: 'intro', fixed_duration_frames: 60 },
+      'outro-test@1.0.0': { type: 'outro', fixed_duration_frames: 90 },
+      'portada-test@1.0.0': { type: 'title_card' },
+      'rotulo-test@1.0.0': { type: 'lower_third' },
+      'subtitulos-basicos@0.1.0': { type: 'subtitle_theme' },
     },
   );
 }
@@ -113,7 +113,7 @@ describe('computeBrandKitLayout', () => {
     // registrada pero sin fixed_duration_frames en el manifest
     const sinDuracion = kitViewFrom(
       { intro: { 'intro-test@1.0.0': {} } },
-      { 'intro-test@1.0.0': {} },
+      { 'intro-test@1.0.0': { type: 'intro' } },
     );
     const layout = computeBrandKitLayout(masterWithKit({ intro: 'intro-test@1.0.0' }), sinDuracion);
     expect(layout.intro).toBeNull();

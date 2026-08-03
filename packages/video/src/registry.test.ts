@@ -31,11 +31,15 @@ describe('componentMeta', () => {
     // comparar contra las constantes convierte este test en el guardián de que
     // registry.generated.ts se ha regenerado tras cambiarlas
     expect(componentMeta['intro-basica@0.1.0']).toEqual({
+      type: 'intro',
       fixed_duration_frames: INTRO_BASICA_DURATION_FRAMES,
     });
     expect(componentMeta['outro-basica@0.1.0']).toEqual({
+      type: 'outro',
       fixed_duration_frames: OUTRO_BASICA_DURATION_FRAMES,
     });
-    expect(componentMeta['subtitulos-basicos@0.1.0']).toEqual({});
+    // el tipo viaja en la meta: el worker de render solo cuenta la intro si el
+    // ref está registrado BAJO ese tipo (gate doble, como el layout)
+    expect(componentMeta['subtitulos-basicos@0.1.0']).toEqual({ type: 'subtitle_theme' });
   });
 });
