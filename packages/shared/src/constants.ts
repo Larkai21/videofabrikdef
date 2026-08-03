@@ -139,13 +139,30 @@ export const DEDUPE_WINDOW_DAYS = 14;
 export const IDEA_SCORE_THRESHOLD = 55;
 
 // Guion
-// Velocidad de locución MEDIDA, no estimada: 2.887 palabras / 23,25 min de voz
-// real en los tres vídeos de formato largo = 124,2 wpm (edge-tts, es-ES, rate
-// -8%, con las pausas entre escenas ya dentro). El 150 anterior era una
-// suposición y descalibraba todo el régimen de duración un 20 %: pedir 7 min
-// producía 1.050 palabras, que son 8,5 min de voz. Al cambiar esto se mueve
-// `sceneTarget`, así que el número de escenas del prompt cambia con él.
-export const WORDS_PER_MIN = 125;
+/**
+ * Velocidad de locución MEDIDA, no estimada. Al cambiar esto se mueve
+ * `sceneTarget`, así que el número de escenas del prompt cambia con él.
+ *
+ * Historial de la medida, que es lo que la hace fiable:
+ * - 150: suposición. Descalibraba el régimen de duración un 20 % — pedir 7 min
+ *   producía 1.050 palabras, que son 8,5 min de voz.
+ * - 125: 2.887 palabras / 23,25 min de voz real con edge-tts (es-ES, rate −8 %),
+ *   con las pausas entre escenas ya dentro.
+ * - 139: ElevenLabs con la voz del canal (Mario, es-ES) por el modelo que usa el
+ *   worker, `eleven_flash_v2_5`. 578 palabras en 4,16 min de alineación real.
+ *
+ * Se mide con `pnpm probar:voz <videoId> --voz <voiceId>`, que sintetiza un
+ * guion entero por el camino del worker y saca el wpm de los word timestamps.
+ * Vuelve a medirse al cambiar de voz o de modelo: NO son intercambiables. El
+ * mismo texto por `eleven_multilingual_v2` sale bastante más lento que por
+ * Flash, así que estimar con una muestra suelta de otro modelo da un número
+ * que no vale.
+ *
+ * Es una constante global y la voz es por canal: con más de un canal esto
+ * tendría que colgar de `profile.voice`. Con uno, lo que toca es que el número
+ * corresponda a la voz que está puesta.
+ */
+export const WORDS_PER_MIN = 139;
 export const SCRIPT_LENGTH_TOLERANCE = 0.1;
 export const RESEARCH_MAX_CHARS_PER_SOURCE = 20_000;
 // Palabras por escena: fija cuántas escenas pide el prompt. Sin este número el
