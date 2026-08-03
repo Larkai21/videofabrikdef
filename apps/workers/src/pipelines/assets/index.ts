@@ -844,7 +844,25 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
   // ingesta. Reordenar solo `beats.candidates` habría sido decorativo: es
   // exactamente el fallo que tenía la puerta de curación humana.
   if (fullRun) {
-    const planos = beatRows
+    // Se RELEEN los beats de la BD. `beatRows` se cargó antes del matching y
+    // sus `visuals` en memoria son los huecos que calculó el reparto de
+    // sub-planos, con `candidates: []`: matchBeat resuelve los candidatos y los
+    // escribe en Postgres, pero no actualiza la fila en memoria.
+    //
+    // Sin esta relectura el juez recibía listas vacías, las descartaba por el
+    // filtro de «al menos dos candidatos» y salía sin llamar a nadie. En un
+    // vídeo NUEVO no hacía absolutamente nada, y no se notaba: no falla, no
+    // avisa y no deja fila en el ledger.
+    //
+    // Y funcionaba en las pruebas justo por eso: yo lo probé re-matcheando un
+    // vídeo que ya tenía candidatos de una pasada anterior, así que la relectura
+    // sobraba. Verificado sobre un re-run, roto en el camino real.
+    const frescos = await db
+      .select()
+      .from(beatsTable)
+      .where(eq(beatsTable.videoId, videoId))
+      .orderBy(asc(beatsTable.idx));
+    const planos = frescos
       .filter((b) => b.status !== 'locked' && b.visuals && b.visuals.length > 0)
       .flatMap((b) =>
         (b.visuals ?? []).map((v, vIdx) => ({
@@ -860,7 +878,7 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
       channelId: video.channelId,
       planos,
     });
-    for (const b of beatRows) {
+    for (const b of frescos) {
       if (!b.visuals || b.visuals.length === 0) continue;
       let tocado = false;
       const visuals = b.visuals.map((v, vIdx) => {

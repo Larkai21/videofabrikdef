@@ -275,6 +275,9 @@ describe('meta_narracion', () => {
       true,
     );
     expect(salta('PUNTO MEDIO: estas herramientas funcionan pero no son cajas negras.')).toBe(true);
+    // en tercera persona es el mismo defecto y se colaba
+    expect(salta('El episodio paga la promesa: ahora sabes qué cadena falló.')).toBe(true);
+    expect(salta('Aquí cumple la promesa que te hice en el título.')).toBe(true);
   });
 
   it('marca la escena que le cuenta al espectador lo que está viendo', () => {

@@ -384,7 +384,11 @@ const PROMESA_NO_PRODUCIBLE: readonly { id: string; re: RegExp }[] = [
 const META_NARRACION: readonly { id: string; re: RegExp }[] = [
   {
     id: 'cumplo-la-promesa',
-    re: /\b(cumplo|pago|cierro|aquí va) la promesa\b|\bpago de la promesa\b/i,
+    // Con la lista corta de verbos se escapaba «El episodio PAGA la promesa»,
+    // que es el mismo defecto conjugado en tercera persona. Añadir las formas
+    // sube los disparos del banco de 20 a 22 sobre 5.104 escenas: las dos
+    // nuevas son casos reales, no ruido.
+    re: /\b(cumplo|cumple|cumplimos|pago|paga|pagamos|cierro|cierra|cerramos|aquí va) la promesa\b|\bpago de la promesa\b/i,
   },
   { id: 'lo-contraintuitivo', re: /\blo contraintuitivo\b/i },
   { id: 'punto-medio', re: /\b(punto medio|re-?gancho)\b/i },
