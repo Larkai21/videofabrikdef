@@ -8,6 +8,8 @@ import { eq } from 'drizzle-orm';
 import { markIncident, transitionVideo, videos } from '@fabrica/db';
 import {
   analizarMaster,
+  cuesToSrt,
+  cuesToVtt,
   JOBS,
   QUEUES,
   renderableMasterV1,
@@ -27,6 +29,7 @@ import { ensureBrowser, renderMedia, renderStill, selectComposition } from '@rem
 import type { WorkerContext } from '../../lib/context.js';
 import { env, REPO_ROOT } from '../../lib/env.js';
 import { videoSrcLock } from '../../lib/locks.js';
+import { ajustarLoudnessEntrega } from './loudness.js';
 import { rewriteMasterMedia } from './media-rewrite.js';
 
 // ESTRATEGIA DE MEDIOS — decidida leyendo @remotion/renderer 4.0.499:
@@ -144,6 +147,14 @@ async function writeOutputs(outDir: string, master: RenderableMaster): Promise<v
   await fsp.writeFile(path.join(outDir, 'title.txt'), `${title}\n`);
   await fsp.writeFile(path.join(outDir, 'description.txt'), `${description}\n`);
   await fsp.writeFile(path.join(outDir, 'tags.txt'), `${master.seo.tags.join('\n')}\n`);
+  // subtítulos para subir junto al MP4: transformación pura de los cues, con el
+  // MISMO desplazamiento de intro que los capítulos (los cues van en reloj del
+  // audio; el MP4 antepone la intro de marca)
+  const cues = master.cues ?? [];
+  if (cues.length > 0) {
+    await fsp.writeFile(path.join(outDir, 'subtitles.srt'), cuesToSrt(cues, introMs));
+    await fsp.writeFile(path.join(outDir, 'subtitles.vtt'), cuesToVtt(cues, introMs));
+  }
   // maestro congelado con rutas locales, para auditoría y re-render idéntico
   await fsp.writeFile(path.join(outDir, 'master.json'), JSON.stringify(master, null, 2));
 }
@@ -234,6 +245,9 @@ async function handleRenderVideo(ctx: WorkerContext, job: Job<RenderVideoJob>): 
         });
       },
     });
+
+    // el MP4 sale con la voz a −16 (referencia de mezcla); la entrega va a −14
+    await ajustarLoudnessEntrega(path.join(outDir, 'video.mp4'), log);
 
     // dos miniaturas con los dos conceptos del paquete SEO. Las inputProps
     // deben pasar TAMBIÉN por selectComposition: las props que renderiza la
