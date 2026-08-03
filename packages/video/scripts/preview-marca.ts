@@ -2,7 +2,8 @@
  * Fotogramas sueltos de las cuatro piezas del brand kit con la MARCA REAL del
  * canal (tokens, avatar, nombre y coletilla), a out/marca/.
  *
- *   pnpm --filter @fabrica/video preview:marca
+ *   pnpm --filter @fabrica/video preview:marca            # fotogramas sueltos
+ *   pnpm --filter @fabrica/video preview:marca --video    # y los clips
  *
  * Existe porque `render:smoke` usa el maestro de demo con la paleta por defecto:
  * comprueba que el montaje no se rompe, no que la marca se vea bien. Y una
@@ -13,7 +14,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bundle } from '@remotion/bundler';
-import { ensureBrowser, renderStill, selectComposition } from '@remotion/renderer';
+import { ensureBrowser, renderMedia, renderStill, selectComposition } from '@remotion/renderer';
 import { makeDemoMaster, type MasterVideoJson } from '@fabrica/shared';
 import { webpackOverride } from '../src/bundling';
 
@@ -115,7 +116,30 @@ async function main(): Promise<void> {
     });
     console.log(`  ${nombre} (frame ${frame})`);
   }
-  console.log(`Fotogramas de marca en ${outDir}`);
+
+  // Los clips: una intro se juzga por cómo se MUEVE, y un fotograma no dice si
+  // el entramado se dibuja o simplemente aparece.
+  if (process.argv.includes('--video')) {
+    const clips: [string, number, number][] = [
+      ['intro', 0, 95],
+      ['tarjetas', 96 + 40, 96 + 900],
+      ['outro', Math.max(0, total - 120), total - 1],
+    ];
+    for (const [nombre, desde, hasta] of clips) {
+      await renderMedia({
+        composition,
+        serveUrl,
+        codec: 'h264',
+        outputLocation: path.join(outDir, `${nombre}.mp4`),
+        frameRange: [desde, Math.min(hasta, total - 1)],
+        inputProps: master,
+        overwrite: true,
+      });
+      console.log(`  ${nombre}.mp4 (frames ${desde}-${hasta})`);
+    }
+  }
+
+  console.log(`Marca en ${outDir}`);
 }
 
 await main();
