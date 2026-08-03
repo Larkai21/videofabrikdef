@@ -8,6 +8,7 @@ import {
   DEFAULT_DURATION_FRAMES,
   DEFAULT_LOWER_THIRD_FRAMES,
   DEFAULT_TITLE_CARD_FRAMES,
+  kitSfxCues,
   kitViewFrom,
   type KitView,
 } from './brand-kit';
@@ -157,8 +158,18 @@ describe('computeBrandKitLayout', () => {
     // con segmentos la portada única no se pinta
     expect(layout.titleCard).toBeNull();
     expect(layout.sectionCards).toEqual([
-      { ref: 'portada-test@1.0.0', from: 0, durationInFrames: DEFAULT_TITLE_CARD_FRAMES, title: 'Uno' },
-      { ref: 'portada-test@1.0.0', from: 705, durationInFrames: DEFAULT_TITLE_CARD_FRAMES, title: 'Dos' },
+      {
+        ref: 'portada-test@1.0.0',
+        from: 0,
+        durationInFrames: DEFAULT_TITLE_CARD_FRAMES,
+        title: 'Uno',
+      },
+      {
+        ref: 'portada-test@1.0.0',
+        from: 705,
+        durationInFrames: DEFAULT_TITLE_CARD_FRAMES,
+        title: 'Dos',
+      },
     ]);
   });
 
@@ -261,7 +272,13 @@ describe('computeEffectsTrack', () => {
     const master = makeDemoMaster({ audioPath: 'demo/silence.wav' });
     master.edits = [
       { type: 'kinetic_text', from_ms: 0, to_ms: 2200, text: 'se borra solo' },
-      { type: 'stat_odometer', from_ms: 3000, to_ms: 5600, value: '1000000', label: 'combinaciones' },
+      {
+        type: 'stat_odometer',
+        from_ms: 3000,
+        to_ms: 5600,
+        value: '1000000',
+        label: 'combinaciones',
+      },
       { type: 'annotation', from_ms: 6000, to_ms: 7800, style: 'circle', text: 'aquí' },
     ];
     const effects = computeEffectsTrack(master, 30, 0);
@@ -271,7 +288,11 @@ describe('computeEffectsTrack', () => {
       durationInFrames: 66,
       text: 'se borra solo',
     });
-    expect(effects[1]).toMatchObject({ type: 'stat_odometer', value: '1000000', label: 'combinaciones' });
+    expect(effects[1]).toMatchObject({
+      type: 'stat_odometer',
+      value: '1000000',
+      label: 'combinaciones',
+    });
     // el campo style pasa por passthrough para annotation/device_frame
     expect(effects[2]).toMatchObject({ type: 'annotation', style: 'circle', text: 'aquí' });
   });
@@ -345,5 +366,39 @@ describe('beatWindow', () => {
     });
     expect(window.from).toBe(60 + 330);
     expect(window.durationInFrames).toBe(375);
+  });
+});
+
+describe('kitSfxCues', () => {
+  // La intro empezaba en silencio DIGITAL: −91 dB medidos sobre los tres
+  // primeros segundos de un vídeo real. El único audio del montaje es la voz,
+  // que arranca en introFrames, así que la pieza de apertura no sonaba.
+  const intro = { from: 0, durationInFrames: 96 };
+  const outro = { from: 1400, durationInFrames: 120 };
+
+  it('la intro suena desde el frame 0', () => {
+    const cues = kitSfxCues({ intro, outro: null });
+    expect(cues.some((c) => c.from === 0 && c.sfx === 'riser')).toBe(true);
+  });
+
+  it('el golpe cae donde aterriza el nombre, no en una pantalla vacía', () => {
+    const golpe = kitSfxCues({ intro, outro: null }).find((c) => c.sfx === 'impacto');
+    expect(golpe?.from).toBe(27);
+    expect(golpe?.from).toBeGreaterThan(0);
+  });
+
+  it('la outro arranca su sonido donde arranca la pieza', () => {
+    const cues = kitSfxCues({ intro: null, outro });
+    expect(cues.find((c) => c.sfx === 'resolucion')?.from).toBe(1400);
+    expect(cues.find((c) => c.sfx === 'pop')?.from).toBe(1434);
+  });
+
+  it('sin piezas no suena nada: un vídeo sin kit no cambia', () => {
+    expect(kitSfxCues({ intro: null, outro: null })).toEqual([]);
+  });
+
+  it('una outro más corta que el rebote no programa el pop fuera de su ventana', () => {
+    const corta = kitSfxCues({ intro: null, outro: { from: 100, durationInFrames: 20 } });
+    expect(corta.every((c) => c.from + c.durationInFrames <= 120)).toBe(true);
   });
 });

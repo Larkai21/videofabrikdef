@@ -1,10 +1,6 @@
 import type { ComponentType, EditType, MasterVideoJson, SfxName } from '@fabrica/shared';
 import { computeChapters } from './chapters';
-import {
-  componentMeta,
-  componentRegistry,
-  type KitComponentMeta,
-} from './registry.generated';
+import { componentMeta, componentRegistry, type KitComponentMeta } from './registry.generated';
 
 // Montaje del brand kit sobre la ley temporal del audio (SPEC §10,
 // docs/render.md §1): la intro DESPLAZA beats, audio y subtítulos intro
@@ -135,7 +131,11 @@ function computeBaseFrames(master: MasterVideoJson, fps: number): number {
 // registry Y su manifest declaró fixed_duration_frames: cualquier otra cosa
 // se degrada a "sin componente" (el render nunca revienta por un kit a
 // medio instalar y la duración total siempre coincide con lo que se pinta).
-function fixedSlot(view: KitView, type: ComponentType, ref: string | undefined): {
+function fixedSlot(
+  view: KitView,
+  type: ComponentType,
+  ref: string | undefined,
+): {
   ref: string;
   frames: number;
 } | null {
@@ -191,7 +191,12 @@ export function computeBrandKitLayout(
             : bodyEnd;
         const duration = Math.min(cardFrames, Math.max(0, nextFrom - from), bodyEnd - from);
         if (duration >= 1 && seg.title.trim() !== '') {
-          sectionCards.push({ ref: titleCardRef, from, durationInFrames: duration, title: seg.title });
+          sectionCards.push({
+            ref: titleCardRef,
+            from,
+            durationInFrames: duration,
+            title: seg.title,
+          });
         }
       }
     } else if (title !== null) {
@@ -261,19 +266,26 @@ export interface BrollTrack {
 // se tocan → sincronía intacta). Con un solo beat no hay transición.
 export function computeBrollTrack(
   beats: Array<{ idx: number; from_ms: number; to_ms: number }>,
-  opts: { fps: number; baseFrames: number; transitionFrames?: number; segmentStartIdxs?: Set<number> },
+  opts: {
+    fps: number;
+    baseFrames: number;
+    transitionFrames?: number;
+    segmentStartIdxs?: Set<number>;
+  },
 ): BrollTrack {
   const n = beats.length;
   if (n === 0) return { sequences: [], transitions: [] };
-  const lens = beats.map((b, i) =>
-    beatWindow(b, {
-      fps: opts.fps,
-      offsetFrames: 0,
-      isLast: i === n - 1,
-      bodyEndFrames: opts.baseFrames,
-    }).durationInFrames,
+  const lens = beats.map(
+    (b, i) =>
+      beatWindow(b, {
+        fps: opts.fps,
+        offsetFrames: 0,
+        isLast: i === n - 1,
+        bodyEndFrames: opts.baseFrames,
+      }).durationInFrames,
   );
-  if (n === 1) return { sequences: [{ beatIdx: beats[0]!.idx, durationInFrames: lens[0]! }], transitions: [] };
+  if (n === 1)
+    return { sequences: [{ beatIdx: beats[0]!.idx, durationInFrames: lens[0]! }], transitions: [] };
 
   const D = opts.transitionFrames ?? TRANSITION_FRAMES;
   const headHalf = Math.floor(D / 2);
@@ -287,7 +299,10 @@ export function computeBrollTrack(
   });
   const transitions: BrollTransition[] = [];
   for (let i = 1; i < n; i++) {
-    transitions.push({ durationInFrames: D, kind: segStarts.has(beats[i]!.idx) ? 'section' : 'cut' });
+    transitions.push({
+      durationInFrames: D,
+      kind: segStarts.has(beats[i]!.idx) ? 'section' : 'cut',
+    });
   }
   return { sequences, transitions };
 }
@@ -304,4 +319,43 @@ export function beatWindow(
   const rawEnd = opts.offsetFrames + msToFrames(beat.to_ms, opts.fps);
   const end = opts.isLast ? Math.max(rawEnd, opts.bodyEndFrames) : rawEnd;
   return { from, durationInFrames: Math.max(1, end - from) };
+}
+
+/**
+ * Los SFX de la intro y de la outro.
+ *
+ * Existe porque las dos piezas empezaban y acababan en silencio DIGITAL —−91 dB
+ * medidos sobre los tres primeros segundos de un vídeo real—: el único audio del
+ * montaje es la voz, que arranca en `introFrames` y termina con el último beat.
+ * Son los tres primeros segundos del vídeo, que es donde se decide si alguien
+ * se queda.
+ *
+ * Vive aquí y no dentro de las piezas del kit porque el contrato de esos
+ * componentes es visual, los escribe una IA y no deben poder meter audio por su
+ * cuenta. La composición sabe dónde empieza y acaba cada pieza; ellas no saben
+ * que existe una banda de sonido.
+ */
+export function kitSfxCues(layout: {
+  intro: { from: number; durationInFrames: number } | null;
+  outro: { from: number; durationInFrames: number } | null;
+}): { from: number; durationInFrames: number; sfx: SfxName }[] {
+  const cues: { from: number; durationInFrames: number; sfx: SfxName }[] = [];
+  if (layout.intro !== null) {
+    const n = layout.intro.durationInFrames;
+    // el riser sube durante todo el dibujado y entrega en el logotipo
+    cues.push({ from: 0, durationInFrames: n, sfx: 'riser' });
+    // el golpe cae donde ATERRIZA el nombre, no al principio: si suena en el
+    // frame 0 acompaña a una pantalla vacía
+    const golpe = Math.round(n * 0.28);
+    cues.push({ from: golpe, durationInFrames: Math.max(1, n - golpe), sfx: 'impacto' });
+    // y el destello de entrega tapa el corte al b-roll
+    cues.push({ from: Math.max(0, n - 14), durationInFrames: 14, sfx: 'destello' });
+  }
+  if (layout.outro !== null) {
+    const { from, durationInFrames: n } = layout.outro;
+    cues.push({ from, durationInFrames: n, sfx: 'resolucion' });
+    // el «suscríbete» entra con rebote en el frame 34 de la pieza
+    if (n > 34) cues.push({ from: from + 34, durationInFrames: n - 34, sfx: 'pop' });
+  }
+  return cues;
 }

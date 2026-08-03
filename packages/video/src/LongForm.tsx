@@ -14,7 +14,7 @@ import {
   type SfxName,
 } from '@fabrica/shared';
 import { BeatVisual } from './BeatVisual';
-import { computeBrandKitLayout, computeBrollTrack, type EffectCue } from './brand-kit';
+import { computeBrandKitLayout, computeBrollTrack, kitSfxCues, type EffectCue } from './brand-kit';
 import { SECTION_TRANSITIONS } from './effects/transitions';
 import {
   Ambience,
@@ -206,6 +206,9 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
   const microCues = effects.filter((e) => e.type === 'micro_fx');
   const sfxCues = effects.filter((e) => e.type === 'sfx' && e.sfx);
 
+  // sonido de las piezas del kit (pura, en brand-kit.ts)
+  const kitSfx = React.useMemo(() => kitSfxCues(layout), [layout]);
+
   const audioEl = audio && isRenderableSrc(audio.path) ? <Audio src={toSrc(audio.path)} /> : null;
   const subtitlesEl = (
     <Subtitles
@@ -250,6 +253,16 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
             src={toSrc(`sfx/${cue.sfx}.wav`)}
             volume={cue.sfx !== undefined ? SFX_VOLUME[cue.sfx] : 0.5}
           />
+        </Sequence>
+      ))}
+      {kitSfx.map((cue, i) => (
+        <Sequence
+          key={`kit-sfx-${i}`}
+          from={cue.from}
+          durationInFrames={cue.durationInFrames}
+          name={`SFX kit ${cue.sfx}`}
+        >
+          <Audio src={toSrc(`sfx/${cue.sfx}.wav`)} volume={SFX_VOLUME[cue.sfx]} />
         </Sequence>
       ))}
       {beats.length > 0 ? (
