@@ -1,8 +1,0 @@
-{
-  "version": "1",
-  "type": "lower_third",
-  "name": "lower-third-ia",
-  "component_version": "0.1.0",
-  "props_schema": "./schema.ts",
-  "assets": []
-}
