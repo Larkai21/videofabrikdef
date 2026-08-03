@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  deviceTextValido,
   figureBackedBy,
   normalizeWord,
   numericTokens,
@@ -249,5 +250,50 @@ describe('efectos de lista', () => {
         claims,
       ).dropped[0]?.reason,
     ).toBe('cifra_sin_respaldo');
+  });
+});
+
+describe('deviceTextValido y la degradación del device', () => {
+  it('acepta dominios, URLs y comandos', () => {
+    for (const t of [
+      'grapheneos.org',
+      'github.com/ollama',
+      'https://x.com',
+      '$ npm install',
+      'ollama run llama3',
+      'docker compose up',
+    ]) {
+      expect(deviceTextValido(t), t).toBe(true);
+    }
+  });
+
+  it('rechaza texto normal y nombres de modelo con punto', () => {
+    // «emergency stop» salió tecleado en una barra de direcciones: 2 palabras
+    // y ≤48 chars pasaban todos los filtros genéricos
+    for (const t of ['emergency stop', 'GPT-5.6', 'parada de emergencia', '']) {
+      expect(deviceTextValido(t), t).toBe(false);
+    }
+  });
+
+  it('un device sin forma de dominio/comando se degrada a callout, no se pierde', () => {
+    const out = validateSceneIntents(
+      escena('el botón de parada existe', [
+        { effect: 'device', trigger_word: 'parada', card_text: 'Parada de emergencia' },
+      ]),
+      [],
+    );
+    expect(out.dropped).toHaveLength(0);
+    expect(out.kept[0]?.effect).toBe('callout');
+    expect(out.kept[0]?.card_text).toBe('Parada de emergencia');
+  });
+
+  it('un device con dominio de verdad sigue siendo device', () => {
+    const out = validateSceneIntents(
+      escena('mira grapheneos.org para el detalle', [
+        { effect: 'device', trigger_word: 'grapheneos.org', card_text: 'grapheneos.org' },
+      ]),
+      [],
+    );
+    expect(out.kept[0]?.effect).toBe('device');
   });
 });

@@ -421,15 +421,37 @@ describe('hacenFaltaMasTarjetas', () => {
     text: 'un titular',
   });
 
-  it('no pide IA cuando lo ya colocado llena el presupuesto', () => {
-    // 7 min × 1,2 tarjetas/min ≈ 8
-    const puestas = Array.from({ length: 8 }, (_, i) => tarjeta(i * 30_000));
+  it('no pide IA cuando lo colocado llena el presupuesto Y cubre todas las ventanas', () => {
+    // 7 min × 1,2 tarjetas/min ≈ 8 → ventanas de 52,5 s; una tarjeta en cada una
+    const puestas = Array.from({ length: 8 }, (_, i) => tarjeta(i * 52_500 + 1_000));
     expect(hacenFaltaMasTarjetas(puestas, 7 * 60_000)).toBe(false);
   });
 
   it('pide IA cuando el guion declaró poco', () => {
     expect(hacenFaltaMasTarjetas([tarjeta(0)], 7 * 60_000)).toBe(true);
     expect(hacenFaltaMasTarjetas([], 7 * 60_000)).toBe(true);
+  });
+
+  // El caso medido que motivó el conteo doble: presupuesto global cubierto
+  // pero todas las tarjetas concentradas al principio → 2 minutos mudos que
+  // la puerta vieja no veía (el informe los denunciaba y producción decía ok).
+  it('pide IA si el presupuesto se cumple pero hay ventanas sin nada', () => {
+    const concentradas = Array.from({ length: 8 }, (_, i) => tarjeta(i * 20_000));
+    expect(hacenFaltaMasTarjetas(concentradas, 7 * 60_000)).toBe(true);
+  });
+
+  it('un golpe de zoom no rescata una ventana: no sustituye a una tarjeta', () => {
+    // 7 tarjetas repartidas + 1 zoom_punch tapando la última ventana:
+    // el zoom compite por pantalla (carril del reparto) pero no cuenta como
+    // cobertura — un minuto con solo zooms se sigue sintiendo vacío
+    const puestas: Edit[] = Array.from({ length: 7 }, (_, i) => tarjeta(i * 52_500 + 1_000));
+    puestas.push({
+      type: 'zoom_punch',
+      beat_idx: 40,
+      from_ms: 7 * 52_500 + 1_000,
+      to_ms: 7 * 52_500 + 2_600,
+    });
+    expect(hacenFaltaMasTarjetas(puestas, 7 * 60_000)).toBe(true);
   });
 
   // La puerta vieja miraba beats sin cubrir: con 41 beats y 8 tarjetas de

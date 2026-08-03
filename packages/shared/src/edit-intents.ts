@@ -174,6 +174,22 @@ export interface IntentCheck {
 
 const NEEDS_COPY = new Set<IntentEffect>(['callout', 'quote', 'kinetic', 'device']);
 
+// El marco de dispositivo TECLEA su texto en una barra de URL/búsqueda: solo
+// tiene sentido si el texto ES un dominio, una URL o un comando. «emergency
+// stop» pasó los filtros genéricos (2 palabras, ≤48 chars) y salió tecleado en
+// una barra de direcciones; con esto se degrada a callout en vez de fingir.
+// El último label del dominio exige letras («GPT-5.6» no es un dominio).
+const DEVICE_DOMAIN_RE = /(^|\s)(https?:\/\/)?[a-z0-9][a-z0-9.-]*\.[a-z]{2,}(\/\S*)?(\s|$)/i;
+const DEVICE_COMMAND_RE =
+  /^[$>]\s?\S|^(npm|pnpm|npx|git|pip3?|docker|curl|wget|ssh|brew|apt|sudo|python3?|node|cargo|go|make|ollama)\b/i;
+
+/** ¿Este texto puede ir en la barra de un DeviceFrame sin quedar en ridículo? */
+export function deviceTextValido(text: string): boolean {
+  const t = text.trim();
+  if (t === '') return false;
+  return t.includes('://') || DEVICE_DOMAIN_RE.test(t) || DEVICE_COMMAND_RE.test(t);
+}
+
 /**
  * Deja solo las intenciones que se sostienen. Nunca lanza: separa lo válido de
  * lo descartado con su motivo, para poder avisar al humano en vez de colocar un
@@ -222,6 +238,13 @@ export function validateSceneIntents(
     }
     if (copy !== '' && copy.split(/\s+/).length > MAX_CARD_WORDS) {
       drop(intent, 'copy_largo');
+      continue;
+    }
+    // un device cuyo texto no parece dominio/URL/comando se DEGRADA a callout:
+    // el contenido (la palabra ancla y el copy) sigue valiendo; lo que no vale
+    // es teclearlo en una barra de direcciones
+    if (intent.effect === 'device' && !deviceTextValido(copy)) {
+      kept.push({ ...intent, effect: 'callout' });
       continue;
     }
     // Los efectos de lista se pintan a partir de `items`, así que sin ellos no

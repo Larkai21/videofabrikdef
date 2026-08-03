@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import {
+  deviceTextValido,
+  EDIT_RENDER_KIND,
   figureBackedBy,
   FX_CARD_GUARD_MS,
   FX_CARD_SEP_MS,
@@ -12,6 +14,7 @@ import {
   MAX_CARD_WORDS,
   microFxFor,
   normalizeWord,
+  tokenCifra,
   validateSceneIntents,
   type Cue,
   type Edit,
@@ -111,9 +114,13 @@ const DUR_MS: Record<string, number> = {
 const DOMAIN_RE = /\b([a-z0-9][a-z0-9-]*\.(?:com|org|io|net|dev|app|ai|gov|co))\b/i;
 
 // una cifra con 3+ dígitos luce como rodillo (stat_odometer); las cortas (%, xN,
-// cifras de 1-2 dígitos) van en tarjeta simple con count-up (stat_card).
+// cifras de 1-2 dígitos) van en tarjeta simple con count-up (stat_card). Un
+// decimal («3,5x») nunca va al rodillo: sus columnas son de dígitos enteros y
+// «3,50» acabaría contando hasta 350.
 function pickStatType(value: string): 'stat_odometer' | 'stat_card' {
-  return value.replace(/[^\d]/g, '').length >= 3 ? 'stat_odometer' : 'stat_card';
+  const token = tokenCifra(value);
+  if (token === null || token.decimales > 0) return 'stat_card';
+  return String(Math.abs(token.target)).length >= 3 ? 'stat_odometer' : 'stat_card';
 }
 
 function beatOf(beats: DirectorBeat[], idx: number): DirectorBeat | undefined {
@@ -618,14 +625,28 @@ export function momentsToEdits(
       });
       edits.push({ type: 'sfx', from_ms: at, to_ms: at + 400, sfx: 'whoosh' });
     } else if (m.type === 'device' && m.text) {
-      edits.push({
-        type: 'device_frame',
-        from_ms: at,
-        to_ms: window(DUR_MS.device_frame!),
-        beat_idx: beat.idx,
-        style: m.style ?? 'browser',
-        text: m.text,
-      });
+      // el marco de dispositivo teclea su texto en una barra de URL: si el
+      // texto de la IA no parece dominio/comando, se degrada a callout — la
+      // misma regla que la capa declarada (validateSceneIntents)
+      if (deviceTextValido(m.text)) {
+        edits.push({
+          type: 'device_frame',
+          from_ms: at,
+          to_ms: window(DUR_MS.device_frame!),
+          beat_idx: beat.idx,
+          style: m.style ?? 'browser',
+          text: m.text,
+        });
+      } else {
+        edits.push({
+          type: 'text_callout',
+          from_ms: at,
+          to_ms: window(DUR_MS.text_callout!),
+          beat_idx: beat.idx,
+          text: m.text,
+        });
+        edits.push({ type: 'sfx', from_ms: at, to_ms: at + 400, sfx: 'pop' });
+      }
     }
     // momento sin texto/valor válido: no genera edit
   }
@@ -634,22 +655,20 @@ export function momentsToEdits(
 
 // ---- orquestación: reglas + IA, dedupe y tope de densidad ------------------
 
-// overlays visuales que compiten por pantalla (los SFX/keyword no cuentan;
-// annotation es un acento ligero que layerea sobre el b-roll → tampoco compite)
-const VISUAL_TYPES = new Set([
-  'zoom_punch',
-  'stat_card',
-  'stat_odometer',
-  'text_callout',
-  'quote_card',
-  'kinetic_text',
-  'device_frame',
-  // Los tres de lista ocupan el centro como cualquier tarjeta: si no compiten,
-  // se solaparían con un callout en el mismo beat.
-  'split_versus',
-  'pasos_flow',
-  'tendencia',
-]);
+// Overlays que ocupan pantalla, DERIVADOS del contrato (EDIT_RENDER_KIND):
+// un edit nuevo clasificado 'overlay' entra aquí solo, sin lista que olvidar.
+// Es la misma derivación que usa el informe de calidad — antes eran dos listas
+// de literales y divergían (el informe no contaba zoom_punch y este sí).
+const OVERLAY_TYPES = new Set<string>(
+  Object.entries(EDIT_RENDER_KIND)
+    .filter(([, kind]) => kind === 'overlay')
+    .map(([type]) => type),
+);
+// Lo que compite por pantalla en el reparto: los overlays MÁS zoom_punch (es
+// 'camara', no overlay, pero un golpe de zoom y una tarjeta en el mismo beat
+// se pelean por la atención igual). Los SFX/keyword no cuentan; annotation es
+// un acento ligero que layerea sobre el b-roll → tampoco compite.
+const VISUAL_TYPES = new Set<string>([...OVERLAY_TYPES, 'zoom_punch']);
 /**
  * ¿Vale la pena llamar a la capa de IA del director?
  *
@@ -660,10 +679,27 @@ const VISUAL_TYPES = new Set([
  * SIEMPRE y la economía que promete docs/edicion.md §1 —cuanto mejor declara el
  * guion, menos IA— no podía cumplirse. Además era trabajo tirado: con el
  * presupuesto lleno, `spreadByWindows` descarta después lo que la IA propone.
+ *
+ * El conteo es DOBLE: presupuesto global Y cobertura por ventana. Solo el
+ * global dejaba escapar el caso medido (2 minutos mudos con el presupuesto
+ * cubierto): si el guion concentra sus tarjetas al principio, el total cumple
+ * pero hay tramos de ~50 s sin nada. La ventana es la MISMA rejilla del
+ * reparto (durationMs/presupuesto), no el minuto de reloj del informe — ya se
+ * probó alinearlas y se revirtió (comentario en spreadByWindows). Aquí cuentan
+ * solo los overlays de verdad (sin zoom_punch): un golpe de zoom no rescata a
+ * un minuto de sentirse vacío, que es justo la discrepancia que el informe
+ * denunciaba como minuto_mudo.
  */
 export function hacenFaltaMasTarjetas(puestas: readonly Edit[], durationMs: number): boolean {
   const presupuesto = Math.max(1, Math.round((durationMs / 60_000) * FX_CARDS_PER_MIN));
-  return puestas.filter((e) => VISUAL_TYPES.has(e.type)).length < presupuesto;
+  const overlays = puestas.filter((e) => OVERLAY_TYPES.has(e.type));
+  if (overlays.length < presupuesto) return true;
+  const windowMs = Math.max(1, durationMs / presupuesto);
+  const nVentanas = Math.max(1, Math.round(durationMs / windowMs));
+  const cubiertas = new Set(
+    overlays.map((e) => Math.min(nVentanas - 1, Math.floor(e.from_ms / windowMs))),
+  );
+  return cubiertas.size < nVentanas;
 }
 
 // prioridad al recortar por densidad (mayor primero). kinetic_text es el
