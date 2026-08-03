@@ -72,9 +72,28 @@ function toDto(row: ComponentRow, settings: ChannelSettings): ComponentDto {
 // DTOs sintéticos de los componentes integrados (no viven en BD): se listan y se
 // pueden activar por ref. La preview sale de library/builtin-previews/<ref>/ si
 // se sembró (scripts/seed-builtin-previews.ts); si no, null.
-function builtinDtos(settings: ChannelSettings, libraryDir: string): ComponentDto[] {
+/**
+ * La preview del canal manda sobre la genérica.
+ *
+ * `pnpm previews:kit` las siembra con la paleta, el nombre, la coletilla y el
+ * avatar del canal, en `builtin-previews/<canal>/`. La carpeta compartida se
+ * queda como respaldo para un canal recién creado, que todavía no tiene marca
+ * que enseñar.
+ */
+function previewDir(libraryDir: string, channelId: string, ref: string): string {
+  const propia = path.join(libraryDir, 'builtin-previews', channelId, ref);
+  return existsSync(path.join(propia, 'preview.mp4'))
+    ? propia
+    : path.join(libraryDir, 'builtin-previews', ref);
+}
+
+function builtinDtos(
+  settings: ChannelSettings,
+  libraryDir: string,
+  channelId: string,
+): ComponentDto[] {
   return BUILTIN_KIT_COMPONENTS.map((b) => {
-    const dir = path.join(libraryDir, 'builtin-previews', `${b.name}@${b.version}`);
+    const dir = previewDir(libraryDir, channelId, `${b.name}@${b.version}`);
     const png = path.join(dir, 'preview.png');
     const mp4 = path.join(dir, 'preview.mp4');
     return componentDtoSchema.parse({
@@ -167,7 +186,9 @@ export function registerComponentRoutes(app: FastifyInstance, ctx: ApiContext): 
     const [existing] = await ctx.db
       .select({ id: components.id, status: components.status, channelId: components.channelId })
       .from(components)
-      .where(and(eq(components.name, manifest.name), eq(components.version, manifest.component_version)))
+      .where(
+        and(eq(components.name, manifest.name), eq(components.version, manifest.component_version)),
+      )
       .limit(1);
     if (existing && existing.channelId !== channelId) {
       await cleanup();
@@ -259,7 +280,10 @@ export function registerComponentRoutes(app: FastifyInstance, ctx: ApiContext): 
       .orderBy(components.type, components.name, components.version);
     // integrados primero (siempre disponibles) + los del canal subidos/IA
     return {
-      components: [...builtinDtos(settings, ctx.libraryDir), ...rows.map((row) => toDto(row, settings))],
+      components: [
+        ...builtinDtos(settings, ctx.libraryDir, channel),
+        ...rows.map((row) => toDto(row, settings)),
+      ],
     };
   });
 
@@ -403,9 +427,7 @@ export function registerComponentRoutes(app: FastifyInstance, ctx: ApiContext): 
     const [inUse] = await ctx.db
       .select({ id: videos.id })
       .from(videos)
-      .where(
-        and(ne(videos.state, 'hecho'), sql`(${videos.master}->'brand')::text LIKE ${needle}`),
-      )
+      .where(and(ne(videos.state, 'hecho'), sql`(${videos.master}->'brand')::text LIKE ${needle}`))
       .limit(1);
     if (inUse) {
       throw conflict(

@@ -48,6 +48,14 @@ diseñar módulos nuevos o tomar decisiones de arquitectura.
 - `pnpm typecheck` / `pnpm lint` / `pnpm test`
 - `docker compose up -d` — postgres, redis
 - `pnpm render:smoke` — render de humo de 60 frames de la composición
+- `pnpm previews:kit` — re-siembra las previews del brand kit con la marca real
+  del canal. Hay que ejecutarlo al cambiar tokens, avatar o nombre, y al tocar
+  una pieza integrada: la pantalla de Brand kit enseña mp4 ya renderizados, no
+  los componentes en vivo
+- `pnpm --filter @fabrica/video preview:marca [--video]` — fotogramas y clips de
+  las cuatro piezas y de las tarjetas, con la marca real
+- `pnpm rerank` — banco de matching sobre los planos etiquetados
+- `pnpm calidad <videoId>` — informe de calidad + hoja de contactos
 
 ## No hacer
 - No añadir edición de vídeo (trims, timeline arrastrable, capas).

@@ -22,7 +22,8 @@
     "guion": "pnpm --filter @fabrica/workers guion",
     "calidad": "pnpm --filter @fabrica/workers calidad",
     "reescala:biblioteca": "pnpm --filter @fabrica/workers reescala:biblioteca",
-    "rerank": "pnpm --filter @fabrica/workers rerank"
+    "rerank": "pnpm --filter @fabrica/workers rerank",
+    "previews:kit": "pnpm --filter @fabrica/workers previews:kit"
   },
   "devDependencies": {
     "prettier": "^3.9.6",

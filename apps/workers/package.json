@@ -11,7 +11,8 @@
     "calidad": "tsx scripts/calidad.ts",
     "guion": "tsx scripts/guion.ts",
     "reescala:biblioteca": "tsx scripts/reescala-biblioteca.ts",
-    "rerank": "tsx scripts/rerank.ts"
+    "rerank": "tsx scripts/rerank.ts",
+    "previews:kit": "tsx scripts/previews-kit.ts"
   },
   "dependencies": {
     "@fabrica/db": "workspace:*",

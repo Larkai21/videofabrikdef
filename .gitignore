@@ -14,6 +14,9 @@ packages/video/out/
 
 # Datos locales (índice en Postgres; los binarios no van al repo)
 library/assets/
+# previews del brand kit: mp4/png regenerables con `pnpm previews:kit`, y se
+# rehacen con cada cambio de marca. Son datos, no código.
+library/builtin-previews/
 outputs/
 !outputs/.gitkeep
 !library/assets/.gitkeep

@@ -1,4 +1,9 @@
-import { defaultDesign, makeDemoMaster, type ComponentType } from '@fabrica/shared';
+import {
+  defaultDesign,
+  makeDemoMaster,
+  type ComponentType,
+  type DesignTokens,
+} from '@fabrica/shared';
 
 // Contrato de props mínimo por tipo de componente del brand kit
 // (docs/contratos.md §3). El zip aporta su schema.ts concreto; aquí se
@@ -6,11 +11,32 @@ import { defaultDesign, makeDemoMaster, type ComponentType } from '@fabrica/shar
 // schema del zip lo acepta. Lógica pura y sin React: la consumen los tests,
 // scripts/check-contract.ts y el harness de humo (kit-smoke.tsx).
 
+/**
+ * La marca con la que se pinta el ejemplo. Sin ella el ejemplo es genérico, que
+ * es lo correcto para VALIDAR un zip: el contrato no depende de quién lo use.
+ *
+ * Pero para la PREVIEW del brand kit es justo al revés. El humano está eligiendo
+ * entre componentes para su canal, y una preview con la paleta por defecto y
+ * «Canal de ejemplo» no le dice cómo va a quedar: le dice cómo quedaría en otro
+ * canal. Por eso la marca entra como parámetro y no como constante.
+ */
+export interface MarcaDeEjemplo {
+  design?: DesignTokens;
+  channel_name?: string;
+  tagline?: string;
+  /** URL del avatar servida por /files, o una ruta bajo public/ del bundle */
+  logo?: string;
+}
+
 /** Props de ejemplo del contrato mínimo para un tipo dado. */
-export function samplePropsFor(type: ComponentType): Record<string, unknown> {
+export function samplePropsFor(
+  type: ComponentType,
+  marca?: MarcaDeEjemplo,
+): Record<string, unknown> {
   // los tokens de diseño del canal viajan a TODOS los componentes (opcionales
   // en el contrato, pero el schema del zip debe aceptarlos si los declara)
-  const design = defaultDesign();
+  const design = marca?.design ?? defaultDesign();
+  const nombre = marca?.channel_name ?? 'Canal de ejemplo';
   switch (type) {
     case 'subtitle_theme': {
       // cues reales del maestro de demo compartido (misma fuente que el
@@ -27,7 +53,7 @@ export function samplePropsFor(type: ComponentType): Record<string, unknown> {
       };
     }
     case 'lower_third':
-      return { title: 'Canal de ejemplo', subtitle: 'Dato de contexto', fromFrame: 0, design };
+      return { title: 'Titular del rótulo', subtitle: nombre, fromFrame: 0, design };
     case 'title_card':
       return { title: 'Titular de prueba', fromFrame: 0, design };
     case 'transition':
@@ -36,7 +62,12 @@ export function samplePropsFor(type: ComponentType): Record<string, unknown> {
       return { text: 'Titular de prueba', variant: 'a', design };
     case 'intro':
     case 'outro':
-      return { channel_name: 'Canal de ejemplo', design };
+      return {
+        channel_name: nombre,
+        design,
+        ...(marca?.tagline ? { tagline: marca.tagline } : {}),
+        ...(marca?.logo ? { logo: marca.logo } : {}),
+      };
   }
 }
 
