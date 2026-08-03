@@ -15,6 +15,7 @@ import {
 } from '@fabrica/db';
 import {
   ANTI_REPEAT_N,
+  CLIP_MAX_S,
   IMAGE_HANDICAP,
   IMAGE_MAX_S,
   JOBS,
@@ -649,10 +650,16 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
     resolved.push({ span, res });
   }
 
-  // tope de imágenes: una imagen fija cuyo tramo supere IMAGE_MAX_S se parte en
-  // varias imágenes distintas de ≤IMAGE_MAX_S (sin pasar de MAX_VISUALS_PER_BEAT).
-  // Los clips (dinámicos) quedan exentos y llenan su tramo.
+  // topes de duración: un tramo que supere el tope de su clase se parte en
+  // varios sub-planos con contenido DISTINTO (sin pasar de MAX_VISUALS_PER_BEAT).
+  // Imagen > IMAGE_MAX_S: el caso original. Clip > CLIP_MAX_S: el vídeo de
+  // verificación de S10 congeló 7 beats de 9-14 s con UN clip más corto que su
+  // hueco encajado por stretch/loop — partir el hueco aquí trae contenido nuevo
+  // Y hace que cada parte quepa con recorte limpio (a ≤8 s casi cualquier clip
+  // cubre el tramo sin estirarse). El troceo de la ingesta sigue siendo la red:
+  // esto es lo mejor cuando funciona, aquello es lo que garantiza el tope.
   const imageMaxMs = IMAGE_MAX_S * 1000;
+  const clipMaxMs = CLIP_MAX_S * 1000;
   const capped: { span: (typeof spans)[number]; res: ResolvedVisual }[] = [];
   // Contador MONÓTONO de sub-plano dentro del beat. No puede ser capped.length:
   // los tramos de la primera pasada ya gastaron 0..spans.length-1, así que un
@@ -664,15 +671,13 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
   for (const rv of resolved) {
     const durMs = rv.span.to_ms - rv.span.from_ms;
     const budget = MAX_VISUALS_PER_BEAT - capped.length;
-    if (rv.res.chosen.kind === 'image' && durMs > imageMaxMs && budget > 1) {
+    const esImagen = rv.res.chosen.kind === 'image';
+    const maxMs = esImagen ? imageMaxMs : clipMaxMs;
+    if (durMs > maxMs && budget > 1) {
       // mismo suelo de legibilidad que el troceo de la ingesta: sin él, con el
       // tope en 3 s un tramo de 3,1-4,4 s se partía en trozos de 1,5-2,2 s,
       // por debajo de lo que se lee como plano y no como parpadeo
-      const parts = Math.min(
-        Math.ceil(durMs / imageMaxMs),
-        budget,
-        Math.floor(durMs / TROCEO_PARTE_MIN_MS),
-      );
+      const parts = Math.min(Math.ceil(durMs / maxMs), budget, Math.floor(durMs / TROCEO_PARTE_MIN_MS));
       if (parts < 2) {
         capped.push(rv);
         if (capped.length >= MAX_VISUALS_PER_BEAT) break;
@@ -695,12 +700,16 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
             // en los tramos troceados: el pool volvía a incluir los planos ya
             // usados en el vídeo en vez de seguir buscando.
             vetoedRefs: new Set(deps.usedRefs),
-            // Estos tramos son cortos (≤IMAGE_MAX_S) y vienen de haber elegido
-            // ya una imagen: es el amplificador que convierte una decisión
-            // «imagen» en dos o tres planos-imagen. Medido sobre las consultas
-            // reales, a 5 s el 98 % de los clips encaja con un corte limpio,
-            // así que aquí el material sobra y se pide movimiento.
-            exigeClip: true,
+            // Partes que vienen de una IMAGEN larga: son cortas y ya hay una
+            // imagen elegida — es el amplificador que convierte una decisión
+            // «imagen» en dos o tres planos-imagen, así que se pide movimiento
+            // (a 5 s el 98 % de los clips encaja con un corte limpio). Partes
+            // que vienen de un CLIP largo: la cascada decide, con la cuota
+            // global vigilando como en cualquier plano.
+            ...(esImagen ||
+            exigeClipPorCuota(deps.imagenesElegidas, deps.planosResueltos, deps.imagenesMaxPct)
+              ? { exigeClip: true }
+              : {}),
           });
           deps.planosResueltos += 1;
           if (extra.chosen.kind === 'image') deps.imagenesElegidas += 1;
