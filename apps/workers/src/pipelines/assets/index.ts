@@ -1556,10 +1556,30 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
     .set({ master: newMaster, updatedAt: new Date() })
     .where(eq(videos.id, videoId));
 
-  // jobId determinista: una re-ejecución de la ingesta no duplica el render
-  await ctx.queues.render.add(JOBS.render.video, { videoId } satisfies RenderVideoJob, {
-    jobId: `render-${videoId}`,
-  });
+  // jobId determinista: una re-ejecución de la ingesta no duplica el render.
+  // Pero BullMQ DESCARTA EN SILENCIO un add cuyo jobId ya existe, aunque el job
+  // esté terminado o fallido — el retry desde incidencia devolvía ok sin
+  // re-renderizar y había que borrar la clave de Redis a mano. Mismo patrón que
+  // la publicación (youtube.ts): si hay un job vivo se respeta; si hay un
+  // cadáver, se limpia antes de encolar.
+  const renderJobId = `render-${videoId}`;
+  const existing = await ctx.queues.render.getJob(renderJobId);
+  const estado = existing ? await existing.getState().catch(() => 'unknown') : null;
+  if (estado === 'active' || estado === 'waiting' || estado === 'delayed') {
+    logger.info({ videoId, estado }, 'Ya hay un render vivo para este vídeo; no se encola otro');
+  } else {
+    if (existing) {
+      const removed = await ctx.queues.render.remove(renderJobId);
+      if (removed === 0) {
+        // p.ej. bloqueado a medio liberar: fallar aquí deja la ingesta como
+        // incidencia reintentable, que es el camino de recuperación normal
+        throw new Error('El render anterior aún se está liberando; reintenta en unos segundos');
+      }
+    }
+    await ctx.queues.render.add(JOBS.render.video, { videoId } satisfies RenderVideoJob, {
+      jobId: renderJobId,
+    });
+  }
   await ctx.publishEvent({
     type: 'job_progress',
     video_id: videoId,

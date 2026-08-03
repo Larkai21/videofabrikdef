@@ -332,6 +332,11 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
     if (!target) throw conflict('La incidencia no registra estado previo');
 
     await transitionVideo(ctx.db, id, target, { expectFrom: 'incidencia' });
+    // el render se encola SIEMPRE con jobId determinista (la ingesta usa
+    // `render-<id>`): sin replicarlo aquí, el cadáver del render fallido
+    // bloqueaba el re-add en silencio y el retry devolvía ok sin hacer nada
+    const dedupeFor = (queue: QueueName): { dedupeId: string } | undefined =>
+      queue === QUEUES.render ? { dedupeId: `render-${id}` } : undefined;
     // si la incidencia registró el job exacto que falló, se re-encola tal
     // cual (una reescritura fallida no debe convertirse en un judge)
     const recorded = video.incident?.job;
@@ -340,6 +345,7 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
         recorded.queue as QueueName,
         recorded.name,
         recorded.data ?? { videoId: id },
+        dedupeFor(recorded.queue as QueueName),
       );
     } else {
       const [channel] = await ctx.db
@@ -350,7 +356,7 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
       const job = retryJob(target, id, video.master, {
         packagingFirst: channel?.profile?.flags.packaging_first === true,
       });
-      if (job) await ctx.enqueuer.enqueue(job.queue, job.job, job.payload);
+      if (job) await ctx.enqueuer.enqueue(job.queue, job.job, job.payload, dedupeFor(job.queue));
     }
 
     await ctx.events.publish({ type: 'video_state', video_id: id, state: target });
