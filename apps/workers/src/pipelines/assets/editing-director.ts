@@ -107,6 +107,9 @@ const DUR_MS: Record<string, number> = {
   split_versus: 3400,
   pasos_flow: 4200,
   tendencia: 3000,
+  // una imagen se reconoce en menos tiempo que se lee una lista, pero el
+  // espectador tiene que poder MIRARLA: entre tarjeta y lista
+  imagen_apoyo: 3000,
 };
 
 // dominio mencionado en la narración (grapheneos.org, github.com…) → marco de
@@ -193,6 +196,13 @@ export interface IntentPlacement {
   /** beats que ya llevan un efecto declarado: la IA solo rellena los huecos */
   covered: Set<number>;
   dropped: number;
+  /**
+   * Insertos declarados con su ancla resuelta, pendientes de imagen. La
+   * colocación es síncrona pero la imagen exige red (stock + Commons + juez),
+   * así que aquí solo viaja el término y el instante: los resuelve
+   * `resolverInsertos` en la orquestación y el que falla se cae sin edit.
+   */
+  insertos: Array<{ term: string; beatIdx: number; beatText: string; atMs: number; toMs: number }>;
 }
 
 /**
@@ -204,6 +214,7 @@ export function intentEdits(params: EditingParams): IntentPlacement {
   const spanById = new Map((sceneSpans ?? []).map((s) => [s.scene_id, s]));
   const edits: Edit[] = [];
   const covered = new Set<number>();
+  const insertos: IntentPlacement['insertos'] = [];
   let dropped = 0;
 
   for (const scene of scenes) {
@@ -332,11 +343,22 @@ export function intentEdits(params: EditingParams): IntentPlacement {
           });
           edits.push({ type: 'sfx', from_ms: atMs, to_ms: atMs + 800, sfx: 'tecleo' });
           break;
+        case 'inserto':
+          // el edit no se puede montar aquí: falta la imagen (red + juez).
+          // card_text afina la búsqueda si el nombre a secas es ambiguo.
+          insertos.push({
+            term: card !== '' ? card : intent.trigger_word,
+            beatIdx: beat.idx,
+            beatText: beat.text,
+            atMs,
+            toMs: win(DUR_MS.imagen_apoyo!),
+          });
+          break;
       }
       if (intent.effect !== 'keyword') covered.add(beat.idx);
     }
   }
-  return { edits, covered, dropped };
+  return { edits, covered, dropped, insertos };
 }
 
 /**
@@ -714,6 +736,9 @@ const PRIORITY: Record<string, number> = {
   device_frame: 5,
   stat_odometer: 5,
   stat_card: 5,
+  // la imagen de referencia costó una búsqueda + juez + descarga y enseña el
+  // SUJETO del que se habla: vale lo que una tarjeta de dato
+  imagen_apoyo: 5,
   zoom_punch: 4,
   quote_card: 3,
   text_callout: 2,
@@ -880,13 +905,62 @@ export function dedupeAndCap(
   );
 }
 
-export async function directEdits(ctx: WorkerContext, params: EditingParams): Promise<Edit[]> {
+export async function directEdits(
+  ctx: WorkerContext,
+  params: EditingParams,
+  opts?: {
+    /**
+     * Resuelve los insertos declarados a imagen congelada (red + juez). Es
+     * inyectable para que los tests no dependan de stock/Commons; en el
+     * pipeline real es `resolverInsertos` de insertos.ts. Sin resolutor, los
+     * insertos declarados simplemente no producen edit.
+     */
+    resolverInsertos?: (
+      pendientes: IntentPlacement['insertos'],
+    ) => Promise<Map<number, { imagePath: string; credit?: string }>>;
+  },
+): Promise<Edit[]> {
   if (params.beats.length === 0) return [];
   const durationMs = params.beats[params.beats.length - 1]!.to_ms;
 
   // 1) lo que el guion declaró: máxima prioridad y sin adivinar nada
   const intents = intentEdits(params);
   const declared = new Set(intents.edits);
+
+  // 1b) insertos: la imagen se resuelve fuera (stock → Commons → juez) y el
+  // que vuelve entra como edit DECLARADO (+10 en el reparto, como el resto de
+  // lo que pidió el guion); el que no vuelve se cae sin dejar hueco vacío
+  if (opts?.resolverInsertos && intents.insertos.length > 0) {
+    try {
+      const resueltos = await opts.resolverInsertos(intents.insertos);
+      for (const [i, res] of resueltos) {
+        const p = intents.insertos[i];
+        if (!p) continue;
+        const edit: Edit = {
+          type: 'imagen_apoyo',
+          from_ms: p.atMs,
+          to_ms: p.toMs,
+          beat_idx: p.beatIdx,
+          image_path: res.imagePath,
+          text: p.term,
+          ...(res.credit !== undefined ? { credit: res.credit } : {}),
+        };
+        intents.edits.push(edit);
+        declared.add(edit);
+        intents.edits.push({
+          type: 'sfx',
+          from_ms: p.atMs,
+          to_ms: p.atMs + 400,
+          sfx: 'aparicion',
+        });
+      }
+    } catch (err) {
+      ctx.logger.warn(
+        { err, videoId: params.videoId },
+        'La resolución de insertos falló; el vídeo sigue sin ellos',
+      );
+    }
+  }
 
   // 2) reglas estructurales + red de seguridad en los beats sin declarar
   const rules = ruleEdits({ ...params, covered: intents.covered });

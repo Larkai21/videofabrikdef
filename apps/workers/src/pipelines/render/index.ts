@@ -143,7 +143,20 @@ async function writeOutputs(outDir: string, master: RenderableMaster): Promise<v
       : computeChapters(master.script.scenes, master.beats, introMs);
   // sustituye {timestamps} o, si el LLM escribió tiempos literales
   // (estimados, a menudo fuera de la duración real), ese bloque entero
-  const description = mergeChaptersIntoDescription(master.seo.description, chapters);
+  let description = mergeChaptersIntoDescription(master.seo.description, chapters);
+  // atribución de los insertos: las licencias CC BY/BY-SA de Wikimedia Commons
+  // EXIGEN acreditar; el credit viaja congelado en cada edit imagen_apoyo y
+  // aquí se agrega una sola vez por autor/licencia
+  const creditos = [
+    ...new Set(
+      (master.edits ?? []).flatMap((e) =>
+        e.type === 'imagen_apoyo' && e.credit !== undefined && e.credit !== '' ? [e.credit] : [],
+      ),
+    ),
+  ];
+  if (creditos.length > 0) {
+    description += `\n\nImágenes: ${creditos.join(' · ')}`;
+  }
   await fsp.writeFile(path.join(outDir, 'title.txt'), `${title}\n`);
   await fsp.writeFile(path.join(outDir, 'description.txt'), `${description}\n`);
   await fsp.writeFile(path.join(outDir, 'tags.txt'), `${master.seo.tags.join('\n')}\n`);

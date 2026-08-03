@@ -48,7 +48,9 @@ import {
 } from '../../providers/stock.js';
 import { directBroll } from './broll-director.js';
 import { directChapters } from './chapter-director.js';
+import { downloadWithCap } from './download.js';
 import { directEdits } from './editing-director.js';
+import { resolverInsertos } from './insertos.js';
 import { pickFinalists, repartirPlazas } from './finalists.js';
 import { rerankBeats } from './rerank.js';
 import { computeFit, kenburnsEffect } from './fit.js';
@@ -1052,6 +1054,11 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
       // ventana; los claims son la única fuente de cifras admitida en pantalla
       ...(video.master.scene_spans ? { sceneSpans: video.master.scene_spans } : {}),
       ...(video.master.research ? { claims: video.master.research.claims } : {}),
+    }, {
+      // los insertos declarados se resuelven aquí (stock → Commons → juez →
+      // descarga del ganador): el director solo ancla; la red vive en el pipeline
+      resolverInsertos: (pendientes) =>
+        resolverInsertos(ctx, { id: videoId, channelId: video.channelId }, pendientes),
     });
     await db
       .update(videos)
@@ -1283,35 +1290,8 @@ async function reducirA1080(ctx: WorkerContext, filePath: string): Promise<void>
   }
 }
 
-const MAX_DOWNLOAD_BYTES = Number(process.env.STOCK_MAX_DOWNLOAD_MB ?? '200') * 1024 * 1024;
-
-async function downloadWithCap(url: string, destPath: string, ref: string): Promise<void> {
-  const res = await fetch(url, { signal: AbortSignal.timeout(180_000) });
-  if (!res.ok || !res.body) throw new Error(`Descarga fallida (${ref}): HTTP ${res.status}`);
-  const declared = Number(res.headers.get('content-length') ?? '0');
-  if (declared > MAX_DOWNLOAD_BYTES) {
-    throw new Error(`Descarga rechazada (${ref}): ${declared} bytes supera el límite`);
-  }
-  const reader = res.body.getReader();
-  const handle = await fs.open(destPath, 'w');
-  let total = 0;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > MAX_DOWNLOAD_BYTES) {
-        throw new Error(`Descarga abortada (${ref}): supera el límite de tamaño`);
-      }
-      await handle.write(value);
-    }
-  } catch (err) {
-    await handle.close();
-    await fs.unlink(destPath).catch(() => {});
-    throw err;
-  }
-  await handle.close();
-}
+// la descarga con tope vive en download.ts, compartida con el resolutor de
+// insertos (que la usa fuera de la cascada, con los mismos límites)
 
 interface IngestFileInfo {
   kind: 'clip' | 'image';

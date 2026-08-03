@@ -541,3 +541,54 @@ describe('lo declarado por el guion gana al efecto inferido', () => {
     expect(out.filter((e) => e.type === 'zoom_punch')).toHaveLength(0);
   });
 });
+
+describe('inserto declarado (S11)', () => {
+  const beats = [{ idx: 0, from_ms: 0, to_ms: 10_000, text: 'el chip Jalapeño cambia el coste' }];
+  const cues = [cue('Jalapeño', 3_100)];
+  const escenaCon = (intent: Record<string, unknown>) => [
+    {
+      id: 'sc-body-1',
+      section: 'body' as const,
+      text: 'el chip Jalapeño cambia el coste',
+      visual_query: 'x',
+      edit_intents: [intent as never],
+    },
+  ];
+
+  it('no monta edit: deja el término anclado, pendiente de imagen', () => {
+    const r = intentEdits(
+      params({
+        beats,
+        cues,
+        scenes: escenaCon({
+          effect: 'inserto',
+          trigger_word: 'Jalapeño',
+          card_text: 'NVIDIA Jalapeño chip',
+        }),
+      }),
+    );
+    expect(r.edits).toHaveLength(0);
+    expect(r.insertos).toHaveLength(1);
+    // card_text afina la búsqueda; el ancla es la palabra pronunciada
+    expect(r.insertos[0]!.term).toBe('NVIDIA Jalapeño chip');
+    expect(r.insertos[0]!.atMs).toBe(3_100);
+    expect(r.insertos[0]!.beatIdx).toBe(0);
+    // el beat cuenta como cubierto: la IA no rellena encima
+    expect(r.covered.has(0)).toBe(true);
+  });
+
+  it('sin card_text, el término de búsqueda es la propia palabra', () => {
+    const r = intentEdits(
+      params({ beats, cues, scenes: escenaCon({ effect: 'inserto', trigger_word: 'Jalapeño' }) }),
+    );
+    expect(r.insertos[0]!.term).toBe('Jalapeño');
+  });
+
+  it('si la palabra no se pronuncia, el inserto se descarta como cualquier efecto', () => {
+    const r = intentEdits(
+      params({ beats, cues, scenes: escenaCon({ effect: 'inserto', trigger_word: 'Vera' }) }),
+    );
+    expect(r.insertos).toHaveLength(0);
+    expect(r.dropped).toBe(1);
+  });
+});

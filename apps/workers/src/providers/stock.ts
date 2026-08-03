@@ -178,7 +178,9 @@ function parsePixabay(json: unknown): StockResult[] {
   return out;
 }
 
-async function searchPexels(
+// exportada para el resolutor de insertos, que solo quiere las FOTOS del
+// resultado combinado (filtra meta.kind === 'image' y reutiliza esta caché)
+export async function searchPexels(
   db: Db,
   logger: pino.Logger,
   query: string,

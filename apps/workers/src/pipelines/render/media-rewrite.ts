@@ -48,5 +48,12 @@ export function rewriteMasterMedia(
       if (sv.asset?.path) sv.asset.path = rewriteMediaPath(sv.asset.path, opts);
     }
   }
+  // el inserto de referencia lleva su imagen congelada en el propio edit: sin
+  // esta reescritura la ruta absoluta llega a Chromium y la imagen no carga
+  for (const edit of copy.edits ?? []) {
+    if (edit.type === 'imagen_apoyo') {
+      edit.image_path = rewriteMediaPath(edit.image_path, opts);
+    }
+  }
   return copy;
 }

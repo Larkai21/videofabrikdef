@@ -258,7 +258,7 @@ export function scriptSystem(profile: ChannelProfile, targetWords: number): stri
     'Si en una escena escribes una cifra que sale de los claims, declara un stat sobre ella: es el caso que más se nota en pantalla y el que más se olvida.',
     '- trigger_word: una palabra EXACTA que tú acabas de escribir en el `text` de ESA MISMA escena. No vale una palabra de otra escena, ni una variante, ni una que no se pronuncie. Si no puedes citar una literal, no declares la intención.',
     `- card_text: el copy de la tarjeta, de 2 a 4 palabras, sentence case, sin comillas ni signos. Resume la frase, no añade información nueva ni la contradice. Va EN ${profile.language === 'en' ? 'INGLÉS' : 'ESPAÑOL'}, el idioma del guion: es texto que el espectador lee en pantalla, no una consulta de archivo.`,
-    '- effect: callout (etiqueta que refuerza la idea) · stat (cifra) · quote (frase citable) · kinetic (solo en el hook, como mucho uno en todo el guion) · keyword (resaltar esa palabra en el subtítulo) · annotation (marca de «mira esto») · device (una web o un comando concretos).',
+    '- effect: callout (etiqueta que refuerza la idea) · stat (cifra) · quote (frase citable) · kinetic (solo en el hook, como mucho uno en todo el guion) · keyword (resaltar esa palabra en el subtítulo) · annotation (marca de «mira esto») · device (una web o un comando concretos) · inserto (imagen real de la cosa que nombras).',
     // Los tres de lista existen para que la VOZ deje de enumerar: si el gráfico
     // dibuja los pasos, la narración no tiene que decir «Primero:», «Segundo:».
     // Ese era el defecto que quedaba tras arreglar los rótulos del blueprint.
@@ -274,6 +274,7 @@ export function scriptSystem(profile: ChannelProfile, targetWords: number): stri
     // con nombre y apellidos.
     '- Cuando nombres por primera vez un producto, un modelo, una empresa o una ley concretos, declara un callout con ESE nombre en card_text (p. ej. «Reglamento europeo de IA», «Llama 3»). Es el único momento en que el espectador puede leerlo: el archivo de vídeo no tiene planos de cosas con nombre propio, así que si no va en un rótulo no aparece en ninguna parte.',
     '- Y si lo que nombras tiene una dirección web o un comando, declara un device con ella en card_text: el marco de navegador la escribe en pantalla.',
+    '- inserto: cuando la cosa nombrada SE PUEDE VER (un chip, un robot, un edificio, un logo, una persona pública), declara un inserto: el sistema busca una foto real con licencia y la muestra en un recuadro mientras hablas de ella. trigger_word = el nombre tal cual lo escribes; card_text = término de búsqueda más preciso solo si el nombre a secas es ambiguo (p. ej. trigger_word «Jalapeño», card_text «NVIDIA Jalapeño chip»). Como mucho 2-3 insertos por guion, en las cosas que más lo merezcan; si no hay foto convincente, el montador lo quita solo.',
     '- Para effect=stat: value en DÍGITOS y claim_idx OBLIGATORIO, el índice del claim del que sale la cifra. Si la cifra no está en los claims, NO declares el stat: la misma regla factual del guion vale para lo que aparece en pantalla.',
     // un solo ejemplo, de tema deliberadamente ajeno al canal: da la forma sin
     // contaminar el contenido. La prosa ya tiene few-shot; las intenciones no
