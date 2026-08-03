@@ -36,6 +36,7 @@ import {
   toWav,
 } from './audio.js';
 import { computeBeats, type BeatSceneSpan } from './beats.js';
+import { synthesizeSceneConPausas } from './frases.js';
 import { buildCues } from './cues.js';
 import { MUSIC_DURATION_TOLERANCE_MS, mixMusicUnderVoice, pickMusicTrack } from './music.js';
 import { alignSceneTokens, type TimedToken } from './words.js';
@@ -60,17 +61,16 @@ async function synthesizeWithRetry(
   scene: Scene,
   opts: { voiceId: string; rate: string },
 ): Promise<TtsSceneAudio> {
-  let lastErr: unknown;
-  for (let attempt = 0; attempt <= SCENE_RETRIES; attempt++) {
-    try {
-      return await tts.synthesizeScene(scene.text, opts);
-    } catch (err) {
-      lastErr = err;
-    }
+  try {
+    // por FRASE, con pausa de respiración entre ellas (PAUSE_SENTENCE_MS);
+    // el retry vive dentro, por frase — reintentar la escena entera tiraría
+    // las frases ya sintetizadas
+    return await synthesizeSceneConPausas(tts, scene.text, opts, SCENE_RETRIES);
+  } catch (err) {
+    throw err instanceof Error
+      ? err
+      : new Error(`Fallo sintetizando la escena ${scene.id}: ${String(err)}`);
   }
-  throw lastErr instanceof Error
-    ? lastErr
-    : new Error(`Fallo sintetizando la escena ${scene.id}: ${String(lastErr)}`);
 }
 
 async function runSynthesize(ctx: WorkerContext, factory: TtsFactory, job: Job<TtsSynthesizeJob>) {

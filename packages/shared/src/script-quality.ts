@@ -561,7 +561,9 @@ function countWords(text: string): number {
     .filter((w) => w.length > 0).length;
 }
 
-function sentences(text: string): string[] {
+// exportada: el linter la usa para medir frases y el TTS para sintetizar POR
+// FRASE (pausa de respiración entre ellas) — un solo splitter para los dos
+export function sentences(text: string): string[] {
   return text
     .split(/(?<=[.;:?!])\s+/)
     .map((s) => s.trim())
