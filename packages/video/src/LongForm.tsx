@@ -3,7 +3,6 @@ import { AbsoluteFill, Audio, Sequence, useVideoConfig } from 'remotion';
 import { linearTiming, TransitionSeries, type TransitionPresentation } from '@remotion/transitions';
 import { fade } from '@remotion/transitions/fade';
 import { slide } from '@remotion/transitions/slide';
-import { wipe } from '@remotion/transitions/wipe';
 import { hashSeed } from './seed';
 import {
   defaultDesign,
@@ -66,25 +65,26 @@ const SFX_VOLUME: Record<SfxName, number> = {
   resolucion: 0.46,
 };
 
-// Transición entre planos con variedad determinista: en límites de sección una
-// transición cinematográfica propia (iris/barrido/cortina) que marca el cambio
-// de capítulo; en cortes normales rota entre fundido, slide y wipe. El tipo y la
-// dirección derivan de hashSeed → reproducible.
+// Presentación de cada transición que computeBrollTrack decidió. El corte duro
+// no llega aquí (no monta Transition); en secciones, una cinematográfica
+// (iris/barrido/cortina); 'fundido' es fade corto y 'slide' el deslizamiento
+// ocasional. El wipe se retiró de los cortes normales: era 1/3 de todos los
+// cortes y es la transición que más lee a plantilla.
 const DIRS = ['from-left', 'from-right', 'from-top', 'from-bottom'] as const;
 function pickTransition(
-  kind: 'cut' | 'section',
+  kind: 'fundido' | 'slide' | 'section',
   i: number,
   seedBase: string,
 ): TransitionPresentation<Record<string, unknown>> {
   const seed = hashSeed(`${seedBase}:trans:${i}`);
-  const dir = DIRS[seed % 4]!;
   if (kind === 'section') {
     const make = SECTION_TRANSITIONS[seed % SECTION_TRANSITIONS.length]!;
     return make() as unknown as TransitionPresentation<Record<string, unknown>>;
   }
-  const pick = seed % 3;
-  const p = pick === 0 ? fade() : pick === 1 ? slide({ direction: dir }) : wipe({ direction: dir });
-  return p as TransitionPresentation<Record<string, unknown>>;
+  if (kind === 'slide') {
+    return slide({ direction: DIRS[seed % 4]! }) as TransitionPresentation<Record<string, unknown>>;
+  }
+  return fade() as TransitionPresentation<Record<string, unknown>>;
 }
 
 // Renderiza el overlay de edición que corresponde al cue (callout/stat/quote).
@@ -226,8 +226,14 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
     [master.segments],
   );
   const brollTrack = React.useMemo(
-    () => computeBrollTrack(beats, { fps, baseFrames: layout.baseFrames, segmentStartIdxs }),
-    [beats, fps, layout.baseFrames, segmentStartIdxs],
+    () =>
+      computeBrollTrack(beats, {
+        fps,
+        baseFrames: layout.baseFrames,
+        segmentStartIdxs,
+        seed: hashSeed(master.video.id),
+      }),
+    [beats, fps, layout.baseFrames, segmentStartIdxs, master.video.id],
   );
 
   return (
@@ -273,7 +279,7 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
               const trans = i > 0 ? brollTrack.transitions[i - 1]! : null;
               return (
                 <React.Fragment key={seq.beatIdx}>
-                  {trans !== null ? (
+                  {trans !== null && trans.kind !== 'dura' ? (
                     <TransitionSeries.Transition
                       timing={linearTiming({ durationInFrames: trans.durationInFrames })}
                       presentation={pickTransition(trans.kind, i, master.video.id)}

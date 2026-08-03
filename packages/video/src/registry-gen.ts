@@ -99,9 +99,47 @@ export function kitDirName(name: string, version: string): string {
 // refs reservados por los componentes integrados: un zip no puede ocuparlos
 export const BUILTIN_REFS: readonly string[] = BUILTINS.map((b) => b.line.ref);
 
-export function generateRegistrySource(entries: KitRegistryEntry[]): string {
-  // los refs de los integrados están RESERVADOS: una entrada del kit con la
-  // misma name@version duplicaría la clave del mapa y machacaría sus metadatos
+/**
+ * Fichero hermano SIN React: los metadatos por ref (fixed_duration_frames).
+ *
+ * Existe para que el worker de render pueda saber cuánto dura la intro (los
+ * capítulos de description.txt tienen que sumarla) sin importar
+ * registry.generated.ts, que arrastra React y todos los componentes. La
+ * frontera «el worker solo importa /chapters y /bundling» se conserva.
+ */
+export function generateMetaSource(entries: KitRegistryEntry[]): string {
+  const clean = dedupe(entries);
+  const metaByRef = new Map<string, number | undefined>();
+  for (const builtin of BUILTINS) metaByRef.set(builtin.line.ref, builtin.fixedDurationFrames);
+  for (const entry of clean) {
+    metaByRef.set(`${entry.name}@${entry.version}`, entry.fixed_duration_frames);
+  }
+  const metaLines = [...metaByRef.keys()]
+    .sort((a, b) => a.localeCompare(b))
+    .map((ref) => {
+      const frames = metaByRef.get(ref);
+      return frames === undefined
+        ? `  '${ref}': {},`
+        : `  '${ref}': { fixed_duration_frames: ${frames} },`;
+    });
+  return `// GENERADO por packages/video/scripts/generate-registry.ts — NO EDITAR A MANO.
+// Metadatos del manifest por ref, en fichero propio y SIN imports de React:
+// lo consume el worker de render (offset de capítulos) además de la
+// composición. Ver registry-gen.ts (generateMetaSource).
+export interface KitComponentMeta {
+  fixed_duration_frames?: number;
+}
+
+export const componentMeta: Record<string, KitComponentMeta> = {
+${metaLines.join('\n')}
+};
+`;
+}
+
+// Validación + dedupe compartidos por las dos emisiones (registry y meta):
+// los refs de los integrados están RESERVADOS — una entrada del kit con la
+// misma name@version duplicaría la clave del mapa y machacaría sus metadatos.
+function dedupe(entries: KitRegistryEntry[]): KitRegistryEntry[] {
   const seen = new Set<string>(BUILTIN_REFS);
   const clean: KitRegistryEntry[] = [];
   for (const entry of entries) {
@@ -128,6 +166,11 @@ export function generateRegistrySource(entries: KitRegistryEntry[]): string {
     clean.push(entry);
   }
   clean.sort((a, b) => (a.name + a.version).localeCompare(b.name + b.version));
+  return clean;
+}
+
+export function generateRegistrySource(entries: KitRegistryEntry[]): string {
+  const clean = dedupe(entries);
 
   const imports: string[] = BUILTINS.map((b) => b.importStmt);
   const byType = new Map<ComponentType, RegistryLine[]>();
@@ -139,7 +182,9 @@ export function generateRegistrySource(entries: KitRegistryEntry[]): string {
   for (const entry of clean) {
     const identifier = kitIdentifier(entry.name, entry.version);
     const ref = `${entry.name}@${entry.version}`;
-    imports.push(`import ${identifier} from './kit/${kitDirName(entry.name, entry.version)}/Component';`);
+    imports.push(
+      `import ${identifier} from './kit/${kitDirName(entry.name, entry.version)}/Component';`,
+    );
     const list = byType.get(entry.type) ?? [];
     list.push({ ref, identifier });
     byType.set(entry.type, list);
@@ -154,22 +199,6 @@ export function generateRegistrySource(entries: KitRegistryEntry[]): string {
       .join('\n');
     typeBlocks.push(`  ${type}: {\n${inner}\n  },`);
   }
-
-  // metadatos del manifest por ref (hoy solo fixed_duration_frames): las
-  // duraciones fijas no pueden leerse de BD en render, viajan en el registry
-  const metaByRef = new Map<string, number | undefined>();
-  for (const builtin of BUILTINS) metaByRef.set(builtin.line.ref, builtin.fixedDurationFrames);
-  for (const entry of clean) {
-    metaByRef.set(`${entry.name}@${entry.version}`, entry.fixed_duration_frames);
-  }
-  const metaLines = [...metaByRef.keys()]
-    .sort((a, b) => a.localeCompare(b))
-    .map((ref) => {
-      const frames = metaByRef.get(ref);
-      return frames === undefined
-        ? `  '${ref}': {},`
-        : `  '${ref}': { fixed_duration_frames: ${frames} },`;
-    });
 
   return `// GENERADO por packages/video/scripts/generate-registry.ts — NO EDITAR A MANO.
 // Mecanismo (docs/render.md §2): el validador de zips copia cada componente
@@ -193,15 +222,9 @@ export const componentRegistry: Partial<
 ${typeBlocks.join('\n')}
 };
 
-// Metadatos del manifest por ref (fixed_duration_frames de intro/outro/
-// transition): el render no consulta la BD, las duraciones fijas viven aquí.
-export interface KitComponentMeta {
-  fixed_duration_frames?: number;
-}
-
-export const componentMeta: Record<string, KitComponentMeta> = {
-${metaLines.join('\n')}
-};
+// Metadatos por ref: viven en registry.meta.generated.ts (sin React) y aquí
+// solo se re-exportan para los consumidores de siempre.
+export { componentMeta, type KitComponentMeta } from './registry.meta.generated';
 
 export function resolveComponent(type: ComponentType, ref: string): RegisteredComponent {
   const component = componentRegistry[type]?.[ref];

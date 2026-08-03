@@ -21,6 +21,7 @@ import {
   segmentsToChapters,
 } from '@fabrica/video/chapters';
 import { webpackOverride } from '@fabrica/video/bundling';
+import { componentMeta } from '@fabrica/video/registry-meta';
 import { bundle } from '@remotion/bundler';
 import { ensureBrowser, renderMedia, renderStill, selectComposition } from '@remotion/renderer';
 import type { WorkerContext } from '../../lib/context.js';
@@ -119,10 +120,20 @@ async function writeOutputs(outDir: string, master: RenderableMaster): Promise<v
   const title = master.seo.titles[chosenIdx] ?? master.seo.titles[0];
   // capítulos reales del director de capítulos si hay ≥2 segmentos; si no,
   // se derivan de las secciones hook/body/cta (comportamiento anterior)
+  // Los tiempos del maestro son del AUDIO; el MP4 antepone la intro de marca,
+  // así que los capítulos (salvo 0:00) se desplazan lo que dure la intro.
+  // Medido antes del arreglo: «1:17» escrito y 1:20 real — el clic aterrizaba
+  // en la cola de la sección anterior. La duración sale de la meta generada
+  // (sin React), con la misma degradación que el layout: ref no registrada o
+  // sin duración fija → la intro no se monta → offset 0.
+  const introRef = master.brand?.components.intro;
+  const introFrames =
+    introRef !== undefined ? (componentMeta[introRef]?.fixed_duration_frames ?? 0) : 0;
+  const introMs = Math.round((introFrames / master.video.fps) * 1000);
   const chapters =
     master.segments && master.segments.length >= 2
-      ? segmentsToChapters(master.segments)
-      : computeChapters(master.script.scenes, master.beats);
+      ? segmentsToChapters(master.segments, introMs)
+      : computeChapters(master.script.scenes, master.beats, introMs);
   // sustituye {timestamps} o, si el LLM escribió tiempos literales
   // (estimados, a menudo fuera de la duración real), ese bloque entero
   const description = mergeChaptersIntoDescription(master.seo.description, chapters);

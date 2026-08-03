@@ -23,7 +23,10 @@ describe('topByTitleCosine', () => {
 
   it('un candidato sin título puntúa cero y solo entra si no hay mejores', () => {
     const items = [item(''), item('bueno')];
-    const vecs = [[1, 0], [1, 0]];
+    const vecs = [
+      [1, 0],
+      [1, 0],
+    ];
     expect(topByTitleCosine(items, vecs, q, 1)).toEqual([items[1]]);
     // con hueco de sobra sí entra: mejor un candidato mudo que ninguno
     expect(topByTitleCosine(items, vecs, q, 2)).toHaveLength(2);
@@ -36,7 +39,11 @@ describe('topByTitleCosine', () => {
 
   it('los empates se rompen por orden de llegada, así que es determinista', () => {
     const items = [item('a'), item('b'), item('c')];
-    const vecs = [[1, 0], [1, 0], [1, 0]];
+    const vecs = [
+      [1, 0],
+      [1, 0],
+      [1, 0],
+    ];
     expect(topByTitleCosine(items, vecs, q, 2)).toEqual([items[0], items[1]]);
     expect(topByTitleCosine(items, vecs, q, 2)).toEqual(topByTitleCosine(items, vecs, q, 2));
   });

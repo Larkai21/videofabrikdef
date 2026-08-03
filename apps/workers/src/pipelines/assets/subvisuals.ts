@@ -24,7 +24,10 @@ export interface SubvisualSpan {
 const MIN_SUBVISUAL_MS = 2200;
 
 function normalize(s: string): string {
-  return s.toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}]/gu, '');
+  return s
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^\p{L}\p{N}]/gu, '');
 }
 
 // instante de la primera palabra (a partir de `fromIdx`) que casa con `keyword`
@@ -78,7 +81,8 @@ export function computeSubvisualSpans(
   const extrasHaveKeyword = cuts.slice(1).some((c) => c.keyword !== undefined);
   if (anchors.length === 1 && cuts.length > 1 && !extrasHaveKeyword) {
     const n = Math.min(cuts.length, Math.max(1, Math.floor(full / MIN_SUBVISUAL_MS)));
-    if (n <= 1) return [{ from_ms: beat.from_ms, to_ms: beat.to_ms, visual_query: first!.visual_query }];
+    if (n <= 1)
+      return [{ from_ms: beat.from_ms, to_ms: beat.to_ms, visual_query: first!.visual_query }];
     const step = Math.round(full / n);
     return Array.from({ length: n }, (_, i) => ({
       from_ms: beat.from_ms + i * step,

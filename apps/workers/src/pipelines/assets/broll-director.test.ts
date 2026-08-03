@@ -4,9 +4,21 @@ import { brollResultSchema, buildDirectorPrompt, recortarConsulta } from './brol
 import { buildMockBroll } from './mocks.js';
 
 const BEATS = [
-  { idx: 0, text: 'En los últimos meses el capital rota hacia nuevas capas de la IA.', sceneQuery: 'city skyline business district' },
-  { idx: 1, text: 'La cadena de valor empieza en el hardware y los aceleradores.', sceneQuery: 'server room cold blue lights' },
-  { idx: 2, text: 'Después vienen los modelos y su coste de entrenamiento.', sceneQuery: 'server room cold blue lights' },
+  {
+    idx: 0,
+    text: 'En los últimos meses el capital rota hacia nuevas capas de la IA.',
+    sceneQuery: 'city skyline business district',
+  },
+  {
+    idx: 1,
+    text: 'La cadena de valor empieza en el hardware y los aceleradores.',
+    sceneQuery: 'server room cold blue lights',
+  },
+  {
+    idx: 2,
+    text: 'Después vienen los modelos y su coste de entrenamiento.',
+    sceneQuery: 'server room cold blue lights',
+  },
 ];
 
 describe('buildDirectorPrompt', () => {
@@ -71,7 +83,9 @@ describe('buildMockBroll', () => {
 
   it('ancla sub-planos a palabras de la narración (keyword)', () => {
     const result = buildMockBroll({
-      beats: [{ idx: 0, text: 'bibliotecas y la industria en riesgo', sceneQuery: 'libros antiguos' }],
+      beats: [
+        { idx: 0, text: 'bibliotecas y la industria en riesgo', sceneQuery: 'libros antiguos' },
+      ],
     });
     const kws = result.beats[0]!.visuals.map((v) => v.keyword);
     expect(kws).toContain('bibliotecas');

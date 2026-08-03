@@ -105,10 +105,36 @@ export const STOCK_CACHE_TTL_H = 24;
 export const MAX_LOOPS = 3;
 export const LOOP_CROSSFADE_MS = 300;
 // Sub-planos: cortes visuales dentro de un beat (b-roll más ágil). Tope por
-// beat y duración máxima de una imagen fija en pantalla (los clips, dinámicos,
-// no tienen tope y llenan su tramo).
+// beat en la DIRECCIÓN (cuántos planos distintos pide el director de b-roll).
 export const MAX_VISUALS_PER_BEAT = 3;
-export const IMAGE_MAX_S = 5;
+/**
+ * Duración máxima de una imagen fija en pantalla. 3 y no 5: medido sobre un
+ * vídeo real, con 5 la mediana de plano-imagen quedaba en 4,6 s y el vídeo se
+ * sentía una presentación; a 3 la imagen es un golpe visual, no una espera.
+ *
+ * Se aplica en DOS sitios y no es redundancia: en el matching (que puede traer
+ * contenido distinto para cada trozo) y en la congelación de la ingesta (que
+ * re-encuadra la MISMA imagen con otro Ken Burns). El segundo existe porque el
+ * juez de planos y la curación humana eligen después del matching y nadie
+ * re-trocea: sin la red de la ingesta salieron imágenes de 14 s con el tope en 5.
+ */
+export const IMAGE_MAX_S = 3;
+/**
+ * Duración máxima de un clip continuo en pantalla. Los clips se mueven, así que
+ * toleran más que una imagen, pero sin tope la mediana real salió a 9,9 s (máx
+ * 16,1): un solo encuadre de 16 segundos en un vídeo de noticias es una pausa.
+ * El troceo de la ingesta corta el MISMO clip con saltos hacia delante (jump
+ * cuts): material nuevo del mismo plano, sin búsqueda nueva y sin tocar nada
+ * que el humano no haya aprobado.
+ */
+export const CLIP_MAX_S = 8;
+// Techo de partes del troceo de la ingesta. Va aparte de MAX_VISUALS_PER_BEAT
+// porque no decide contenido nuevo: re-encuadra lo ya aprobado.
+export const TROCEO_MAX_PARTES = 5;
+// Ninguna parte troceada baja de esto: un plano de un segundo se lee como
+// parpadeo. Es menor que MIN_SUBVISUAL_MS porque aquí no hay ancla de palabra
+// que respetar, solo legibilidad.
+export const TROCEO_PARTE_MIN_MS = 1800;
 // crossfade corto entre sub-planos dentro de un beat
 export const SUBVISUAL_CROSSFADE_MS = 200;
 // Ralentización máxima admisible para llenar un beat con una sola pasada del

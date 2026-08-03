@@ -45,7 +45,10 @@ describe('expandQuery', () => {
   });
 
   it('las queries cortas se enriquecen con palabras clave del texto', () => {
-    const out = expandQuery('data chart', 'El precio por millón de tokens cayó un orden de magnitud');
+    const out = expandQuery(
+      'data chart',
+      'El precio por millón de tokens cayó un orden de magnitud',
+    );
     expect(out.startsWith('data chart')).toBe(true);
     expect(out.length).toBeGreaterThan('data chart'.length);
     expect(out).toContain('precio');

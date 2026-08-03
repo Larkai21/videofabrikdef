@@ -1,10 +1,19 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { componentTypeSchema } from '@fabrica/shared';
 import {
   BUILTIN_REFS,
+  generateMetaSource,
   generateRegistrySource,
   kitDirName,
   type KitRegistryEntry,
@@ -108,6 +117,12 @@ function main(): void {
   }
 
   writeFileSync(registryPath, generateRegistrySource(entries));
+  // la meta pura (sin React) va en fichero hermano: la consume el worker de
+  // render para el offset de capítulos sin arrastrar los componentes
+  writeFileSync(
+    path.join(path.dirname(registryPath), 'registry.meta.generated.ts'),
+    generateMetaSource(entries),
+  );
   console.log(
     JSON.stringify({ ok: true, entries: [...desired].sort(), removed: removed.sort(), skipped }),
   );
@@ -116,6 +131,8 @@ function main(): void {
 try {
   main();
 } catch (err) {
-  console.log(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+  console.log(
+    JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }),
+  );
   process.exitCode = 1;
 }

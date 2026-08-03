@@ -248,9 +248,21 @@ export const WordsReveal: React.FC<{
   color: string;
   align?: 'center' | 'left';
   shadow?: boolean;
-}> = ({ text, from, stagger = 4, fontSize, weight = 800, color, align = 'center', shadow = false }) => {
+}> = ({
+  text,
+  from,
+  stagger = 4,
+  fontSize,
+  weight = 800,
+  color,
+  align = 'center',
+  shadow = false,
+}) => {
   const frame = useCurrentFrame();
-  const words = text.trim().split(/\s+/).filter((w) => w.length > 0);
+  const words = text
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w.length > 0);
   if (words.length === 0) return null;
   return (
     <div

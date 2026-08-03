@@ -1,4 +1,5 @@
 import type { ComponentType, EditType, MasterVideoJson, SfxName } from '@fabrica/shared';
+import { hashSeed } from './seed';
 import { computeChapters } from './chapters';
 import { componentMeta, componentRegistry, type KitComponentMeta } from './registry.generated';
 
@@ -250,8 +251,17 @@ export interface BrollSeq {
 }
 export interface BrollTransition {
   durationInFrames: number;
-  // 'section' = límite de segmento (transición más marcada); 'cut' = beat normal
-  kind: 'cut' | 'section';
+  /**
+   * 'section' = límite de segmento (transición cinematográfica marcada);
+   * 'fundido' = crossfade corto; 'slide' = deslizamiento ocasional;
+   * 'dura' = corte seco, SIN transición (durationInFrames 0).
+   *
+   * El corte duro es el dominante a propósito. Antes TODOS los cortes llevaban
+   * transición visible de 0,4 s elegida por semilla entre fade/slide/wipe: un
+   * deslizamiento cada 8-15 segundos durante todo el vídeo lee a plantilla. El
+   * lenguaje del vídeo de noticias es el corte; la transición es el acento.
+   */
+  kind: 'dura' | 'fundido' | 'slide' | 'section';
 }
 export interface BrollTrack {
   sequences: BrollSeq[];
@@ -271,6 +281,9 @@ export function computeBrollTrack(
     baseFrames: number;
     transitionFrames?: number;
     segmentStartIdxs?: Set<number>;
+    // semilla del vídeo: decide qué límites llevan transición y cuáles corte
+    // duro, reproducible entre renders
+    seed?: number;
   },
 ): BrollTrack {
   const n = beats.length;
@@ -288,22 +301,35 @@ export function computeBrollTrack(
     return { sequences: [{ beatIdx: beats[0]!.idx, durationInFrames: lens[0]! }], transitions: [] };
 
   const D = opts.transitionFrames ?? TRANSITION_FRAMES;
-  const headHalf = Math.floor(D / 2);
-  const tailHalf = D - headHalf; // headHalf + tailHalf = D → total exacto
   const segStarts = opts.segmentStartIdxs ?? new Set<number>();
+  const semilla = opts.seed ?? 0;
 
-  const sequences: BrollSeq[] = beats.map((b, i) => {
-    // seq_0 suma headHalf, seq_last suma tailHalf, intermedios suman D
-    const extra = i === 0 ? headHalf : i === n - 1 ? tailHalf : D;
-    return { beatIdx: b.idx, durationInFrames: lens[i]! + extra };
-  });
+  // Una transición por límite (entre beat i-1 e i), con duración PROPIA:
+  // sección 12 frames, fundido 6, slide 12, corte duro 0. El reparto de los
+  // cortes normales es ~60 % duro / ~30 % fundido / ~10 % slide, determinista
+  // por semilla — el corte es el lenguaje, la transición el acento.
   const transitions: BrollTransition[] = [];
   for (let i = 1; i < n; i++) {
-    transitions.push({
-      durationInFrames: D,
-      kind: segStarts.has(beats[i]!.idx) ? 'section' : 'cut',
-    });
+    if (segStarts.has(beats[i]!.idx)) {
+      transitions.push({ durationInFrames: D, kind: 'section' });
+      continue;
+    }
+    const r = hashSeed(`${semilla}:corte:${i}`) % 10;
+    if (r < 6) transitions.push({ durationInFrames: 0, kind: 'dura' });
+    else if (r < 9) transitions.push({ durationInFrames: Math.floor(D / 2), kind: 'fundido' });
+    else transitions.push({ durationInFrames: D, kind: 'slide' });
   }
+
+  // El solape de cada transición se reparte a partes iguales entre sus dos
+  // secuencias vecinas, así el cruce queda centrado en el límite del beat y la
+  // suma total sigue siendo baseFrames. Con transiciones de duración desigual,
+  // cada secuencia suma la mitad de CADA una de sus dos fronteras.
+  const mitadAntes = (j: number): number => Math.ceil(transitions[j]!.durationInFrames / 2);
+  const mitadDespues = (j: number): number => Math.floor(transitions[j]!.durationInFrames / 2);
+  const sequences: BrollSeq[] = beats.map((b, i) => {
+    const extra = (i > 0 ? mitadAntes(i - 1) : 0) + (i < n - 1 ? mitadDespues(i) : 0);
+    return { beatIdx: b.idx, durationInFrames: lens[i]! + extra };
+  });
   return { sequences, transitions };
 }
 

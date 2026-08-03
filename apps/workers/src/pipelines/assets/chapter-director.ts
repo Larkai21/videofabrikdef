@@ -56,9 +56,7 @@ export function buildChapterPrompt(params: ChapterParams): { system: string; use
 
   const user = [
     'Beats (idx · narración):',
-    ...params.beats.map(
-      (b) => `${b.idx} · ${b.text.replace(/\s+/g, ' ').trim().slice(0, 160)}`,
-    ),
+    ...params.beats.map((b) => `${b.idx} · ${b.text.replace(/\s+/g, ' ').trim().slice(0, 160)}`),
   ].join('\n');
 
   return { system, user };
@@ -75,7 +73,10 @@ function toSegments(
   const seen = new Set<number>();
   const max = segmentRange(beats.length).max;
   const clean = raw
-    .filter((s) => byIdx.has(s.start_beat_idx) && !seen.has(s.start_beat_idx) && seen.add(s.start_beat_idx))
+    .filter(
+      (s) =>
+        byIdx.has(s.start_beat_idx) && !seen.has(s.start_beat_idx) && seen.add(s.start_beat_idx),
+    )
     .sort((a, b) => a.start_beat_idx - b.start_beat_idx)
     .slice(0, max);
   const segments: Segment[] = clean.map((s) => ({
@@ -86,7 +87,11 @@ function toSegments(
   // el primer segmento SIEMPRE arranca en el beat 0 / 0 ms (la sección de apertura)
   const first = beats[0];
   if (first && (segments.length === 0 || segments[0]!.beat_idx !== first.idx)) {
-    segments.unshift({ title: segments[0]?.title ?? 'Introducción', beat_idx: first.idx, from_ms: 0 });
+    segments.unshift({
+      title: segments[0]?.title ?? 'Introducción',
+      beat_idx: first.idx,
+      from_ms: 0,
+    });
     if (segments.length > max) segments.length = max;
   } else if (segments[0]) {
     segments[0] = { ...segments[0], from_ms: 0 };

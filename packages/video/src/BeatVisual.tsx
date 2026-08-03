@@ -220,7 +220,12 @@ const AssetVisual: React.FC<{
   const trimBeforeFrames = msToFrames(asset.fit.offset_ms ?? 0, fps);
   if (asset.kind === 'image') {
     return (
-      <KenBurnsImage src={src} seed={seed} durationInFrames={durationInFrames} effect={asset.effect} />
+      <KenBurnsImage
+        src={src}
+        seed={seed}
+        durationInFrames={durationInFrames}
+        effect={asset.effect}
+      />
     );
   }
   if (asset.fit.mode === 'loop') {

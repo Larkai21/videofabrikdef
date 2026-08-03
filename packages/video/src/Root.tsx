@@ -3,10 +3,7 @@ import { AbsoluteFill, Composition, Still } from 'remotion';
 import { defaultDesign, makeDemoMaster } from '@fabrica/shared';
 import { LongForm } from './LongForm';
 import { calculateLongFormMetadata } from './metadata';
-import {
-  INTRO_BASICA_DURATION_FRAMES,
-  OUTRO_BASICA_DURATION_FRAMES,
-} from './registry-gen';
+import { INTRO_BASICA_DURATION_FRAMES, OUTRO_BASICA_DURATION_FRAMES } from './registry-gen';
 import { IntroBasica } from './themes/IntroBasica';
 import { OutroBasica } from './themes/OutroBasica';
 import { RotuloBasico } from './themes/RotuloBasico';
@@ -29,8 +26,7 @@ const DEMO_CHANNEL = 'Canal de ejemplo';
 const OverlayBackdrop: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <AbsoluteFill
     style={{
-      background:
-        'linear-gradient(135deg, #1b2a4a 0%, #0d1526 40%, #22344f 100%)',
+      background: 'linear-gradient(135deg, #1b2a4a 0%, #0d1526 40%, #22344f 100%)',
     }}
   >
     {children}

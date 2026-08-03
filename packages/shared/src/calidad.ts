@@ -1,4 +1,4 @@
-import { FX_CARD_GUARD_MS, RATIO_IMAGENES_MAX } from './constants.js';
+import { CLIP_MAX_S, FX_CARD_GUARD_MS, IMAGE_MAX_S, RATIO_IMAGENES_MAX } from './constants.js';
 import { MAX_CARD_WORDS, normalizeWord, wordInText } from './edit-intents.js';
 import { EDIT_RENDER_KIND, type Edit, type MasterVideoJson } from './master-json.js';
 
@@ -203,12 +203,23 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
     return vs.length > 0 ? vs.map((v) => v.asset) : [b.asset];
   });
   const presentes = planos.filter((a): a is NonNullable<typeof a> => a != null);
+  // tramos con su duración en pantalla, para los topes por plano
+  const tramos = beats.flatMap((b) => {
+    const vs = b.visuals ?? [];
+    return vs.length > 0
+      ? vs.map((v) => ({ asset: v.asset, ms: v.to_ms - v.from_ms }))
+      : [{ asset: b.asset, ms: b.to_ms - b.from_ms }];
+  });
   const desfases: number[] = [];
   let bucles = 0;
+  let lentos = 0;
   for (const a of presentes) {
-    const fit = (a as { fit?: { mode?: string; offset_ms?: number } }).fit;
+    const fit = (a as { fit?: { mode?: string; offset_ms?: number; playback_rate?: number } }).fit;
     if (fit?.mode === 'trim') desfases.push(fit.offset_ms ?? 0);
     if (fit?.mode === 'loop') bucles += 1;
+    // cámara lenta perceptible: por debajo de 0,95 el ojo lo nota en gente
+    // andando o tecleando, y en un vídeo de noticias lee como error
+    if (fit?.mode === 'stretch' && (fit.playback_rate ?? 1) < 0.95) lentos += 1;
   }
   // Cuánto se está recortando de los clips. NO es un aviso: el encaje centra el
   // recorte y la descripción se extrae del punto medio, así que el fotograma
@@ -228,6 +239,36 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
       gravedad: ratioImagenes > 0.5 ? 'alta' : 'media',
       codigo: 'demasiada_imagen',
       detalle: `${imagenes} de ${presentes.length} planos son imagen fija (${Math.round(ratioImagenes * 100)} %); por encima del ${Math.round(techoImagenes * 100)} % el vídeo se siente una presentación`,
+    });
+  }
+  // topes de duración por plano: los mismos contra los que se produce
+  // (IMAGE_MAX_S / CLIP_MAX_S), con medio segundo de tolerancia de redondeo
+  const imagenesLargas = tramos.filter(
+    (t) =>
+      (t.asset as { kind?: string } | null)?.kind === 'image' && t.ms > IMAGE_MAX_S * 1000 + 500,
+  ).length;
+  if (imagenesLargas > 0) {
+    avisos.push({
+      gravedad: 'media',
+      codigo: 'imagen_larga',
+      detalle: `${imagenesLargas} ${imagenesLargas === 1 ? 'imagen fija pasa' : 'imágenes fijas pasan'} de ${IMAGE_MAX_S} s en pantalla`,
+    });
+  }
+  const clipsLargos = tramos.filter(
+    (t) => (t.asset as { kind?: string } | null)?.kind === 'clip' && t.ms > CLIP_MAX_S * 1000 + 500,
+  ).length;
+  if (clipsLargos > 0) {
+    avisos.push({
+      gravedad: 'media',
+      codigo: 'plano_largo',
+      detalle: `${clipsLargos} ${clipsLargos === 1 ? 'clip aguanta' : 'clips aguantan'} más de ${CLIP_MAX_S} s sin corte`,
+    });
+  }
+  if (lentos > 0) {
+    avisos.push({
+      gravedad: 'media',
+      codigo: 'camara_lenta',
+      detalle: `${lentos} ${lentos === 1 ? 'clip va' : 'clips van'} ralentizado${lentos === 1 ? '' : 's'} por debajo de 0,95× para llenar su hueco`,
     });
   }
   if (bucles > 0) {

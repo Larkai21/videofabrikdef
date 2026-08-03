@@ -40,6 +40,8 @@ export const barrido = makePresentation(
 );
 
 // cortina: se abre desde el centro hacia los lados.
-export const cortina = makePresentation((p) => `inset(0 ${((1 - p) * 50).toFixed(1)}% 0 ${((1 - p) * 50).toFixed(1)}%)`);
+export const cortina = makePresentation(
+  (p) => `inset(0 ${((1 - p) * 50).toFixed(1)}% 0 ${((1 - p) * 50).toFixed(1)}%)`,
+);
 
 export const SECTION_TRANSITIONS = [iris, barrido, cortina] as const;

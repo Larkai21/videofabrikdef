@@ -30,19 +30,17 @@ function normalize(text: string): string {
 
 // YouTube exige que el primer capítulo empiece en 0:00 y que los tiempos
 // crezcan de forma estricta; se descartan secciones que rompan el orden.
-export function computeChapters(scenes: Scene[], beats: Beat[]): Chapter[] {
+export function computeChapters(scenes: Scene[], beats: Beat[], offsetMs = 0): Chapter[] {
   const chapters: Chapter[] = [];
   for (const section of SECTION_ORDER) {
     const scene = scenes.find((s) => s.section === section);
     if (!scene) continue;
     const prefix = normalize(scene.text).split(' ').slice(0, 5).join(' ');
-    let beat = prefix
-      ? beats.find((b) => normalize(b.text).startsWith(prefix))
-      : undefined;
+    let beat = prefix ? beats.find((b) => normalize(b.text).startsWith(prefix)) : undefined;
     if (!beat && prefix) beat = beats.find((b) => normalize(b.text).includes(prefix));
     let startMs: number;
     if (beat) {
-      startMs = beat.from_ms;
+      startMs = beat.from_ms + offsetMs;
     } else if (section === 'hook') {
       startMs = 0;
     } else {
@@ -64,13 +62,24 @@ export function computeChapters(scenes: Scene[], beats: Beat[]): Chapter[] {
 // Capítulos a partir de los segmentos del director de capítulos: títulos
 // reales de subtema. YouTube exige 0:00 y tiempos crecientes; los segmentos ya
 // vienen ordenados y con el primero en 0.
-export function segmentsToChapters(segments: Segment[]): Chapter[] {
+//
+// `offsetMs` es la INTRO. Los segmentos viven en el reloj del audio, pero el
+// MP4 entregado antepone la intro de marca y desplaza todo el cuerpo: sin
+// sumarla, cada capítulo apuntaba 3,2 s antes de su sección y el clic
+// aterrizaba en la cola de la anterior (medido: «1:17» escrito, 1:20 real).
+// El primer capítulo sigue en 0:00, que es lo que exige YouTube.
+export function segmentsToChapters(segments: Segment[], offsetMs = 0): Chapter[] {
   const chapters: Chapter[] = [];
   for (const seg of segments) {
-    const start = chapters.length === 0 ? 0 : seg.from_ms;
+    const start = chapters.length === 0 ? 0 : seg.from_ms + offsetMs;
     const previous = chapters[chapters.length - 1];
     if (previous && start <= previous.start_ms) continue;
-    chapters.push({ section: 'body', start_ms: start, label: formatChapterTime(start), title: seg.title });
+    chapters.push({
+      section: 'body',
+      start_ms: start,
+      label: formatChapterTime(start),
+      title: seg.title,
+    });
   }
   return chapters;
 }

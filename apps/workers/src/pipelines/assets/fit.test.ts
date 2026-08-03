@@ -63,7 +63,10 @@ describe('computeFit', () => {
   it('clip sin duración conocida se descarta salvo en modo clamp', () => {
     expect(computeFit({ kind: 'clip', assetDurationMs: null, beatDurationMs: 8_000 })).toBeNull();
     expect(
-      computeFit({ kind: 'clip', assetDurationMs: null, beatDurationMs: 8_000 }, { clampLoops: true }),
+      computeFit(
+        { kind: 'clip', assetDurationMs: null, beatDurationMs: 8_000 },
+        { clampLoops: true },
+      ),
     ).not.toBeNull();
   });
 });

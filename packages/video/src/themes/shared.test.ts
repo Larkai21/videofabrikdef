@@ -55,6 +55,8 @@ describe('fitTitleSize', () => {
   });
 
   it('encoge de forma monótona al crecer el nombre', () => {
-    expect(fitTitleSize('Señal y ruido')).toBeGreaterThan(fitTitleSize('Señal y ruido en la era de la IA'));
+    expect(fitTitleSize('Señal y ruido')).toBeGreaterThan(
+      fitTitleSize('Señal y ruido en la era de la IA'),
+    );
   });
 });

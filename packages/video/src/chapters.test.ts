@@ -52,9 +52,7 @@ describe('computeChapters', () => {
   });
 
   it('el hook siempre empieza en 0:00 aunque el beat no arranque ahí', () => {
-    const shifted = beats.map((b) =>
-      b.idx === 0 ? { ...b, from_ms: 300 } : b,
-    );
+    const shifted = beats.map((b) => (b.idx === 0 ? { ...b, from_ms: 300 } : b));
     const chapters = computeChapters(scenes, shifted);
     expect(chapters[0]?.start_ms).toBe(0);
   });
@@ -127,7 +125,10 @@ describe('mergeChaptersIntoDescription', () => {
   const real = '0:00 Introducción\n0:10 Desarrollo\n0:20 Cierre';
 
   it('sustituye el placeholder {timestamps}', () => {
-    const out = mergeChaptersIntoDescription('Resumen.\n\nCapítulos:\n{timestamps}\n\nGracias.', chapters);
+    const out = mergeChaptersIntoDescription(
+      'Resumen.\n\nCapítulos:\n{timestamps}\n\nGracias.',
+      chapters,
+    );
     expect(out).toBe(`Resumen.\n\nCapítulos:\n${real}\n\nGracias.`);
   });
 
@@ -150,5 +151,29 @@ describe('mergeChaptersIntoDescription', () => {
     expect(mergeChaptersIntoDescription('Texto con {timestamps}.', [])).toBe(
       'Texto con {timestamps}.',
     );
+  });
+});
+
+describe('offset de la intro en los capítulos', () => {
+  // El bug medido: description.txt decía «1:17» y la sección empezaba en 1:20
+  // en el MP4, porque los segmentos viven en el reloj del audio y la intro de
+  // marca desplaza todo el cuerpo 3,2 s. El clic aterrizaba en la cola de la
+  // sección anterior.
+  const segs = [
+    { title: 'Uno', beat_idx: 0, from_ms: 0 },
+    { title: 'Dos', beat_idx: 5, from_ms: 77_316 },
+  ];
+
+  it('suma la intro a todos los capítulos menos al 0:00', () => {
+    const ch = segmentsToChapters(segs, 3_200);
+    expect(ch[0]!.start_ms).toBe(0);
+    expect(ch[0]!.label).toBe('0:00');
+    expect(ch[1]!.start_ms).toBe(80_516);
+    expect(ch[1]!.label).toBe('1:20');
+  });
+
+  it('sin intro nada cambia', () => {
+    const ch = segmentsToChapters(segs);
+    expect(ch[1]!.label).toBe('1:17');
   });
 });

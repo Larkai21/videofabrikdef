@@ -99,7 +99,10 @@ export async function directBroll(
   params: DirectorParams,
 ): Promise<Map<number, DirectorCut[]>> {
   const fallback = new Map<number, DirectorCut[]>(
-    params.beats.map((b) => [b.idx, [{ visual_query: recortarConsulta(expandQuery(b.sceneQuery, b.text)) }]]),
+    params.beats.map((b) => [
+      b.idx,
+      [{ visual_query: recortarConsulta(expandQuery(b.sceneQuery, b.text)) }],
+    ]),
   );
   if (params.beats.length === 0) return fallback;
 

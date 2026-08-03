@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   INTRO_BASICA_DURATION_FRAMES,
   OUTRO_BASICA_DURATION_FRAMES,
+  generateMetaSource,
   generateRegistrySource,
   kitDirName,
   kitIdentifier,
@@ -19,7 +20,9 @@ describe('generateRegistrySource', () => {
   });
 
   it('emite el mapa de metadatos con las duraciones fijas de los integrados', () => {
-    const src = generateRegistrySource([]);
+    // la meta va en fichero HERMANO sin React (generateMetaSource): la consume
+    // el worker de render para el offset de capítulos sin arrastrar componentes
+    const src = generateMetaSource([]);
     expect(src).toContain('export const componentMeta');
     // se leen de las constantes: si no, cambiar una duración obliga a tocar el
     // test y es fácil olvidar regenerar el registry
@@ -30,10 +33,18 @@ describe('generateRegistrySource', () => {
       `'outro-basica@0.1.0': { fixed_duration_frames: ${OUTRO_BASICA_DURATION_FRAMES} },`,
     );
     expect(src).toContain("'subtitulos-basicos@0.1.0': {},");
+    // y no arrastra ni un import: esa es su razón de existir
+    expect(src).not.toContain('import ');
+  });
+
+  it('el registry re-exporta la meta en vez de duplicarla', () => {
+    const src = generateRegistrySource([]);
+    expect(src).toContain("from './registry.meta.generated'");
+    expect(src).not.toContain('export const componentMeta');
   });
 
   it('propaga fixed_duration_frames del manifest al mapa de metadatos', () => {
-    const src = generateRegistrySource([
+    const src = generateMetaSource([
       { type: 'transition', name: 'cortina', version: '1.2.0', fixed_duration_frames: 24 },
       { type: 'lower_third', name: 'rotulo-a', version: '1.0.0' },
     ]);
@@ -86,8 +97,14 @@ describe('generateRegistrySource', () => {
       { type: 'lower_third', name: 'rotulo-a', version: '1.0.0' },
     ]);
     const matches = src.match(/rotulo-a@1\.0\.0/g) ?? [];
-    // una vez en el import, otra en el mapa y otra en componentMeta
-    expect(matches).toHaveLength(3);
+    // una vez en el import y otra en el mapa (la meta vive en su fichero)
+    expect(matches).toHaveLength(2);
+    // y en la meta, una sola entrada pese al duplicado
+    const meta = generateMetaSource([
+      { type: 'lower_third', name: 'rotulo-a', version: '1.0.0' },
+      { type: 'lower_third', name: 'rotulo-a', version: '1.0.0' },
+    ]);
+    expect(meta.match(/rotulo-a@1\.0\.0/g) ?? []).toHaveLength(1);
   });
 
   it('rechaza nombres o versiones fuera del contrato (protección de ruta)', () => {

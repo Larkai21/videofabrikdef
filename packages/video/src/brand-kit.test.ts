@@ -330,9 +330,39 @@ describe('computeBrollTrack', () => {
       segmentStartIdxs: new Set([2]),
     });
     // transición i corresponde a la entrada del beat i+1
-    expect(track.transitions[0]?.kind).toBe('cut');
     expect(track.transitions[1]?.kind).toBe('section'); // entra el beat 2
-    expect(track.transitions[2]?.kind).toBe('cut');
+    // los cortes normales ya no son un tipo único: son duro/fundido/slide
+    expect(track.transitions[0]?.kind).not.toBe('section');
+    expect(track.transitions[2]?.kind).not.toBe('section');
+  });
+
+  it('el corte duro domina y no consume frames de solape', () => {
+    // muchos límites para que el reparto 60/30/10 se vea sin depender de una
+    // semilla concreta
+    const muchos = Array.from({ length: 41 }, (_, i) => ({
+      idx: i,
+      from_ms: i * 10_000,
+      to_ms: (i + 1) * 10_000,
+    }));
+    const track = computeBrollTrack(muchos, { fps: 30, baseFrames: 12_300, seed: 7 });
+    const porTipo = new Map<string, number>();
+    for (const t of track.transitions) porTipo.set(t.kind, (porTipo.get(t.kind) ?? 0) + 1);
+    const duras = porTipo.get('dura') ?? 0;
+    expect(duras).toBeGreaterThan(track.transitions.length / 2 - 4);
+    for (const t of track.transitions) {
+      if (t.kind === 'dura') expect(t.durationInFrames).toBe(0);
+      else expect(t.durationInFrames).toBeGreaterThan(0);
+    }
+    // la sincronía se conserva con duraciones desiguales
+    const seqTotal = track.sequences.reduce((s, x) => s + x.durationInFrames, 0);
+    const transTotal = track.transitions.reduce((s, x) => s + x.durationInFrames, 0);
+    expect(seqTotal - transTotal).toBe(12_300);
+  });
+
+  it('la elección de cortes es determinista por semilla', () => {
+    const a = computeBrollTrack(demoBeats, { fps: 30, baseFrames: 1290, seed: 42 });
+    const b = computeBrollTrack(demoBeats, { fps: 30, baseFrames: 1290, seed: 42 });
+    expect(a.transitions).toEqual(b.transitions);
   });
 });
 

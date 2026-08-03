@@ -51,6 +51,7 @@ import { directEdits } from './editing-director.js';
 import { pickFinalists, repartirPlazas } from './finalists.js';
 import { rerankBeats } from './rerank.js';
 import { computeFit, kenburnsEffect } from './fit.js';
+import { trocearCongelado } from './trocear.js';
 import { cosEfectivo, identityRefs, selectPick, type PoolEntry } from './pick.js';
 import { registerAssetsMocks } from './mocks.js';
 import { expandQuery, stockScore } from './score.js';
@@ -326,6 +327,12 @@ async function resolveOneVisual(
     query: string;
     spanMs: number;
     vetoedRefs: Set<string>;
+    // refs YA ELEGIDOS en este mismo beat: la reserva los evita mientras haya
+    // alternativa. Un plano repetido en otro beat se disimula; el mismo plano
+    // dos veces seguidas dentro del beat se ve como un tartamudeo (pasó: la
+    // misma imagen en v0 y v1 del beat 10, y el mismo clip con el mismo
+    // encuadre en v0 y v2 del beat 11).
+    refsEsteBeat?: Set<string>;
     // el tramo pide movimiento sí o sí (partes 2ª..n de una imagen troceada):
     // deja a las imágenes de stock sin plaza reservada
     exigeClip?: boolean;
@@ -526,7 +533,13 @@ async function resolveOneVisual(
     // consulta devuelve poco. Antes Flux rescataba este caso; ahora la red es
     // repetir un plano del propio vídeo, que es peor que no repetirlo pero
     // muchísimo mejor que quedarse sin plano.
-    fitted = encajar(reserva);
+    //
+    // Dentro de la red hay un orden: primero lo repetido de OTROS beats, y solo
+    // si tampoco hay, lo ya usado en este mismo beat (el tartamudeo visual).
+    const deOtrosBeats = args.refsEsteBeat
+      ? reserva.filter((e) => !args.refsEsteBeat!.has(e.cand.ref))
+      : reserva;
+    fitted = encajar(deOtrosBeats.length > 0 ? deOtrosBeats : reserva);
     logger.warn(
       { videoId, beatIdx: args.beatIdx, vIdx: args.vIdx, query: queryText },
       'Sin candidatos nuevos: se reutiliza un plano ya usado en este vídeo',
@@ -601,6 +614,9 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
   );
 
   const resolved: { span: (typeof spans)[number]; res: ResolvedVisual }[] = [];
+  // refs elegidos EN ESTE beat: la reserva del último recurso los evita
+  // mientras exista cualquier otra alternativa (anti-tartamudeo)
+  const refsEsteBeat = new Set<string>();
   for (let vIdx = 0; vIdx < spans.length; vIdx++) {
     const span = spans[vIdx]!;
     const res = await resolveOneVisual(deps, {
@@ -612,6 +628,7 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
       // al elegir: así el candidato repetido ni siquiera compite y la cascada
       // sigue buscando en el stock en vez de conformarse con el repetido.
       vetoedRefs: new Set([...deps.usedRefs, ...(vIdx === 0 ? vetoedRefs : [])]),
+      refsEsteBeat,
       // cuota global de imágenes: sin esto cada beat decide por su cuenta y el
       // agregado se va del techo sin que nadie lo mire
       ...(exigeClipPorCuota(deps.imagenesElegidas, deps.planosResueltos, deps.imagenesMaxPct)
@@ -620,6 +637,7 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
     });
     deps.planosResueltos += 1;
     if (res.chosen.kind === 'image') deps.imagenesElegidas += 1;
+    for (const ref of identityRefs(res.chosen)) refsEsteBeat.add(ref);
     resolved.push({ span, res });
   }
 
@@ -652,6 +670,7 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
             vIdx: vIdxLibre++,
             query: rv.span.visual_query,
             spanMs: to_ms - from_ms,
+            refsEsteBeat,
             // El veto iba VACÍO aquí, y con él se caía la anti-repetición justo
             // en los tramos troceados: el pool volvía a incluir los planos ya
             // usados en el vídeo en vez de seguir buscando.
@@ -665,6 +684,7 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
           });
           deps.planosResueltos += 1;
           if (extra.chosen.kind === 'image') deps.imagenesElegidas += 1;
+          for (const ref of identityRefs(extra.chosen)) refsEsteBeat.add(ref);
           capped.push({ span: { ...rv.span, from_ms, to_ms }, res: extra });
         }
       }
@@ -1430,20 +1450,42 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
         { clampLoops: true },
       );
       const fit: Fit = fitResult?.fit ?? { mode: 'kenburns' };
-      const effect = fit.mode === 'kenburns' ? kenburnsEffect(seed) : undefined;
-      frozenVisuals.push({
+      // Los topes de duración por plano se garantizan AQUÍ, no solo en el
+      // matching: el juez de planos y la curación humana eligen después de
+      // matchear y nadie re-trocea — por ese hueco salieron imágenes de 14 s
+      // con IMAGE_MAX_S en 5. La congelación es el único punto por el que pasa
+      // todo, y trocear aquí no introduce contenido sin aprobar: re-encuadra
+      // la misma imagen o salta dentro del mismo clip (ver trocear.ts).
+      const partes = trocearCongelado({
+        kind: ingested.kind,
         from_ms: sv.from_ms,
         to_ms: sv.to_ms,
-        visual_query: sv.visual_query,
-        ...(sv.keyword ? { keyword: sv.keyword } : {}),
-        asset: {
-          id: ingested.assetId,
-          path: ingested.absPath,
-          kind: ingested.kind,
-          fit,
-          ...(effect ? { effect } : {}),
-        },
+        fit,
+        assetDurationMs: ingested.durationMs,
+        seed,
       });
+      if (partes.length > 1) {
+        logger.info(
+          { videoId, beatIdx: beat.idx, vIdx, partes: partes.length, kind: ingested.kind },
+          'Plano largo troceado en la congelación',
+        );
+      }
+      for (const parte of partes) {
+        frozenVisuals.push({
+          from_ms: parte.from_ms,
+          to_ms: parte.to_ms,
+          visual_query: sv.visual_query,
+          // el ancla de palabra solo tiene sentido en el arranque del tramo
+          ...(sv.keyword && parte.from_ms === sv.from_ms ? { keyword: sv.keyword } : {}),
+          asset: {
+            id: ingested.assetId,
+            path: ingested.absPath,
+            kind: ingested.kind,
+            fit: parte.fit,
+            ...(parte.effect ? { effect: parte.effect } : {}),
+          },
+        });
+      }
     }
 
     const primary = frozenVisuals[0]!;

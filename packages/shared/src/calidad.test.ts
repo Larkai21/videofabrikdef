@@ -132,8 +132,10 @@ describe('analizarMaster', () => {
   });
 
   it('no inventa avisos en un vídeo sano', () => {
+    // beats de 8 s: desde el tope de clip (CLIP_MAX_S), un plano continuo de
+    // 10 s ya NO es un vídeo sano — el fixture cambió con la definición
     const beats = Array.from({ length: 12 }, (_, i) =>
-      beat(i, i * 10_000, (i + 1) * 10_000, {
+      beat(i, i * 8_000, (i + 1) * 8_000, {
         asset: asset(`a${i}`, { mode: 'trim', offset_ms: 500 }),
       }),
     );
@@ -195,5 +197,78 @@ describe('proporción de imágenes fijas', () => {
     ]);
     expect(m.ratio_imagenes).toBeCloseTo(0.1);
     expect(m.avisos.some((a) => a.codigo === 'demasiada_imagen')).toBe(false);
+  });
+});
+
+describe('topes de duración por plano', () => {
+  // El caso real que motiva los avisos: un vídeo congeló imágenes de 14 s con
+  // IMAGE_MAX_S en 5, porque el troceo solo existía en el matching y el juez de
+  // planos y la curación humana eligen después. El informe audita contra los
+  // MISMOS topes con los que se produce.
+  const img = (id: string): Asset => ({
+    id,
+    kind: 'image',
+    path: `/x/${id}.jpg`,
+    fit: { mode: 'kenburns' },
+  });
+
+  it('avisa de la imagen que pasa del tope', () => {
+    const m = analizarMaster(master({ beats: [beat(0, 0, 14_000, { asset: img('a') })] }));
+    expect(m.avisos.some((a) => a.codigo === 'imagen_larga')).toBe(true);
+  });
+
+  it('avisa del clip que aguanta más de CLIP_MAX_S sin corte', () => {
+    const m = analizarMaster(
+      master({
+        beats: [beat(0, 0, 12_000, { asset: asset('a', { mode: 'trim', offset_ms: 0 }) })],
+      }),
+    );
+    expect(m.avisos.some((a) => a.codigo === 'plano_largo')).toBe(true);
+  });
+
+  it('mide el tramo del SUB-PLANO, no el beat entero', () => {
+    const m = analizarMaster(
+      master({
+        beats: [
+          beat(0, 0, 12_000, {
+            visuals: [
+              { from_ms: 0, to_ms: 3_000, visual_query: 'q', asset: img('a') },
+              { from_ms: 3_000, to_ms: 6_000, visual_query: 'q', asset: img('b') },
+              {
+                from_ms: 6_000,
+                to_ms: 12_000,
+                visual_query: 'q',
+                asset: asset('c', { mode: 'trim', offset_ms: 0 }),
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    expect(m.avisos.some((a) => a.codigo === 'imagen_larga')).toBe(false);
+    expect(m.avisos.some((a) => a.codigo === 'plano_largo')).toBe(false);
+  });
+
+  it('marca la cámara lenta perceptible y deja pasar la imperceptible', () => {
+    const lento = analizarMaster(
+      master({
+        beats: [
+          beat(0, 0, 10_000, {
+            asset: asset('a', { mode: 'stretch', playback_rate: 0.85, offset_ms: 0 }),
+          }),
+        ],
+      }),
+    );
+    expect(lento.avisos.some((a) => a.codigo === 'camara_lenta')).toBe(true);
+    const casi = analizarMaster(
+      master({
+        beats: [
+          beat(0, 0, 8_300, {
+            asset: asset('a', { mode: 'stretch', playback_rate: 0.97, offset_ms: 0 }),
+          }),
+        ],
+      }),
+    );
+    expect(casi.avisos.some((a) => a.codigo === 'camara_lenta')).toBe(false);
   });
 });

@@ -39,10 +39,7 @@ describe('computeSubvisualSpans', () => {
   });
 
   it('sin keywords resolubles pero varios cortes → reparto uniforme', () => {
-    const spans = computeSubvisualSpans(BEAT, [], [
-      { visual_query: 'a' },
-      { visual_query: 'b' },
-    ]);
+    const spans = computeSubvisualSpans(BEAT, [], [{ visual_query: 'a' }, { visual_query: 'b' }]);
     expect(spans).toHaveLength(2);
     expect(spans[0]!.from_ms).toBe(0);
     expect(spans[1]!.to_ms).toBe(13_000);
@@ -50,10 +47,11 @@ describe('computeSubvisualSpans', () => {
 
   it('respeta el tramo mínimo (no crea planos-relámpago)', () => {
     // keyword a 900 ms: demasiado cerca del inicio → se descarta
-    const spans = computeSubvisualSpans(BEAT, [{ w: 'ya', from_ms: 900, to_ms: 1000 }], [
-      { visual_query: 'a' },
-      { keyword: 'ya', visual_query: 'b' },
-    ]);
+    const spans = computeSubvisualSpans(
+      BEAT,
+      [{ w: 'ya', from_ms: 900, to_ms: 1000 }],
+      [{ visual_query: 'a' }, { keyword: 'ya', visual_query: 'b' }],
+    );
     expect(spans).toHaveLength(1);
   });
 });
