@@ -359,10 +359,20 @@ describe('computeBrollTrack', () => {
     expect(seqTotal - transTotal).toBe(12_300);
   });
 
-  it('la elección de cortes es determinista por semilla', () => {
-    const a = computeBrollTrack(demoBeats, { fps: 30, baseFrames: 1290, seed: 42 });
-    const b = computeBrollTrack(demoBeats, { fps: 30, baseFrames: 1290, seed: 42 });
-    expect(a.transitions).toEqual(b.transitions);
+  it('la semilla decide de verdad: semillas distintas, cortes distintos', () => {
+    // comparar dos llamadas idénticas no prueba nada (cualquier función pura
+    // pasa); lo que hay que probar es que opts.seed LLEGA a la decisión
+    const muchos = Array.from({ length: 41 }, (_, i) => ({
+      idx: i,
+      from_ms: i * 10_000,
+      to_ms: (i + 1) * 10_000,
+    }));
+    const a = computeBrollTrack(muchos, { fps: 30, baseFrames: 12_300, seed: 1 });
+    const b = computeBrollTrack(muchos, { fps: 30, baseFrames: 12_300, seed: 2 });
+    expect(a.transitions.map((t) => t.kind)).not.toEqual(b.transitions.map((t) => t.kind));
+    // y la misma semilla reproduce exactamente
+    const a2 = computeBrollTrack(muchos, { fps: 30, baseFrames: 12_300, seed: 1 });
+    expect(a2.transitions).toEqual(a.transitions);
   });
 });
 

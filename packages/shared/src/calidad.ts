@@ -1,4 +1,10 @@
-import { CLIP_MAX_S, FX_CARD_GUARD_MS, IMAGE_MAX_S, RATIO_IMAGENES_MAX } from './constants.js';
+import {
+  CLIP_MAX_S,
+  FX_CARD_GUARD_MS,
+  IMAGE_MAX_S,
+  RATIO_IMAGENES_MAX,
+  TROCEO_PARTE_MIN_MS,
+} from './constants.js';
 import { MAX_CARD_WORDS, normalizeWord, wordInText } from './edit-intents.js';
 import { EDIT_RENDER_KIND, type Edit, type MasterVideoJson } from './master-json.js';
 
@@ -243,9 +249,12 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
   }
   // topes de duración por plano: los mismos contra los que se produce
   // (IMAGE_MAX_S / CLIP_MAX_S), con medio segundo de tolerancia de redondeo
+  // el umbral arranca donde el troceo PUEDE partir (2×TROCEO_PARTE_MIN_MS):
+  // avisar de una imagen de 3,4 s que ningún troceo puede partir sin crear
+  // parpadeos sería pedir lo imposible
+  const umbralImagen = Math.max(IMAGE_MAX_S * 1000 + 500, 2 * TROCEO_PARTE_MIN_MS);
   const imagenesLargas = tramos.filter(
-    (t) =>
-      (t.asset as { kind?: string } | null)?.kind === 'image' && t.ms > IMAGE_MAX_S * 1000 + 500,
+    (t) => (t.asset as { kind?: string } | null)?.kind === 'image' && t.ms > umbralImagen,
   ).length;
   if (imagenesLargas > 0) {
     avisos.push({
@@ -280,7 +289,18 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
   }
 
   // ---- repetición y cadencia
-  const ids = presentes.map((a) => (a as { id?: string }).id).filter(Boolean) as string[];
+  // La repetición se cuenta ENTRE beats, deduplicando por beat: el troceo de la
+  // congelación parte un plano largo en tramos del MISMO asset a propósito
+  // (re-encuadres, jump cuts), y contarlos como repetición convertiría cada
+  // troceo en un falso aviso. El mismo asset en dos beats distintos sigue
+  // siendo la señal real.
+  const ids = beats.flatMap((b) => {
+    const vs = b.visuals ?? [];
+    const delBeat = (vs.length > 0 ? vs.map((v) => v.asset) : [b.asset])
+      .map((a) => (a as { id?: string } | null)?.id)
+      .filter(Boolean) as string[];
+    return [...new Set(delBeat)];
+  });
   const cuenta = new Map<string, number>();
   for (const id of ids) cuenta.set(id, (cuenta.get(id) ?? 0) + 1);
   const repetidos = [...cuenta.values()].filter((n) => n > 1).length;

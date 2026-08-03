@@ -22,6 +22,7 @@ import {
   PRICES,
   QUEUES,
   RATIO_IMAGENES_MAX,
+  TROCEO_PARTE_MIN_MS,
   T_AUTO,
   T_REV,
   T_STOCK,
@@ -536,10 +537,15 @@ async function resolveOneVisual(
     //
     // Dentro de la red hay un orden: primero lo repetido de OTROS beats, y solo
     // si tampoco hay, lo ya usado en este mismo beat (el tartamudeo visual).
+    // El fallback mira el resultado del ENCAJE, no la longitud previa: un
+    // candidato de otro beat que no encaja en este tramo no es una alternativa,
+    // y quedarse con una lista pre-encaje no vacía que encaja a cero tumbaría
+    // el job justo donde esta red existe para recuperarlo.
     const deOtrosBeats = args.refsEsteBeat
       ? reserva.filter((e) => !args.refsEsteBeat!.has(e.cand.ref))
       : reserva;
-    fitted = encajar(deOtrosBeats.length > 0 ? deOtrosBeats : reserva);
+    fitted = encajar(deOtrosBeats);
+    if (fitted.length === 0) fitted = encajar(reserva);
     logger.warn(
       { videoId, beatIdx: args.beatIdx, vIdx: args.vIdx, query: queryText },
       'Sin candidatos nuevos: se reutiliza un plano ya usado en este vídeo',
@@ -657,7 +663,19 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
     const durMs = rv.span.to_ms - rv.span.from_ms;
     const budget = MAX_VISUALS_PER_BEAT - capped.length;
     if (rv.res.chosen.kind === 'image' && durMs > imageMaxMs && budget > 1) {
-      const parts = Math.min(Math.ceil(durMs / imageMaxMs), budget);
+      // mismo suelo de legibilidad que el troceo de la ingesta: sin él, con el
+      // tope en 3 s un tramo de 3,1-4,4 s se partía en trozos de 1,5-2,2 s,
+      // por debajo de lo que se lee como plano y no como parpadeo
+      const parts = Math.min(
+        Math.ceil(durMs / imageMaxMs),
+        budget,
+        Math.floor(durMs / TROCEO_PARTE_MIN_MS),
+      );
+      if (parts < 2) {
+        capped.push(rv);
+        if (capped.length >= MAX_VISUALS_PER_BEAT) break;
+        continue;
+      }
       const step = Math.round(durMs / parts);
       for (let k = 0; k < parts; k++) {
         const from_ms = rv.span.from_ms + k * step;

@@ -279,7 +279,7 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
               const trans = i > 0 ? brollTrack.transitions[i - 1]! : null;
               return (
                 <React.Fragment key={seq.beatIdx}>
-                  {trans !== null && trans.kind !== 'dura' ? (
+                  {trans !== null && trans.kind !== 'dura' && trans.durationInFrames > 0 ? (
                     <TransitionSeries.Transition
                       timing={linearTiming({ durationInFrames: trans.durationInFrames })}
                       presentation={pickTransition(trans.kind, i, master.video.id)}

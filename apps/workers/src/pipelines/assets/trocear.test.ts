@@ -143,3 +143,40 @@ describe('trocearCongelado — clips', () => {
     ).toHaveLength(1);
   });
 });
+
+describe('hallazgos de la revisión adversarial', () => {
+  it('la última parte de un clip deja cola de seguridad: el render la extiende', () => {
+    // el render alarga la última parte con el solape de transición y el
+    // crossfade lee ~400 ms extra: sin cola, leía más allá del EOF
+    const len = 20_000;
+    const partes = trocearCongelado({
+      kind: 'clip',
+      from_ms: 0,
+      to_ms: 14_000,
+      fit: { mode: 'trim', offset_ms: 3_000 },
+      assetDurationMs: len,
+      seed: 3,
+    });
+    const ultima = partes.at(-1)!;
+    const finFuente =
+      (ultima.fit as { offset_ms: number }).offset_ms + (ultima.to_ms - ultima.from_ms);
+    expect(finFuente).toBeLessThanOrEqual(len - 600);
+  });
+
+  it('las partes de imagen son solo variantes «in», alternando lado', () => {
+    // 'out' termina en escala 1,0 e 'in' empieza en 1,0: un empalme out→in
+    // encuadra idéntico y el corte se vuelve invisible — la imagen seguiría
+    // >3 s efectivos en pantalla
+    const partes = trocearCongelado({
+      kind: 'image',
+      from_ms: 0,
+      to_ms: 12_000,
+      fit: { mode: 'kenburns' },
+      assetDurationMs: null,
+      seed: 8,
+    });
+    for (const p of partes) expect(p.effect).toMatch(/^kenburns-in-(left|right)$/);
+    for (let i = 1; i < partes.length; i++)
+      expect(partes[i]!.effect).not.toBe(partes[i - 1]!.effect);
+  });
+});

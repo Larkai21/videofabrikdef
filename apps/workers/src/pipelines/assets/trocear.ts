@@ -38,6 +38,13 @@ export interface PlanoCongelado {
 const SALTO_MIN_MS = 500;
 /** Salto máximo: más allá no aporta y puede caer en contenido sin relación. */
 const SALTO_MAX_MS = 4000;
+/**
+ * Cola que se deja SIN usar al final de la fuente. El render extiende la última
+ * parte con el solape de la transición (~200 ms) y el crossfade entre partes
+ * lee otros 200 ms: sin esta reserva, la última parte acababa exactamente en el
+ * fin del archivo y esos frames extra leían más allá del EOF.
+ */
+const COLA_SEGURIDAD_MS = 700;
 
 function partesPara(spanMs: number, maxMs: number): number {
   const deseadas = Math.ceil(spanMs / maxMs);
@@ -75,10 +82,13 @@ export function trocearCongelado(args: {
       from_ms: args.from_ms + Math.round(k * step),
       to_ms: k === partes - 1 ? args.to_ms : args.from_ms + Math.round((k + 1) * step),
       fit: { mode: 'kenburns' as const },
-      // semilla desplazada por parte: direcciones consecutivas SIEMPRE
-      // distintas (el catálogo rota), que es lo que hace que dos tramos de la
-      // misma imagen se lean como dos planos y no como un tic
-      effect: kenburnsEffect(args.seed + k),
+      // Solo variantes 'in', alternando lado. No vale rotar el catálogo entero:
+      // 'out' TERMINA en escala 1,0 y 'in' EMPIEZA en 1,0, así que el empalme
+      // out→in encuadra idéntico y el corte se vuelve invisible — la imagen
+      // seguiría >3 s efectivos en pantalla y el troceo no habría hecho nada.
+      // Con in→in cada frontera salta de 1,08 a 1,00 y cambia el lado del
+      // paneo: se lee inequívocamente como un plano nuevo.
+      effect: (args.seed + k) % 2 === 0 ? 'kenburns-in-left' : 'kenburns-in-right',
     }));
   }
 
@@ -91,13 +101,15 @@ export function trocearCongelado(args: {
   if (partes < 2) return [original];
 
   // material sobrante de la fuente = lo que el recorte centrado descartaba;
-  // se reparte en saltos entre partes. Sin salto legible, no hay troceo.
-  const sobra = len - span;
+  // se reparte en saltos entre partes, reservando la cola de seguridad.
+  // Sin salto legible, no hay troceo.
+  const lenUtil = len - COLA_SEGURIDAD_MS;
+  const sobra = lenUtil - span;
   const salto = Math.min(SALTO_MAX_MS, Math.floor(sobra / (partes - 1)));
   if (salto < SALTO_MIN_MS) return [original];
 
   const usado = span + salto * (partes - 1);
-  const offset0 = Math.max(0, Math.floor((len - usado) / 2));
+  const offset0 = Math.max(0, Math.floor((lenUtil - usado) / 2));
   const step = span / partes;
   return Array.from({ length: partes }, (_, k) => {
     const desde = args.from_ms + Math.round(k * step);
