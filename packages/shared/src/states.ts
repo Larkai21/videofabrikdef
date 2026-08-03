@@ -61,7 +61,9 @@ export type AssetKind = z.infer<typeof assetKindSchema>;
 
 // 'flux' es LEGADO: ya no se generan imágenes, pero hay assets y beats
 // guardados con ese origen y el enum tiene que seguir aceptándolos.
-export const ASSET_SOURCES = ['pexels', 'pixabay', 'flux', 'playwright', 'upload'] as const;
+// 'wikimedia' = Wikimedia Commons, la fuente de los insertos de referencia
+// (imágenes reales de entidades con nombre; licencia y atribución por asset).
+export const ASSET_SOURCES = ['pexels', 'pixabay', 'flux', 'playwright', 'upload', 'wikimedia'] as const;
 export const assetSourceSchema = z.enum(ASSET_SOURCES);
 export type AssetSource = z.infer<typeof assetSourceSchema>;
 

@@ -98,7 +98,9 @@ export const beatAssetSchema = z.object({
 
 export const candidateSchema = z.object({
   ref: z.string(),
-  provider: z.enum(['library', 'pexels', 'pixabay', 'flux']),
+  // 'wikimedia' solo aparece en candidatos de inserto (imagen de referencia de
+  // una entidad con nombre); la cascada de b-roll no lo usa
+  provider: z.enum(['library', 'pexels', 'pixabay', 'flux', 'wikimedia']),
   score: z.number(),
   thumb_url: z.string().optional(),
   // URL servible (/files/...) que la API deriva de meta.path para los
@@ -230,6 +232,12 @@ export const EDIT_TYPES = [
   'pasos_flow',
   // una cifra que se dispara o se hunde; `value` + `style` (sube|baja) + `label`
   'tendencia',
+  // imagen REAL de referencia de una entidad con nombre (producto, empresa,
+  // modelo), superpuesta al plano cuando la voz la menciona; `image_path`
+  // congelado en workers + `text` (el término) + `credit` (atribución si la
+  // licencia la exige). Nunca imagen generada: cascada foto de stock →
+  // Wikimedia Commons.
+  'imagen_apoyo',
 ] as const;
 export const editTypeSchema = z.enum(EDIT_TYPES);
 export type EditType = z.infer<typeof editTypeSchema>;
@@ -268,6 +276,7 @@ export const EDIT_RENDER_KIND: Record<
   split_versus: 'overlay',
   pasos_flow: 'overlay',
   tendencia: 'overlay',
+  imagen_apoyo: 'overlay',
 };
 
 // Efectos de sonido integrados. Se sintetizan con ffmpeg en
@@ -369,6 +378,18 @@ export const editSchema = z.discriminatedUnion('type', [
     style: z.string().optional(),
   }),
   z.object({ ...editBase, type: z.literal('micro_fx'), style: z.string().min(1) }),
+  // sin image_path no hay nada que enseñar: mejor que el edit se caiga en la
+  // lectura tolerante a que el render pinte un recuadro vacío. `text` es el
+  // término que ilustra (lo enseña la timeline y lo audita el informe);
+  // `credit` es la atribución que la licencia exija (Wikimedia CC BY/BY-SA) y
+  // acaba en description.txt.
+  z.object({
+    ...editBase,
+    type: z.literal('imagen_apoyo'),
+    image_path: z.string().min(1),
+    text: z.string().min(1),
+    credit: z.string().optional(),
+  }),
 ]);
 export type Edit = z.infer<typeof editSchema>;
 

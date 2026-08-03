@@ -66,6 +66,10 @@ export interface EffectCue {
   // SfxName y no string: el nivel de volumen se indexa con esto
   sfx?: SfxName;
   style?: string;
+  /** imagen_apoyo: ruta congelada de la imagen de referencia (reescrita a /files en render) */
+  imagePath?: string;
+  /** imagen_apoyo: atribución que exige la licencia (se pinta pequeña y va a description.txt) */
+  credit?: string;
 }
 
 export interface BrandKitLayout {
@@ -111,6 +115,11 @@ export function computeEffectsTrack(
       ...('items' in e && e.items !== undefined ? { items: e.items } : {}),
       ...('sfx' in e ? { sfx: e.sfx } : {}),
       ...('style' in e && e.style !== undefined ? { style: e.style } : {}),
+      // un campo no copiado aquí valida, sale en la timeline y renderiza VACÍO
+      // (el bug de pasos_flow): imagen_apoyo sin estas dos líneas sería un
+      // recuadro sin imagen
+      ...('image_path' in e ? { imagePath: e.image_path } : {}),
+      ...('credit' in e && e.credit !== undefined ? { credit: e.credit } : {}),
     };
   });
 }

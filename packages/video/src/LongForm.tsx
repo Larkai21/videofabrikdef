@@ -19,6 +19,7 @@ import {
   Ambience,
   Annotation,
   DeviceFrame,
+  ImagenApoyo,
   KineticText,
   MicroFx,
   PasosFlow,
@@ -113,6 +114,11 @@ const EditOverlay: React.FC<{ cue: EffectCue; design: DesignTokens }> = ({ cue, 
         label={cue.label}
         design={design}
       />
+    );
+  }
+  if (cue.type === 'imagen_apoyo') {
+    return (
+      <ImagenApoyo imagePath={cue.imagePath} text={cue.text} credit={cue.credit} design={design} />
     );
   }
   return null;

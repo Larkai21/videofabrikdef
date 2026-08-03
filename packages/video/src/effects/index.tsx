@@ -1,7 +1,8 @@
 import React from 'react';
-import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { defaultDesign, formatCifra, hexToRgba, tokenCifra, type DesignTokens } from '@fabrica/shared';
 import { displayText, FONT_FAMILY } from '../fonts';
+import { isRenderableSrc, toSrc } from '../media-src';
 import { hashSeed } from '../seed';
 import { clamp, Ease, mix, noise, pulse, span, typed } from './motion';
 import { familias, R, S, SENAL, T } from './tokens';
@@ -1210,6 +1211,75 @@ export const Tendencia: React.FC<{
         </svg>
         {label !== undefined && label.trim() !== '' ? (
           <div style={{ fontSize: T.md, fontWeight: 600, color: d.foreground }}>{label}</div>
+        ) : null}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+// Imagen REAL de referencia de una entidad con nombre (producto, empresa,
+// modelo), superpuesta al plano mientras la voz la menciona. La resuelve el
+// worker (foto de stock → Wikimedia Commons, con veto del juez de planos) y
+// llega con `imagePath` congelado y reescrito a /files; aquí solo se pinta.
+// Si la ruta no es cargable (maestro a medio construir en el player del
+// dashboard), degrada a nada — un marco vacío sería peor que ningún inserto.
+export const ImagenApoyo: React.FC<{
+  imagePath?: string;
+  text?: string;
+  credit?: string;
+  design?: DesignTokens;
+}> = ({ imagePath, text, credit, design }) => {
+  const d = design ?? defaultDesign();
+  const { opacity, enter } = useInOut();
+  if (imagePath === undefined || imagePath === '' || !isRenderableSrc(imagePath)) return null;
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+      <div
+        style={{
+          marginTop: 110,
+          opacity,
+          transform: `translateY(${(1 - enter) * 24}px) scale(${0.96 + 0.04 * enter})`,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          padding: 14,
+          ...glassSurface(d),
+          borderRadius: 20,
+        }}
+      >
+        <Img
+          src={toSrc(imagePath)}
+          style={{
+            width: 560,
+            height: 315,
+            // contain, no cover: un logo o un producto recortado por los bordes
+            // se lee como error; la banda que sobre la tapa el fondo de cristal
+            objectFit: 'contain',
+            borderRadius: 12,
+            background: hexToRgba(d.background, 0.55),
+          }}
+        />
+        {(text !== undefined && text.trim() !== '') || (credit !== undefined && credit !== '') ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              justifyContent: 'space-between',
+              gap: 16,
+              padding: '0 4px',
+            }}
+          >
+            {text !== undefined && text.trim() !== '' ? (
+              <div style={{ ...displayText(700), fontSize: 26, color: d.foreground }}>{text}</div>
+            ) : (
+              <div />
+            )}
+            {credit !== undefined && credit !== '' ? (
+              // la atribución que exige la licencia: pequeña pero legible; la
+              // versión completa va también en description.txt
+              <div style={{ fontSize: 15, color: hexToRgba(d.foreground, 0.55) }}>{credit}</div>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </AbsoluteFill>

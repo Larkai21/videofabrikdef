@@ -32,6 +32,7 @@ const PROVIDER_LABELS: Record<BeatCandidate['provider'], string> = {
   pexels: 'Pexels',
   pixabay: 'Pixabay',
   flux: 'Flux',
+  wikimedia: 'Wikimedia Commons',
 };
 
 export function originLabel(candidate: BeatCandidate): string {

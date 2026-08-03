@@ -120,6 +120,12 @@ export const INTENT_EFFECTS = [
   'comparacion', // → split_versus · dos cosas enfrentadas (antes/ahora, A/B)
   'pasos', // → pasos_flow · un proceso de 2 a 4 estaciones
   'tendencia', // → tendencia · una cifra que se dispara o se hunde
+  // imagen REAL de referencia cuando la narración nombra una entidad concreta
+  // (producto, empresa, modelo). trigger_word = el nombre tal cual se dice;
+  // card_text = término de búsqueda si el nombre a secas es ambiguo. La imagen
+  // se resuelve en workers (foto de stock → Wikimedia Commons) y el juez de
+  // planos la veta: mejor sin inserto que con el logo equivocado.
+  'inserto', // → imagen_apoyo
 ] as const;
 export const intentEffectSchema = z.enum(INTENT_EFFECTS);
 export type IntentEffect = z.infer<typeof intentEffectSchema>;

@@ -57,6 +57,7 @@ const EDIT_LABELS: Record<EditType, string> = {
   split_versus: 'Comparación',
   pasos_flow: 'Pasos',
   tendencia: 'Tendencia',
+  imagen_apoyo: 'Imagen de referencia',
   sfx: 'Sonido',
 };
 
@@ -103,6 +104,10 @@ function providerLicense(candidate: BeatCandidate | undefined): string {
       return 'Biblioteca propia';
     case 'flux':
       return 'Generada · uso propio';
+    case 'wikimedia':
+      // la licencia real viene en meta.license (rama de arriba); esto es el
+      // fallback si un candidato viejo no la trae
+      return 'Wikimedia Commons · ver licencia';
   }
 }
 
