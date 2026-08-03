@@ -1,9 +1,10 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
-import { defaultDesign, type DesignTokens } from '@fabrica/shared';
+import { defaultDesign, hexToRgba, type DesignTokens } from '@fabrica/shared';
 import { FONT_FAMILY } from '../fonts';
 import { glassSurface } from '../effects';
 import { Ease, mix, span } from '../effects/motion';
+import { ReglaNodo } from './kernel';
 import { WordsReveal, overlayWindows } from './shared';
 
 // Tarjeta de sección integrada 'titulo-seccion@0.1.0' (contrato
@@ -16,6 +17,10 @@ import { WordsReveal, overlayWindows } from './shared';
 // wipe de entrada (antes se cortaba en seco al acabar la Sequence, que es lo
 // que más se nota) y una micro-deriva de ±2 px durante el sostenimiento — una
 // tarjeta perfectamente quieta sobre b-roll en movimiento canta mucho.
+//
+// La esquina va cortada en chaflán y la regla lleva su nodo: son las dos marcas
+// que traen la retícula del canal a una pieza que se ve sobre el b-roll, donde
+// no cabe dibujar el entramado entero sin tapar el plano.
 //
 // brand-kit.ts recorta esta tarjeta a min(90, hueco, fin del cuerpo) y puede
 // dejarla en 20 frames: overlayWindows escala entrada y salida para que no se
@@ -39,7 +44,6 @@ export const TituloSeccion: React.FC<TitleCardProps> = ({ title, design }) => {
   const clip = sale > 0 ? `inset(0 0 0 ${sale * 100}%)` : `inset(0 ${(1 - entra) * 100}% 0 0)`;
 
   const espina = span(frame, 2, 12, Ease.outCubic);
-  const regla = span(frame, 6, 16, Ease.outBack);
   const deriva = Math.sin(frame / 34) * 2;
 
   if (title.trim() === '') return null;
@@ -66,14 +70,18 @@ export const TituloSeccion: React.FC<TitleCardProps> = ({ title, design }) => {
           overflow: 'hidden',
           maxWidth: 1200,
           ...glassSurface(d),
+          // chaflán en la esquina inferior derecha: la celda hexagonal del
+          // entramado, reducida a la marca mínima que cabe aquí
+          maskImage: 'linear-gradient(315deg, transparent 0 22px, #000 22px)',
+          WebkitMaskImage: 'linear-gradient(315deg, transparent 0 22px, #000 22px)',
         }}
       >
-        {/* espina de acento que crece desde arriba */}
+        {/* puntal de acento que crece desde arriba, como el del rótulo */}
         <div
           style={{
-            width: 5,
+            width: 6,
             flex: 'none',
-            background: d.accent,
+            background: `linear-gradient(180deg, ${d.accent}, ${hexToRgba(d.accent, 0.5)})`,
             transformOrigin: 'top',
             transform: `scaleY(${espina})`,
           }}
@@ -87,14 +95,7 @@ export const TituloSeccion: React.FC<TitleCardProps> = ({ title, design }) => {
             gap: 14,
           }}
         >
-          <div
-            style={{
-              width: mix(0, 260, Math.min(regla, 1.15)),
-              height: 4,
-              borderRadius: 2,
-              background: d.accent,
-            }}
-          />
+          <ReglaNodo design={d} from={6} ancho={260} alto={4} />
           <WordsReveal
             text={title}
             from={8}

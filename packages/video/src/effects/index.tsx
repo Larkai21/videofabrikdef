@@ -57,9 +57,24 @@ export function scrim(d: DesignTokens, opts?: { fuerza?: number }): React.CSSPro
       d.background,
       f,
     )} 38%, ${hexToRgba(d.background, f)} 62%, ${hexToRgba(d.background, 0)} 100%)`,
+    // El degradado solo se apagaba arriba y abajo, así que a los lados dejaba
+    // un CANTO RECTO: sobre el b-roll se veía un rectángulo oscuro pegado
+    // detrás de la cifra en vez de una sombra. Se nota más cuanto más brillante
+    // es el texto, y con el acento del canal se ve a la primera.
+    maskImage: 'linear-gradient(90deg, transparent 0%, #000 18%, #000 82%, transparent 100%)',
+    WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, #000 18%, #000 82%, transparent 100%)',
   };
 }
 
+/**
+ * La superficie de TODAS las tarjetas del vídeo: cristal oscuro sobre el
+ * b-roll, con un chaflán en la esquina inferior derecha.
+ *
+ * El chaflán no es decoración: es la celda hexagonal del entramado de la marca
+ * reducida a la marca más pequeña que cabe en una tarjeta de cuatro palabras.
+ * Está aquí y no en cada tarjeta porque, si vive en cada una, a la segunda
+ * revisión dejan de parecer del mismo canal.
+ */
 export function glassSurface(d: DesignTokens, opts?: { accent?: boolean }): React.CSSProperties {
   return {
     background: hexToRgba(d.background, 0.7),
@@ -67,6 +82,8 @@ export function glassSurface(d: DesignTokens, opts?: { accent?: boolean }): Reac
     WebkitBackdropFilter: 'blur(12px)',
     border: `1px solid ${opts?.accent ? hexToRgba(d.accent, 0.55) : hexToRgba(d.foreground, 0.16)}`,
     boxShadow: `0 24px 64px ${hexToRgba('#000000', 0.5)}, inset 0 1px 0 ${hexToRgba('#ffffff', 0.16)}`,
+    maskImage: 'linear-gradient(315deg, transparent 0 18px, #000 18px)',
+    WebkitMaskImage: 'linear-gradient(315deg, transparent 0 18px, #000 18px)',
   };
 }
 

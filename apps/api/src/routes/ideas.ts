@@ -44,9 +44,10 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
     // sin el parámetro se devuelve todo (lo usa el MCP)
     const query = req.query as { status?: string; channel?: string };
     const status = ideaStatusSchema.parse(query.status ?? 'new');
-    const channel = typeof query.channel === 'string' && query.channel.trim() !== ''
-      ? query.channel.trim()
-      : undefined;
+    const channel =
+      typeof query.channel === 'string' && query.channel.trim() !== ''
+        ? query.channel.trim()
+        : undefined;
     const rows = await ctx.db
       .select()
       .from(ideas)
@@ -130,6 +131,9 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
         brand: {
           // el render no lee BD: nombre, tokens de diseño, avatar y refs congelados
           channel_name: channel?.profile?.identity.name ?? channel?.name ?? '',
+          ...(channel?.profile?.identity.tagline
+            ? { tagline: channel.profile.identity.tagline }
+            : {}),
           design: channel?.profile?.brand_design ?? defaultDesign(),
           // avatar del canal (si lo hay): la ruta local se reescribe a /files en el render
           ...(channel?.avatarPath ? { avatar_path: channel.avatarPath } : {}),

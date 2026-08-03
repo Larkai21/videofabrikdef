@@ -155,6 +155,8 @@ export const storedSubvisualSchema = z.object({
 export const brandSchema = z.object({
   // nombre visible del canal para intro/outro/rótulos (el render no lee BD)
   channel_name: z.string().optional(),
+  // coletilla del canal, la segunda línea de su cabecera de YouTube
+  tagline: z.string().optional(),
   // tokens de diseño congelados (colores/tipografía); el render no lee BD
   design: designTokensSchema.optional(),
   // avatar/personaje del canal (URL /files ya reescrita en el render)

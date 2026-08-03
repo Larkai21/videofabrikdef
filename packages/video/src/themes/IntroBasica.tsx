@@ -1,80 +1,75 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import { defaultDesign, hexToRgba, type DesignTokens } from '@fabrica/shared';
-import { FONT_FAMILY } from '../fonts';
+import { FONT_FAMILY, displayText } from '../fonts';
 import { Ambience } from '../effects';
 import { Ease, clamp, mix, pulse, span } from '../effects/motion';
-import { hashSeed } from '../seed';
-import { AccentSweep, BrandMark, MeshBackdrop, WordsReveal, fitTitleSize } from './shared';
+import { Entramado, Losa, Nucleo, ReglaNodo, TextoMetal } from './kernel';
+import { fitTitleSize } from './shared';
 
 // Intro integrada 'intro-basica@0.1.0' (contrato introOutroPropsSchema).
 // Duración fija: INTRO_BASICA_DURATION_FRAMES (registry-gen.ts); la Sequence que
 // la monta mide eso y aquí se lee con useVideoConfig.
 //
-// REESCRITA EN SITIO (mismo ref): los maestros ya renderizados dejan de salir
-// idénticos, pero los vídeos en curso heredan la versión nueva sin migrar nada,
-// porque master.brand.components congela el ref y nadie lo re-sincroniza.
+// REESCRITA EN SITIO (mismo ref), como ya se hizo antes: los maestros ya
+// renderizados dejan de salir idénticos, pero los vídeos en curso heredan la
+// versión nueva sin migrar nada, porque master.brand.components congela el ref
+// y nadie lo re-sincroniza.
 //
-// Tres actos: entrada (0-24), sostenimiento (24-78) y salida (78-96). La entrada
-// se ancla a frames absolutos y la salida se deriva de durationInFrames, así la
-// pieza funciona igual si se cambia la duración.
+// La composición es la de la cabecera del canal, animada: entramado a los dos
+// lados, logotipo en metal en el centro y la coletilla debajo. Lo que cambia
+// respecto a una intro genérica es el ORDEN de los gestos —primero llega la
+// pieza, después se enciende— y que el núcleo es el avatar real del canal.
 //
-// `logo` es opcional en el contrato y hay canales sin avatar: en ese caso
-// BrandMark cae al monograma, y la malla de fondo es la capa que evita que la
-// intro se vea vacía. Determinismo (docs/render.md §4): solo useCurrentFrame +
-// matemática pura, fuente empaquetada, sin red, relojes ni animaciones CSS.
+// Tres actos: se dibuja (0-34), prende y se lee (34-78), entrega (78-96). La
+// entrada va a frames absolutos y la salida se deriva de durationInFrames, así
+// la pieza aguanta un cambio de duración.
+//
+// Determinismo (docs/render.md §4): solo useCurrentFrame + matemática pura,
+// fuente empaquetada, sin red, relojes ni animaciones CSS.
 
 export type IntroOutroProps = {
   channel_name: string;
   logo?: string;
+  tagline?: string;
   design?: DesignTokens;
 };
 
-export const IntroBasica: React.FC<IntroOutroProps> = ({ channel_name, logo, design }) => {
+export const IntroBasica: React.FC<IntroOutroProps> = ({ channel_name, logo, tagline, design }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
   const d = design ?? defaultDesign();
-  const seed = hashSeed(channel_name);
 
-  // salida global: fade + leve zoom para entregar el corte al cuerpo
+  // salida global: fade + leve acercamiento para entregar el corte al cuerpo
   const exitF = 12;
   const salida = span(frame, durationInFrames - exitF, exitF, Ease.outCubic);
   const exit = 1 - salida;
   const exitScale = mix(1, 1.06, salida);
 
-  // los dos focos de luz derivan despacio: el fondo nunca está del todo quieto
-  const driftX = Math.sin(frame / 48) * 3;
-  const driftY = Math.cos(frame / 62) * 3;
-  const bgIn = span(frame, 0, 10, Ease.outExpo);
-
-  // regla de acento bajo el nombre; el overshoot de outBack es lo que la hace
-  // sentirse editada y no interpolada
-  const barra = span(frame, 30, 16, Ease.outBack);
-  const barraW = mix(0, 320, clamp(barra, 0, 1.15));
-
   // destello de entrega justo antes del corte, para tapar el salto al b-roll
-  const flash = pulse(frame, durationInFrames - 16, durationInFrames - 4, 4, 6) * 0.18;
+  const flash = pulse(frame, durationInFrames - 16, durationInFrames - 4, 4, 6) * 0.16;
 
-  const titleSize = fitTitleSize(channel_name);
+  const titleSize = fitTitleSize(channel_name, 104, 52, 2050);
+  const bgIn = span(frame, 0, 12, Ease.outExpo);
 
   return (
     <AbsoluteFill
       style={{ backgroundColor: d.background, fontFamily: FONT_FAMILY, overflow: 'hidden' }}
     >
-      {/* dos focos de luz que derivan */}
-      <AbsoluteFill
-        style={{
-          opacity: bgIn * exit,
-          background: `radial-gradient(circle at ${30 + driftX}% ${35 + driftY}%, ${hexToRgba(d.accent, 0.18)}, transparent 55%), radial-gradient(circle at ${70 - driftX}% ${70 - driftY}%, ${hexToRgba(d.surface, 0.9)}, transparent 60%)`,
-        }}
-      />
-
-      <AbsoluteFill style={{ opacity: exit }}>
-        <MeshBackdrop design={d} seed={seed} from={0} intensity={0.55} />
+      <AbsoluteFill style={{ opacity: bgIn * exit }}>
+        <Losa design={d} />
       </AbsoluteFill>
 
-      <AbsoluteFill style={{ opacity: exit }}>
-        <AccentSweep design={d} from={6} dur={34} />
+      {/* El entramado flanquea el logotipo, como en la cabecera del canal: no va
+          detrás del texto, va a los lados. Girando en sentidos opuestos y muy
+          despacio, que es lo que lo mantiene vivo sin pedir atención. */}
+      <AbsoluteFill style={{ opacity: exit, alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'absolute', left: -140, top: '50%', marginTop: -300 }}>
+          <Entramado design={d} from={2} size={600} giro={0.045} />
+        </div>
+        <div style={{ position: 'absolute', right: -140, top: '50%', marginTop: -300 }}>
+          <Entramado design={d} from={5} size={600} giro={-0.045} />
+        </div>
       </AbsoluteFill>
 
       <AbsoluteFill
@@ -90,52 +85,60 @@ export const IntroBasica: React.FC<IntroOutroProps> = ({ channel_name, logo, des
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 30,
-            padding: '0 120px',
+            gap: 26,
+            padding: '0 140px',
           }}
         >
-          <BrandMark channelName={channel_name} logo={logo} design={d} size={200} from={4} />
+          <Nucleo logo={logo} design={d} size={230} from={4} />
 
-          <WordsReveal
-            text={channel_name}
-            from={16}
-            stagger={4}
+          {/* el barrido especular cruza el logotipo cuando ya se ha leído */}
+          <TextoMetal
+            texto={channel_name}
+            from={26}
             fontSize={titleSize}
             weight={800}
-            color={d.foreground}
+            barrido={48}
           />
 
-          <div
-            style={{
-              position: 'relative',
-              width: barraW,
-              height: 6,
-              borderRadius: 3,
-              background: d.accent,
-            }}
-          >
-            {/* punto que recorre la barra hasta asentarse en el extremo */}
+          {tagline !== undefined && tagline !== '' ? (
             <div
               style={{
-                position: 'absolute',
-                top: -2,
-                left: mix(0, Math.max(0, barraW - 10), span(frame, 32, 20, Ease.outCubic)),
-                width: 10,
-                height: 10,
-                borderRadius: '50%',
-                background: d.foreground,
-                boxShadow: `0 0 12px ${hexToRgba(d.accent, 0.9)}`,
-                opacity: clamp(barra, 0, 1),
+                display: 'flex',
+                alignItems: 'center',
+                gap: 22,
+                opacity: clamp(span(frame, 44, 18, Ease.outCubic), 0, 1),
               }}
-            />
-          </div>
+            >
+              {/* regla a los dos lados: con una sola, el grupo se centra como
+                  bloque y la coletilla queda descentrada respecto al logotipo */}
+              <ReglaNodo design={d} from={40} ancho={80} />
+              <span
+                style={{
+                  ...displayText(600),
+                  fontSize: Math.round(titleSize * 0.24),
+                  letterSpacing: '0.22em',
+                  textTransform: 'uppercase',
+                  color: d.muted,
+                }}
+              >
+                {tagline}
+              </span>
+              <div style={{ transform: 'scaleX(-1)' }}>
+                <ReglaNodo design={d} from={40} ancho={80} />
+              </div>
+            </div>
+          ) : (
+            <ReglaNodo design={d} from={40} ancho={320} alto={5} />
+          )}
         </div>
       </AbsoluteFill>
 
       {/* misma atmósfera que el cuerpo del vídeo: une la intro con el b-roll */}
       <Ambience design={d} />
 
-      {flash > 0 ? <AbsoluteFill style={{ background: d.accent, opacity: flash }} /> : null}
+      {flash > 0 ? (
+        <AbsoluteFill style={{ background: hexToRgba(d.accent, 0.9), opacity: flash }} />
+      ) : null}
     </AbsoluteFill>
   );
 };

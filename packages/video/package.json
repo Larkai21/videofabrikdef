@@ -15,7 +15,8 @@
     "studio": "remotion studio",
     "render:smoke": "tsx scripts/render-smoke.ts",
     "sfx": "tsx scripts/make-sfx.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "preview:marca": "tsx scripts/preview-marca.ts"
   },
   "dependencies": {
     "@fabrica/shared": "workspace:*",

@@ -20,31 +20,33 @@ export type ComponentType = z.infer<typeof componentTypeSchema>;
 
 const SEMVER_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
-export const componentManifestV1 = z.object({
-  version: z.literal('1'),
-  type: componentTypeSchema,
-  name: z
-    .string()
-    .regex(/^[a-z0-9][a-z0-9-]*$/, 'nombre en kebab-case, sin mayúsculas ni espacios'),
-  component_version: z.string().regex(SEMVER_RE, 'semver X.Y.Z'),
-  // ruta relativa dentro del zip al schema de props (export default z.object(...))
-  props_schema: z.string(),
-  // intro/outro/transition tienen duración fija en frames
-  fixed_duration_frames: z.number().int().positive().optional(),
-  // rutas relativas dentro del zip
-  assets: z.array(z.string()),
-}).superRefine((manifest, ctx) => {
-  // sin duración fija, una intro/outro/transition se validaría pero jamás se
-  // montaría (docs/contratos.md §3 la exige para estos tipos)
-  const requiresFixed = ['intro', 'outro', 'transition'].includes(manifest.type);
-  if (requiresFixed && manifest.fixed_duration_frames === undefined) {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['fixed_duration_frames'],
-      message: `los componentes de tipo ${manifest.type} exigen fixed_duration_frames`,
-    });
-  }
-});
+export const componentManifestV1 = z
+  .object({
+    version: z.literal('1'),
+    type: componentTypeSchema,
+    name: z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9-]*$/, 'nombre en kebab-case, sin mayúsculas ni espacios'),
+    component_version: z.string().regex(SEMVER_RE, 'semver X.Y.Z'),
+    // ruta relativa dentro del zip al schema de props (export default z.object(...))
+    props_schema: z.string(),
+    // intro/outro/transition tienen duración fija en frames
+    fixed_duration_frames: z.number().int().positive().optional(),
+    // rutas relativas dentro del zip
+    assets: z.array(z.string()),
+  })
+  .superRefine((manifest, ctx) => {
+    // sin duración fija, una intro/outro/transition se validaría pero jamás se
+    // montaría (docs/contratos.md §3 la exige para estos tipos)
+    const requiresFixed = ['intro', 'outro', 'transition'].includes(manifest.type);
+    if (requiresFixed && manifest.fixed_duration_frames === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['fixed_duration_frames'],
+        message: `los componentes de tipo ${manifest.type} exigen fixed_duration_frames`,
+      });
+    }
+  });
 
 export type ComponentManifest = z.infer<typeof componentManifestV1>;
 
@@ -72,11 +74,43 @@ export interface BuiltinKitComponent {
 
 export const BUILTIN_KIT_COMPONENTS: BuiltinKitComponent[] = [
   // deben COINCIDIR con INTRO/OUTRO_BASICA_DURATION_FRAMES de registry-gen.ts
-  { type: 'intro', ref: DEFAULT_INTRO_REF, name: 'intro-basica', version: '0.1.0', label: 'Intro cinematográfica', fixed_duration_frames: 96 },
-  { type: 'outro', ref: DEFAULT_OUTRO_REF, name: 'outro-basica', version: '0.1.0', label: 'Outro con CTA', fixed_duration_frames: 120 },
-  { type: 'title_card', ref: DEFAULT_TITLE_CARD_REF, name: 'titulo-seccion', version: '0.1.0', label: 'Tarjeta de sección' },
-  { type: 'lower_third', ref: DEFAULT_LOWER_THIRD_REF, name: 'rotulo-basico', version: '0.1.0', label: 'Rótulo inferior' },
-  { type: 'subtitle_theme', ref: DEFAULT_SUBTITLE_THEME_REF, name: 'subtitulos-basicos', version: '0.1.0', label: 'Subtítulos karaoke' },
+  {
+    type: 'intro',
+    ref: DEFAULT_INTRO_REF,
+    name: 'intro-basica',
+    version: '0.1.0',
+    label: 'Intro cinematográfica',
+    fixed_duration_frames: 96,
+  },
+  {
+    type: 'outro',
+    ref: DEFAULT_OUTRO_REF,
+    name: 'outro-basica',
+    version: '0.1.0',
+    label: 'Outro con CTA',
+    fixed_duration_frames: 120,
+  },
+  {
+    type: 'title_card',
+    ref: DEFAULT_TITLE_CARD_REF,
+    name: 'titulo-seccion',
+    version: '0.1.0',
+    label: 'Tarjeta de sección',
+  },
+  {
+    type: 'lower_third',
+    ref: DEFAULT_LOWER_THIRD_REF,
+    name: 'rotulo-basico',
+    version: '0.1.0',
+    label: 'Rótulo inferior',
+  },
+  {
+    type: 'subtitle_theme',
+    ref: DEFAULT_SUBTITLE_THEME_REF,
+    name: 'subtitulos-basicos',
+    version: '0.1.0',
+    label: 'Subtítulos karaoke',
+  },
 ];
 
 export function defaultBrand(): {
@@ -151,6 +185,10 @@ export const introOutroPropsSchema = z.object({
   channel_name: z.string(),
   // avatar/personaje del canal (URL); las animaciones lo muestran si existe
   logo: z.string().optional(),
+  // la coletilla de la cabecera del canal («Noticias de tecnología e IA»). Va
+  // en el contrato porque el nombre solo no es la identidad: la cabecera de
+  // YouTube lleva las dos líneas y una intro con una sola se ve a medias.
+  tagline: z.string().optional(),
   design: designTokensSchema.optional(),
 });
 

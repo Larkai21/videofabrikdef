@@ -6,10 +6,7 @@ import { bundle } from '@remotion/bundler';
 import { ensureBrowser, renderMedia, selectComposition } from '@remotion/renderer';
 import { makeDemoMaster } from '@fabrica/shared';
 import { webpackOverride } from '../src/bundling';
-import {
-  INTRO_BASICA_DURATION_FRAMES,
-  OUTRO_BASICA_DURATION_FRAMES,
-} from '../src/registry-gen';
+import { INTRO_BASICA_DURATION_FRAMES, OUTRO_BASICA_DURATION_FRAMES } from '../src/registry-gen';
 
 // Render de humo autónomo y OFFLINE (pnpm render:smoke): genera medios de
 // color con ffmpeg en public/demo/, monta el maestro de demo compartido y
@@ -30,9 +27,7 @@ function runFfmpeg(args: string[]): Promise<void> {
     });
     child.on('error', (err) => {
       reject(
-        new Error(
-          `No se pudo ejecutar ffmpeg (${err.message}). Instálalo para el render de humo.`,
-        ),
+        new Error(`No se pudo ejecutar ffmpeg (${err.message}). Instálalo para el render de humo.`),
       );
     });
     child.on('exit', (code) => {
@@ -50,25 +45,43 @@ async function ensureDemoMedia(): Promise<void> {
   const wav = path.join(demoDir, 'silence.wav');
   if (!existsSync(clip1)) {
     await runFfmpeg([
-      '-f', 'lavfi', '-i', 'color=c=0x1c3f6e:size=1920x1080:rate=30:duration=12',
-      '-c:v', 'libx264', '-pix_fmt', 'yuv420p', clip1,
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=0x1c3f6e:size=1920x1080:rate=30:duration=12',
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      clip1,
     ]);
   }
   if (!existsSync(clip2)) {
     await runFfmpeg([
-      '-f', 'lavfi', '-i', 'color=c=0x5e2a6e:size=1920x1080:rate=30:duration=12',
-      '-c:v', 'libx264', '-pix_fmt', 'yuv420p', clip2,
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=0x5e2a6e:size=1920x1080:rate=30:duration=12',
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      clip2,
     ]);
   }
   if (!existsSync(image)) {
     await runFfmpeg([
-      '-f', 'lavfi', '-i', 'color=c=0x2a6e4f:size=1920x1080', '-frames:v', '1', image,
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=0x2a6e4f:size=1920x1080',
+      '-frames:v',
+      '1',
+      image,
     ]);
   }
   if (!existsSync(wav)) {
-    await runFfmpeg([
-      '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-t', '43', wav,
-    ]);
+    await runFfmpeg(['-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-t', '43', wav]);
   }
 }
 
@@ -141,8 +154,11 @@ async function main(): Promise<void> {
   });
   masterKit.brand = {
     // sin channel_name el humo no ejercitaba el texto de intro ni outro: el
-    // monograma caía a «·» y «Señal y ruido» nunca se pintaba
+    // monograma caía a «·» y el nombre del canal nunca se pintaba
     channel_name: 'Canal de ejemplo',
+    // y sin coletilla no se ejercitaba la segunda línea de la intro, que es
+    // donde vive la mitad de la identidad del canal
+    tagline: 'Coletilla de ejemplo',
     components: {
       subtitle_theme: masterKit.brand?.components.subtitle_theme ?? 'subtitulos-basicos@0.1.0',
       intro: 'intro-basica@0.1.0',

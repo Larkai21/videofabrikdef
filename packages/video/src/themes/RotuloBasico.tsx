@@ -3,17 +3,18 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import { defaultDesign, hexToRgba, type DesignTokens } from '@fabrica/shared';
 import { displayText, FONT_FAMILY } from '../fonts';
 import { glassSurface } from '../effects';
-import { Ease, mix, span } from '../effects/motion';
+import { Ease, clamp, mix, span } from '../effects/motion';
 import { WordsReveal, overlayWindows } from './shared';
 
 // Rótulo inferior integrado 'rotulo-basico@0.1.0' (contrato lowerThirdPropsSchema).
 //
 // REESCRITA EN SITIO (mismo ref).
 //
-// El gesto es «pintar y revelar» en dos tiempos: primero un brochazo sólido de
-// acento que crece de izquierda a derecha, y después ese brochazo se retrae a
-// una espina mientras el panel de cristal aparece detrás. Es el movimiento de
-// rótulo broadcast reconocible, y cuesta unas quince líneas.
+// El gesto es «pintar y revelar» en dos tiempos: primero un brochazo sólido que
+// crece de izquierda a derecha, y después se retrae a un PUNTAL con su nodo
+// encendido mientras el panel de cristal aparece detrás. El puntal y el nodo son
+// la misma pieza que forma el entramado de la intro: el rótulo es una celda
+// suelta de esa retícula, no una barra de color cualquiera.
 //
 // bottom: 250 y no 150 — el bloque de subtítulos de dos líneas ocupa la franja
 // inferior y el rótulo anterior lo solapaba.
@@ -36,9 +37,11 @@ export const RotuloBasico: React.FC<LowerThirdProps> = ({ title, subtitle, desig
 
   // 1) brochazo: crece de 0 al ancho completo
   const brocha = span(frame, 0, 12, Ease.outExpo);
-  // 2) se retrae a una espina de 8 px mientras el panel se revela detrás
+  // 2) se retrae al puntal mientras el panel se revela detrás
   const retrae = span(frame, 10, 12, Ease.outCubic);
   const panel = span(frame, 10, 12, Ease.outCubic);
+  // 3) el nodo prende cuando el puntal ya está en su sitio
+  const nodo = span(frame, 20, 12, Ease.outExpo);
 
   const sub = span(frame, 20, 12, Ease.outCubic);
   const filete = span(frame, 26, 14, Ease.outCubic);
@@ -46,6 +49,8 @@ export const RotuloBasico: React.FC<LowerThirdProps> = ({ title, subtitle, desig
   const sale = span(frame, durationInFrames - exitF, exitF, Ease.inOutCubic);
 
   if (title.trim() === '') return null;
+
+  const anchoPuntal = 9;
 
   return (
     <AbsoluteFill style={{ fontFamily: FONT_FAMILY, pointerEvents: 'none' }}>
@@ -59,27 +64,48 @@ export const RotuloBasico: React.FC<LowerThirdProps> = ({ title, subtitle, desig
           display: 'flex',
           alignItems: 'stretch',
           borderRadius: 12,
-          overflow: 'hidden',
+          overflow: 'visible',
           // al salir barre hacia la izquierda, espejo de la entrada
-          clipPath: `inset(0 0 0 ${sale * 100}%)`,
-          boxShadow: `0 12px 34px ${hexToRgba('#000000', 0.4)}`,
+          clipPath: `inset(-40px 0 -40px ${sale * 100}%)`,
+          filter: `drop-shadow(0 12px 34px ${hexToRgba('#000000', 0.45)})`,
         }}
       >
-        {/* brochazo → espina: el ancho pasa de todo el bloque a 8 px */}
+        {/* brochazo → puntal, con el nodo de la retícula en la cabeza */}
         <div
           style={{
-            width: mix(8, 460, brocha * (1 - retrae)) + 8 * retrae,
+            position: 'relative',
+            width: mix(anchoPuntal, 460, brocha * (1 - retrae)) + anchoPuntal * retrae,
             flex: 'none',
-            background: d.accent,
+            borderRadius: '12px 0 0 12px',
+            background: `linear-gradient(180deg, ${d.accent}, ${hexToRgba(d.accent, 0.55)})`,
           }}
-        />
+        >
+          <div
+            style={{
+              position: 'absolute',
+              left: anchoPuntal / 2 - 7,
+              top: -7,
+              width: 14,
+              height: 14,
+              borderRadius: '50%',
+              background: d.accent,
+              boxShadow: `0 0 ${18 * nodo}px ${hexToRgba(d.accent, 0.95)}`,
+              opacity: clamp(nodo, 0, 1) * retrae,
+              transform: `scale(${mix(0.4, 1, nodo)})`,
+            }}
+          />
+        </div>
         <div
           style={{
-            padding: '14px 26px 16px 22px',
+            padding: '14px 30px 16px 24px',
             clipPath: `inset(0 ${(1 - panel) * 100}% 0 0)`,
             ...glassSurface(d),
             borderRadius: 0,
             border: 'none',
+            // muesca hexagonal en la esquina, como las celdas del entramado
+            borderTopRightRadius: 0,
+            maskImage: 'linear-gradient(225deg, transparent 0 14px, #000 14px)',
+            WebkitMaskImage: 'linear-gradient(225deg, transparent 0 14px, #000 14px)',
           }}
         >
           <WordsReveal
@@ -95,9 +121,11 @@ export const RotuloBasico: React.FC<LowerThirdProps> = ({ title, subtitle, desig
             <div
               style={{
                 ...displayText(500),
-                fontSize: 22,
+                fontSize: 21,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
                 color: d.muted,
-                marginTop: 4,
+                marginTop: 6,
                 opacity: sub,
                 transform: `translateY(${(1 - sub) * 8}px)`,
               }}

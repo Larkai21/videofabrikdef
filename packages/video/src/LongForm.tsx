@@ -384,6 +384,7 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
             kitProps={{
               channel_name: master.brand?.channel_name ?? '',
               design,
+              ...(master.brand?.tagline ? { tagline: master.brand.tagline } : {}),
               ...(avatar ? { logo: avatar } : {}),
             }}
           />
@@ -401,6 +402,7 @@ export const LongForm: React.FC<MasterVideoJson> = (master) => {
             kitProps={{
               channel_name: master.brand?.channel_name ?? '',
               design,
+              ...(master.brand?.tagline ? { tagline: master.brand.tagline } : {}),
               ...(avatar ? { logo: avatar } : {}),
             }}
           />

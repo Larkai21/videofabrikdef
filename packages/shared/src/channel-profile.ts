@@ -9,6 +9,10 @@ export const channelProfileV1 = z.object({
   version: z.literal('1'),
   identity: z.object({
     name: z.string().min(1),
+    // la segunda línea de la cabecera del canal («Noticias de tecnología e
+    // IA»). Es texto de marca, corto y fijo, no el posicionamiento: eso es
+    // contexto para el modelo y no cabe en pantalla.
+    tagline: z.string().max(48).optional(),
     positioning: z.string(),
     audience: z.string(),
     tone: z.array(z.string()),
