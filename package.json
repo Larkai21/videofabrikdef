@@ -24,7 +24,8 @@
     "reescala:biblioteca": "pnpm --filter @fabrica/workers reescala:biblioteca",
     "rerank": "pnpm --filter @fabrica/workers rerank",
     "previews:kit": "pnpm --filter @fabrica/workers previews:kit",
-    "probar:voz": "pnpm --filter @fabrica/workers probar:voz"
+    "probar:voz": "pnpm --filter @fabrica/workers probar:voz",
+    "metricas": "pnpm --filter @fabrica/workers metricas"
   },
   "devDependencies": {
     "prettier": "^3.9.6",

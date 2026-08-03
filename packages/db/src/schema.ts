@@ -18,6 +18,7 @@ import type {
   Fit,
   MasterVideoJson,
   StoredSubvisual,
+  VideoMetrics,
 } from '@fabrica/shared';
 import { EMBEDDING_DIMS } from '@fabrica/shared';
 
@@ -146,6 +147,9 @@ export const videos = pgTable(
     }>(),
     // maestro progresivo SIN beats: los beats viven en su tabla y se funden al leer
     master: jsonb('master').$type<MasterVideoJson>().notNull(),
+    // telemetría de rendimiento importada a mano del CSV de YouTube Studio
+    // (pnpm metricas <csv>); el MVP no toca la YouTube API
+    metrics: jsonb('metrics').$type<VideoMetrics>(),
     costsTotal: doublePrecision('costs_total').notNull().default(0),
     outputDir: text('output_dir'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

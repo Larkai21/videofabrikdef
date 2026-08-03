@@ -13,7 +13,8 @@
     "reescala:biblioteca": "tsx scripts/reescala-biblioteca.ts",
     "rerank": "tsx scripts/rerank.ts",
     "previews:kit": "tsx scripts/previews-kit.ts",
-    "probar:voz": "tsx scripts/probar-voz.ts"
+    "probar:voz": "tsx scripts/probar-voz.ts",
+    "metricas": "tsx scripts/metricas.ts"
   },
   "dependencies": {
     "@fabrica/db": "workspace:*",
