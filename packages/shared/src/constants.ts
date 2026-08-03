@@ -145,6 +145,13 @@ export const MIN_PLAYBACK_RATE = 0.75;
 // Audio
 export const LOUDNORM_LUFS = -16;
 export const LOUDNORM_TRUE_PEAK = -1.5;
+// Sonoridad del MP4 ENTREGADO, distinta de la de la voz: −16 es la referencia
+// de mezcla (la música se coloca a −22 dB respecto a ella); YouTube normaliza a
+// ~−14 y SOLO atenúa, así que entregar por debajo regala volumen frente a
+// cualquier otro vídeo de la plataforma. La ganancia se aplica al final del
+// render, limitada por el techo de pico real.
+export const DELIVERY_LUFS = -14;
+export const DELIVERY_TRUE_PEAK = -1.0;
 export const SCENE_GAP_MS = 300;
 export const SECTION_GAP_MS = 600;
 // pausa entre frases dentro de una escena (respiración; la síntesis pasa a ser

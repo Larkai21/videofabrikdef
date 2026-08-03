@@ -103,6 +103,18 @@ export async function measureLufs(
   filePath: string,
   logger?: { warn: (obj: object, msg: string) => void },
 ): Promise<number | null> {
+  return (await measureLoudness(filePath, logger))?.lufs ?? null;
+}
+
+/**
+ * Sonoridad integrada Y pico real del archivo (input_i / input_tp). El pico
+ * hace falta para la ganancia de entrega: subir a −14 LUFS solo es legal si el
+ * pico resultante no pasa del techo.
+ */
+export async function measureLoudness(
+  filePath: string,
+  logger?: { warn: (obj: object, msg: string) => void },
+): Promise<{ lufs: number; truePeakDb: number } | null> {
   const { stderr } = await execa('ffmpeg', [
     '-hide_banner',
     '-i',
@@ -120,9 +132,12 @@ export async function measureLufs(
   const jsonStart = stderr.lastIndexOf('{');
   if (jsonStart < 0) return fallback();
   try {
-    const parsed = JSON.parse(stderr.slice(jsonStart)) as { input_i?: string };
+    const parsed = JSON.parse(stderr.slice(jsonStart)) as { input_i?: string; input_tp?: string };
     const lufs = Number.parseFloat(parsed.input_i ?? '');
-    return Number.isFinite(lufs) ? lufs : fallback();
+    const truePeakDb = Number.parseFloat(parsed.input_tp ?? '');
+    return Number.isFinite(lufs) && Number.isFinite(truePeakDb)
+      ? { lufs, truePeakDb }
+      : fallback();
   } catch {
     return fallback();
   }
