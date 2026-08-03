@@ -13,6 +13,7 @@ import {
   QUEUES,
   scriptEditRequestSchema,
   titleChoiceRequestSchema,
+  normalizaLocucion,
   wordInText,
   type MasterVideoJson,
   type QueueName,
@@ -125,7 +126,9 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
         );
         master = {
           ...master,
-          beats: rows.map((r) => beatRowToBeat(r, r.assetId ? assetFiles.get(r.assetId) : undefined)),
+          beats: rows.map((r) =>
+            beatRowToBeat(r, r.assetId ? assetFiles.get(r.assetId) : undefined),
+          ),
         };
       }
     }
@@ -164,12 +167,23 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
     const edits = new Map(body.scenes.map((s) => [s.id, s.text]));
     let efectosCaidos = 0;
     const scenes = script.scenes.map((scene) => {
-      const text = edits.get(scene.id);
-      if (text === undefined || text === scene.text) return scene;
+      const crudo = edits.get(scene.id);
+      if (crudo === undefined || crudo === scene.text) return scene;
+      // La misma normalización de locución que aplica el worker al escribir el
+      // guion. Sin ella, editar a mano una escena que contenga «GPT-5.6»
+      // reintroduce la forma que el sintetizador lee mal, y el arreglo dura
+      // hasta la primera corrección humana.
+      const text = normalizaLocucion(crudo);
       // Al reescribir la escena, las intenciones visuales que apuntaban a una
       // palabra que ya no está se caen: si se conservaran, el efecto se anclaría
       // en el sitio equivocado o se perdería en silencio durante el montaje.
-      const kept = (scene.edit_intents ?? []).filter((i) => wordInText(text, i.trigger_word));
+      //
+      // El disparador se normaliza ANTES de comprobar si sigue estando. Si no,
+      // un «GPT-5.6» declarado dejaría de casar con el «GPT 5.6» normalizado y
+      // el efecto se caería por un cambio que nadie pidió.
+      const kept = (scene.edit_intents ?? [])
+        .map((i) => ({ ...i, trigger_word: normalizaLocucion(i.trigger_word) }))
+        .filter((i) => wordInText(text, i.trigger_word));
       efectosCaidos += (scene.edit_intents?.length ?? 0) - kept.length;
       const { edit_intents: _previas, ...resto } = scene;
       return {
@@ -195,7 +209,9 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
     const body = z.object({ remove: z.array(z.number().int().nonnegative()) }).parse(req.body);
     const video = await loadVideo(ctx, id);
     if (video.state !== 'assets') {
-      throw conflict(`Los efectos solo se editan durante la curación (estado actual: ${video.state})`);
+      throw conflict(
+        `Los efectos solo se editan durante la curación (estado actual: ${video.state})`,
+      );
     }
     const edits = video.master.edits ?? [];
     const remove = new Set(body.remove);
@@ -290,7 +306,9 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
     const body = rewriteBodySchema.parse(req.body);
     const video = await loadVideo(ctx, id);
     if (video.state !== 'guion_borrador') {
-      throw conflict(`La reescritura solo procede en guion_borrador (estado actual: ${video.state})`);
+      throw conflict(
+        `La reescritura solo procede en guion_borrador (estado actual: ${video.state})`,
+      );
     }
     // en fase de packaging no hay guion que reescribir: una reescritura aquí
     // saltaría la puerta del título y regeneraría el seo elegido
