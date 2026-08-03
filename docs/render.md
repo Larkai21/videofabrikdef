@@ -25,6 +25,25 @@ Estado: `render` → `hecho`.
 - Validación del zip = typecheck contra el contrato de props + render de humo (frames
   0–59) + captura de preview. Si falla, `status=failed` con el log visible en UI.
 
+### La marca en el render
+
+Las cuatro piezas integradas (intro, outro, tarjeta de sección, rótulo) montan
+la identidad de Kernel AI desde `packages/video/src/themes/kernel.tsx`: la Losa
+(el fondo de pizarra compuesto con degradados — el render no puede ir a buscar
+una textura), el Entramado (puntales hexagonales con nodos que prenden, el
+motivo de la cabecera del canal), TextoMetal (el degradado del logotipo real,
+con barrido especular) y el Núcleo (el avatar en su aro, solo si
+`avatar_en_video`). Los COLORES salen siempre de los `DesignTokens` del canal;
+kernel.tsx aporta la forma. Paleta medida con cuentagotas sobre el avatar y la
+cabecera reales, no inventada.
+
+La pantalla de Brand kit NO monta componentes en vivo: enseña mp4 renderizados.
+`pnpm previews:kit` los re-siembra con la marca real del canal (por canal, en
+`library/builtin-previews/<canal>/`); hay que ejecutarlo al cambiar tokens,
+avatar o nombre, y al tocar una pieza integrada — nada lo dispara solo.
+`pnpm --filter @fabrica/video preview:marca [--video]` saca fotogramas y clips
+de todas las piezas para juzgar un cambio de diseño mirándolo.
+
 ## 3. Ejecución SSR
 
 - `bundle()` de `packages/video` una vez por versión del paquete (hash del lockfile +
@@ -51,7 +70,11 @@ Estado: `render` → `hecho`.
 
 - `outputs/<videoId>/video.mp4`
 - 2 miniaturas: `renderStill` del componente `thumbnail_template` con los 2 conceptos
-  del paquete SEO → `thumb_a.jpg`, `thumb_b.jpg` (1280×720).
+  del paquete SEO → `thumb_a.jpg`, `thumb_b.jpg` (1280×720). Estado real: salen como
+  placa tipográfica (sin imagen de sujeto); la miniatura buena se hace A MANO con el
+  `thumbnail-brief.json` (brief + prompt EN) que se genera tras el render. La
+  generación por IA se evaluó (Gemini) y quedó bloqueada por cuota/facturación de la
+  clave — decisión vigente: manual.
 - `title.txt`, `description.txt` (con `{timestamps}` ya sustituidos por los tiempos
   reales de sección), `tags.txt`, y `master.json` congelado (auditoría/re-render).
 

@@ -170,7 +170,7 @@ mismo del scraper) son b-roll propio, gratuito y máximamente auténtico.
 - Stock: API de Pexels gratuita — 200 req/hora y 20.000/mes, ampliable gratis mostrando
   atribución; cachear búsquedas normalizadas (per_page hasta 80). Pixabay como segunda
   fuente.
-- Imagen: Flux Schnell en Fal.ai a 0,003 $/megapíxel, facturado redondeando hacia
+- Imagen: Flux Schnell (tier RETIRADO en jul-2026; precios conservados como histórico) en Fal.ai a 0,003 $/megapíxel, facturado redondeando hacia
   arriba → generar a ≤1 MP (1280×720) y confiar en Ken Burns; 1080p nativo ≈ 0,009 $/img.
 - Render: Remotion es gratuito para individuos y empresas de ≤3 personas, incluido uso
   comercial y renderizado server-side self-hosted. El plan Automators (0,01 $/render,
@@ -231,3 +231,5 @@ lectura bajo demanda.
   carriles y presupuesto de densidad, catálogo de micro-FX y catálogo de sonido.
 - `docs/render.md` — Remotion SSR: bundling, registry del brand kit, ajustes, salidas.
 - `docs/contratos.md` — esquemas versionados (perfil, JSON maestro, manifest) y API interna.
+- `docs/motion-graphics.md` — qué se hereda del catálogo de editor-youtube y por qué
+- `docs/calidad.md` — informes, bancos y conjuntos etiquetados (cómo se mide un cambio)

@@ -27,12 +27,12 @@ semilla, animación solo en función de `t`.
 parcial; al comparar con el original había derivado en tres cosas, y las tres
 importaban:
 
-| | estaba | está |
-|---|---|---|
-| `inCubic` | no existía | portada. Faltaba también en el original, que documenta el fallo: como `span` cae a LINEAL con la curva `undefined`, dos plantillas decían en su comentario que aceleraban mientras no aceleraban nada |
-| `outBack` | s = 1,70158, que se pasa un **10 %** | se conserva porque hay temas que la usan, y se añade `outBack6` (s = 1,2827), calibrada al **6 %** que fija su guía de marca |
-| `outElastic` | «para los pop de entrada» | marcada `@deprecated`: su primera regla PROHÍBE los rebotes elásticos y su propia prueba falla si una plantilla la invoca. Aquí no la usa nadie |
-| `ciclo`, `reposo` | no existían | portadas. Cada efecto se hacía su entrada y su salida a mano, que es de donde salen las divergencias de ritmo |
+|                   | estaba                               | está                                                                                                                                                                                                  |
+| ----------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `inCubic`         | no existía                           | portada. Faltaba también en el original, que documenta el fallo: como `span` cae a LINEAL con la curva `undefined`, dos plantillas decían en su comentario que aceleraban mientras no aceleraban nada |
+| `outBack`         | s = 1,70158, que se pasa un **10 %** | se conserva porque hay temas que la usan, y se añade `outBack6` (s = 1,2827), calibrada al **6 %** que fija su guía de marca                                                                          |
+| `outElastic`      | «para los pop de entrada»            | marcada `@deprecated`: su primera regla PROHÍBE los rebotes elásticos y su propia prueba falla si una plantilla la invoca. Aquí no la usa nadie                                                       |
+| `ciclo`, `reposo` | no existían                          | portadas. Cada efecto se hacía su entrada y su salida a mano, que es de donde salen las divergencias de ritmo                                                                                         |
 
 El test resuelve el sobrepaso **numéricamente** en cada pasada en vez de leer el
 número escrito, igual que hace `test_motor.py` allí: si alguien toca la
@@ -65,9 +65,13 @@ paleta del canal, porque un visto y un choque significan lo que significan.
 
 ## Qué queda por portar
 
-De las 58 plantillas, este pipeline solo puede emitir siete tipos de efecto
+De las 58 plantillas, este pipeline emite diez tipos de efecto: los siete originales
 (`text_callout`, `stat_card`, `stat_odometer`, `quote_card`, `kinetic_text`,
-`device_frame`, `annotation`). El resto del catálogo —`split-versus`,
-`compare-ab`, `timer-ring`, `stamp-banned`, `pasos-flow`, `terminal`…— no tiene
-quien lo pida: haría falta ampliar el contrato de intenciones declaradas
-(`edit-intents.ts`) para que el guion pudiera pedirlos.
+`device_frame`, `annotation`) más los TRES DE LISTA portados del catálogo el
+31-jul-2026 — `split_versus`, `pasos_flow` y `tendencia` — con intención
+declarable (`comparacion`/`pasos`/`tendencia` en `edit-intents.ts`, campo
+`items`). No son «más efectos»: son las tres formas en que un guion de este
+nicho se pone a ENUMERAR, y enumerar en voz alta es lo que produce los rótulos
+locutados que costó un sprint quitar. Si la lista se dibuja, la voz puede
+escribirse en prosa. El resto del catálogo —`compare-ab`, `timer-ring`,
+`stamp-banned`, `terminal`…— sigue sin quien lo pida.

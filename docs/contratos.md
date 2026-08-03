@@ -24,6 +24,21 @@ incompatible = major + migración.
 }
 ```
 
+Adenda (jul–ago 2026) a los contratos de abajo, que conservan la forma de S1:
+
+- `identity.tagline` (≤48 chars): la segunda línea de la cabecera del canal
+  («Noticias de tecnología e IA»). Viaja perfil → `master.brand.tagline` →
+  intro/outro. El nombre solo no es la identidad.
+- `settings.avatar_en_video` (default false): si el avatar del canal entra en
+  intro/outro. Apagado, la intro se monta como la cabecera de YouTube
+  (entramado + logotipo), que tampoco lleva el avatar dentro.
+- `master.edits[]`: la línea de edición (14 tipos en `EDIT_TYPES`, unión
+  discriminada `editSchema`, clasificación de render en `EDIT_RENDER_KIND`).
+  Las escenas llevan `edit_intents[]` (declaración del guionista) y el maestro
+  `scene_spans[]` (índice escena→audio para anclar disparadores).
+- Lectura tolerante: `editsFieldSchema` descarta el edit que no valida — un
+  maestro nuevo leído por código viejo pierde ese edit en silencio.
+
 ## 2. MasterVideoJson v1 (el JSON maestro)
 
 ```
@@ -48,6 +63,7 @@ incompatible = major + migración.
   costs: { total_usd, by_provider: {..} }
 }
 ```
+
 Reglas: `beats[].from_ms/to_ms` son la ley temporal (nadie los edita salvo el worker de
 voz). `candidates` se vacía al aprobar la timeline (quedan solo los elegidos).
 
@@ -64,6 +80,7 @@ voz). `candidates` se vacía al aprobar la timeline (quedan solo los elegidos).
   assets: string[]                   // rutas relativas dentro del zip
 }
 ```
+
 Contratos de props mínimos por tipo (los genera el prompt-contrato): `subtitle_theme`
 recibe `{cues, currentMs, safeArea}`; `lower_third` `{title, subtitle?, fromFrame}`;
 `thumbnail_template` `{text, image_path, variant}`; intro/outro `{channel_name, logo?}`.
@@ -87,20 +104,21 @@ POST /components                 multipart zip → validación (respuesta con lo
 POST /videos/:id/approve-timeline → encola render
 GET  /events                     SSE: progreso de jobs y render
 ```
+
 Convención: toda transición de estado pasa por la API (nunca un worker "decide" un gate);
 la API valida el estado origen antes de transicionar (máquina de estados en un solo sitio).
 
 ## 5. Ledger de costes — unidades por proveedor
 
-| provider | operation | units |
-|---|---|---|
-| openai | script/judge/refine | tokens in+out |
-| openai | vlm_caption | imágenes |
-| edge-tts | tts | caracteres (coste 0, se registra igual) |
-| elevenlabs | tts | caracteres |
-| pexels/pixabay | search | requests (coste 0; vigila límites) |
-| fal | flux_schnell | megapíxeles | (histórico: proveedor retirado en jul-2026) |
-| youtube | api | unidades de cuota (bootstrap/refresh) |
+| provider       | operation           | units                                   |
+| -------------- | ------------------- | --------------------------------------- |
+| openai         | script/judge/refine | tokens in+out                           |
+| openai         | vlm_caption         | imágenes                                |
+| edge-tts       | tts                 | caracteres (coste 0, se registra igual) |
+| elevenlabs     | tts                 | caracteres                              |
+| pexels/pixabay | search              | requests (coste 0; vigila límites)      |
+| fal            | flux_schnell        | megapíxeles                             | (histórico: proveedor retirado en jul-2026) |
+| youtube        | api                 | unidades de cuota (bootstrap/refresh)   |
 
 Regla: el worker escribe la fila ANTES de la llamada (estado pending) y la completa con
 la respuesta; así una caída a mitad no pierde el gasto.

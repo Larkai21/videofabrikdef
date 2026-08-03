@@ -3,28 +3,58 @@
 Componente: worker `tts:*`. Entrada: `guion_ok`. Salida: `audio/`, `cues[]` y `beats[]`
 en el JSON maestro. Estado resultante: `audio`.
 
-## 1. Proveedor MVP: edge-tts
+## 1. Proveedores: ElevenLabs (el canal) y edge-tts (la base)
 
-- Implementación: paquete npm `msedge-tts` (voces neuronales de Microsoft, gratis, sin
-  clave). Si diera problemas de estabilidad, fallback: sidecar Python `edge-tts` por CLI
-  (misma salida). La elección queda encapsulada tras una interfaz `TtsProvider`.
-- Voz por canal en `profile.voice` (p. ej. `es-ES-AlvaroNeural`, `en-US-AndrewNeural`),
-  `rate` ajustable (típico −5%…−12% para narración).
-- Síntesis POR ESCENA, no del texto completo: paraleliza, y permite re-sintetizar solo
-  la escena editada. Cada escena devuelve audio + eventos WordBoundary
-  `{offset_ms, duration_ms, text}` relativos a la escena.
-- Concatenación: ffmpeg concat con silencios insertados — 300 ms entre escenas de la
-  misma sección, 450 ms al cambiar de sección. Los offsets de palabra se re-basan al
-  tiempo global durante la concatenación.
+- La voz es POR CANAL en `profile.voice` (`provider`, `voice_id`, `rate`). El canal
+  real usa **ElevenLabs** con la voz Mario (`OjrdP8Z2fWjVyt0scrL7`, es-ES peninsular,
+  modelo `eleven_flash_v2_5`), endpoint `with-timestamps`: audio + alineación por
+  carácter que se convierte al mismo formato WordBoundary, así que el resto del
+  pipeline no distingue proveedores.
+- **edge-tts** (`msedge-tts`, gratis, sin clave) es el proveedor BASE: si el canal pide
+  ElevenLabs y falta `ELEVENLABS_API_KEY`, se degrada a edge con warn, y el `voice_id`
+  cae al fallback (`es-ES-AlvaroNeural`, rate −8 %) porque el id de una plataforma no
+  existe en la otra.
+- Síntesis POR ESCENA, no del texto completo: paraleliza y permite re-sintetizar solo
+  la escena editada. Pendiente (S13): síntesis por FRASE con pausa de respiración —
+  `PAUSE_SENTENCE_MS` existe como constante pero aún sin implementación.
+- Concatenación: ffmpeg concat con silencios insertados — `SCENE_GAP_MS` 300 ms entre
+  escenas de la misma sección, `SECTION_GAP_MS` 600 ms al cambiar de sección. Los
+  offsets de palabra se re-basan al tiempo global durante la concatenación.
+
+### Calibración de velocidad (WORDS_PER_MIN)
+
+La constante que convierte minutos pedidos en palabras del guion está MEDIDA, no
+estimada, y su historia importa: 150 (suposición; descalibraba la duración un 20 %) →
+125 (2.887 palabras / 23,25 min reales con edge-tts) → **139** (578 palabras / 4,16 min
+con Mario por `eleven_flash_v2_5`). Se re-mide al cambiar de voz o de modelo con
+`pnpm probar:voz <videoId> --voz <voiceId>`, que sintetiza un guion entero por el
+camino del worker y saca el wpm de los word timestamps. Los modelos NO son
+intercambiables: el mismo texto por `eleven_multilingual_v2` sale bastante más lento
+que por Flash, así que una muestra suelta de otro modelo no vale para calibrar.
+
+### Normalización de locución
+
+`normalizaLocucion` (shared/script-quality.ts) reescribe en el TEXTO DEL GUION las
+formas que el sintetizador lee mal — caso fundador: «GPT-5.6» se locutaba con una «s»
+donde va el 6, porque en español el punto es separador de millares y «5.6» llega
+ambiguo; quitar el guion lo arregla («GPT 5.6»). Va sobre el guion y no sobre el texto
+enviado al TTS porque subtítulos y anclajes salen de los word timestamps: una sola
+representación en toda la cadena. `normalizaEscena` normaliza texto y `trigger_word` a
+la vez (los dos o ninguno), y se aplica en la generación, el refinado y la edición
+humana por la API.
 
 ## 2. Post-procesado de audio
 
 - Normalización: ffmpeg `loudnorm` a −16 LUFS, techo −1,5 dBTP; salida WAV 44,1 kHz
-  (master) + AAC para preview.
-- Chequeos: silencio interno > 1,5 s → warning en UI; duración total vs objetivo ±15% →
-  warning (no bloquea).
-- Música de fondo: OPCIONAL y pospuesta a S2 — pista de `library/assets/music` por mood
-  del perfil a −22 dB bajo la voz. El mezclador queda previsto pero desactivado en MVP.
+  (master) + AAC para preview. Ojo: esto normaliza la VOZ; el MP4 final con SFX no se
+  vuelve a medir (pendiente S12: sonda post-render — el último salió a −16,9 LUFS
+  frente a la referencia ~−14 de YouTube).
+- Chequeos: silencio interno > 1,5 s → warning en UI; duración total vs objetivo ±15 %
+  → warning (no bloquea).
+- Música de fondo: el mezclador existe (pista por mood a −22 dB con ducking sidechain
+  6:1, tras el loudnorm, tolerancia de duración ±50 ms) pero está DESACTIVADO
+  (`settings.background_music=false`) y no hay ninguna pista `kind=music` en la
+  biblioteca. Activarlo sin pistas no hace nada.
 
 ## 3. Subtítulos (cues)
 
@@ -32,8 +62,8 @@ en el JSON maestro. Estado resultante: `audio`.
   máx 2 líneas por cue, cortar preferentemente en puntuación; duración de cue 1–5 s.
 - Formato en el maestro: `cues: [{from_ms, to_ms, text, words: [{from_ms, to_ms, w}]}]`
   — `words` habilita el modo karaoke del `subtitle_theme` sin recomputar nada.
-- No se usa Whisper en el MVP: los boundaries del TTS son la verdad. (Whisper/alineación
-  solo entraría si un proveedor futuro no diera timestamps.)
+- No se usa Whisper: los boundaries del TTS son la verdad (ElevenLabs los da por
+  carácter; edge por palabra).
 
 ## 4. Algoritmo de beats
 
@@ -49,11 +79,9 @@ Objetivo: huecos visuales de 8–15 s alineados con el sentido del texto.
 4. Salida: `beats: [{idx, from_ms, to_ms, text, visual_query, status: pending}]` con
    tiempos EXACTOS del audio final — son la ley para timeline y render.
 
-## 5. Ruta ElevenLabs (flag por canal)
+## 5. Coste
 
-- Endpoint `text-to-speech/{voice_id}/with-timestamps` (modelo Flash): devuelve audio +
-  alineación por carácter → se convierte al mismo formato de WordBoundary y el resto del
-  pipeline no cambia.
-- Coste: dentro del plan Creator para ~30 vídeos largos/mes; cada llamada registra
-  caracteres consumidos en `cost_ledger` aunque el coste marginal sea 0, para vigilar el
-  agotamiento del plan.
+ElevenLabs cobra por carácter (Flash a media tarifa): un vídeo de ~4,5 min son ~3.800
+caracteres ≈ 1.900 créditos; el plan Starter (39.424/mes) da para ~20 vídeos. Cada
+llamada registra los caracteres en `cost_ledger` aunque el coste marginal sea 0, para
+vigilar el agotamiento del plan.

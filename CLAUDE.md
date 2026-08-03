@@ -56,6 +56,10 @@ diseñar módulos nuevos o tomar decisiones de arquitectura.
   las cuatro piezas y de las tarjetas, con la marca real
 - `pnpm rerank` — banco de matching sobre los planos etiquetados
 - `pnpm calidad <videoId>` — informe de calidad + hoja de contactos
+- `pnpm guion …` — banco de guiones (iterar el prompt sin cola); ver docs/calidad.md
+- `pnpm probar:voz <videoId> --voz <id>` — mide wpm real y alineación de una voz TTS
+- `pnpm reescala:biblioteca [--dry]` — normaliza a 1080p los clips grandes ya ingeridos
+- `pnpm sfx` — regenera los 14 .wav sintetizados
 
 ## No hacer
 - No añadir edición de vídeo (trims, timeline arrastrable, capas).

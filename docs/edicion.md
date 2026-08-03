@@ -27,11 +27,16 @@ nunca se coloca mal.
 
 Tres capas, en prioridad decreciente:
 
-| capa | qué hace |
-|---|---|
-| declarada | lo que el guion pidió; gana siempre |
-| reglas | estructura (riser, whoosh de sección, zoom) + red de seguridad de cifras y dominios, esta última solo en beats sin declarar |
-| IA | rellena los beats que quedan huecos. **Si no hay huecos, no se llama**: cuanto mejor declara el guion, menos IA y menos coste |
+| capa      | qué hace                                                                                                                      |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| declarada | lo que el guion pidió; gana siempre                                                                                           |
+| reglas    | estructura (riser, whoosh de sección, zoom) + red de seguridad de cifras y dominios, esta última solo en beats sin declarar   |
+| IA        | rellena los beats que quedan huecos. **Si no hay huecos, no se llama**: cuanto mejor declara el guion, menos IA y menos coste |
+
+El texto de la escena y sus `trigger_word` llegan ya pasados por
+`normalizaEscena` (la forma que se LOCUTA, ver docs/voz-y-beats.md §1): texto y
+disparadores se normalizan A LA VEZ, o un «GPT-5.6» declarado dejaría de casar
+con el «GPT 5.6» que se oye.
 
 ### Garantías que se comprueban en código, no en el prompt
 
@@ -51,13 +56,13 @@ distribución de overlays por minuto era `[6, 3, 1]`.
 
 Ahora hay carriles con presupuesto propio, porque compiten por cosas distintas:
 
-| carril | tipos | compite por |
-|---|---|---|
-| tarjetas | stat_card, stat_odometer, quote_card, kinetic_text, device_frame, text_callout | el centro de la pantalla |
-| cámara | zoom_punch | nada: es un movimiento del b-roll |
-| acentos | annotation, micro_fx | la atención |
-| subrayado | keyword_highlight | el subtítulo |
-| sonido | sfx | el oído, y se deriva de los anteriores |
+| carril    | tipos                                                                                                               | compite por                            |
+| --------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| tarjetas  | stat_card, stat_odometer, quote_card, kinetic_text, device_frame, text_callout, split_versus, pasos_flow, tendencia | el centro de la pantalla               |
+| cámara    | zoom_punch                                                                                                          | nada: es un movimiento del b-roll      |
+| acentos   | annotation, micro_fx                                                                                                | la atención                            |
+| subrayado | keyword_highlight                                                                                                   | el subtítulo                           |
+| sonido    | sfx                                                                                                                 | el oído, y se deriva de los anteriores |
 
 `spreadByWindows` parte el vídeo en tantas ventanas como permita el presupuesto y
 elige un candidato por ventana. **La prioridad decide dentro de la ventana, nunca
@@ -90,15 +95,15 @@ Cada efecto entra una sola vez por vídeo, así que el techo estructural es el
 tamaño del catálogo por muy largo que sea el vídeo. Definidos en
 `packages/shared/src/micro-fx.ts` con sus disparadores ya normalizados.
 
-| id | dispara con | forma | sonido |
-|---|---|---|---|
-| tachado | jamás, nunca, error, mito, falso… | annotation `strike` | clic |
-| visto | correcto, funciona, resuelto, listo… | annotation `check` | notificacion |
-| diana | mira, fíjate, detalle, exacto… | annotation `circle` | tic |
-| subida | crece, multiplica, escala, exponencial… | micro_fx `spark_up` | aparicion |
-| caída | cae, desploma, hunde, pierde… | micro_fx `spark_down` | subgrave |
-| candado | truco, desbloquea, secreto, atajo… | micro_fx `padlock` | clic |
-| cronómetro | rápido, urgente, deprisa, enseguida… | micro_fx `timer` | tic |
+| id         | dispara con                             | forma                 | sonido       |
+| ---------- | --------------------------------------- | --------------------- | ------------ |
+| tachado    | jamás, nunca, error, mito, falso…       | annotation `strike`   | clic         |
+| visto      | correcto, funciona, resuelto, listo…    | annotation `check`    | notificacion |
+| diana      | mira, fíjate, detalle, exacto…          | annotation `circle`   | tic          |
+| subida     | crece, multiplica, escala, exponencial… | micro_fx `spark_up`   | aparicion    |
+| caída      | cae, desploma, hunde, pierde…           | micro_fx `spark_down` | subgrave     |
+| candado    | truco, desbloquea, secreto, atajo…      | micro_fx `padlock`    | clic         |
+| cronómetro | rápido, urgente, deprisa, enseguida…    | micro_fx `timer`      | tic          |
 
 **Podas deliberadas.** Una pieza de 50 s tolera disparadores frecuentes porque
 solo hay sitio para seis efectos. En ocho minutos, un disparador frecuente
@@ -114,24 +119,24 @@ Catorce efectos, todos **sintetizados** con expresiones de ffmpeg
 hay licencias que respetar ni ficheros que falten al clonar. Los `.wav` se
 commitean y un test cruza `SFX_NAMES` con el disco en los dos sentidos.
 
-| efecto | dura | para qué |
-|---|---|---|
-| riser | 1,00 s | arranque del cuerpo, sobre el gancho |
-| impacto | 0,50 s | aterrizaje del gancho, tras el riser |
-| whoosh | 0,60 s | cambio de sección; es el único que significa «cambiamos de tema» |
-| pop | 0,16 s | entrada de tarjeta o etiqueta |
-| ding | 0,45 s | cifra destacada |
-| deslizar | 0,32 s | entrada de la tarjeta de cita |
-| tecleo | 0,80 s | marco de navegador con texto tecleándose |
-| destello | 0,22 s | remate de la tipografía cinética |
-| clic | 0,09 s | acento de tachado o candado |
-| tic | 0,055 s | acento de foco o cronómetro |
-| aparicion | 0,45 s | acento de crecimiento |
-| subgrave | 1,20 s | acento de desplome |
-| notificacion | 0,42 s | acento de confirmación |
-| resolucion | 1,60 s | cierre del último beat |
+| efecto       | dura    | para qué                                                         |
+| ------------ | ------- | ---------------------------------------------------------------- |
+| riser        | 1,00 s  | arranque del cuerpo, sobre el gancho                             |
+| impacto      | 0,50 s  | aterrizaje del gancho, tras el riser                             |
+| whoosh       | 0,60 s  | cambio de sección; es el único que significa «cambiamos de tema» |
+| pop          | 0,16 s  | entrada de tarjeta o etiqueta                                    |
+| ding         | 0,45 s  | cifra destacada                                                  |
+| deslizar     | 0,32 s  | entrada de la tarjeta de cita                                    |
+| tecleo       | 0,80 s  | marco de navegador con texto tecleándose                         |
+| destello     | 0,22 s  | remate de la tipografía cinética                                 |
+| clic         | 0,09 s  | acento de tachado o candado                                      |
+| tic          | 0,055 s | acento de foco o cronómetro                                      |
+| aparicion    | 0,45 s  | acento de crecimiento                                            |
+| subgrave     | 1,20 s  | acento de desplome                                               |
+| notificacion | 0,42 s  | acento de confirmación                                           |
+| resolucion   | 1,60 s  | cierre del último beat                                           |
 
-**Por qué suenan así.** La altura baja con el tiempo, y la fase es la *integral*
+**Por qué suenan así.** La altura baja con el tiempo, y la fase es la _integral_
 de f(t), no `2π·f(t)·t` — esto último da el doble de pendiente y suena a dibujos
 animados. La envolvente es exponencial: la lineal suena sintética. El transitorio
 de ruido de los primeros milisegundos es lo que hace que un golpe se perciba
@@ -145,11 +150,21 @@ que **añadir un sonido sin nivelarlo no compila**. Tres familias sobre un mást
 a −16 LUFS: banda ancha baja (clic 0,30, tecleo 0,26), graves cortos medios
 (impacto 0,45, subgrave 0,42) y tonos agudos algo más altos (notificacion 0,44).
 
+### El sonido de la intro y de la outro
+
+Lo coloca la COMPOSICIÓN (`kitSfxCues` en brand-kit.ts), no las piezas del kit:
+el contrato de esos componentes es visual, los escribe una IA y no deben poder
+meter audio por su cuenta. Intro: riser durante todo el dibujado, impacto al
+28 % de la pieza (donde aterriza el logotipo — un golpe sobre pantalla vacía
+suena a error de montaje) y destello en la entrega. Outro: resolución + pop del
+«suscríbete». Motivo: las dos piezas salían en silencio DIGITAL (−91 dB
+medidos) porque el único audio del montaje era la voz.
+
 ### Por qué no hay cama ambiental
 
 El proyecto hermano lleva un `lecho` de ruido rosa a −42 dB para que el silencio
 digital no suene a fallo de audio. Aquí no hace falta y sería contraproducente:
-ya hay música bajo la voz con *ducking* sidechain a −22 dB, así que ese silencio
+ya hay música bajo la voz con _ducking_ sidechain a −22 dB, así que ese silencio
 no existe; es un bucle de 4 s y la capa de SFX es de disparos únicos; y entraría
 después del `loudnorm` a −16 LUFS, subiendo el suelo de ruido de un máster ya
 normalizado sin que la música lo agachara nunca.
@@ -166,3 +181,13 @@ pnpm --filter @fabrica/video exec tsx scripts/render-master.ts <master.json> <ou
 el reparto por minuto, sin regenerar guion ni voz. `render-master` renderiza un
 tramo de cualquier maestro, para ver dos montajes del mismo vídeo uno al lado del
 otro.
+
+## 6. Qué pinta cada tipo (EDIT_RENDER_KIND)
+
+`EDIT_RENDER_KIND` (`master-json.ts`) clasifica los 14 tipos en
+`overlay | anotacion | subtitulo | camara | audio` y es un `Record` COMPLETO:
+añadir un tipo a `EDIT_TYPES` sin clasificarlo no compila. Existe por un fallo
+concreto: `pasos_flow` llegó al máster con componente, rama de render y etiqueta
+en la timeline, y aun así no salió en pantalla, porque el render decidía qué
+montar con una lista de literales que nadie comprobaba. El render y el informe
+de calidad derivan de este Record en vez de mantener cada uno su lista.
