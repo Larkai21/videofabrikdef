@@ -137,6 +137,22 @@ export const channelSettingsSchema = z.object({
   brand_components: z
     .record(z.string(), z.string())
     .default({ subtitle_theme: 'subtitulos-basicos@0.1.0' }),
+  /**
+   * ¿El avatar del canal sale EN EL VÍDEO (intro y outro)?
+   *
+   * Apagado por defecto. Un avatar cuadrado con su propio fondo y su viñeta
+   * metido en un disco a pantalla completa canta: se lee como una foto pegada
+   * encima, no como parte de la pieza. Y no es un problema de tamaño ni de
+   * recorte, es que la imagen trae su propia iluminación y su propio encuadre.
+   *
+   * Mientras no esté resuelto, la intro se monta como la cabecera del canal —
+   * entramado, logotipo y coletilla—, que además es más fiel: la cabecera
+   * tampoco lleva el avatar dentro.
+   *
+   * No afecta a la miniatura ni a la cabecera del dashboard, que lo siguen
+   * usando y ahí sí funciona: es una imagen pequeña sobre fondo neutro.
+   */
+  avatar_en_video: z.boolean().default(false),
   // música de fondo: pista de library/assets/music por mood a −22 dB (S2)
   background_music: z.boolean().default(false),
   // programación de publicación (S3): al aprobar la subida, publishAt salta

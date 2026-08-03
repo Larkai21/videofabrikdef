@@ -21,7 +21,8 @@ import { WordsReveal } from './shared';
 // Math.sin continuo: un elemento que vibra sin parar se lee como barato, y uno
 // que late una vez por segundo se lee como una llamada a la acción.
 //
-// Sin `logo` el Núcleo cae al iris esquemático. Determinismo: solo
+// El avatar solo entra si el canal lo pide (`avatar_en_video`); sin él manda el
+// entramado, que ya converge al centro y hace de foco. Determinismo: solo
 // useCurrentFrame + matemática pura, sin relojes, red ni animaciones CSS.
 
 export const OutroBasica: React.FC<{
@@ -99,7 +100,9 @@ export const OutroBasica: React.FC<{
             textAlign: 'center',
           }}
         >
-          <Nucleo logo={logo} design={d} size={148} from={6} />
+          {logo !== undefined && logo !== '' ? (
+            <Nucleo logo={logo} design={d} size={148} from={6} />
+          ) : null}
 
           <WordsReveal
             text="Gracias por ver"

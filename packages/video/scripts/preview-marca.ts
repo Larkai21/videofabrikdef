@@ -2,8 +2,9 @@
  * Fotogramas sueltos de las cuatro piezas del brand kit con la MARCA REAL del
  * canal (tokens, avatar, nombre y coletilla), a out/marca/.
  *
- *   pnpm --filter @fabrica/video preview:marca            # fotogramas sueltos
- *   pnpm --filter @fabrica/video preview:marca --video    # y los clips
+ *   pnpm --filter @fabrica/video preview:marca                      # sin avatar
+ *   pnpm --filter @fabrica/video preview:marca demo/avatar.jpg      # con él
+ *   pnpm --filter @fabrica/video preview:marca --video              # y los clips
  *
  * Existe porque `render:smoke` usa el maestro de demo con la paleta por defecto:
  * comprueba que el montaje no se rompe, no que la marca se vea bien. Y una
@@ -33,7 +34,10 @@ const MARCA = {
 } as const;
 
 async function main(): Promise<void> {
-  const avatar = process.argv[2];
+  // el primer argumento que NO es una bandera es la ruta del avatar; sin este
+  // filtro `--video` se colaba como ruta de imagen y el render moría pidiendo
+  // http://localhost:3000/public/--video
+  const avatar = process.argv.slice(2).find((a) => !a.startsWith('--'));
   mkdirSync(outDir, { recursive: true });
   await ensureBrowser();
 

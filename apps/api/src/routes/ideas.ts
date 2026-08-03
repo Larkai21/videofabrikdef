@@ -135,8 +135,12 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
             ? { tagline: channel.profile.identity.tagline }
             : {}),
           design: channel?.profile?.brand_design ?? defaultDesign(),
-          // avatar del canal (si lo hay): la ruta local se reescribe a /files en el render
-          ...(channel?.avatarPath ? { avatar_path: channel.avatarPath } : {}),
+          // avatar del canal: solo si el ajuste lo permite. Apagado, la intro
+          // se monta como la cabecera del canal (entramado + logotipo), que es
+          // lo que hace el render cuando no le llega `logo`.
+          ...(channel?.avatarPath && settings.avatar_en_video
+            ? { avatar_path: channel.avatarPath }
+            : {}),
           components: { ...defaultBrand().components, ...settings.brand_components },
         },
       });

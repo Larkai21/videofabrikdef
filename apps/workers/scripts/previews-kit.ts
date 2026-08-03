@@ -21,6 +21,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { channels, createDb } from '@fabrica/db';
+import { channelSettingsSchema } from '@fabrica/shared';
 
 const CANAL_POR_DEFECTO = 'ch-ia-tech';
 
@@ -40,8 +41,11 @@ async function main(): Promise<void> {
   // 512 px porque la preview mide 1920 y el disco de marca ocupa ~230: de
   // sobra, y baja el JSON de props de 4 MB a unos 60 KB.
   const raiz = path.resolve(process.cwd(), '..', '..');
+  // el mismo interruptor que el vídeo: si el avatar no sale en la intro, la
+  // preview tampoco puede enseñarlo, o el humano elige con una imagen falsa
+  const ajustes = channelSettingsSchema.parse(canal.settings ?? {});
   let logo: string | undefined;
-  if (canal.avatarPath !== null) {
+  if (canal.avatarPath !== null && ajustes.avatar_en_video) {
     const dir = mkdtempSync(path.join(tmpdir(), 'avatar-'));
     const chico = path.join(dir, 'avatar.jpg');
     await execa('ffmpeg', [
@@ -72,7 +76,13 @@ async function main(): Promise<void> {
   const fichero = path.join(dir, 'marca.json');
   writeFileSync(fichero, JSON.stringify(marca, null, 2));
   console.log(
-    `Marca de ${marca.channel_name}${logo ? ` (avatar, ${Math.round(logo.length / 1024)} KB)` : ' (sin avatar)'}`,
+    `Marca de ${marca.channel_name}${
+      logo
+        ? ` (avatar, ${Math.round(logo.length / 1024)} KB)`
+        : ajustes.avatar_en_video
+          ? ' (sin avatar subido)'
+          : ' (avatar desactivado en vídeo)'
+    }`,
   );
 
   await client.end();
