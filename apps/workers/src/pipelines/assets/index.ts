@@ -1149,6 +1149,13 @@ interface IngestedAsset {
   absPath: string;
   kind: 'clip' | 'image';
   durationMs: number | null;
+  /**
+   * De dónde vino el PICK del matching ('library' si ganó la biblioteca; si
+   * no, el proveedor de stock aunque el fichero ya estuviera dentro). Se
+   * congela en el maestro para que el informe pueda agregar la cuota de
+   * biblioteca sin BD — chosen_origin no sobrevive a la congelación.
+   */
+  origin: 'library' | 'pexels' | 'pixabay' | 'wikimedia' | 'flux' | 'upload';
 }
 
 // Objetivo de ingesta: un plano concreto (beat o sub-plano) con su candidato
@@ -1186,6 +1193,7 @@ async function ingestChosen(
       absPath: path.isAbsolute(row.path) ? row.path : path.join(ctx.libraryDir, row.path),
       kind: toBeatKind(row.kind),
       durationMs: row.durationMs,
+      origin: 'library',
     };
   }
 
@@ -1212,6 +1220,9 @@ async function ingestChosen(
         : path.join(ctx.libraryDir, existing.path),
       kind: toBeatKind(existing.kind),
       durationMs: existing.durationMs,
+      // el pick vino de STOCK aunque el fichero ya estuviera dentro: para la
+      // cuota de biblioteca cuenta quién ganó el matching, no dónde vive
+      origin: chosen.provider,
     };
   }
 
@@ -1221,7 +1232,17 @@ async function ingestChosen(
   const destDir = path.join(ctx.libraryDir, 'assets', video.channelId, kind);
   await fs.mkdir(destDir, { recursive: true });
   const source = chosen.provider;
-  const license = chosen.provider === 'pexels' ? 'Pexels' : 'Pixabay';
+  // la licencia real del meta si el proveedor la trae (Wikimedia); si no, el
+  // nombre de la plataforma. El ternario binario anterior habría etiquetado
+  // 'Pixabay' a cualquier proveedor nuevo en silencio.
+  const license =
+    typeof meta.license === 'string' && meta.license !== ''
+      ? (meta.license as string)
+      : chosen.provider === 'pexels'
+        ? 'Pexels'
+        : chosen.provider === 'pixabay'
+          ? 'Pixabay'
+          : chosen.provider;
   const downloadUrl = meta.download_url as string | undefined;
   if (!downloadUrl) throw new Error(`El candidato ${chosen.ref} no tiene download_url`);
   const destPath = path.join(destDir, `${nanoid()}.${extFromUrl(downloadUrl, kind)}`);
@@ -1357,6 +1378,7 @@ async function insertIngestedAsset(
     absPath: destPath,
     kind,
     durationMs: kind === 'clip' ? probed.durationMs : null,
+    origin: chosen.provider,
   };
 }
 
@@ -1486,6 +1508,7 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
           ...(sv.keyword && parte.from_ms === sv.from_ms ? { keyword: sv.keyword } : {}),
           asset: {
             id: ingested.assetId,
+            origin: ingested.origin,
             path: ingested.absPath,
             kind: ingested.kind,
             fit: parte.fit,

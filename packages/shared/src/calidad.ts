@@ -60,6 +60,12 @@ export interface MetricasVideo {
   ratio_imagenes: number;
   /** el techo contra el que se produjo (broll_telemetry) — para que el CLI y el aviso no diverjan */
   techo_imagenes: number;
+  /**
+   * fracción del tiempo en pantalla que ganó la BIBLIOTECA frente al stock
+   * (la promesa del tier 0: coste y tiempo bajan con cada vídeo). null si el
+   * maestro es anterior a congelar `origin` — mejor sin dato que un 0 falso.
+   */
+  cuota_biblioteca: number | null;
   planos_repetidos: number;
   cadencia_planos_min: number;
   bucles: number;
@@ -251,6 +257,18 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
   );
   const msTramos = tramos.reduce((acc, t) => acc + t.ms, 0);
   const ratioImagenes = msTramos > 0 ? msImagenes / msTramos : 0;
+  // cuota de biblioteca por tiempo en pantalla, solo sobre los tramos que
+  // traen `origin` congelado (maestros nuevos): mide si el tier 0 crece
+  const conOrigen = tramos.filter(
+    (t) => (t.asset as { origin?: string } | null)?.origin !== undefined,
+  );
+  const msBiblioteca = conOrigen.reduce(
+    (acc, t) => acc + ((t.asset as { origin?: string }).origin === 'library' ? t.ms : 0),
+    0,
+  );
+  const msConOrigen = conOrigen.reduce((acc, t) => acc + t.ms, 0);
+  const cuotaBiblioteca = msConOrigen > 0 ? msBiblioteca / msConOrigen : null;
+
   // el techo con el que se PRODUJO este vídeo, no el que tenga el canal hoy
   const techoImagenes = master.broll_telemetry?.imagenes_max_pct ?? RATIO_IMAGENES_MAX;
   if (presentes.length > 0 && ratioImagenes > techoImagenes) {
@@ -422,6 +440,7 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
     imagenes,
     ratio_imagenes: ratioImagenes,
     techo_imagenes: techoImagenes,
+    cuota_biblioteca: cuotaBiblioteca,
     planos_repetidos: repetidos,
     cadencia_planos_min: cadencia,
     bucles,

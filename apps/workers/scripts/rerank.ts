@@ -19,6 +19,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pino from 'pino';
+import { IMAGE_HANDICAP } from '@fabrica/shared';
 import { createEmbeddings, cosineSimilarity } from '../src/providers/embeddings.js';
 
 interface Candidato {
@@ -110,6 +111,24 @@ const REGLAS: Record<string, Regla> = {
     };
     return [...f.candidatos].sort((a, b) => puntuar(b) - puntuar(a))[0]!.ref;
   },
+
+  // Barrido del handicap de biblioteca: ¿penalizar (o no) a la biblioteca en
+  // la ordenación cambia lo que el espectador rechazaría? Aproximación por
+  // coseno efectivo (sin banda/loopPenalty del selectPick real): sirve para la
+  // DIRECCIÓN del ajuste, no para el valor exacto.
+  ...Object.fromEntries(
+    [0, 0.03, 0.06].map((h) => [
+      `handicap:${h}`,
+      ((f: Fila): string =>
+        [...f.candidatos].sort(
+          (a, b) =>
+            b.cos -
+            (b.provider === 'library' ? h : 0) -
+            (b.kind === 'image' ? IMAGE_HANDICAP : 0) -
+            (a.cos - (a.provider === 'library' ? h : 0) - (a.kind === 'image' ? IMAGE_HANDICAP : 0)),
+        )[0]!.ref) as Regla,
+    ]),
+  ),
 };
 
 const LAMBDA = Number(process.env.LAMBDA ?? '0.7');

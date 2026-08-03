@@ -166,6 +166,11 @@ function imprimir(videoId: string, m: MetricasVideo): void {
   console.log(
     `  ${t(m.ratio_imagenes <= m.techo_imagenes)} metraje     ${m.planos - m.imagenes} clips / ${m.imagenes} imágenes fijas (${Math.round(m.ratio_imagenes * 100)} % del tiempo)`,
   );
+  if (m.cuota_biblioteca !== null) {
+    console.log(
+      `  · biblioteca  gana el ${Math.round(m.cuota_biblioteca * 100)} % del tiempo en pantalla (tier 0)`,
+    );
+  }
   console.log(
     `  ${t(m.planos_repetidos === 0)} repetición  ${m.planos_repetidos} planos repetidos · ${m.bucles} en bucle`,
   );

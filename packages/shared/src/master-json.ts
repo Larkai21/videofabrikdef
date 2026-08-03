@@ -94,6 +94,10 @@ export const beatAssetSchema = z.object({
   effect: z.string().optional(),
   path: z.string().optional(),
   kind: z.enum(['clip', 'image']).optional(),
+  // de dónde vino el PICK del matching, congelado en la ingesta: es lo que
+  // permite al informe de calidad agregar la cuota de biblioteca sin BD
+  // (chosen_origin vive en la tabla beats y no sobrevive a la congelación)
+  origin: z.enum(['library', 'pexels', 'pixabay', 'wikimedia', 'flux', 'upload']).optional(),
 });
 
 export const candidateSchema = z.object({
