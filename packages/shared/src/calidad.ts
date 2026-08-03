@@ -1,3 +1,4 @@
+import { displayCifra } from './cifras.js';
 import {
   CLIP_MAX_S,
   FX_CARD_GUARD_MS,
@@ -55,7 +56,10 @@ export interface MetricasVideo {
   desfase_mediana_s: number;
   // montaje
   imagenes: number;
+  /** fracción del tiempo en pantalla ocupada por imágenes fijas (no de planos) */
   ratio_imagenes: number;
+  /** el techo contra el que se produjo (broll_telemetry) — para que el CLI y el aviso no diverjan */
+  techo_imagenes: number;
   planos_repetidos: number;
   cadencia_planos_min: number;
   bucles: number;
@@ -234,17 +238,26 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
   // pequeño de un clip largo, y eso sí es información para elegir mejor.
   const desfasados = desfases.filter((d) => d > DESFASE_ENCUADRE_MS).length;
 
-  // proporción de imágenes fijas: es lo que separa «un vídeo editado» de «una
-  // presentación con voz en off»
+  // proporción de imágenes fijas POR TIEMPO EN PANTALLA: es lo que separa «un
+  // vídeo editado» de «una presentación con voz en off». Por tiempo y no por
+  // número de planos porque el troceo de la congelación parte una imagen larga
+  // en varios planos cortos: contar planos infla el ratio con cada parte (37 %
+  // por planos vs 20 % por tiempo en el mismo vídeo) y castigaría justo al
+  // mecanismo que hace las imágenes soportables.
   const imagenes = presentes.filter((a) => (a as { kind?: string }).kind === 'image').length;
-  const ratioImagenes = presentes.length > 0 ? imagenes / presentes.length : 0;
+  const msImagenes = tramos.reduce(
+    (acc, t) => acc + ((t.asset as { kind?: string } | null)?.kind === 'image' ? t.ms : 0),
+    0,
+  );
+  const msTramos = tramos.reduce((acc, t) => acc + t.ms, 0);
+  const ratioImagenes = msTramos > 0 ? msImagenes / msTramos : 0;
   // el techo con el que se PRODUJO este vídeo, no el que tenga el canal hoy
   const techoImagenes = master.broll_telemetry?.imagenes_max_pct ?? RATIO_IMAGENES_MAX;
   if (presentes.length > 0 && ratioImagenes > techoImagenes) {
     avisos.push({
       gravedad: ratioImagenes > 0.5 ? 'alta' : 'media',
       codigo: 'demasiada_imagen',
-      detalle: `${imagenes} de ${presentes.length} planos son imagen fija (${Math.round(ratioImagenes * 100)} %); por encima del ${Math.round(techoImagenes * 100)} % el vídeo se siente una presentación`,
+      detalle: `las imágenes fijas ocupan el ${Math.round(ratioImagenes * 100)} % del tiempo en pantalla (${imagenes} de ${presentes.length} planos); por encima del ${Math.round(techoImagenes * 100)} % el vídeo se siente una presentación`,
     });
   }
   // topes de duración por plano: los mismos contra los que se produce
@@ -357,7 +370,13 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
         at_ms: at,
       });
     }
-    if ((e.type === 'stat_card' || e.type === 'stat_odometer') && cifraSinSeparador(e.value)) {
+    // se audita el DISPLAY, no el value crudo: los dos componentes de stat
+    // pintan a través del formateador compartido, así que el aviso solo salta
+    // si lo que va a verse en pantalla de verdad carece de separador
+    if (
+      (e.type === 'stat_card' || e.type === 'stat_odometer') &&
+      cifraSinSeparador(displayCifra(e.value))
+    ) {
       avisos.push({
         gravedad: 'media',
         codigo: 'cifra_sin_separador',
@@ -402,6 +421,7 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
     desfase_mediana_s: mediana(desfases) / 1000,
     imagenes,
     ratio_imagenes: ratioImagenes,
+    techo_imagenes: techoImagenes,
     planos_repetidos: repetidos,
     cadencia_planos_min: cadencia,
     bucles,

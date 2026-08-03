@@ -198,6 +198,32 @@ describe('proporción de imágenes fijas', () => {
     expect(m.ratio_imagenes).toBeCloseTo(0.1);
     expect(m.avisos.some((a) => a.codigo === 'demasiada_imagen')).toBe(false);
   });
+
+  it('mide por tiempo en pantalla, no por planos: el troceo no infla el ratio', () => {
+    // una imagen de 9 s troceada en 3 re-encuadres + dos clips de 15 s:
+    // por planos serían 3 de 5 (60 %, aviso grave); por tiempo son 9 de 39 s
+    // (23 %), que es lo que el espectador siente — sin aviso
+    const img = { id: 'img', kind: 'image' as const, path: '/x/img.jpg' };
+    const m = analizarMaster(
+      master({
+        beats: [
+          beat(0, 0, 9_000, {
+            visuals: [0, 1, 2].map((k) => ({
+              from_ms: k * 3_000,
+              to_ms: (k + 1) * 3_000,
+              visual_query: 'q',
+              asset: { ...img, fit: { mode: 'kenburns' as const } },
+            })),
+          }),
+          beat(1, 9_000, 24_000, { asset: asset('c1', { mode: 'trim', offset_ms: 500 }) }),
+          beat(2, 24_000, 39_000, { asset: asset('c2', { mode: 'trim', offset_ms: 500 }) }),
+        ],
+      }),
+    );
+    expect(m.imagenes).toBe(3);
+    expect(m.ratio_imagenes).toBeCloseTo(9 / 39, 2);
+    expect(m.avisos.some((a) => a.codigo === 'demasiada_imagen')).toBe(false);
+  });
 });
 
 describe('topes de duración por plano', () => {
