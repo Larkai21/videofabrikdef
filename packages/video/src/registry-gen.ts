@@ -39,10 +39,13 @@ interface RegistryLine {
 // SOSTENER. Ojo, la intro desplaza audio, beats, subtítulos y efectos
 // (brand-kit.ts): cambiar este número mueve el montaje entero.
 export const INTRO_BASICA_DURATION_FRAMES = 96;
-// 120 = 4 s. La outro se monta detrás del cuerpo, así que no desplaza nada:
-// solo suma al total. 90 no daba para nombre + agradecimiento + CTA sin
-// atropellarse.
-export const OUTRO_BASICA_DURATION_FRAMES = 120;
+// 450 = 15 s. La outro se monta detrás del cuerpo, así que no desplaza nada:
+// solo suma al total. Era 120 (4 s) — suficiente para el cierre, pero las
+// pantallas finales de YouTube exigen 5–20 s de metraje donde apoyarse: a 15 s
+// el «suscríbete» hablado pasa a ser clicable y los dos marcos de la derecha
+// (OutroBasica, segundo acto) dan sitio a vídeo sugerido + lista sin tapar
+// nada. Espejo manual en packages/shared/src/component-manifest.ts.
+export const OUTRO_BASICA_DURATION_FRAMES = 450;
 
 // Componentes integrados en el repo (S1: tema de subtítulos; S3: intro/outro
 // básicos): siempre presentes en el registry.

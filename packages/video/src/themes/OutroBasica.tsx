@@ -17,6 +17,14 @@ import { WordsReveal } from './shared';
 // el núcleo prende; aquí el entramado se cierra sobre el centro y lo último que
 // queda encendido es el núcleo. Un canal se reconoce por cómo abre y cierra.
 //
+// A 15 s (las pantallas finales de YouTube exigen 5–20 s), la outro tiene dos
+// actos: el cierre de siempre en el centro, y a los ~3,5 s el bloque se desliza
+// al tercio izquierdo mientras a la derecha se dibujan DOS MARCOS 16:9 vacíos.
+// No son decoración: son las zonas donde YouTube Studio coloca los elementos
+// de pantalla final (vídeo sugerido y lista), así el «suscríbete» hablado pasa
+// a ser clicable sin que los elementos tapen nada. Los marcos se dejan quietos
+// y con poco contraste: encima va una miniatura real, no hay que competir.
+//
 // El latido de la píldora es un pulso por segundo con ping de radar, no un
 // Math.sin continuo: un elemento que vibra sin parar se lee como barato, y uno
 // que late una vez por segundo se lee como una llamada a la acción.
@@ -53,8 +61,16 @@ export const OutroBasica: React.FC<{
   const latido = ciclo >= 0 ? 1 + 0.05 * pulse(ciclo, 0, 30, 6, 10) : 1;
   const ping = ciclo >= 0 ? span(ciclo, 0, 30, Ease.outCubic) : 0;
 
-  // barra de cierre al pie: rima con la ProgressBar del cuerpo y dice «se acabó»
-  const cierre = span(frame, 44, 66, Ease.inOutCubic);
+  // segundo acto: el bloque central se hace a un lado y entran las zonas de
+  // pantalla final. El deslizamiento respira DESPUÉS del remate del cierre.
+  const desliza = span(frame, 104, 26, Ease.inOutCubic);
+  const marcoA = span(frame, 118, 16, Ease.outCubic);
+  const marcoB = span(frame, 130, 16, Ease.outCubic);
+  const rotulo = span(frame, 142, 14, Ease.outCubic);
+
+  // barra de cierre al pie: rima con la ProgressBar del cuerpo y dice «se
+  // acabó» — recorre la outro ENTERA, así también es la cuenta atrás real
+  const cierre = span(frame, 44, Math.max(1, durationInFrames - 44 - exitF), Ease.inOutCubic);
 
   return (
     <AbsoluteFill
@@ -75,8 +91,18 @@ export const OutroBasica: React.FC<{
           centro AGUJEREADO: aquí va detrás del texto, y sin el hueco los
           puntales cruzan «Gracias por ver» y el remate se lee peor que el
           b-roll que acaba de terminar. */}
-      <AbsoluteFill style={{ opacity: exit * 0.7, alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ transform: `scale(${mix(1.55, 1.05, recoge)})` }}>
+      <AbsoluteFill
+        style={{
+          opacity: exit * mix(0.7, 0.3, desliza),
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <div
+          style={{
+            transform: `translateX(${mix(0, -430, desliza)}px) scale(${mix(1.55, 1.05, recoge)})`,
+          }}
+        >
           <Entramado design={d} from={0} size={980} giro={-0.03} intensidad={0.75} hueco={0.34} />
         </div>
       </AbsoluteFill>
@@ -98,6 +124,7 @@ export const OutroBasica: React.FC<{
             gap: 18,
             padding: '0 120px',
             textAlign: 'center',
+            transform: `translateX(${mix(0, -430, desliza)}px) scale(${mix(1, 0.92, desliza)})`,
           }}
         >
           {logo !== undefined && logo !== '' ? (
@@ -150,6 +177,49 @@ export const OutroBasica: React.FC<{
             </div>
           </div>
         </div>
+      </AbsoluteFill>
+
+      {/* zonas de pantalla final: dos marcos 16:9 en la mitad derecha, dentro
+          del área segura. YouTube coloca encima el vídeo sugerido y la lista;
+          los marcos solo tienen que decir «esto va aquí» sin competir. */}
+      <AbsoluteFill style={{ opacity: exit }}>
+        <div
+          style={{
+            position: 'absolute',
+            left: 1120,
+            top: 116,
+            width: 640,
+            opacity: rotulo,
+            transform: `translateY(${(1 - rotulo) * 10}px)`,
+            fontSize: 24,
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            color: hexToRgba(d.foreground, 0.6),
+          }}
+        >
+          Más del canal
+        </div>
+        {[
+          { p: marcoA, top: 168 },
+          { p: marcoB, top: 566 },
+        ].map(({ p, top }, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              left: 1120,
+              top,
+              width: 640,
+              height: 360,
+              borderRadius: 18,
+              border: `2px solid ${hexToRgba(d.foreground, 0.22)}`,
+              background: hexToRgba(d.accent, 0.05),
+              boxShadow: `inset 0 0 40px ${hexToRgba(d.accent, 0.06)}`,
+              opacity: p,
+              transform: `scale(${mix(0.96, 1, p)})`,
+            }}
+          />
+        ))}
       </AbsoluteFill>
 
       {/* barra de cierre */}

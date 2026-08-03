@@ -14,7 +14,7 @@ export interface KitComponentMeta {
 
 export const componentMeta: Record<string, KitComponentMeta> = {
   'intro-basica@0.1.0': { type: 'intro', fixed_duration_frames: 96 },
-  'outro-basica@0.1.0': { type: 'outro', fixed_duration_frames: 120 },
+  'outro-basica@0.1.0': { type: 'outro', fixed_duration_frames: 450 },
   'rotulo-basico@0.1.0': { type: 'lower_third' },
   'rotulo-ejemplo@1.0.0': { type: 'lower_third' },
   'subtitulos-basicos@0.1.0': { type: 'subtitle_theme' },

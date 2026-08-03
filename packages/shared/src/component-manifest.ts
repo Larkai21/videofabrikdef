@@ -88,7 +88,9 @@ export const BUILTIN_KIT_COMPONENTS: BuiltinKitComponent[] = [
     name: 'outro-basica',
     version: '0.1.0',
     label: 'Outro con CTA',
-    fixed_duration_frames: 120,
+    // 15 s: espacio para las pantallas finales de YouTube (espejo de
+    // OUTRO_BASICA_DURATION_FRAMES en packages/video/src/registry-gen.ts)
+    fixed_duration_frames: 450,
   },
   {
     type: 'title_card',
