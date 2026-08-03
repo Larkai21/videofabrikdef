@@ -16,7 +16,13 @@ import {
   type Seo,
 } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
-import { countIntents, intentWarning, keepValidIntents, sweepIntents } from './intents.js';
+import {
+  countIntents,
+  intentWarning,
+  keepValidIntents,
+  normalizaEscena,
+  sweepIntents,
+} from './intents.js';
 import { ledgeredLlmJson } from './llm-call.js';
 import { refineSystem, researchSystem, researchUser, scriptSystem, scriptUser } from './prompts.js';
 import { downloadSources } from './research.js';
@@ -284,6 +290,12 @@ export async function handleScriptGenerate(
   // declaró tres» de «declaró doce y once se cayeron», que son problemas
   // distintos y se arreglan en sitios distintos
   const declaradas = countIntents(gen.script.scenes);
+
+  // La forma que se va a LOCUTAR, antes de nada más. Va aquí y no en el camino
+  // del TTS porque los subtítulos y el anclaje de los rótulos salen de los word
+  // timestamps: si el guion dice una cosa y se locuta otra, los disparadores
+  // dejan de casar con lo que se oye. Una sola representación en toda la cadena.
+  scenes = scenes.map(normalizaEscena);
 
   // portón de las intenciones visuales: lo que el guionista declaró mal se cae
   // aquí y se avisa, en vez de llegar al director y colocarse en el sitio

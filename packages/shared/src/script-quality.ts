@@ -752,3 +752,30 @@ export const BLOCKING_LINT_KINDS: readonly ScriptLintKind[] = [
 export function blockingSceneIds(hits: readonly ScriptLintHit[]): string[] {
   return [...new Set(hits.filter((h) => BLOCKING_LINT_KINDS.includes(h.kind)).map((h) => h.id))];
 }
+
+/**
+ * Normaliza el texto para que se LOCUTE bien sin dejar de leerse bien.
+ *
+ * Caso que la motiva: «GPT-5.6 Sol». La voz del canal lee ese guion y dice una
+ * «s» donde va el 6. La causa es el punto: en español es separador de MILLARES,
+ * no decimal, así que «5.6» le llega ambiguo al sintetizador. Comprobado con
+ * cuatro formas del mismo nombre, y quitar el guion lo arregla.
+ *
+ * Va sobre el TEXTO DEL GUION y no sobre el que se manda al TTS, aunque parezca
+ * más quirúrgico hacerlo ahí. Los subtítulos y el anclaje de los rótulos salen
+ * de los word timestamps del sintetizador: si el guion dice una cosa y se
+ * locuta otra, los `trigger_word` dejan de casar con lo que se oye y los
+ * efectos se descartan o caen donde no toca. Una sola representación en toda la
+ * cadena.
+ *
+ * Por eso tampoco vale escribirlo en fonética («GPT-cinco punto seis»), que
+ * suena bien: acabaría escrito así en pantalla.
+ *
+ * Estrecha a propósito: sigla en mayúsculas de dos o más letras, guion y
+ * dígito. No toca «e-commerce», «pre-2020» ni un rango como «2020-2024». En las
+ * 5.104 escenas del banco no aparece ni un caso, así que la regla no puede
+ * medirse contra el corpus: se mantiene mínima justo por eso.
+ */
+export function normalizaLocucion(texto: string): string {
+  return texto.replace(/\b([A-Z]{2,}[A-Za-z]*)-(?=\d)/g, '$1 ');
+}

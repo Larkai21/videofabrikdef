@@ -1,6 +1,7 @@
 import {
   DROP_LABELS,
   validateSceneIntents,
+  normalizaLocucion,
   wordInText,
   type EditIntent,
   type IntentDropReason,
@@ -67,4 +68,23 @@ export function keepValidIntents(
 ): { edit_intents?: EditIntent[] } {
   const kept = (scene.edit_intents ?? []).filter((i) => wordInText(nuevoTexto, i.trigger_word));
   return kept.length > 0 ? { edit_intents: kept } : {};
+}
+
+/**
+ * Deja la escena en la forma que se va a locutar: normaliza el texto y, con él,
+ * los `trigger_word`.
+ *
+ * Los dos a la vez o ninguno. Si se normaliza solo el texto, un disparador que
+ * dijera «GPT-5.6» deja de casar con el «GPT 5.6» que se oye, y el efecto se
+ * descarta sin que nadie lo pida.
+ */
+export function normalizaEscena<T extends { text: string; edit_intents?: EditIntent[] }>(
+  escena: T,
+): T {
+  const text = normalizaLocucion(escena.text);
+  const intents = escena.edit_intents?.map((i) => ({
+    ...i,
+    trigger_word: normalizaLocucion(i.trigger_word),
+  }));
+  return { ...escena, text, ...(intents ? { edit_intents: intents } : {}) };
 }

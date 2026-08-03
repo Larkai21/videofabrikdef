@@ -4,6 +4,7 @@ import {
   blockingSceneIds,
   escenasEncabezadas,
   lintScenes,
+  normalizaLocucion,
 } from './script-quality.js';
 
 const CLAIMS = [
@@ -360,5 +361,31 @@ describe('cierre_resumen', () => {
 
   it('se repara: entra en los avisos que disparan la reescritura', () => {
     expect(BLOCKING_LINT_KINDS).toContain('cierre_resumen');
+  });
+});
+
+describe('normalizaLocucion', () => {
+  it('quita el guion entre la sigla y la versión, que es lo que se leía mal', () => {
+    expect(normalizaLocucion('El modelo GPT-5.6 Sol atacó el sandbox.')).toBe(
+      'El modelo GPT 5.6 Sol atacó el sandbox.',
+    );
+    expect(normalizaLocucion('Usaron GLM-5.2 en sus servidores.')).toBe(
+      'Usaron GLM 5.2 en sus servidores.',
+    );
+  });
+
+  it('no toca un guion que sí es parte de la palabra', () => {
+    expect(normalizaLocucion('el mercado e-commerce creció')).toBe('el mercado e-commerce creció');
+    expect(normalizaLocucion('datos pre-2020 y post-2024')).toBe('datos pre-2020 y post-2024');
+    expect(normalizaLocucion('entre 2020-2024 subió')).toBe('entre 2020-2024 subió');
+  });
+
+  it('deja intacto lo que no lleva número detrás', () => {
+    expect(normalizaLocucion('el estándar HTTP-bis todavía')).toBe('el estándar HTTP-bis todavía');
+  });
+
+  it('es idempotente: pasarla dos veces no cambia nada', () => {
+    const una = normalizaLocucion('GPT-5.6 y GLM-5.2');
+    expect(normalizaLocucion(una)).toBe(una);
   });
 });

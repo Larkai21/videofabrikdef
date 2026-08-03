@@ -13,7 +13,7 @@ import {
 } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
 import { refineOutputSchema } from './generate.js';
-import { keepValidIntents } from './intents.js';
+import { keepValidIntents, normalizaEscena } from './intents.js';
 import { ledgeredLlmJson } from './llm-call.js';
 import { refineSystem } from './prompts.js';
 import { countWords } from './wordcount.js';
@@ -152,7 +152,10 @@ export async function handleScriptRefine(ctx: WorkerContext, data: ScriptRefineJ
   const scenes = script.scenes.map((s) => {
     const text = newTexts.get(s.id);
     // el parche puede haber quitado la palabra a la que apuntaba un efecto
-    return text && targetIds.has(s.id) ? { ...s, text, ...keepValidIntents(s, text) } : s;
+    if (!text || !targetIds.has(s.id)) return s;
+    // misma normalización que en la generación: el refinado también escribe
+    // texto que se va a locutar
+    return normalizaEscena({ ...s, text, ...keepValidIntents(s, text) });
   });
   // La revisión queda obsoleta: el guion que juzgó ya no es este. Marcarla evita
   // que el fingerprint la dé por buena, y que refine y judge se llamen en bucle.
