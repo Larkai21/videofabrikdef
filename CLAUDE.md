@@ -56,6 +56,8 @@ diseñar módulos nuevos o tomar decisiones de arquitectura.
   las cuatro piezas y de las tarjetas, con la marca real
 - `pnpm rerank` — banco de matching sobre los planos etiquetados
 - `pnpm calidad <videoId>` — informe de calidad + hoja de contactos
+- `pnpm metricas <csv>` — importa el CSV de YouTube Studio a videos.metrics
+  (casado por título; el MVP no toca la YouTube API)
 - `pnpm guion …` — banco de guiones (iterar el prompt sin cola); ver docs/calidad.md
 - `pnpm probar:voz <videoId> --voz <id>` — mide wpm real y alineación de una voz TTS
 - `pnpm reescala:biblioteca [--dry]` — normaliza a 1080p los clips grandes ya ingeridos

@@ -76,7 +76,20 @@ de todas las piezas para juzgar un cambio de diseño mirándolo.
   generación por IA se evaluó (Gemini) y quedó bloqueada por cuota/facturación de la
   clave — decisión vigente: manual.
 - `title.txt`, `description.txt` (con `{timestamps}` ya sustituidos por los tiempos
-  reales de sección), `tags.txt`, y `master.json` congelado (auditoría/re-render).
+  reales de sección Y la atribución de los insertos de Wikimedia si los hay),
+  `tags.txt`, y `master.json` congelado (auditoría/re-render).
+- `subtitles.srt` y `subtitles.vtt` desde los cues congelados, con el MISMO
+  desplazamiento de intro que los capítulos (los cues van en reloj de audio; el MP4
+  antepone la intro de marca).
+- El MP4 sale de Remotion con la voz a −16 LUFS y una pasada final lo sube a
+  `DELIVERY_LUFS` (−14): sonda `loudnorm` + ganancia plana `-c:v copy` limitada por
+  el pico real, con rename atómico. Idempotente — ver `render/loudness.ts`.
+- La outro dura 15 s (450 frames) con dos marcos 16:9 reservados a la derecha: son
+  las zonas donde YouTube Studio coloca las pantallas finales (vídeo sugerido +
+  lista), así el «suscríbete» hablado pasa a ser clicable.
+- Retry: el render se encola SIEMPRE con jobId `render-<videoId>` y el patrón
+  getJob→remove→add (BullMQ descarta en silencio un add sobre un jobId existente,
+  aunque el job esté muerto). Vale para la ingesta y para `POST /videos/:id/retry`.
 
 ## 6. Preview en dashboard (misma fuente de verdad)
 

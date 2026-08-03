@@ -46,6 +46,24 @@ con el «GPT 5.6» que se oye.
 - La `keyword` de un momento de la IA se pronuncia dentro de ese beat, o se descarta.
 - Al reescribir el texto de una escena (edición humana, parche del juez, ajuste de
   duración), las intenciones cuya palabra desapareció se caen solas.
+- Un `device` cuyo texto no parece dominio/URL/comando (`deviceTextValido`) se
+  DEGRADA a callout en las dos capas: el contenido vale, teclearlo en una barra de
+  direcciones no («emergency stop» pasó los filtros genéricos y salió tecleado).
+- Las cifras en pantalla salen del formateador compartido (`displayCifra`):
+  StatCard, StatOdometer y el aviso del informe usan la misma convención (punto de
+  millar desde 5 dígitos; los decimales no van al rodillo).
+
+### El inserto (`imagen_apoyo`)
+
+La intención `inserto` («aquí se nombra una entidad concreta») no monta el edit en
+el director: se ancla y queda pendiente de imagen. La resolución vive en el
+pipeline (`insertos.ts`): fotos de Pexels → Wikimedia Commons con filtro de
+licencias, veto del juez de planos (todos los insertos en una llamada), descarga
+solo del ganador y alta en `assets` con su licencia. El que vuelve entra como edit
+DECLARADO (+10 en el reparto) con `image_path` congelado y `credit` si la licencia
+exige atribución (se pinta pequeña en el recuadro y se agrega a description.txt).
+El que no vuelve se cae sin dejar hueco: mejor sin inserto que con el logo
+equivocado. La capa IA no puede proponer insertos, solo el guion.
 
 ## 2. Carriles y presupuesto
 
@@ -56,17 +74,30 @@ distribución de overlays por minuto era `[6, 3, 1]`.
 
 Ahora hay carriles con presupuesto propio, porque compiten por cosas distintas:
 
-| carril    | tipos                                                                                                               | compite por                            |
-| --------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| tarjetas  | stat_card, stat_odometer, quote_card, kinetic_text, device_frame, text_callout, split_versus, pasos_flow, tendencia | el centro de la pantalla               |
-| cámara    | zoom_punch                                                                                                          | nada: es un movimiento del b-roll      |
-| acentos   | annotation, micro_fx                                                                                                | la atención                            |
-| subrayado | keyword_highlight                                                                                                   | el subtítulo                           |
-| sonido    | sfx                                                                                                                 | el oído, y se deriva de los anteriores |
+| carril    | tipos                                                                                                                              | compite por                            |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| tarjetas  | stat_card, stat_odometer, quote_card, kinetic_text, device_frame, text_callout, split_versus, pasos_flow, tendencia, imagen_apoyo | el centro de la pantalla               |
+| cámara    | zoom_punch                                                                                                                          | nada: es un movimiento del b-roll      |
+| acentos   | annotation, micro_fx                                                                                                                | la atención                            |
+| subrayado | keyword_highlight                                                                                                                   | el subtítulo                           |
+| sonido    | sfx                                                                                                                                 | el oído, y se deriva de los anteriores |
+
+El carril de tarjetas se DERIVA del contrato (`EDIT_RENDER_KIND` overlay +
+`zoom_punch` explícito): un tipo nuevo clasificado overlay entra solo, sin lista
+que olvidar — antes eran dos listas de literales y divergían con el informe.
 
 `spreadByWindows` parte el vídeo en tantas ventanas como permita el presupuesto y
 elige un candidato por ventana. **La prioridad decide dentro de la ventana, nunca
 entre ventanas.** Es determinista: los empates se rompen por `from_ms`.
+
+La puerta de la capa IA (`hacenFaltaMasTarjetas`) cuenta DOBLE: presupuesto global
+Y cobertura por ventana. Solo el global dejaba escapar el caso medido (2 minutos
+mudos con el presupuesto cubierto): si el guion concentra sus tarjetas al
+principio, el total cumple pero hay tramos de ~50 s vacíos. En la cobertura solo
+cuentan overlays de verdad — un golpe de zoom no rescata a un minuto de sentirse
+vacío. La ventana es la del reparto (`durationMs/presupuesto`), no el minuto de
+reloj del informe: alinearlas se probó y se revirtió (los minutos mudos venían de
+falta de candidatos, no de la rejilla).
 
 Constantes en `packages/shared/src/constants.ts`, **por minuto** porque el vídeo
 es largo:
@@ -184,10 +215,12 @@ otro.
 
 ## 6. Qué pinta cada tipo (EDIT_RENDER_KIND)
 
-`EDIT_RENDER_KIND` (`master-json.ts`) clasifica los 14 tipos en
+`EDIT_RENDER_KIND` (`master-json.ts`) clasifica los 15 tipos en
 `overlay | anotacion | subtitulo | camara | audio` y es un `Record` COMPLETO:
 añadir un tipo a `EDIT_TYPES` sin clasificarlo no compila. Existe por un fallo
 concreto: `pasos_flow` llegó al máster con componente, rama de render y etiqueta
 en la timeline, y aun así no salió en pantalla, porque el render decidía qué
-montar con una lista de literales que nadie comprobaba. El render y el informe
-de calidad derivan de este Record en vez de mantener cada uno su lista.
+montar con una lista de literales que nadie comprobaba. El render, el informe
+de calidad Y el reparto del director derivan de este Record en vez de mantener
+cada uno su lista. `imagen_apoyo` (el inserto) es overlay: entra solo en
+overlayCues, suprime la tarjeta de sección solapada y cuenta como tarjeta.

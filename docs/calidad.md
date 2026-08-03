@@ -17,22 +17,33 @@ cambio de plano y de cada efecto) en `outputs/<id>/calidad/`.
 
 Avisos que emite (los umbrales, en el propio fichero):
 
-| aviso               | qué mide                                                     |
-| ------------------- | ------------------------------------------------------------ |
-| demasiada_imagen    | ratio de imágenes fijas > techo del canal (30 % por defecto) |
-| bucle               | planos con `fit.mode === 'loop'`                             |
-| repeticion          | el mismo asset más de una vez en el vídeo                    |
-| cadencia            | planos/min fuera de 6–16                                     |
-| minuto_mudo         | minutos de reloj sin ningún overlay visual                   |
-| palabra_vacia       | keyword_highlight sobre una palabra no resaltable            |
-| copy_largo          | copy de tarjeta > 4 palabras                                 |
-| cifra_sin_separador | value de 5+ dígitos sin separador de millares                |
-| ancla_perdida       | keyword no pronunciada en su tramo                           |
-| solape              | dos overlays a menos de FX_CARD_GUARD_MS                     |
+| aviso               | qué mide                                                        |
+| ------------------- | --------------------------------------------------------------- |
+| demasiada_imagen    | % del TIEMPO en pantalla en imagen fija > techo del canal (30 %) |
+| imagen_larga        | imagen fija > IMAGE_MAX_S en pantalla (el troceo no pudo)        |
+| plano_largo         | clip > CLIP_MAX_S sin corte                                      |
+| camara_lenta        | stretch por debajo de 0,95× (se percibe como error)              |
+| bucle               | planos con `fit.mode === 'loop'`                                 |
+| repeticion          | el mismo asset en más de un beat (el troceo intra-beat no cuenta) |
+| cadencia            | planos/min fuera de 6–16                                         |
+| minuto_mudo         | minutos de reloj sin ningún overlay visual                       |
+| palabra_vacia       | keyword_highlight sobre una palabra no resaltable                |
+| copy_largo          | copy de tarjeta > 4 palabras                                     |
+| cifra_sin_separador | el DISPLAY (displayCifra) con 5+ dígitos sin separador           |
+| ancla_perdida       | keyword no pronunciada en su tramo                               |
+| solape              | dos overlays a menos de FX_CARD_GUARD_MS                         |
+
+Dos métricas se miden por TIEMPO en pantalla y no por número de planos:
+`demasiada_imagen` (el troceo parte una imagen larga en varios planos cortos —
+contar planos inflaba el ratio, 37 % por planos vs 20 % por tiempo en el mismo
+vídeo) y `cuota_biblioteca` (qué parte del tiempo ganó el tier 0; sale del
+`origin` que la ingesta congela en cada plano, `null` en maestros anteriores).
 
 El informe audita contra lo que se pidió al producir (el techo de imágenes se
 congela en `broll_telemetry` antes de matchear): producir contra un objetivo y
-auditar contra otro haría el informe inútil.
+auditar contra otro haría el informe inútil. La misma regla vale para las
+cifras: el aviso audita `displayCifra(value)` —lo que el espectador ve—, no el
+value crudo, porque StatCard y StatOdometer formatean con ese mismo formateador.
 
 ## 2. `pnpm rerank` — el banco de matching
 
@@ -69,7 +80,17 @@ vaciar `cost_ledger` en la limpieza del 3-ago. Es de donde salen los precios por
 operación que se usan para decidir (guion ~0,007 $, captions ~0,0005 $/imagen,
 vídeo completo 0,06–0,20 $). La tabla viva se repuebla sola con cada vídeo.
 
-## 5. Qué medir antes de tocar
+## 5. `pnpm metricas <csv>` — la telemetría de rendimiento
+
+El MVP no toca la YouTube API (principio 7), así que el bucle de datos se
+cierra a mano: exportar el CSV de YouTube Studio (pestaña Contenido →
+Exportar) y correr `pnpm metricas <ruta.csv>`. Casa las filas por TÍTULO
+normalizado (cabeceras en español o inglés, coma decimal, duraciones m:ss) y
+guarda en `videos.metrics` las cinco cifras que cambian decisiones: vistas,
+impresiones, CTR, duración media y horas. Lo que no casa se lista en ambos
+sentidos; nunca se adivina.
+
+## 6. Qué medir antes de tocar
 
 - ¿El cambio toca la señal de matching? → `pnpm rerank` antes y después.
 - ¿Toca el prompt del guion? → `pnpm guion --diff` contra la variante base.

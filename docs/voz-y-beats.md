@@ -15,8 +15,12 @@ en el JSON maestro. Estado resultante: `audio`.
   cae al fallback (`es-ES-AlvaroNeural`, rate −8 %) porque el id de una plataforma no
   existe en la otra.
 - Síntesis POR ESCENA, no del texto completo: paraleliza y permite re-sintetizar solo
-  la escena editada. Pendiente (S13): síntesis por FRASE con pausa de respiración —
-  `PAUSE_SENTENCE_MS` existe como constante pero aún sin implementación.
+  la escena editada. Y DENTRO de cada escena, POR FRASE (`frases.ts`): cada frase se
+  sintetiza por separado (retry por frase) y se ensambla un audio por escena con
+  `PAUSE_SENTENCE_MS` (180 ms) de respiración entre frases, re-basando las palabras.
+  El contrato de salida es el mismo `TtsSceneAudio`, así que aguas abajo nada
+  distingue los dos caminos; los fragmentos muy cortos («¿Sí?») se pegan al anterior
+  para no forzar prosodia rara. Mismos caracteres facturados, más peticiones.
 - Concatenación: ffmpeg concat con silencios insertados — `SCENE_GAP_MS` 300 ms entre
   escenas de la misma sección, `SECTION_GAP_MS` 600 ms al cambiar de sección. Los
   offsets de palabra se re-basan al tiempo global durante la concatenación.
@@ -46,9 +50,11 @@ humana por la API.
 ## 2. Post-procesado de audio
 
 - Normalización: ffmpeg `loudnorm` a −16 LUFS, techo −1,5 dBTP; salida WAV 44,1 kHz
-  (master) + AAC para preview. Ojo: esto normaliza la VOZ; el MP4 final con SFX no se
-  vuelve a medir (pendiente S12: sonda post-render — el último salió a −16,9 LUFS
-  frente a la referencia ~−14 de YouTube).
+  (master) + AAC para preview. La voz a −16 es la REFERENCIA DE MEZCLA (la música va
+  −22 dB bajo ella); el MP4 entregado sube después a `DELIVERY_LUFS` (−14) con una
+  sonda post-render y ganancia plana limitada por el pico real
+  (`render/loudness.ts`) — YouTube normaliza a ~−14 y solo atenúa, así que entregar
+  por debajo regalaba volumen. Medido antes del arreglo: −16,9 LUFS, pico −4,4 dBTP.
 - Chequeos: silencio interno > 1,5 s → warning en UI; duración total vs objetivo ±15 %
   → warning (no bloquea).
 - Música de fondo: el mezclador existe (pista por mood a −22 dB con ducking sidechain

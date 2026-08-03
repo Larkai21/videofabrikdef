@@ -46,11 +46,24 @@ lleva la cuenta corriente del vídeo y exige clip en cuanto la siguiente imagen 
 del techo (`broll_imagenes_max_pct`, 30 % por defecto). En re-match parcial arranca
 contando lo ya bloqueado.
 
-**Tope de duración de imagen** (`IMAGE_MAX_S`, hoy 5 s): una imagen cuyo tramo lo
-supere se trocea en varias imágenes/clips distintos. Limitación conocida (plan S10):
-el troceo solo existe en el matching, y el juez de planos y la curación humana eligen
-DESPUÉS sin re-trocear — por eso pueden salir imágenes largas. El destino es aplicar
-el tope en la ingesta, que es el último escritor.
+**Topes de duración por plano** (`IMAGE_MAX_S` = 3 s, `CLIP_MAX_S` = 8 s), en DOS
+capas deliberadas:
+
+- **En el matching** (lo mejor cuando funciona): un tramo que supera el tope de su
+  clase se parte en sub-planos con contenido DISTINTO. Las partes de una imagen
+  larga exigen clip (amplificador imagen→planos); las de un clip largo dejan
+  decidir a la cascada con la cuota vigilando. Partir el hueco además elimina el
+  stretch: a ≤8 s casi cualquier clip cubre el tramo con recorte limpio (medido:
+  7 beats de 9-14 s salieron a 0,75-0,85× antes de esto).
+- **En la congelación** (la red que garantiza): el juez de planos y la curación
+  eligen DESPUÉS del matching y nadie re-trocea, así que `trocearCongelado`
+  (ingesta, el último escritor) parte lo que llegue entero — re-encuadres Ken Burns
+  «in» alternados para imágenes, jump cuts con el material sobrante para clips trim.
+  Sin contenido nuevo: la puerta de curación ya pasó.
+
+**`origin` congelado**: cada plano del maestro guarda de dónde vino el PICK
+(`library` o el proveedor). Es lo que permite al informe agregar la cuota de
+biblioteca sin BD; `chosen_origin` de la tabla beats no sobrevive a la congelación.
 
 ## 3. El juez de planos (`broll_rerank`)
 
@@ -89,6 +102,20 @@ la fila en memoria tiene los candidatos vacíos.
 - Imagen → Ken Burns: zoom 1,00→1,08 con pan; dirección por semilla.
 - El fit se guarda en el maestro y el render lo ejecuta tal cual. La ingesta lo
   recalcula SIEMPRE con la duración real del archivo descargado.
+
+## 5b. Insertos de referencia (Wikimedia Commons)
+
+Fuera de la cascada de b-roll vive el INSERTO: la intención `inserto` del guion
+(«aquí se nombra una entidad concreta — enseña una imagen real de ella») se
+resuelve en `insertos.ts` con su propia mini-cascada: fotos de Pexels (la
+búsqueda ya está cacheada) → **Wikimedia Commons** (`providers/wikimedia.ts`,
+sin clave; solo licencias PD/CC0/CC BY/CC BY-SA — NC y ND se descartan aunque
+la imagen fuera perfecta). Todos los insertos del vídeo pasan por UNA llamada
+del juez de planos, que puede decir «ninguno pega»: mejor sin inserto que con
+el logo equivocado. Solo se descarga el ganador, se registra en `assets` con su
+licencia real, y la atribución viaja en el edit `imagen_apoyo` hasta pintarse
+pequeña en el recuadro y agregarse a `description.txt`. La cuota de imágenes NO
+lo cuenta: es un overlay de edición, no un plano de b-roll.
 
 ## 6. Cuando no hay plano
 
