@@ -129,10 +129,20 @@ export async function measureLoudness(
     logger?.warn({ filePath }, 'No se pudo medir la sonoridad; el maestro queda sin dato');
     return null;
   };
+  // El bloque JSON de loudnorm NO es lo último que imprime ffmpeg: detrás van
+  // el resumen de muxing y la línea final de `frame=…`. Cortar solo por el
+  // último '{' y parsear hasta el final del stderr fallaba SIEMPRE — por eso
+  // `master.audio.lufs` era null en todos los vídeos producidos y la ganancia
+  // de entrega no llegaba a aplicarse nunca, en silencio. El objeto es plano
+  // (sin anidamiento), así que su cierre es el primer '}' que viene detrás.
   const jsonStart = stderr.lastIndexOf('{');
-  if (jsonStart < 0) return fallback();
+  const jsonEnd = jsonStart >= 0 ? stderr.indexOf('}', jsonStart) : -1;
+  if (jsonStart < 0 || jsonEnd < 0) return fallback();
   try {
-    const parsed = JSON.parse(stderr.slice(jsonStart)) as { input_i?: string; input_tp?: string };
+    const parsed = JSON.parse(stderr.slice(jsonStart, jsonEnd + 1)) as {
+      input_i?: string;
+      input_tp?: string;
+    };
     const lufs = Number.parseFloat(parsed.input_i ?? '');
     const truePeakDb = Number.parseFloat(parsed.input_tp ?? '');
     return Number.isFinite(lufs) && Number.isFinite(truePeakDb)
