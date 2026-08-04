@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { MasterVideoJson } from '@fabrica/shared';
+import { mapMasterMediaPaths, type MasterVideoJson } from '@fabrica/shared';
 
 // Reescritura de medios previa al render (estrategia (b), ver index.ts):
 // las rutas absolutas bajo LIBRARY_DIR/OUTPUTS_DIR se convierten en URLs de
@@ -35,25 +35,7 @@ export function rewriteMasterMedia(
   master: MasterVideoJson,
   opts: MediaRewriteOptions,
 ): MasterVideoJson {
-  const copy = structuredClone(master);
-  if (copy.audio) copy.audio.path = rewriteMediaPath(copy.audio.path, opts);
-  // avatar del canal congelado en la marca: intro/outro lo cargan como logo
-  if (copy.brand?.avatar_path) {
-    copy.brand.avatar_path = rewriteMediaPath(copy.brand.avatar_path, opts);
-  }
-  for (const beat of copy.beats ?? []) {
-    if (beat.asset?.path) beat.asset.path = rewriteMediaPath(beat.asset.path, opts);
-    // los sub-planos llevan su propio asset con ruta local: también se reescriben
-    for (const sv of beat.visuals ?? []) {
-      if (sv.asset?.path) sv.asset.path = rewriteMediaPath(sv.asset.path, opts);
-    }
-  }
-  // el inserto de referencia lleva su imagen congelada en el propio edit: sin
-  // esta reescritura la ruta absoluta llega a Chromium y la imagen no carga
-  for (const edit of copy.edits ?? []) {
-    if (edit.type === 'imagen_apoyo') {
-      edit.image_path = rewriteMediaPath(edit.image_path, opts);
-    }
-  }
-  return copy;
+  // la lista de campos de medio vive en shared: tres copias divergían y por
+  // ese hueco salieron beats en negro y un inserto sin imagen
+  return mapMasterMediaPaths(master, (p) => rewriteMediaPath(p, opts));
 }

@@ -1257,10 +1257,17 @@ export const ImagenApoyo: React.FC<{
         <Img
           src={toSrc(imagePath)}
           style={{
-            width: 560,
-            height: 315,
-            // contain, no cover: un logo o un producto recortado por los bordes
-            // se lee como error; la banda que sobre la tapa el fondo de cristal
+            // El recuadro se ADAPTA a la imagen en vez de imponerle un 16:9.
+            // La mayoría de retratos de Wikimedia Commons son verticales, y en
+            // un marco apaisado fijo la foto quedaba en una franja estrecha
+            // rodeada de cristal vacío: se lee como un fallo de montaje, no
+            // como un inserto. Con límites en los dos ejes, un retrato sale
+            // vertical, un logo apaisado sale ancho y ninguno se recorta.
+            maxWidth: 560,
+            maxHeight: 400,
+            width: 'auto',
+            height: 'auto',
+            display: 'block',
             objectFit: 'contain',
             borderRadius: 12,
             background: hexToRgba(d.background, 0.55),
@@ -1270,21 +1277,25 @@ export const ImagenApoyo: React.FC<{
           <div
             style={{
               display: 'flex',
-              alignItems: 'baseline',
-              justifyContent: 'space-between',
-              gap: 16,
+              flexDirection: 'column',
+              gap: 2,
               padding: '0 4px',
+              // el texto NO puede ensanchar el marco por encima de la foto: si
+              // lo hace, un retrato vertical queda flotando entre cristal
+              maxWidth: 560,
             }}
           >
             {text !== undefined && text.trim() !== '' ? (
               <div style={{ ...displayText(700), fontSize: 26, color: d.foreground }}>{text}</div>
-            ) : (
-              <div />
-            )}
+            ) : null}
             {credit !== undefined && credit !== '' ? (
-              // la atribución que exige la licencia: pequeña pero legible; la
-              // versión completa va también en description.txt
-              <div style={{ fontSize: 15, color: hexToRgba(d.foreground, 0.55) }}>{credit}</div>
+              // La atribución que exige la licencia: pequeña pero legible. En
+              // pantalla va la forma corta (autor + licencia); la completa,
+              // con «via Wikimedia Commons», ya viaja en description.txt, que
+              // es donde la licencia pide que conste.
+              <div style={{ fontSize: 14, color: hexToRgba(d.foreground, 0.5) }}>
+                {credit.replace(/,\s*(via|from)\s.*$/i, '')}
+              </div>
             ) : null}
           </div>
         ) : null}

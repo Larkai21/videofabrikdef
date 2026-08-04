@@ -14,7 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bundle } from '@remotion/bundler';
 import { ensureBrowser, renderMedia, selectComposition } from '@remotion/renderer';
-import { masterVideoJsonV1, type MasterVideoJson } from '@fabrica/shared';
+import { mapMasterMediaPaths, masterVideoJsonV1, type MasterVideoJson } from '@fabrica/shared';
 import { webpackOverride } from '../src/bundling';
 
 const [masterArg, outArg, desdeStr, hastaStr] = process.argv.slice(2);
@@ -49,19 +49,9 @@ function servible(p: string): string {
 }
 
 function conMediosServibles(m: MasterVideoJson): MasterVideoJson {
-  const c = structuredClone(m);
-  if (c.audio) c.audio.path = servible(c.audio.path);
-  const avatar = c.brand?.avatar_path;
-  if (c.brand && typeof avatar === 'string') c.brand.avatar_path = servible(avatar);
-  for (const b of c.beats ?? []) {
-    const ba = b.asset;
-    if (ba && typeof ba.path === 'string') ba.path = servible(ba.path);
-    for (const v of b.visuals ?? []) {
-      const va = v.asset;
-      if (va && typeof va.path === 'string') va.path = servible(va.path);
-    }
-  }
-  return c;
+  // la lista de campos de medio vive en shared (mapMasterMediaPaths): aquí
+  // faltaba `edits[].image_path` y el inserto se renderizaba vacío
+  return mapMasterMediaPaths(m, servible);
 }
 
 async function main(): Promise<void> {

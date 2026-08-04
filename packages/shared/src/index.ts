@@ -8,6 +8,7 @@ export * from './micro-fx.js';
 export * from './stock-ref.js';
 export * from './calidad.js';
 export * from './cifras.js';
+export * from './media-paths.js';
 export * from './metrics.js';
 export * from './subtitles.js';
 export * from './script-quality.js';
