@@ -80,8 +80,16 @@ function findCol(headers: string[], keys: string[]): number {
 
 function num(raw: string | undefined): number | undefined {
   if (raw === undefined || raw.trim() === '') return undefined;
-  // el export español usa coma decimal y puede agrupar millares con punto
-  const limpio = raw.trim().replace(/\./g, '').replace(',', '.');
+  const t = raw.trim();
+  // Dos convenciones posibles según el locale del export:
+  //   español: coma decimal, punto de millar («1.234,5»)
+  //   inglés:  punto decimal, coma de millar («1,234.5»)
+  // Un único punto con 1-2 dígitos detrás y sin coma es DECIMAL inglés
+  // («6.5» era 65 con la regla anterior, que trataba todo punto como millar).
+  const limpio =
+    /^\d+\.\d{1,2}$/.test(t) && !t.includes(',')
+      ? t
+      : t.replace(/\./g, '').replace(',', '.');
   const n = Number.parseFloat(limpio);
   return Number.isFinite(n) ? n : undefined;
 }
