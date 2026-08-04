@@ -46,10 +46,18 @@ export function masterWithFileUrls(master: MasterVideoJson): MasterVideoJson {
     master.brand?.avatar_path !== undefined
       ? { ...master.brand, avatar_path: toFileUrl(master.brand.avatar_path) }
       : master.brand;
+  // el inserto lleva su imagen congelada en el propio edit: sin esta
+  // reescritura, la preview de curación mostraba el recuadro degradado a nada
+  // (ImagenApoyo descarta rutas absolutas no cargables) y el humano aprobaba
+  // una timeline sin ver el inserto que sí saldría en el MP4
+  const edits = master.edits?.map((e) =>
+    e.type === 'imagen_apoyo' ? { ...e, image_path: toFileUrl(e.image_path) } : e,
+  );
   return {
     ...master,
     ...(audio ? { audio } : {}),
     ...(beats ? { beats } : {}),
     ...(brand ? { brand } : {}),
+    ...(edits ? { edits } : {}),
   };
 }

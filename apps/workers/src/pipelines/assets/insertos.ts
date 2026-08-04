@@ -163,11 +163,23 @@ export async function resolverInsertos(
   const conCandidatos = planos.filter((p) => p.candidates.length > 0);
   if (conCandidatos.length === 0) return out;
 
+  // minCandidatos: 1 — el juez también veta candidatos únicos; con el mínimo
+  // por defecto (2), un inserto con una sola foto se saltaba el veto entero
   const veredicto = await rerankBeats(ctx, {
     videoId: video.id,
     channelId: video.channelId,
     planos: conCandidatos,
+    minCandidatos: 1,
   });
+  if (!veredicto.juzgado) {
+    // el b-roll sin juez sigue con su orden (es mejora, no puerta); el
+    // inserto sin juez NO pasa: su única garantía es el veto
+    ctx.logger.warn(
+      { videoId: video.id, insertos: pendientes.length },
+      'El juez de planos no llegó a mirar los insertos; se descartan todos',
+    );
+    return out;
+  }
 
   for (let i = 0; i < pendientes.length; i += 1) {
     const pendiente = pendientes[i]!;

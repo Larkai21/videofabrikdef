@@ -65,6 +65,13 @@ export interface RerankResult {
   orden: Map<string, BeatCandidate[]>;
   /** sub-planos en los que el juez dice que NINGÚN candidato pega */
   sinPlano: Set<string>;
+  /**
+   * false si la llamada LLM falló o no había nada que juzgar: «el juez no
+   * vetó nada» y «el juez no llegó a mirar» son cosas distintas — el b-roll
+   * sigue con su orden en ambos casos, pero un inserto SIN juez no debe
+   * colarse por la puerta de atrás.
+   */
+  juzgado: boolean;
 }
 
 export function claveDe(p: { beatIdx: number; vIdx: number }): string {
@@ -140,7 +147,7 @@ export function aplicarVeredicto(
     if (elegido === plano.candidates[0]) continue; // ya estaba primero
     orden.set(clave, [elegido, ...plano.candidates.filter((c) => c !== elegido)]);
   }
-  return { orden, sinPlano };
+  return { orden, sinPlano, juzgado: true };
 }
 
 /**
@@ -150,10 +157,22 @@ export function aplicarVeredicto(
  */
 export async function rerankBeats(
   ctx: WorkerContext,
-  params: { videoId: string; channelId: string; planos: RerankPlano[] },
+  params: {
+    videoId: string;
+    channelId: string;
+    planos: RerankPlano[];
+    /**
+     * Con 2+ candidatos el juez elige; con el mínimo en 1 (insertos) además
+     * VETA candidatos únicos — sin esto, un inserto con una sola foto se
+     * saltaba el veto entero, que es justo la garantía que lo sostiene.
+     */
+    minCandidatos?: number;
+  },
 ): Promise<RerankResult> {
-  const vacio: RerankResult = { orden: new Map(), sinPlano: new Set() };
-  const conCandidatos = params.planos.filter((p) => p.candidates.length >= 2);
+  const vacio: RerankResult = { orden: new Map(), sinPlano: new Set(), juzgado: false };
+  const conCandidatos = params.planos.filter(
+    (p) => p.candidates.length >= (params.minCandidatos ?? 2),
+  );
   if (conCandidatos.length === 0) return vacio;
 
   const { system, user } = buildRerankPrompt(conCandidatos);

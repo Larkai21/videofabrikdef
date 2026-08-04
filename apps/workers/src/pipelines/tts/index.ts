@@ -60,12 +60,13 @@ async function synthesizeWithRetry(
   tts: TtsProvider,
   scene: Scene,
   opts: { voiceId: string; rate: string },
+  contabiliza?: (chars: number) => void,
 ): Promise<TtsSceneAudio> {
   try {
     // por FRASE, con pausa de respiración entre ellas (PAUSE_SENTENCE_MS);
     // el retry vive dentro, por frase — reintentar la escena entera tiraría
     // las frases ya sintetizadas
-    return await synthesizeSceneConPausas(tts, scene.text, opts, SCENE_RETRIES);
+    return await synthesizeSceneConPausas(tts, scene.text, opts, SCENE_RETRIES, contabiliza);
   } catch (err) {
     throw err instanceof Error
       ? err
@@ -142,6 +143,13 @@ async function runSynthesize(ctx: WorkerContext, factory: TtsFactory, job: Job<T
   });
 
   const sceneResults = new Array<TtsSceneAudio>(scenes.length);
+  // caracteres REALMENTE enviados al proveedor: la síntesis por frase
+  // reintenta frase a frase, y ElevenLabs cobra cada petición aunque falle —
+  // apuntar totalChars mentiría por lo bajo justo cuando hay reintentos
+  let charsFacturados = 0;
+  const contabiliza = (chars: number): void => {
+    charsFacturados += chars;
+  };
   // sin fugas: los temporales de las escenas ya sintetizadas se barren
   // también cuando la síntesis o la concatenación fallan a mitad
   const sweepSceneTmp = async () => {
@@ -156,11 +164,11 @@ async function runSynthesize(ctx: WorkerContext, factory: TtsFactory, job: Job<T
     await Promise.all(
       scenes.map((scene, i) =>
         queue.add(async () => {
-          sceneResults[i] = await synthesizeWithRetry(tts, scene, { voiceId, rate });
+          sceneResults[i] = await synthesizeWithRetry(tts, scene, { voiceId, rate }, contabiliza);
         }),
       ),
     );
-    await closeCost(db, handle, { units: totalChars, unitCost: 0 });
+    await closeCost(db, handle, { units: charsFacturados || totalChars, unitCost: 0 });
   } catch (err) {
     await failCost(db, handle, err instanceof Error ? err.message : String(err));
     await sweepSceneTmp();

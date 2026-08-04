@@ -617,7 +617,10 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
           },
         ];
 
-  // veto de descarte: solo aplica al plano principal (el que el humano descartó)
+  // veto de descarte: aplica a TODOS los sub-planos del beat, no solo al
+  // principal — el humano descartó ESE plano de ESTE beat, y con el veto solo
+  // en vIdx 0 el mismo plano volvía por la puerta de atrás en las partes 2..n
+  // del hueco troceado (re-match tras un descarte)
   const vetoedRefs = new Set<string>(
     beat.discardReason && beat.candidates?.length ? [beat.candidates[0]!.ref] : [],
   );
@@ -636,7 +639,7 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
       // Los planos ya usados en este vídeo se vetan al ARMAR el pool, no solo
       // al elegir: así el candidato repetido ni siquiera compite y la cascada
       // sigue buscando en el stock en vez de conformarse con el repetido.
-      vetoedRefs: new Set([...deps.usedRefs, ...(vIdx === 0 ? vetoedRefs : [])]),
+      vetoedRefs: new Set([...deps.usedRefs, ...vetoedRefs]),
       refsEsteBeat,
       // cuota global de imágenes: sin esto cada beat decide por su cuenta y el
       // agregado se va del techo sin que nadie lo mire
@@ -668,9 +671,15 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
   // fichero `<video>-<beat>-1.png`: si los dos caían a Flux, el segundo
   // copyFile pisaba al primero y los dos sub-planos mostraban LA MISMA imagen.
   let vIdxLibre = spans.length;
-  for (const rv of resolved) {
+  for (let ri = 0; ri < resolved.length; ri++) {
+    const rv = resolved[ri]!;
     const durMs = rv.span.to_ms - rv.span.from_ms;
-    const budget = MAX_VISUALS_PER_BEAT - capped.length;
+    // presupuesto RESERVANDO sitio para los tramos ya resueltos que faltan:
+    // sin la reserva, partir el tramo A expulsaba a B y C del beat (tramos ya
+    // resueltos tirados) y el último tramo colocado se quedaba corto respecto
+    // al hueco — el render lo estiraba leyendo más allá del EOF
+    const pendientesDespues = resolved.length - ri - 1;
+    const budget = MAX_VISUALS_PER_BEAT - capped.length - pendientesDespues;
     const esImagen = rv.res.chosen.kind === 'image';
     const maxMs = esImagen ? imageMaxMs : clipMaxMs;
     if (durMs > maxMs && budget > 1) {
@@ -698,8 +707,10 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
             refsEsteBeat,
             // El veto iba VACÍO aquí, y con él se caía la anti-repetición justo
             // en los tramos troceados: el pool volvía a incluir los planos ya
-            // usados en el vídeo en vez de seguir buscando.
-            vetoedRefs: new Set(deps.usedRefs),
+            // usados en el vídeo en vez de seguir buscando. El descarte humano
+            // (vetoedRefs) también aplica: el plano rechazado no vuelve en la
+            // parte 2 del mismo hueco.
+            vetoedRefs: new Set([...deps.usedRefs, ...vetoedRefs]),
             // Partes que vienen de una IMAGEN larga: son cortas y ya hay una
             // imagen elegida — es el amplificador que convierte una decisión
             // «imagen» en dos o tres planos-imagen, así que se pide movimiento
@@ -1645,6 +1656,43 @@ export async function registerAssetsWorkers(ctx: WorkerContext): Promise<Worker[
     },
     { connection: ctx.connection, concurrency: 1 },
   );
+
+  // Red del camino stalled→failed (mismo agujero que el render): si el
+  // proceso muere sin gracia dos veces, el stall-checker mueve el job a
+  // failed sin pasar por el procesador y su catch (el que marca incidencias)
+  // nunca corre — el vídeo se quedaba en audio/assets/timeline_ok sin salida.
+  worker.on('failed', (job, err) => {
+    void (async () => {
+      ctx.logger.error({ job: job?.id, err: err.message }, 'Job de assets fallido');
+      if (!job) return;
+      const definitivo =
+        job.attemptsMade >= (job.opts.attempts ?? 1) || err.message.includes('stalled');
+      if (!definitivo) return;
+      const videoId = (job.data as { videoId?: string }).videoId;
+      if (!videoId) return;
+      try {
+        const [video] = await ctx.db.select().from(videos).where(eq(videos.id, videoId)).limit(1);
+        // si el procesador ya marcó su incidencia (o el vídeo avanzó), no tocar
+        if (!video || !['audio', 'assets', 'timeline_ok'].includes(video.state)) return;
+        const message = `Fallo definitivo en assets.${job.name}: ${err.message}`.slice(0, 500);
+        await markIncident(ctx.db, videoId, {
+          message,
+          suggested_action: 'reintentar',
+          queue: QUEUES.assets,
+        });
+        await ctx.publishEvent({ type: 'video_state', video_id: videoId, state: 'incidencia' });
+        await ctx.publishEvent({
+          type: 'incident',
+          video_id: videoId,
+          queue: QUEUES.assets,
+          message,
+          suggested_action: 'reintentar',
+        });
+      } catch (incErr) {
+        ctx.logger.error({ err: incErr, videoId }, 'No se pudo marcar la incidencia del job fallido');
+      }
+    })();
+  });
 
   return [worker];
 }

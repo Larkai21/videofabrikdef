@@ -35,8 +35,9 @@ describe('frasesParaSintesis', () => {
   });
 });
 
-// proveedor falso: cada frase produce un «audio» de silencio de duración
-// proporcional a sus caracteres, con una palabra por token del texto
+// proveedor falso: cada frase produce un TONO de duración proporcional a sus
+// caracteres (no silencio: el recorte de silencios de cabecera/cola se
+// comería un WAV mudo entero), con una palabra por token del texto
 function fakeTts(msPorChar: number): TtsProvider {
   return {
     name: 'mock',
@@ -50,9 +51,9 @@ function fakeTts(msPorChar: number): TtsProvider {
         '-f',
         'lavfi',
         '-i',
-        'anullsrc=r=44100:cl=mono',
-        '-t',
-        (durMs / 1000).toFixed(3),
+        `sine=frequency=440:sample_rate=44100:duration=${(durMs / 1000).toFixed(3)}`,
+        '-ac',
+        '1',
         '-c:a',
         'pcm_s16le',
         audioPath,
@@ -103,5 +104,66 @@ describe('synthesizeSceneConPausas', () => {
     );
     expect(res.words[0]!.offset_ms).toBe(0);
     await fs.rm(path.dirname(res.audioPath), { recursive: true, force: true });
+  });
+});
+
+describe('recortarSilencios', () => {
+  it('recorta el acolchado de cabecera y cola y reporta lo quitado delante', async () => {
+    // 0,4 s de silencio + 1 s de tono + 0,5 s de silencio: el acolchado que
+    // el sintetizador añade y que convertía la pausa de 180 ms en ~1,4 s
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'trim-test-'));
+    const crudo = path.join(dir, 'crudo.wav');
+    const limpio = path.join(dir, 'limpio.wav');
+    const { execa } = await import('execa');
+    await execa('ffmpeg', [
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      "aevalsrc='if(between(t,0.4,1.4),sin(880*2*PI*t),0)':s=44100:d=1.9",
+      '-c:a',
+      'pcm_s16le',
+      crudo,
+    ]);
+    try {
+      const { recortarSilencios } = await import('./frases.js');
+      const { headMs } = await recortarSilencios(crudo, limpio);
+      // se quita la cabecera menos el margen de 50 ms
+      expect(headMs).toBeGreaterThanOrEqual(300);
+      expect(headMs).toBeLessThanOrEqual(400);
+      const dur = await probeDurationMs(limpio);
+      expect(dur).toBeGreaterThanOrEqual(1_000);
+      expect(dur).toBeLessThanOrEqual(1_250);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('un WAV sin acolchado se queda como está', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'trim-test2-'));
+    const crudo = path.join(dir, 'crudo.wav');
+    const limpio = path.join(dir, 'limpio.wav');
+    const { execa } = await import('execa');
+    await execa('ffmpeg', [
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=frequency=440:sample_rate=44100:duration=0.8',
+      '-ac',
+      '1',
+      '-c:a',
+      'pcm_s16le',
+      crudo,
+    ]);
+    try {
+      const { recortarSilencios } = await import('./frases.js');
+      const { headMs } = await recortarSilencios(crudo, limpio);
+      expect(headMs).toBe(0);
+      const dur = await probeDurationMs(limpio);
+      expect(Math.abs(dur - 800)).toBeLessThan(60);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   });
 });

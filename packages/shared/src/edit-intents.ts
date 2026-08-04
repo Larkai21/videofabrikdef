@@ -242,7 +242,10 @@ export function validateSceneIntents(
       drop(intent, 'sin_copy');
       continue;
     }
-    if (copy !== '' && copy.split(/\s+/).length > MAX_CARD_WORDS) {
+    // en el inserto, card_text es un TÉRMINO DE BÚSQUEDA, no copy en pantalla:
+    // «NVIDIA Jalapeño AI accelerator chip» (5 palabras) es una búsqueda mejor,
+    // no una tarjeta ilegible — el tope de 4 palabras no le aplica
+    if (intent.effect !== 'inserto' && copy !== '' && copy.split(/\s+/).length > MAX_CARD_WORDS) {
       drop(intent, 'copy_largo');
       continue;
     }

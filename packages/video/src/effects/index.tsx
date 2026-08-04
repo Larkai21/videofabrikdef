@@ -360,13 +360,19 @@ export const StatOdometer: React.FC<{ value: string; label?: string; design?: De
   const { durationInFrames } = useVideoConfig();
   const { opacity, enter } = useInOut();
 
-  const match = value.match(/-?\d[\d.,]*/);
-  const raw = match?.[0] ?? '';
-  const idx = match?.index ?? 0;
-  const prefix = match ? value.slice(0, idx) : value;
-  const suffix = match ? value.slice(idx + raw.length) : '';
-  const target = Number.parseInt(raw.replace(/[.,\s]/g, ''), 10);
-  const valid = raw !== '' && Number.isFinite(target);
+  // el MISMO tokenizador que StatCard y que el aviso del informe: lo que el
+  // rodillo aterriza tiene que coincidir con displayCifra(value). Decimales y
+  // negativos no van en columnas de dígitos — pickStatType ya los desvía a la
+  // tarjeta, y si un maestro viejo los cuela, el rodillo degrada a pintar el
+  // display estático en vez de columnas en blanco o un «-3» contando a 3.
+  const token = tokenCifra(value);
+  const raw = token?.raw ?? '';
+  const idx = raw !== '' ? value.indexOf(raw) : 0;
+  const prefix = raw !== '' ? value.slice(0, idx) : value;
+  const suffix = raw !== '' ? value.slice(idx + raw.length) : '';
+  const target = token !== null ? Math.round(token.target) : Number.NaN;
+  const valid =
+    token !== null && token.decimales === 0 && target >= 0 && Number.isFinite(target);
 
   // El conteo va con outExpo, no con outCubic: arranca rápido y frena al final.
   // Es la nota literal de `hero-stat.html` en el catálogo de motion graphics —
@@ -448,7 +454,8 @@ export const StatOdometer: React.FC<{ value: string; label?: string; design?: De
               {columns}
             </div>
           ) : (
-            <span>{raw}</span>
+            // sin rodillo posible: al menos la cifra formateada y quieta
+            <span>{token !== null ? formatCifra(token.target, token) : raw}</span>
           )}
           {suffix ? <span>{suffix}</span> : null}
         </div>

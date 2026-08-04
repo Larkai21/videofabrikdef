@@ -13,13 +13,18 @@ export interface Enqueuer {
    * hay un cadáver (completado/fallido), se limpia antes de encolar — BullMQ
    * descarta EN SILENCIO un add cuyo jobId ya existe, y eso convertía el
    * retry de render en un ok que no hacía nada.
+   *
+   * Devuelve si de verdad se encoló: `enqueued: false` significa que ya hay
+   * un job vivo con ese id. El llamador decide si eso es un ok (el job vivo
+   * hará el trabajo) o un conflicto que contar — un `void` aquí era un 200
+   * que podía mentir.
    */
   enqueue(
     queue: QueueName,
     job: string,
     payload: unknown,
     opts?: { dedupeId?: string },
-  ): Promise<void>;
+  ): Promise<{ enqueued: boolean; reason?: 'job_vivo' }>;
   // conteos por cola (waiting/active/failed/delayed…) para /health
   counts(): Promise<QueueCounts>;
   close(): Promise<void>;
@@ -52,15 +57,18 @@ export function createBullEnqueuer(redisUrl: string): Enqueuer {
       const dedupeId = opts?.dedupeId;
       if (dedupeId === undefined) {
         await q.add(job, payload);
-        return;
+        return { enqueued: true };
       }
       const existing = await q.getJob(dedupeId);
       if (existing) {
-        const state = await existing.getState().catch(() => 'unknown');
+        // OJO: no fundir un error transitorio de Redis con el estado real —
+        // tratar un job vivo como cadáver lo borraría en marcha. Si getState
+        // falla, se propaga y el llamador compensa.
+        const state = await existing.getState();
         if (state === 'active' || state === 'waiting' || state === 'delayed') {
           // ya hay un job vivo haciendo exactamente esto; encolar otro con el
-          // mismo id sería descartado igualmente — no hay nada que hacer
-          return;
+          // mismo id sería descartado igualmente
+          return { enqueued: false, reason: 'job_vivo' };
         }
         const removed = await q.remove(dedupeId);
         if (removed === 0) {
@@ -68,6 +76,7 @@ export function createBullEnqueuer(redisUrl: string): Enqueuer {
         }
       }
       await q.add(job, payload, { jobId: dedupeId });
+      return { enqueued: true };
     },
     async counts() {
       const out: QueueCounts = {};

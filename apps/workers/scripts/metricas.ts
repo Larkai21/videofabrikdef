@@ -81,15 +81,28 @@ function findCol(headers: string[], keys: string[]): number {
 function num(raw: string | undefined): number | undefined {
   if (raw === undefined || raw.trim() === '') return undefined;
   const t = raw.trim();
-  // Dos convenciones posibles según el locale del export:
-  //   español: coma decimal, punto de millar («1.234,5»)
-  //   inglés:  punto decimal, coma de millar («1,234.5»)
-  // Un único punto con 1-2 dígitos detrás y sin coma es DECIMAL inglés
-  // («6.5» era 65 con la regla anterior, que trataba todo punto como millar).
-  const limpio =
-    /^\d+\.\d{1,2}$/.test(t) && !t.includes(',')
-      ? t
-      : t.replace(/\./g, '').replace(',', '.');
+  // Dos convenciones según el locale del export: español (punto de millar,
+  // coma decimal — «1.234,5») e inglés («1,234.5»). El separador DECIMAL es
+  // el que aparece más a la derecha; el otro es de millar y se elimina.
+  // Sin coma ni punto no hay que decidir nada. Caso ambiguo restante: un
+  // único punto seguido de exactamente 3 dígitos («1.234») se lee como millar
+  // — es lo que exporta Studio en español y un decimal de 3 cifras no existe
+  // en estas métricas.
+  const lastDot = t.lastIndexOf('.');
+  const lastComma = t.lastIndexOf(',');
+  let limpio: string;
+  if (lastDot < 0 && lastComma < 0) {
+    limpio = t;
+  } else if (lastDot > lastComma) {
+    const variosPuntos = t.indexOf('.') !== lastDot;
+    const grupoDeMillar = /^\d{1,3}(\.\d{3})+$/.test(t);
+    limpio =
+      lastComma < 0 && (variosPuntos || grupoDeMillar)
+        ? t.replace(/\./g, '') // «1.234» / «1.234.567»: millares españoles
+        : t.replace(/,/g, ''); // «6.5» / «1,234.5»: decimal inglés
+  } else {
+    limpio = t.replace(/\./g, '').replace(',', '.');
+  }
   const n = Number.parseFloat(limpio);
   return Number.isFinite(n) ? n : undefined;
 }

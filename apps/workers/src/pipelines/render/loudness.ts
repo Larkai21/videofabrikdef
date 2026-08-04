@@ -33,10 +33,19 @@ export async function ajustarLoudnessEntrega(
   const margenPico = DELIVERY_TRUE_PEAK - medida.truePeakDb;
   const ganancia = Math.min(haciaObjetivo, margenPico);
   if (ganancia <= 0.1) {
-    logger.info(
-      { lufs: medida.lufs, truePeakDb: medida.truePeakDb },
-      'El MP4 ya está en la sonoridad de entrega; sin ganancia',
-    );
+    // dos motivos distintos, dos mensajes: «ya está» y «no cabe» no son lo
+    // mismo — un log que dice lo primero cuando pasa lo segundo miente
+    if (haciaObjetivo > 0.1) {
+      logger.warn(
+        { lufs: medida.lufs, truePeakDb: medida.truePeakDb, faltanDb: Number(haciaObjetivo.toFixed(2)) },
+        'El MP4 queda por debajo de la sonoridad de entrega: el pico real no deja subir más',
+      );
+    } else {
+      logger.info(
+        { lufs: medida.lufs, truePeakDb: medida.truePeakDb },
+        'El MP4 ya está en la sonoridad de entrega; sin ganancia',
+      );
+    }
     return;
   }
   const tmp = path.join(path.dirname(mp4Path), `.loudness-${path.basename(mp4Path)}`);

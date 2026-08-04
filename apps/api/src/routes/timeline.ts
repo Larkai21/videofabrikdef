@@ -77,7 +77,11 @@ export function registerTimelineRoutes(app: FastifyInstance, ctx: ApiContext): v
       beats: rows.map((r) =>
         beatRowToTimelineDto(r, r.assetId ? assetFiles.get(r.assetId) : undefined),
       ),
-      edits: video.master.edits ?? [],
+      // el image_path del inserto se reescribe a /files: el panel enseña la
+      // imagen real, no una ruta de disco que el navegador no puede cargar
+      edits: (video.master.edits ?? []).map((e) =>
+        e.type === 'imagen_apoyo' ? { ...e, image_path: toFileUrl(e.image_path) } : e,
+      ),
     };
   });
 

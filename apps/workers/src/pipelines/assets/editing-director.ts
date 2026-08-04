@@ -119,11 +119,12 @@ const DOMAIN_RE = /\b([a-z0-9][a-z0-9-]*\.(?:com|org|io|net|dev|app|ai|gov|co))\
 // una cifra con 3+ dígitos luce como rodillo (stat_odometer); las cortas (%, xN,
 // cifras de 1-2 dígitos) van en tarjeta simple con count-up (stat_card). Un
 // decimal («3,5x») nunca va al rodillo: sus columnas son de dígitos enteros y
-// «3,50» acabaría contando hasta 350.
+// «3,50» acabaría contando hasta 350. Un negativo tampoco: el rodillo no pinta
+// el signo (la tarjeta sí, vía formatCifra).
 function pickStatType(value: string): 'stat_odometer' | 'stat_card' {
   const token = tokenCifra(value);
-  if (token === null || token.decimales > 0) return 'stat_card';
-  return String(Math.abs(token.target)).length >= 3 ? 'stat_odometer' : 'stat_card';
+  if (token === null || token.decimales > 0 || token.target < 0) return 'stat_card';
+  return String(token.target).length >= 3 ? 'stat_odometer' : 'stat_card';
 }
 
 function beatOf(beats: DirectorBeat[], idx: number): DirectorBeat | undefined {
@@ -931,34 +932,45 @@ export async function directEdits(
   // que vuelve entra como edit DECLARADO (+10 en el reparto, como el resto de
   // lo que pidió el guion); el que no vuelve se cae sin dejar hueco vacío
   if (opts?.resolverInsertos && intents.insertos.length > 0) {
+    let resueltos = new Map<number, { imagePath: string; credit?: string }>();
     try {
-      const resueltos = await opts.resolverInsertos(intents.insertos);
-      for (const [i, res] of resueltos) {
-        const p = intents.insertos[i];
-        if (!p) continue;
-        const edit: Edit = {
-          type: 'imagen_apoyo',
-          from_ms: p.atMs,
-          to_ms: p.toMs,
-          beat_idx: p.beatIdx,
-          image_path: res.imagePath,
-          text: p.term,
-          ...(res.credit !== undefined ? { credit: res.credit } : {}),
-        };
-        intents.edits.push(edit);
-        declared.add(edit);
-        intents.edits.push({
-          type: 'sfx',
-          from_ms: p.atMs,
-          to_ms: p.atMs + 400,
-          sfx: 'aparicion',
-        });
-      }
+      resueltos = await opts.resolverInsertos(intents.insertos);
     } catch (err) {
       ctx.logger.warn(
         { err, videoId: params.videoId },
         'La resolución de insertos falló; el vídeo sigue sin ellos',
       );
+    }
+    for (const [i, res] of resueltos) {
+      const p = intents.insertos[i];
+      if (!p) continue;
+      const edit: Edit = {
+        type: 'imagen_apoyo',
+        from_ms: p.atMs,
+        to_ms: p.toMs,
+        beat_idx: p.beatIdx,
+        image_path: res.imagePath,
+        text: p.term,
+        ...(res.credit !== undefined ? { credit: res.credit } : {}),
+      };
+      intents.edits.push(edit);
+      declared.add(edit);
+      intents.edits.push({
+        type: 'sfx',
+        from_ms: p.atMs,
+        to_ms: p.atMs + 400,
+        sfx: 'aparicion',
+      });
+    }
+    // el beat de un inserto VETADO recupera su red: si su único edit declarado
+    // era el inserto y no volvió, dejarlo en covered lo condenaba a quedarse
+    // sin regla de contenido y sin capa de IA — mudo por haber pedido algo
+    const conEdit = new Set(
+      intents.edits.flatMap((e) => (e.beat_idx !== undefined ? [e.beat_idx] : [])),
+    );
+    for (let i = 0; i < intents.insertos.length; i += 1) {
+      const p = intents.insertos[i]!;
+      if (!resueltos.has(i) && !conEdit.has(p.beatIdx)) intents.covered.delete(p.beatIdx);
     }
   }
 

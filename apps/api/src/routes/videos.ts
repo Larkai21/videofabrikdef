@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import type { FastifyInstance } from 'fastify';
 import { asc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
-import { assets, beats, channels, transitionVideo, videos } from '@fabrica/db';
+import { assets, beats, channels, markIncident, transitionVideo, videos } from '@fabrica/db';
 import {
   JOBS,
   QUEUES,
@@ -337,26 +337,45 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
     // bloqueaba el re-add en silencio y el retry devolvía ok sin hacer nada
     const dedupeFor = (queue: QueueName): { dedupeId: string } | undefined =>
       queue === QUEUES.render ? { dedupeId: `render-${id}` } : undefined;
-    // si la incidencia registró el job exacto que falló, se re-encola tal
-    // cual (una reescritura fallida no debe convertirse en un judge)
-    const recorded = video.incident?.job;
-    if (recorded) {
-      await ctx.enqueuer.enqueue(
-        recorded.queue as QueueName,
-        recorded.name,
-        recorded.data ?? { videoId: id },
-        dedupeFor(recorded.queue as QueueName),
-      );
-    } else {
-      const [channel] = await ctx.db
-        .select({ profile: channels.profile })
-        .from(channels)
-        .where(eq(channels.id, video.channelId))
-        .limit(1);
-      const job = retryJob(target, id, video.master, {
-        packagingFirst: channel?.profile?.flags.packaging_first === true,
+    // La transición de arriba ya está COMMITEADA y borró la incidencia: si el
+    // encolado falla ahora (Redis parpadea, el cadáver aún bloqueado), sin
+    // compensación el vídeo quedaría en el estado destino SIN job y SIN botón
+    // de reintentar — atascado hasta tocar la BD a mano. La compensación
+    // restaura la incidencia original y deja el retry vivo.
+    const originalIncident = video.incident;
+    try {
+      // si la incidencia registró el job exacto que falló, se re-encola tal
+      // cual (una reescritura fallida no debe convertirse en un judge)
+      const recorded = originalIncident?.job;
+      if (recorded) {
+        await ctx.enqueuer.enqueue(
+          recorded.queue as QueueName,
+          recorded.name,
+          recorded.data ?? { videoId: id },
+          dedupeFor(recorded.queue as QueueName),
+        );
+      } else {
+        const [channel] = await ctx.db
+          .select({ profile: channels.profile })
+          .from(channels)
+          .where(eq(channels.id, video.channelId))
+          .limit(1);
+        const job = retryJob(target, id, video.master, {
+          packagingFirst: channel?.profile?.flags.packaging_first === true,
+        });
+        if (job) await ctx.enqueuer.enqueue(job.queue, job.job, job.payload, dedupeFor(job.queue));
+      }
+    } catch (err) {
+      await markIncident(ctx.db, id, {
+        message:
+          originalIncident?.message !== undefined
+            ? `${originalIncident.message} (el reintento no pudo encolarse; vuelve a intentarlo)`
+            : 'El reintento no pudo encolarse; vuelve a intentarlo',
+        suggested_action: originalIncident?.suggested_action ?? 'reintentar',
+        ...(originalIncident?.queue !== undefined ? { queue: originalIncident.queue } : {}),
+        ...(originalIncident?.job !== undefined ? { job: originalIncident.job } : {}),
       });
-      if (job) await ctx.enqueuer.enqueue(job.queue, job.job, job.payload, dedupeFor(job.queue));
+      throw err;
     }
 
     await ctx.events.publish({ type: 'video_state', video_id: id, state: target });

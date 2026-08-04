@@ -385,7 +385,49 @@ export async function registerRenderWorkers(ctx: WorkerContext): Promise<Worker[
     { connection: ctx.connection, concurrency: 1 },
   );
   worker.on('failed', (job, err) => {
-    ctx.logger.error({ job: job?.id, err: err.message }, 'Job de render fallido');
+    void reportStalledRenderFailure(ctx, job, err);
   });
   return [worker];
+}
+
+/**
+ * Red del camino stalled→failed: cuando el proceso muere sin gracia dos veces
+ * (OOM, kill), el stall-checker de BullMQ mueve el job a failed SIN pasar por
+ * el procesador — el catch de handleRenderVideo (que es quien marca las
+ * incidencias) nunca corre, y el vídeo se quedaba en 'render' para siempre con
+ * el botón de reintentar dando 409. Solo actúa si el vídeo sigue en 'render'
+ * (idempotente frente al catch, que ya marca la suya) y el fallo es definitivo.
+ */
+async function reportStalledRenderFailure(
+  ctx: WorkerContext,
+  job: Job<RenderVideoJob> | undefined,
+  err: Error,
+): Promise<void> {
+  ctx.logger.error({ job: job?.id, err: err.message }, 'Job de render fallido');
+  if (!job) return;
+  const definitivo =
+    job.attemptsMade >= (job.opts.attempts ?? 1) || err.message.includes('stalled');
+  if (!definitivo) return;
+  const videoId = (job.data as { videoId?: string }).videoId;
+  if (!videoId) return;
+  try {
+    const [video] = await ctx.db.select().from(videos).where(eq(videos.id, videoId)).limit(1);
+    if (!video || video.state !== 'render') return;
+    const message = `Fallo definitivo del render: ${err.message}`.slice(0, 500);
+    await markIncident(ctx.db, videoId, {
+      message,
+      suggested_action: 'reintentar',
+      queue: QUEUES.render,
+    });
+    await ctx.publishEvent({ type: 'video_state', video_id: videoId, state: 'incidencia' });
+    await ctx.publishEvent({
+      type: 'incident',
+      video_id: videoId,
+      queue: QUEUES.render,
+      message,
+      suggested_action: 'reintentar',
+    });
+  } catch (incErr) {
+    ctx.logger.error({ err: incErr, videoId }, 'No se pudo marcar la incidencia del job fallido');
+  }
 }

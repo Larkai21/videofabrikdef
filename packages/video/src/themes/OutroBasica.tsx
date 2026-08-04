@@ -124,6 +124,10 @@ export const OutroBasica: React.FC<{
             gap: 18,
             padding: '0 120px',
             textAlign: 'center',
+            // deslizado, el bloque vive en el tercio izquierdo: sin tope de
+            // ancho, un nombre de canal largo invadía los marcos de pantalla
+            // final de la derecha
+            maxWidth: 900,
             transform: `translateX(${mix(0, -430, desliza)}px) scale(${mix(1, 0.92, desliza)})`,
           }}
         >

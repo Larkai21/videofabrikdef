@@ -46,10 +46,20 @@ const LICENSE_OK = /^(public domain|pd|cc0|cc[ -]by(?:[ -]sa)?[ -]?\d(?:\.\d)?)/
 const SIN_ATRIBUCION = /^(public domain|pd|cc0)/i;
 
 function stripHtml(s: string): string {
-  return s
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return (
+    s
+      .replace(/<[^>]*>/g, ' ')
+      // entidades comunes de los metadatos de Commons: sin decodificarlas,
+      // «Smith &amp; Jones» acababa tal cual en pantalla y en description.txt
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#0?39;|&apos;/g, "'")
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
 }
 
 interface ImageInfoRaw {
