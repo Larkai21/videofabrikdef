@@ -1,4 +1,4 @@
-import { figureBackedBy, numericTokens } from './edit-intents.js';
+import { figureBackedBy, normalizeWord, numericTokens, wordInText } from './edit-intents.js';
 
 // Linter determinista del guion. Lo mecánico (muletillas, exclamaciones, frases
 // kilométricas, cifras sin respaldo) se MIDE aquí gratis, en vez de pedírselo a
@@ -537,7 +537,8 @@ export type ScriptLintKind =
   | 'frase_larga'
   | 'escena_corta'
   | 'escena_larga'
-  | 'cifra_sin_claim';
+  | 'cifra_sin_claim'
+  | 'apellido_suelto';
 
 export interface ScriptLintHit {
   /** id de la escena */
@@ -552,6 +553,52 @@ export interface LintOptions {
   minWords?: number;
   maxWords?: number;
   maxSentenceWords?: number;
+  /** título del vídeo: de ahí sale el nombre completo de la entidad principal */
+  title?: string;
+}
+
+/**
+ * Apellido suelto en la PRIMERA mención: el guion abre con «Musk dice que…»
+ * cuando ni el vídeo ni la voz han dicho todavía «Elon Musk». El espectador
+ * entra en frío y se le da por sabido quién es.
+ *
+ * Se detecta comparando con el nombre completo que aparece en el TÍTULO o en
+ * los claims (donde sí viene entero): si el guion usa solo la última palabra
+ * de ese nombre antes de haberlo escrito completo, es un apellido suelto.
+ * Devuelve el par [completo, corto] o null.
+ */
+export function nombreCompletoDe(
+  title: string | undefined,
+  claims: readonly { text: string }[],
+): { completo: string; corto: string } | null {
+  const re =
+    /\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,})\s+((?:(?:van|von|de|del|der|la|di|da)\s+)*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,})/u;
+  const vetadas = new Set([
+    'que',
+    'por',
+    'como',
+    'cuando',
+    'donde',
+    'esto',
+    'esta',
+    'este',
+    'los',
+    'las',
+    'del',
+    'con',
+    'para',
+    'una',
+    'the',
+  ]);
+  for (const fuente of [title ?? '', ...claims.map((c) => c.text)]) {
+    const m = re.exec(fuente);
+    if (!m) continue;
+    const primera = m[1]!;
+    const corto = m[2]!.split(/\s+/).at(-1)!;
+    if (vetadas.has(normalizeWord(primera)) || vetadas.has(normalizeWord(corto))) continue;
+    return { completo: `${primera} ${m[2]!}`, corto };
+  }
+  return null;
 }
 
 function countWords(text: string): number {
@@ -590,8 +637,24 @@ export function lintScenes(
   const claimTexts = opts.claims.map((c) => c.text);
   const hits: ScriptLintHit[] = [];
   let objecionesSeguidas = 0;
+  // presentación de la entidad principal: se avisa UNA vez, en la escena donde
+  // el apellido aparece antes que el nombre completo
+  const entidad = nombreCompletoDe(opts.title, opts.claims);
+  let entidadPresentada = entidad === null;
 
   for (const scene of scenes) {
+    if (!entidadPresentada && entidad !== null) {
+      if (wordInText(scene.text, entidad.completo)) {
+        entidadPresentada = true;
+      } else if (wordInText(scene.text, entidad.corto)) {
+        entidadPresentada = true;
+        hits.push({
+          id: scene.id,
+          kind: 'apellido_suelto',
+          detail: `dice «${entidad.corto}» sin haber presentado antes «${entidad.completo}»`,
+        });
+      }
+    }
     for (const { id, re } of AI_CLICHES) {
       const m = re.exec(scene.text);
       if (m)
@@ -738,6 +801,8 @@ export const ARREGLO_POR_AVISO: Record<string, string> = {
   cliche: 'quita la muletilla y di lo mismo con palabras propias.',
   cifra_sin_claim:
     'la cifra no está en el research: quítala o reformula la frase sin ella. No la sustituyas por otra.',
+  apellido_suelto:
+    'esta es la primera vez que aparece esa persona o entidad: escríbela con su nombre completo. En las menciones siguientes ya puedes acortar.',
 };
 
 /** Los avisos que obligan a retocar la escena aunque el juez no la marque. */
@@ -749,6 +814,7 @@ export const BLOCKING_LINT_KINDS: readonly ScriptLintKind[] = [
   'objeciones_seguidas',
   'cierre_resumen',
   'cifra_sin_claim',
+  'apellido_suelto',
 ];
 
 export function blockingSceneIds(hits: readonly ScriptLintHit[]): string[] {

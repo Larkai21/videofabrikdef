@@ -83,8 +83,10 @@ const MAX_VUELTAS = 2;
 export function loQueSigueMal(
   reescritas: readonly Scene[],
   claims: readonly { text: string }[],
+  /** título del vídeo: de ahí sale el nombre completo para `apellido_suelto` */
+  title?: string,
 ): Array<{ id: string; axis: string; issue: string; fix: string }> {
-  const hits = lintScenes(reescritas, { claims });
+  const hits = lintScenes(reescritas, { claims, ...(title !== undefined ? { title } : {}) });
   const malas = new Set(blockingSceneIds(hits));
   return hits
     .filter((h) => malas.has(h.id) && BLOCKING_LINT_KINDS.includes(h.kind))
@@ -190,6 +192,7 @@ export async function handleScriptRefine(ctx: WorkerContext, data: ScriptRefineJ
   const otraVuelta = loQueSigueMal(
     scenes.filter((s) => targetIds.has(s.id)),
     video.master.research?.claims ?? [],
+    video.master.seo?.titles[video.master.seo.chosen_idx ?? 0],
   );
   if (otraVuelta.length > 0 && pass < MAX_VUELTAS) {
     await ctx.queues.script.add(JOBS.script.refine, {

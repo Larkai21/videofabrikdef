@@ -215,6 +215,18 @@ export const SENTENCE_MAX_WORDS = 25;
 // relativa: 0,9/min da ~7 en ocho minutos, el mismo número que el hermano pero
 // para la pieza entera.
 export const FX_CARDS_PER_MIN = 1.2;
+/**
+ * Insertos de referencia por minuto (imagen real de una entidad nombrada).
+ * Van en su PROPIO carril, no compitiendo con las tarjetas: un inserto es la
+ * única vía de enseñar a la persona o el producto del que se habla —el archivo
+ * de stock no tiene planos de cosas con nombre propio— así que perderlo en el
+ * reparto no es «una tarjeta menos», es que el sujeto no aparece nunca.
+ * Medido: con el inserto dentro del carril de tarjetas, el de «Elon Musk» a
+ * 24,6 s moría siempre contra el texto cinético del gancho, que va en la misma
+ * ventana y tiene más prioridad. 0,35/min ≈ 3 en un vídeo de 8 min, que es lo
+ * que el prompt del guion pide declarar.
+ */
+export const FX_INSERTOS_PER_MIN = 0.35;
 export const FX_MICRO_PER_MIN = 0.9;
 export const FX_KEYWORDS_PER_MIN = 2.5;
 /** Fusible, no objetivo: si muerde es que algo va mal. */

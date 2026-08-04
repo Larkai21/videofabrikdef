@@ -162,6 +162,10 @@ export function craftRules(): string {
     // puede medir no se gana su sitio. El arreglo del andamiaje no es otra
     // línea aquí: es que `sceneBlueprint` deje de asignarle a cada escena un
     // papel nombrable (S3).
+    // El espectador entra en frío: un apellido suelto en la primera frase da
+    // por sabido quién es. Medido en un guion real, abría con «Musk dice
+    // que…», y ni el vídeo ni la miniatura habían dicho todavía Elon Musk.
+    'Nombres: la PRIMERA vez que aparece una persona, una empresa o una ley, escríbela con su nombre completo («Elon Musk», «Reglamento europeo de IA»). A partir de la segunda mención puedes acortar («Musk», «el reglamento»). Nunca abras el vídeo con un apellido a secas.',
     'Transiciones: cada escena arranca enlazando con la anterior, sin resumirla. Dos escenas seguidas no pueden empezar con el mismo tipo de frase.',
     'Concreción: cada bloque baja a un caso, una cifra de los claims o algo que se pueda ver. Prohibido encadenar dos escenas que solo generalicen.',
     // «Alterna frases cortas y medias» ya estaba y se cumple: el 32 % de las

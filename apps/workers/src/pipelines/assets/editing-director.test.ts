@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { Cue, Edit } from '@fabrica/shared';
 import {
   dedupeAndCap,
+  entidadNombrada,
   hacenFaltaMasTarjetas,
+  insertoAutomatico,
   intentEdits,
   microFxEdits,
   momentsToEdits,
@@ -590,5 +592,108 @@ describe('inserto declarado (S11)', () => {
     );
     expect(r.insertos).toHaveLength(0);
     expect(r.dropped).toBe(1);
+  });
+});
+
+describe('inserto automático y su carril propio (S11 bis)', () => {
+  const cues = [cue('Musk', 24_600), cue('litografía', 165_100)];
+  const beats = [
+    { idx: 0, from_ms: 0, to_ms: 20_000, text: 'gancho del vídeo' },
+    { idx: 2, from_ms: 20_000, to_ms: 40_000, text: 'Musk hablaba de IA y de plazos' },
+    { idx: 14, from_ms: 160_000, to_ms: 180_000, text: 'la litografía manda en los chips' },
+  ];
+
+  it('detecta la entidad del título aunque el guion diga solo el apellido', () => {
+    expect(entidadNombrada('Qué propone Elon Musk para el futuro', [])).toEqual({
+      completo: 'Elon Musk',
+      corto: 'Musk',
+    });
+    // no se cuela un titular con mayúsculas
+    expect(entidadNombrada('Por Qué Los Chips Importan', [])).toBeNull();
+  });
+
+  it('propone el inserto en la primera mención pronunciada', () => {
+    const auto = insertoAutomatico(
+      params({ beats, cues, title: 'Qué propone Elon Musk para el futuro' }),
+    );
+    expect(auto?.term).toBe('Elon Musk');
+    expect(auto?.atMs).toBe(24_600);
+    expect(auto?.beatIdx).toBe(2);
+  });
+
+  it('no propone nada si la entidad no se pronuncia', () => {
+    const auto = insertoAutomatico(
+      params({ beats, cues: [cue('chips', 5_000)], title: 'Qué propone Elon Musk' }),
+    );
+    expect(auto).toBeNull();
+  });
+
+  // El fallo que motiva el carril: el inserto de «Elon Musk» a 24,6 s caía
+  // SIEMPRE porque compartía ventana de reparto con el texto cinético del
+  // gancho, que tiene más prioridad — y spreadByWindows deja uno por ventana.
+  it('el inserto ya no compite con la tarjeta del gancho por la misma plaza', () => {
+    const declared = new Set<Edit>();
+    const kinetic: Edit = {
+      type: 'kinetic_text',
+      from_ms: 500,
+      to_ms: 2_900,
+      beat_idx: 0,
+      text: 'esto cambia',
+    };
+    const inserto: Edit = {
+      type: 'imagen_apoyo',
+      from_ms: 24_600,
+      to_ms: 27_600,
+      beat_idx: 2,
+      image_path: '/x.jpg',
+      text: 'Elon Musk',
+    };
+    declared.add(kinetic);
+    declared.add(inserto);
+    const out = dedupeAndCap([kinetic, inserto], 474_000, declared);
+    expect(out.some((e) => e.type === 'kinetic_text')).toBe(true);
+    expect(out.some((e) => e.type === 'imagen_apoyo')).toBe(true);
+  });
+
+  it('pero un inserto que PISA una tarjeta sí se cae: comparten banda superior', () => {
+    const declared = new Set<Edit>();
+    const callout: Edit = {
+      type: 'text_callout',
+      from_ms: 24_000,
+      to_ms: 26_400,
+      beat_idx: 2,
+      text: 'un titular',
+    };
+    const inserto: Edit = {
+      type: 'imagen_apoyo',
+      from_ms: 24_600,
+      to_ms: 27_600,
+      beat_idx: 3,
+      image_path: '/x.jpg',
+      text: 'Elon Musk',
+    };
+    declared.add(callout);
+    declared.add(inserto);
+    const out = dedupeAndCap([callout, inserto], 474_000, declared);
+    expect(out.some((e) => e.type === 'text_callout')).toBe(true);
+    expect(out.some((e) => e.type === 'imagen_apoyo')).toBe(false);
+  });
+
+  it('dos insertos separados dos minutos sobreviven los dos', () => {
+    const declared = new Set<Edit>();
+    const hacer = (from: number, beat: number, text: string): Edit => ({
+      type: 'imagen_apoyo',
+      from_ms: from,
+      to_ms: from + 3_000,
+      beat_idx: beat,
+      image_path: '/x.jpg',
+      text,
+    });
+    const a = hacer(165_100, 14, 'ASML EUV');
+    const b = hacer(284_300, 25, 'Tesla Optimus');
+    declared.add(a);
+    declared.add(b);
+    const out = dedupeAndCap([a, b], 474_000, declared);
+    expect(out.filter((e) => e.type === 'imagen_apoyo')).toHaveLength(2);
   });
 });

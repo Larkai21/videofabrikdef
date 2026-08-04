@@ -9,6 +9,7 @@ import {
   palabraResaltable,
   FX_KEYWORD_SEP_MS,
   FX_KEYWORDS_PER_MIN,
+  FX_INSERTOS_PER_MIN,
   FX_MICRO_PER_MIN,
   FX_MICRO_SEP_MS,
   MAX_CARD_WORDS,
@@ -516,6 +517,98 @@ export function ruleEdits(params: EditingParams & { covered?: ReadonlySet<number
   return edits;
 }
 
+// Palabras que abren un título y no son parte de un nombre propio. Sin esta
+// lista, «Qué Propone» o «Por Qué» se colarían como entidad en cuanto un
+// título use mayúsculas de titular.
+const NO_ES_NOMBRE = new Set([
+  'que',
+  'por',
+  'como',
+  'cuando',
+  'donde',
+  'cual',
+  'quien',
+  'esto',
+  'esta',
+  'este',
+  'los',
+  'las',
+  'del',
+  'con',
+  'para',
+  'sin',
+  'una',
+  'unos',
+  'unas',
+  'todo',
+  'toda',
+  'sus',
+  'the',
+  'and',
+  'for',
+]);
+
+/**
+ * Entidad NOMBRADA del vídeo: dos palabras capitalizadas seguidas («Elon
+ * Musk», «Sam Altman»), admitiendo partículas («Ursula von der Leyen»).
+ *
+ * Se busca en el TÍTULO y en los claims del research, no en el guion, y por un
+ * motivo concreto: el guion habla en corto —dice «Musk»— mientras que el
+ * título y las fuentes escriben el nombre completo. Ese nombre completo es el
+ * que sirve para BUSCAR la imagen; el corto es el que se pronuncia y por tanto
+ * el que sirve para ANCLARLA.
+ */
+export function entidadNombrada(
+  title: string | undefined,
+  claims: readonly { text: string }[],
+): { completo: string; corto: string } | null {
+  const fuentes = [title ?? '', ...claims.map((c) => c.text)];
+  const re =
+    /\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,})\s+((?:(?:van|von|de|del|der|la|di|da)\s+)*[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,})/u;
+  for (const fuente of fuentes) {
+    const m = re.exec(fuente);
+    if (!m) continue;
+    const primera = m[1]!;
+    const resto = m[2]!;
+    if (NO_ES_NOMBRE.has(normalize(primera))) continue;
+    const corto = resto.split(/\s+/).at(-1)!;
+    if (NO_ES_NOMBRE.has(normalize(corto))) continue;
+    return { completo: `${primera} ${resto}`, corto };
+  }
+  return null;
+}
+
+/**
+ * Inserto que el guion NO declaró pero que el vídeo pide igualmente: si el
+ * tema tiene una persona o entidad con nombre y esa entidad se PRONUNCIA, hay
+ * que enseñarla. Es la misma clase de red que `DOMAIN_RE` → device_frame: una
+ * regla determinista que cubre lo que el guionista se dejó.
+ *
+ * Uno por vídeo y en la PRIMERA mención pronunciada: el sujeto del vídeo se
+ * presenta al principio, no a mitad. El juez de planos lo veta igual que a
+ * cualquier otro, así que una entidad sin foto convincente no pinta nada.
+ */
+export function insertoAutomatico(
+  params: EditingParams,
+): { term: string; beatIdx: number; beatText: string; atMs: number; toMs: number } | null {
+  const entidad = entidadNombrada(params.title, params.claims ?? []);
+  if (entidad === null) return null;
+  // se ancla al nombre CORTO (es lo que se pronuncia) o al completo si el
+  // guion lo dice entero; el término de búsqueda es siempre el completo
+  const hit =
+    findWordMs(params.cues, entidad.completo) ?? findWordMs(params.cues, entidad.corto);
+  if (hit === null) return null;
+  const beat = params.beats.find((b) => hit.from_ms >= b.from_ms && hit.from_ms < b.to_ms);
+  if (beat === undefined) return null;
+  return {
+    term: entidad.completo,
+    beatIdx: beat.idx,
+    beatText: beat.text,
+    atMs: hit.from_ms,
+    toMs: Math.min(beat.to_ms, hit.from_ms + DUR_MS.imagen_apoyo!),
+  };
+}
+
 // ---- capa IA (elige momentos potentes + redacta texto) ---------------------
 
 const editingResultSchema = z.object({
@@ -687,11 +780,19 @@ const OVERLAY_TYPES = new Set<string>(
     .filter(([, kind]) => kind === 'overlay')
     .map(([type]) => type),
 );
-// Lo que compite por pantalla en el reparto: los overlays MÁS zoom_punch (es
+// Lo que compite en el CARRIL DE TARJETAS: los overlays MÁS zoom_punch (es
 // 'camara', no overlay, pero un golpe de zoom y una tarjeta en el mismo beat
 // se pelean por la atención igual). Los SFX/keyword no cuentan; annotation es
 // un acento ligero que layerea sobre el b-roll → tampoco compite.
-const VISUAL_TYPES = new Set<string>([...OVERLAY_TYPES, 'zoom_punch']);
+//
+// `imagen_apoyo` queda FUERA a propósito: tiene carril propio. Una tarjeta es
+// intercambiable —si cae una, entra otra en la ventana siguiente—, pero el
+// inserto es la única vía de enseñar a la persona o el producto del que se
+// habla, y además llega con una imagen ya buscada, juzgada y descargada.
+// Perderlo en el reparto no es «una tarjeta menos»: es que el sujeto no sale.
+const VISUAL_TYPES = new Set<string>(
+  [...OVERLAY_TYPES, 'zoom_punch'].filter((t) => t !== 'imagen_apoyo'),
+);
 /**
  * ¿Vale la pena llamar a la capa de IA del director?
  *
@@ -862,16 +963,40 @@ export function dedupeAndCap(
   // con una guarda para no pisar la entrada de una tarjeta.
   const acentos: Edit[] = [];
   const keywords: Edit[] = [];
+  const insertos: Edit[] = [];
   const rest: Edit[] = [];
   for (const e of others) {
     if (e.type === 'annotation' || e.type === 'micro_fx') acentos.push(e);
     else if (e.type === 'keyword_highlight') keywords.push(e);
+    else if (e.type === 'imagen_apoyo') insertos.push(e);
     else rest.push(e);
   }
+  const solapa = (e: Edit, v: Edit): boolean =>
+    e.from_ms >= v.from_ms - FX_CARD_GUARD_MS && e.from_ms <= v.to_ms + FX_CARD_GUARD_MS;
+  // Carril de INSERTOS: tope propio y guarda contra las tarjetas (los dos
+  // ocupan la banda superior). Va antes que acentos y subrayados porque su
+  // imagen ya está buscada, juzgada y descargada: si cae, se pierde la única
+  // vez que el espectador podía VER a la persona nombrada.
+  //
+  // Aquí NO se reparte por ventanas como en los demás carriles. La rejilla
+  // existe para evitar el apelotonamiento cuando SOBRA material, y con los
+  // insertos pasa lo contrario: son dos o tres por vídeo, caros y escasos.
+  // Con ventanas, dos insertos separados DOS MINUTOS caían en la misma casilla
+  // y uno moría sin estar apelotonado con nada. El criterio correcto para
+  // material escaso es «todos los que quepan sin pisarse»: orden temporal,
+  // separación mínima y tope.
+  const topeInsertos = Math.max(1, Math.round(minutos * FX_INSERTOS_PER_MIN));
+  const insertosKept: Edit[] = [];
+  for (const e of [...insertos].sort((a, b) => a.from_ms - b.from_ms)) {
+    if (insertosKept.length >= topeInsertos) break;
+    if (visuals.some((v) => solapa(e, v))) continue;
+    const ultimo = insertosKept[insertosKept.length - 1];
+    if (ultimo && e.from_ms - ultimo.from_ms < FX_CARD_SEP_MS) continue;
+    insertosKept.push(e);
+  }
+  // acentos y subrayados esquivan tanto las tarjetas como los insertos
   const pisaTarjeta = (e: Edit): boolean =>
-    visuals.some(
-      (v) => e.from_ms >= v.from_ms - FX_CARD_GUARD_MS && e.from_ms <= v.to_ms + FX_CARD_GUARD_MS,
-    );
+    visuals.some((v) => solapa(e, v)) || insertosKept.some((v) => solapa(e, v));
   const acentosKept = spreadByWindows(acentos, {
     budget: Math.max(1, Math.round(minutos * FX_MICRO_PER_MIN)),
     durationMs,
@@ -895,13 +1020,15 @@ export function dedupeAndCap(
 
   // Los SFX se quedan huérfanos si su dueño cayó en el reparto. Antes solo se
   // limpiaba el `pop`, así que un `ding` podía sonar sin cifra en pantalla.
-  const vivos = new Set([...visuals, ...acentosKept, ...keywordsKept].map((e) => e.from_ms));
+  const vivos = new Set(
+    [...visuals, ...insertosKept, ...acentosKept, ...keywordsKept].map((e) => e.from_ms),
+  );
   const ESTRUCTURALES = new Set(['riser', 'whoosh', 'resolucion', 'impacto']);
   const sonidos = rest.filter(
     (e) => e.type !== 'sfx' || ESTRUCTURALES.has(e.sfx ?? '') || vivos.has(e.from_ms),
   );
 
-  return [...visuals, ...acentosKept, ...keywordsKept, ...sonidos].sort(
+  return [...visuals, ...insertosKept, ...acentosKept, ...keywordsKept, ...sonidos].sort(
     (a, b) => a.from_ms - b.from_ms,
   );
 }
@@ -931,6 +1058,25 @@ export async function directEdits(
   // 1b) insertos: la imagen se resuelve fuera (stock → Commons → juez) y el
   // que vuelve entra como edit DECLARADO (+10 en el reparto, como el resto de
   // lo que pidió el guion); el que no vuelve se cae sin dejar hueco vacío
+  // red determinista: si el vídeo trata de una entidad con nombre y el guion
+  // no pidió enseñarla, se pide aquí — el archivo de stock no tiene planos de
+  // personas concretas, así que sin inserto el sujeto no aparece NUNCA
+  const auto = insertoAutomatico(params);
+  if (auto !== null) {
+    const yaCubierta = intents.insertos.some(
+      (p) =>
+        normalize(p.term).includes(normalize(auto.term)) ||
+        normalize(auto.term).includes(normalize(p.term)),
+    );
+    if (!yaCubierta) {
+      intents.insertos.push(auto);
+      ctx.logger.info(
+        { videoId: params.videoId, entidad: auto.term },
+        'Inserto automático: el vídeo nombra una entidad que el guion no pidió enseñar',
+      );
+    }
+  }
+
   if (opts?.resolverInsertos && intents.insertos.length > 0) {
     let resueltos = new Map<number, { imagePath: string; credit?: string }>();
     try {

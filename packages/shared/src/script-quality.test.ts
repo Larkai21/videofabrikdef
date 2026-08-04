@@ -389,3 +389,59 @@ describe('normalizaLocucion', () => {
     expect(normalizaLocucion(una)).toBe(una);
   });
 });
+
+describe('apellido_suelto (nombre completo en la primera mención)', () => {
+  const TITULO = 'Qué propone Elon Musk para el futuro y cómo prepararte ya';
+
+  it('caza el caso real: el guion abre con «Musk» y el título dice «Elon Musk»', () => {
+    const hits = lintScenes(
+      [
+        { id: 'sc-hook', text: 'Musk dice que en menos de cinco años la IA podría superarnos.' },
+        { id: 'sc-body-1', text: 'La entrevista duró noventa minutos y dejó tres plazos.' },
+      ],
+      { claims: [], title: TITULO },
+    );
+    const hit = hits.find((h) => h.kind === 'apellido_suelto');
+    expect(hit?.id).toBe('sc-hook');
+    expect(hit?.detail).toContain('Elon Musk');
+  });
+
+  it('no avisa si la primera mención ya viene completa', () => {
+    const hits = lintScenes(
+      [
+        { id: 'sc-hook', text: 'Elon Musk dice que en menos de cinco años la IA podría superarnos.' },
+        { id: 'sc-body-1', text: 'Musk fijó tres plazos en esa misma entrevista de noventa minutos.' },
+      ],
+      { claims: [], title: TITULO },
+    );
+    expect(hits.some((h) => h.kind === 'apellido_suelto')).toBe(false);
+  });
+
+  it('avisa UNA sola vez, no en cada mención posterior', () => {
+    const hits = lintScenes(
+      [
+        { id: 'sc-hook', text: 'Musk dice que en menos de cinco años la IA podría superarnos.' },
+        { id: 'sc-body-1', text: 'Musk fijó tres plazos concretos en esa entrevista de noventa minutos.' },
+        { id: 'sc-body-2', text: 'Musk insistió después en el calendario de los humanoides.' },
+      ],
+      { claims: [], title: TITULO },
+    );
+    expect(hits.filter((h) => h.kind === 'apellido_suelto')).toHaveLength(1);
+  });
+
+  it('sin entidad en el título ni en los claims, no se inventa un aviso', () => {
+    const hits = lintScenes(
+      [{ id: 'sc-hook', text: 'Los centros de datos consumen más agua de la que se dice.' }],
+      { claims: [], title: 'Qué hay dentro de un centro de datos' },
+    );
+    expect(hits.some((h) => h.kind === 'apellido_suelto')).toBe(false);
+  });
+
+  it('el nombre completo también se saca de los claims si el título no lo trae', () => {
+    const hits = lintScenes([{ id: 'sc-hook', text: 'Altman lo dijo en una entrevista.' }], {
+      claims: [{ text: 'Sam Altman declaró que el coste por token seguirá bajando' }],
+      title: 'Qué va a pasar con el coste de los modelos',
+    });
+    expect(hits.find((h) => h.kind === 'apellido_suelto')?.detail).toContain('Sam Altman');
+  });
+});
