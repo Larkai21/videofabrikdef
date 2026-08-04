@@ -60,10 +60,29 @@ el director: se ancla y queda pendiente de imagen. La resolución vive en el
 pipeline (`insertos.ts`): fotos de Pexels → Wikimedia Commons con filtro de
 licencias, veto del juez de planos (todos los insertos en una llamada), descarga
 solo del ganador y alta en `assets` con su licencia. El que vuelve entra como edit
-DECLARADO (+10 en el reparto) con `image_path` congelado y `credit` si la licencia
-exige atribución (se pinta pequeña en el recuadro y se agrega a description.txt).
-El que no vuelve se cae sin dejar hueco: mejor sin inserto que con el logo
-equivocado. La capa IA no puede proponer insertos, solo el guion.
+DECLARADO con `image_path` congelado y `credit` si la licencia exige atribución
+(se pinta pequeña en el recuadro y se agrega a description.txt). El que no vuelve
+se cae sin dejar hueco: mejor sin inserto que con el logo equivocado. La capa IA
+no puede proponer insertos.
+
+**Y si el guion no lo pide, lo pide el sistema.** `insertoAutomatico` saca la
+entidad principal del TÍTULO (o de los claims) y la ancla en su primera mención
+pronunciada. La asimetría es la clave: el guion habla en corto («Musk») y el
+título escribe el nombre completo («Elon Musk») — el completo sirve para BUSCAR
+la imagen y el corto para ANCLARLA. Es la misma red determinista que `DOMAIN_RE`
+→ device_frame, y el juez la veta igual. Uno por vídeo.
+
+**Carril propio, no el de tarjetas.** Fue un error de diseño corregido tras verlo
+en un vídeo real: con el inserto compitiendo en el carril de tarjetas, el de
+«Elon Musk» (24,6 s) moría siempre contra el texto cinético del gancho, que cae en
+la misma ventana de 50 s y tiene más prioridad. Una tarjeta es intercambiable —si
+cae, entra otra en la ventana siguiente—; el inserto es la ÚNICA vía de enseñar a
+la persona nombrada, y además llega con una imagen ya buscada, juzgada y
+descargada. Su carril no usa la rejilla de ventanas: esa existe para cuando sobra
+material y aquí escasea (dos insertos separados por dos minutos caían en la misma
+casilla). El criterio es orden temporal, separación mínima y tope
+`FX_INSERTOS_PER_MIN`, con guarda para no pisar una tarjeta (comparten banda
+superior).
 
 ## 2. Carriles y presupuesto
 
@@ -74,17 +93,19 @@ distribución de overlays por minuto era `[6, 3, 1]`.
 
 Ahora hay carriles con presupuesto propio, porque compiten por cosas distintas:
 
-| carril    | tipos                                                                                                                              | compite por                            |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| tarjetas  | stat_card, stat_odometer, quote_card, kinetic_text, device_frame, text_callout, split_versus, pasos_flow, tendencia, imagen_apoyo | el centro de la pantalla               |
-| cámara    | zoom_punch                                                                                                                          | nada: es un movimiento del b-roll      |
-| acentos   | annotation, micro_fx                                                                                                                | la atención                            |
-| subrayado | keyword_highlight                                                                                                                   | el subtítulo                           |
-| sonido    | sfx                                                                                                                                 | el oído, y se deriva de los anteriores |
+| carril    | tipos                                                                                                              | compite por                            |
+| --------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
+| tarjetas  | stat_card, stat_odometer, quote_card, kinetic_text, device_frame, text_callout, split_versus, pasos_flow, tendencia | el centro de la pantalla               |
+| insertos  | imagen_apoyo                                                                                                        | la banda superior (guarda vs tarjetas) |
+| cámara    | zoom_punch                                                                                                          | nada: es un movimiento del b-roll      |
+| acentos   | annotation, micro_fx                                                                                                | la atención                            |
+| subrayado | keyword_highlight                                                                                                   | el subtítulo                           |
+| sonido    | sfx                                                                                                                 | el oído, y se deriva de los anteriores |
 
 El carril de tarjetas se DERIVA del contrato (`EDIT_RENDER_KIND` overlay +
-`zoom_punch` explícito): un tipo nuevo clasificado overlay entra solo, sin lista
-que olvidar — antes eran dos listas de literales y divergían con el informe.
+`zoom_punch` explícito, menos `imagen_apoyo` que tiene el suyo): un tipo nuevo
+clasificado overlay entra solo, sin lista que olvidar — antes eran dos listas de
+literales y divergían con el informe.
 
 `spreadByWindows` parte el vídeo en tantas ventanas como permita el presupuesto y
 elige un candidato por ventana. **La prioridad decide dentro de la ventana, nunca

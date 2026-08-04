@@ -44,6 +44,12 @@ script: {
 - `visual_query`: 3–8 palabras concretas y filmables («macro de placa GPU», «sala de
   servidores pasillo frío»), en el idioma con mejor stock (inglés por defecto aunque el
   guion sea en español; flag por canal).
+- **Nombres completos en la primera mención**: una persona, empresa o ley se escribe
+  entera la primera vez («Elon Musk», «Reglamento europeo de IA») y se acorta a partir
+  de la segunda. El aviso `apellido_suelto` del linter lo comprueba SOLO: compara el
+  guion con el nombre completo que trae el título o los claims, así que no depende de
+  que el modelo obedezca. Motivo: un guion real abría con «Musk dice que…» cuando el
+  espectador aún no sabía de quién se hablaba.
 
 ## 3. Paquete SEO
 
