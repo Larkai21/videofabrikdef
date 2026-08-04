@@ -973,6 +973,13 @@ export function dedupeAndCap(
   }
   const solapa = (e: Edit, v: Edit): boolean =>
     e.from_ms >= v.from_ms - FX_CARD_GUARD_MS && e.from_ms <= v.to_ms + FX_CARD_GUARD_MS;
+  // Qué tarjetas ocupan de verdad la BANDA SUPERIOR, que es donde vive el
+  // inserto (marginTop 110, igual que TextCallout). Las demás van centradas en
+  // pantalla y conviven con él sin taparlo: una foto arriba y una cifra en el
+  // centro es un montaje normal, no un choque. Sin esta distinción, el inserto
+  // de la primera mención moría contra cualquier tarjeta del gancho — que es
+  // justo el momento en que hay que presentar al sujeto del vídeo.
+  const enBandaSuperior = (e: Edit): boolean => e.type === 'text_callout';
   // Carril de INSERTOS: tope propio y guarda contra las tarjetas (los dos
   // ocupan la banda superior). Va antes que acentos y subrayados porque su
   // imagen ya está buscada, juzgada y descargada: si cae, se pierde la única
@@ -989,7 +996,7 @@ export function dedupeAndCap(
   const insertosKept: Edit[] = [];
   for (const e of [...insertos].sort((a, b) => a.from_ms - b.from_ms)) {
     if (insertosKept.length >= topeInsertos) break;
-    if (visuals.some((v) => solapa(e, v))) continue;
+    if (visuals.filter(enBandaSuperior).some((v) => solapa(e, v))) continue;
     const ultimo = insertosKept[insertosKept.length - 1];
     if (ultimo && e.from_ms - ultimo.from_ms < FX_CARD_SEP_MS) continue;
     insertosKept.push(e);
@@ -1063,17 +1070,30 @@ export async function directEdits(
   // personas concretas, así que sin inserto el sujeto no aparece NUNCA
   const auto = insertoAutomatico(params);
   if (auto !== null) {
-    const yaCubierta = intents.insertos.some(
-      (p) =>
-        normalize(p.term).includes(normalize(auto.term)) ||
-        normalize(auto.term).includes(normalize(p.term)),
-    );
-    if (!yaCubierta) {
+    const mismaEntidad = (a: string, b: string): boolean =>
+      normalize(a).includes(normalize(b)) || normalize(b).includes(normalize(a));
+    const yaCubierta = intents.insertos.findIndex((p) => mismaEntidad(p.term, auto.term));
+    if (yaCubierta < 0) {
       intents.insertos.push(auto);
       ctx.logger.info(
         { videoId: params.videoId, entidad: auto.term },
         'Inserto automático: el vídeo nombra una entidad que el guion no pidió enseñar',
       );
+    } else if (intents.insertos[yaCubierta]!.atMs > auto.atMs) {
+      // El guion declaró el inserto en una mención POSTERIOR. Manda la
+      // primera: al espectador se le presenta a alguien cuando se le nombra,
+      // no cinco menciones después. Medido en un vídeo real: «Musk» era la
+      // primera palabra del guion y la foto salía a los 24,6 s.
+      ctx.logger.info(
+        {
+          videoId: params.videoId,
+          entidad: auto.term,
+          declaradoEn: intents.insertos[yaCubierta]!.atMs,
+          primeraMencion: auto.atMs,
+        },
+        'Inserto adelantado a la primera mención de la entidad',
+      );
+      intents.insertos[yaCubierta] = auto;
     }
   }
 

@@ -655,7 +655,28 @@ describe('inserto automático y su carril propio (S11 bis)', () => {
     expect(out.some((e) => e.type === 'imagen_apoyo')).toBe(true);
   });
 
-  it('pero un inserto que PISA una tarjeta sí se cae: comparten banda superior', () => {
+  it('un inserto convive con una tarjeta CENTRADA: uno arriba, otra en el centro', () => {
+    // el caso que lo motiva: «Musk» es la primera palabra del vídeo y en el
+    // gancho hay una tarjeta de dato centrada. Si el inserto se cayera por
+    // eso, el sujeto del vídeo no se vería justo cuando se le nombra.
+    const declared = new Set<Edit>();
+    const stat: Edit = { type: 'stat_card', from_ms: 1_500, to_ms: 4_100, beat_idx: 0, value: '5' };
+    const inserto: Edit = {
+      type: 'imagen_apoyo',
+      from_ms: 0,
+      to_ms: 3_000,
+      beat_idx: 0,
+      image_path: '/x.jpg',
+      text: 'Elon Musk',
+    };
+    declared.add(stat);
+    declared.add(inserto);
+    const out = dedupeAndCap([stat, inserto], 474_000, declared);
+    expect(out.some((e) => e.type === 'stat_card')).toBe(true);
+    expect(out.some((e) => e.type === 'imagen_apoyo')).toBe(true);
+  });
+
+  it('pero un inserto que pisa un CALLOUT sí se cae: comparten banda superior', () => {
     const declared = new Set<Edit>();
     const callout: Edit = {
       type: 'text_callout',
