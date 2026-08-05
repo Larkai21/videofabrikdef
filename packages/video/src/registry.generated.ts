@@ -13,6 +13,7 @@ import type { ComponentType } from '@fabrica/shared';
 import { IntroBasica } from './themes/IntroBasica';
 import { OutroBasica } from './themes/OutroBasica';
 import { SubtitlesBasicos } from './themes/SubtitlesBasicos';
+import { SubtitulosCineticos } from './themes/SubtitulosCineticos';
 import { TituloSeccion } from './themes/TituloSeccion';
 import { RotuloBasico } from './themes/RotuloBasico';
 import Kit_rotulo_ejemplo_1_0_0 from './kit/rotulo-ejemplo@1.0.0/Component';
@@ -37,6 +38,7 @@ export const componentRegistry: Partial<
   },
   subtitle_theme: {
     'subtitulos-basicos@0.1.0': SubtitlesBasicos as unknown as RegisteredComponent,
+    'subtitulos-cineticos@0.1.0': SubtitulosCineticos as unknown as RegisteredComponent,
   },
 };
 

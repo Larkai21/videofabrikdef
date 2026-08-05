@@ -18,5 +18,6 @@ export const componentMeta: Record<string, KitComponentMeta> = {
   'rotulo-basico@0.1.0': { type: 'lower_third' },
   'rotulo-ejemplo@1.0.0': { type: 'lower_third' },
   'subtitulos-basicos@0.1.0': { type: 'subtitle_theme' },
+  'subtitulos-cineticos@0.1.0': { type: 'subtitle_theme' },
   'titulo-seccion@0.1.0': { type: 'title_card' },
 };

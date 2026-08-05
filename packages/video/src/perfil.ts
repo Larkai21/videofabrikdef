@@ -32,8 +32,7 @@ const LARGO: Perfil = {
 };
 
 const VERTICAL: Perfil = {
-  // TODO(fase 5): subtitulos-cineticos@0.1.0 cuando exista
-  temaSubtitulosPorDefecto: 'subtitulos-basicos@0.1.0',
+  temaSubtitulosPorDefecto: 'subtitulos-cineticos@0.1.0',
   // a 1,2-2,5 s por plano, un crossfade de 6 frames se come el 15 % del plano
   transiciones: { dura: 9, fundido: 1, slide: 0 },
   progreso: false,

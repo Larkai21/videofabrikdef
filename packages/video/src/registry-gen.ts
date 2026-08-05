@@ -73,6 +73,17 @@ const BUILTINS: Array<{
     importStmt: "import { SubtitlesBasicos } from './themes/SubtitlesBasicos';",
   },
   {
+    // El tema del formato VERTICAL. Se registra aquí, que es lo que consume el
+    // render, pero NO en BUILTIN_KIT_COMPONENTS, que es lo que alimenta la
+    // pantalla de Brand kit: ofrecerlo como slot elegible para el vídeo largo
+    // sería ofrecer un cuerpo de 128 px sobre un lienzo de 1920, que es un
+    // footgun garantizado. No es un slot intercambiable, es gramática fija del
+    // short.
+    type: 'subtitle_theme',
+    line: { ref: 'subtitulos-cineticos@0.1.0', identifier: 'SubtitulosCineticos' },
+    importStmt: "import { SubtitulosCineticos } from './themes/SubtitulosCineticos';",
+  },
+  {
     type: 'title_card',
     line: { ref: 'titulo-seccion@0.1.0', identifier: 'TituloSeccion' },
     importStmt: "import { TituloSeccion } from './themes/TituloSeccion';",
