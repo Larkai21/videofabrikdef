@@ -46,6 +46,67 @@ describe('encuadreDe', () => {
     expect(encuadreDe({ kind: 'clip', width: 1080, height: 1920 })).toBe('cover');
   });
 
+  // El fallo medido sobre material real: una foto de stock de una terminal sale
+  // ILEGIBLE recortada al 31 % del ancho, y su `kind` es `image`, así que la
+  // comprobación por tipo no la cogía. La biblioteca ya lo sabe por el caption.
+  it('un plano que ES una pantalla no se recorta, aunque su tipo sea image', () => {
+    expect(
+      encuadreDe({
+        kind: 'image',
+        width: 1880,
+        height: 1253,
+        caption: 'Monitor en un entorno oscuro mostrando múltiples terminales con código.',
+        tags: ['terminal', 'monitor', 'tech'],
+      }),
+    ).toBe('entero');
+  });
+
+  it('lo detecta por una tag inequívoca aunque no haya caption', () => {
+    expect(encuadreDe({ kind: 'image', tags: ['dashboard', 'datos'] })).toBe('entero');
+    expect(encuadreDe({ kind: 'image', tags: ['screenshot'] })).toBe('entero');
+  });
+
+  // El falso positivo medido: 2 de cada 3 disparos de la primera versión eran
+  // planos con una pantalla de ATREZO al fondo.
+  it('una pantalla de atrezo al fondo no cuenta', () => {
+    expect(
+      encuadreDe({
+        kind: 'clip',
+        width: 1920,
+        height: 1080,
+        caption:
+          'Mano escribiendo y marcando casillas en una libreta con un checklist, teclado y monitor desenfocados al fondo.',
+        tags: ['mano', 'libreta', 'monitor', 'teclado'],
+      }),
+    ).toBe('recorte');
+  });
+
+  it('un rack de servidores tampoco es una pantalla', () => {
+    expect(
+      encuadreDe({
+        kind: 'image',
+        width: 1920,
+        height: 1080,
+        caption: 'Técnico ajustando y probando cables de red en un rack de servidores.',
+        tags: ['tecnico', 'cables', 'rack', 'servidores'],
+      }),
+    ).toBe('recorte');
+  });
+
+  // Disparar de más manda a la banda con losa planos que se recortarían
+  // perfectamente, así que se buscan sustantivos de pantalla y no «texto».
+  it('no se dispara con un plano normal que casualmente lleve texto', () => {
+    expect(
+      encuadreDe({
+        kind: 'image',
+        width: 1920,
+        height: 1080,
+        caption: 'Persona escribiendo un texto a mano en un cuaderno sobre una mesa.',
+        tags: ['texto', 'cuaderno', 'oficina'],
+      }),
+    ).toBe('recorte');
+  });
+
   it('lo demás se recorta, incluso sin dimensiones conocidas', () => {
     expect(encuadreDe({ kind: 'clip', width: 1920, height: 1080 })).toBe('recorte');
     expect(encuadreDe({})).toBe('recorte');

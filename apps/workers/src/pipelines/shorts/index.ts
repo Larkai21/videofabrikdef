@@ -31,7 +31,15 @@ async function encuadresDe(
   const mapa = new Map<string, ShortFraming>();
   if (rutas.length === 0) return mapa;
   const filas = await ctx.db
-    .select({ path: assets.path, width: assets.width, height: assets.height, kind: assets.kind })
+    .select({
+      path: assets.path,
+      width: assets.width,
+      height: assets.height,
+      kind: assets.kind,
+      // el pie de foto del VLM es lo que delata un plano que ES una pantalla
+      caption: assets.caption,
+      tags: assets.tags,
+    })
     .from(assets)
     .where(inArray(assets.path, rutas));
   for (const fila of filas) mapa.set(fila.path, encuadreDe(fila));

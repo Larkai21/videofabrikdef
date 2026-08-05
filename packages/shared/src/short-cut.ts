@@ -19,11 +19,80 @@ import type { Beat, Cue, Edit, RenderableMaster, SceneSpan, Subvisual } from './
 // —viven solo en el worker de voz y se tiran—, así que reconstruirla de otra
 // forma no es posible desde un vídeo ya entregado.
 
-/** Dimensiones y tipo que la biblioteca ya conoce del asset. */
+/** Lo que la biblioteca ya sabe del asset, sin analizar un solo píxel. */
 export interface AssetInfo {
   width?: number | null;
   height?: number | null;
   kind?: string | null;
+  /** pie de foto del VLM, escrito en la ingesta */
+  caption?: string | null;
+  tags?: string[] | null;
+}
+
+/**
+ * Un plano que ES una pantalla no se puede recortar: al quedarse con el 31 % del
+ * ancho, el texto que lleva dentro deja de leerse y el plano no dice nada.
+ *
+ * Medido sobre material real: una foto de stock de una terminal («Monitor en un
+ * entorno oscuro mostrando múltiples terminales con código y estadísticas»)
+ * salía ilegible en el short. Su `kind` es `image`, así que la comprobación por
+ * tipo no la cogía.
+ *
+ * Solo cuenta si la pantalla es el SUJETO, y para eso basta mirar las primeras
+ * palabras del pie: el VLM escribe «sujeto + verbo + complementos».
+ *
+ *   «Monitor en un entorno oscuro mostrando terminales…»       → sí
+ *   «Mano escribiendo … con teclado y monitor desenfocado»      → NO
+ *
+ * Buscar en el pie entero, o en las tags —que son una bolsa de palabras sin
+ * posición—, marcaba como pantalla cualquier plano con un monitor de atrezo al
+ * fondo, y eso manda a la banda con losa planos que se recortarían
+ * perfectamente. Medido: 2 de 3 disparos eran falsos positivos.
+ */
+const PALABRAS_DE_PANTALLA = [
+  'pantalla',
+  'monitor',
+  'terminal',
+  'consola',
+  'captura',
+  'screenshot',
+  'dashboard',
+  'panel',
+  'interfaz',
+  'interface',
+  'grafico',
+  'grafica',
+  'chart',
+  'diagrama',
+  'diagram',
+  'codigo',
+  'code',
+  'navegador',
+  'browser',
+  'hoja de calculo',
+  'spreadsheet',
+];
+
+function sinAcentos(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+/** Cuántas palabras del pie se consideran «el sujeto». */
+const PALABRAS_DE_SUJETO = 5;
+
+function esPantalla(info: AssetInfo): boolean {
+  const sujeto = sinAcentos(info.caption ?? '')
+    .split(/\s+/)
+    .slice(0, PALABRAS_DE_SUJETO)
+    .join(' ');
+  if (PALABRAS_DE_PANTALLA.some((p) => sujeto.includes(p))) return true;
+  // las tags no llevan posición, así que solo valen las inequívocas: nadie
+  // etiqueta «screenshot» un plano donde la captura es atrezo
+  const tags = (info.tags ?? []).map((t) => sinAcentos(t));
+  return tags.some((t) => t === 'screenshot' || t === 'captura' || t === 'dashboard');
 }
 
 export interface CutInput {
@@ -49,7 +118,7 @@ export interface CutInput {
  */
 export function encuadreDe(info: AssetInfo): ShortFraming {
   // una captura o un gráfico llevan texto: recortarlo lo deja ilegible
-  if (info.kind === 'screenshot') return 'entero';
+  if (info.kind === 'screenshot' || esPantalla(info)) return 'entero';
   const { width, height } = info;
   if (typeof width === 'number' && typeof height === 'number' && height > width) return 'cover';
   return 'recorte';
