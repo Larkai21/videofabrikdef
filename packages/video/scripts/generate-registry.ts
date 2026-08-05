@@ -28,6 +28,11 @@ import {
 //
 // spec.json: { "components": [{ "type", "name", "version", "source_dir" }] }
 // Salida por stdout: JSON { ok, entries, removed, skipped } (o { ok:false, error }).
+//
+// Los ficheros generados se escriben solo si su contenido cambia: los workers
+// sincronizan el registry en cada arranque y una escritura incondicional toca
+// la mtime, tsx watch reinicia el worker y el arranque vuelve a sincronizar
+// (bucle de reinicios infinito en `pnpm dev`).
 
 const specSchema = z.object({
   components: z.array(
@@ -43,6 +48,11 @@ const specSchema = z.object({
 const pkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const kitDir = path.join(pkgDir, 'src', 'kit');
 const registryPath = path.join(pkgDir, 'src', 'registry.generated.ts');
+
+function writeIfChanged(filePath: string, content: string): void {
+  if (existsSync(filePath) && readFileSync(filePath, 'utf8') === content) return;
+  writeFileSync(filePath, content);
+}
 
 // fixed_duration_frames del manifest.json del componente: se copia al mapa de
 // metadatos del registry generado (el render no lee la BD). Lectura tolerante:
@@ -116,10 +126,10 @@ function main(): void {
     removed.push(item.name);
   }
 
-  writeFileSync(registryPath, generateRegistrySource(entries));
+  writeIfChanged(registryPath, generateRegistrySource(entries));
   // la meta pura (sin React) va en fichero hermano: la consume el worker de
   // render para el offset de capítulos sin arrastrar los componentes
-  writeFileSync(
+  writeIfChanged(
     path.join(path.dirname(registryPath), 'registry.meta.generated.ts'),
     generateMetaSource(entries),
   );
