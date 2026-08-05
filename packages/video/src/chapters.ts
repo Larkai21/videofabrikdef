@@ -96,26 +96,68 @@ export function chaptersToText(chapters: Chapter[]): string {
   return chapters.map((c) => `${c.label} ${c.title}`).join('\n');
 }
 
-const CHAPTER_LINE = /^\s*\d{1,2}:\d{2}(?::\d{2})?\s+\S/;
+const HEADING = 'Capítulos:';
 
-// Fusiona los capítulos REALES (derivados del audio) en la descripción del
-// LLM. Contrato: la descripción trae el placeholder {timestamps}. Algunos
-// modelos lo ignoran y escriben una lista literal de tiempos estimados (que
-// pueden exceder la duración real del vídeo): ese bloque se sustituye por los
-// capítulos reales. Sin placeholder ni lista, se añade un bloque «Capítulos:»
-// al final (YouTube exige la lista con 0:00 para activar capítulos).
+// Línea de tiempo de capítulo. La versión anterior exigía que la línea EMPEZARA
+// por dígito, así que «- 0:00 Intro», «• 0:00 Intro» y «**0:00** Intro» no
+// casaban: caían a la rama de «aquí no hay lista» y el merge anexaba una
+// SEGUNDA cabecera debajo de la que el modelo ya había escrito.
+const CHAPTER_LINE =
+  /^\s*(?:[-–—*•·]\s*)?(?:\*\*|__)?\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:\*\*|__)?\s*[-–—:]?\s+\S/;
+
+// Cabecera sola en su línea, con o sin dos puntos, con viñeta, almohadilla,
+// cita o negritas. Se acepta sin tilde y en mayúsculas.
+const CHAPTER_HEADING_ONLY =
+  /^\s*(?:[#>*\-•·]+\s*)?(?:\*\*|__)?\s*(?:cap[íi]tulos|chapters)\s*(?:\*\*|__)?\s*:?\s*$/i;
+
+// Cabecera PEGADA al final de un párrafo («…y escalado. Capítulos:»), que es la
+// forma que sale en los tres vídeos reales del repo. Los dos puntos son
+// OBLIGATORIOS a propósito: sin ellos, una frase que acabe en «…tiene
+// capítulos» se mutilaría.
+const CHAPTER_HEADING_TAIL = /(?:^|\s)(?:\*\*|__)?(?:cap[íi]tulos|chapters)(?:\*\*|__)?\s*:\s*$/i;
+
+// Deja una línea sin cabecera, sin placeholder y sin tiempos; '' si no queda nada.
+function stripChapterMarks(line: string): string {
+  if (CHAPTER_LINE.test(line)) return '';
+  return line
+    .replaceAll('{timestamps}', '')
+    .replace(CHAPTER_HEADING_TAIL, '')
+    .replace(CHAPTER_HEADING_ONLY, '')
+    .trimEnd();
+}
+
+function tidy(text: string): string {
+  return text.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// Fusiona los capítulos REALES (derivados del audio) en la descripción del LLM.
+//
+// El contrato original era «la descripción trae el placeholder {timestamps}»,
+// pero de los tres vídeos producidos NINGUNO lo escribió: los tres escribieron
+// la palabra «Capítulos:» pegada al final del párrafo, y uno de ellos además
+// una segunda vez como cabecera. La implementación anterior sustituía las
+// LÍNEAS de tiempo pero nunca tocaba las cabeceras, así que las conservaba
+// todas —o añadía una tercera si la lista venía en viñetas—.
+//
+// Por eso aquí no hay ramas: se borra TODO rastro de capítulos (placeholder,
+// cabeceras en cualquier forma y listas de tiempos) y se reconstruye
+// «prosa + una sola cabecera + el bloque real + la cola» (la cola es donde vive
+// la línea de transparencia sobre el uso de IA). El placeholder se sigue
+// aceptando aunque el prompt ya no lo pida: hay maestros guardados que lo traen.
 export function mergeChaptersIntoDescription(description: string, chapters: Chapter[]): string {
   const block = chaptersToText(chapters);
   if (block === '') return description;
-  if (description.includes('{timestamps}')) {
-    return description.replaceAll('{timestamps}', block);
-  }
   const lines = description.split('\n');
-  const isChapterLine = (line: string | undefined): boolean =>
-    line !== undefined && CHAPTER_LINE.test(line);
-  const start = lines.findIndex((l) => isChapterLine(l));
-  if (start === -1) return `${description.trimEnd()}\n\nCapítulos:\n${block}`;
-  let end = start;
-  while (isChapterLine(lines[end])) end += 1;
-  return [...lines.slice(0, start), block, ...lines.slice(end)].join('\n');
+  // la zona de capítulos empieza en el PRIMER indicio, sea el que sea
+  const zone = lines.findIndex(
+    (l) =>
+      l.includes('{timestamps}') ||
+      CHAPTER_LINE.test(l) ||
+      CHAPTER_HEADING_ONLY.test(l) ||
+      CHAPTER_HEADING_TAIL.test(l),
+  );
+  const cleaned = lines.map(stripChapterMarks);
+  const before = tidy(zone === -1 ? cleaned.join('\n') : cleaned.slice(0, zone + 1).join('\n'));
+  const after = zone === -1 ? '' : tidy(cleaned.slice(zone + 1).join('\n'));
+  return [before, `${HEADING}\n${block}`, after].filter((part) => part !== '').join('\n\n');
 }

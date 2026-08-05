@@ -132,19 +132,91 @@ describe('mergeChaptersIntoDescription', () => {
     expect(out).toBe(`Resumen.\n\nCapítulos:\n${real}\n\nGracias.`);
   });
 
-  it('sustituye una lista literal de tiempos escrita por el LLM', () => {
+  it('mueve la cabecera a su línea y sustituye la lista literal del LLM', () => {
     // gpt-5-mini a veces ignora el placeholder e inventa tiempos que pueden
-    // exceder la duración real del vídeo
+    // exceder la duración real del vídeo. La cabecera pegada al párrafo no se
+    // conserva donde el modelo la puso: si puede quedarse ahí, una segunda
+    // cabecera debajo también sobrevive, que es el bug de la doble «Capítulos».
     const out = mergeChaptersIntoDescription(
       'Resumen. Capítulos:\n00:00 Intro\n02:20 Modelos\n10:50 Descarga\n\nGracias.',
       chapters,
     );
-    expect(out).toBe(`Resumen. Capítulos:\n${real}\n\nGracias.`);
+    expect(out).toBe(`Resumen.\n\nCapítulos:\n${real}\n\nGracias.`);
   });
 
   it('añade un bloque de capítulos si no hay placeholder ni lista', () => {
     const out = mergeChaptersIntoDescription('Solo un resumen.', chapters);
     expect(out).toBe(`Solo un resumen.\n\nCapítulos:\n${real}`);
+  });
+
+  // El caso real que motivó el arreglo: outputs/gmu3muVluTZJZB5WooRgL. El modelo
+  // escribió «Capítulos:» pegada al párrafo Y otra vez como cabecera, y el merge
+  // conservaba las dos.
+  it('deja una sola cabecera cuando el LLM escribió dos', () => {
+    const out = mergeChaptersIntoDescription(
+      'Repaso práctico del silicio nuevo.\n\n' +
+        'Incluye casos de uso concretos y una ruta híbrida para prototipado y escalado. Capítulos:\n' +
+        'Capítulos:\n' +
+        '00:00 Hook\n00:32 Qué está pasando\n01:56 Qué lo hace posible\n\n' +
+        'Transparencia: este guion ha contado con asistencia de IA en su redacción.',
+      chapters,
+    );
+    expect(out.match(/Capítulos/g)).toHaveLength(1);
+    expect(out).toContain(real);
+    expect(out).not.toContain('00:32');
+    expect(out).toContain('Transparencia: este guion ha contado con asistencia de IA');
+    expect(out).toBe(
+      'Repaso práctico del silicio nuevo.\n\n' +
+        'Incluye casos de uso concretos y una ruta híbrida para prototipado y escalado.\n\n' +
+        `Capítulos:\n${real}\n\n` +
+        'Transparencia: este guion ha contado con asistencia de IA en su redacción.',
+    );
+  });
+
+  it('reconoce la lista en viñetas', () => {
+    const out = mergeChaptersIntoDescription(
+      'Resumen.\n\n- 0:00 Intro\n- 2:20 Modelos\n\nGracias.',
+      chapters,
+    );
+    expect(out).toBe(`Resumen.\n\nCapítulos:\n${real}\n\nGracias.`);
+  });
+
+  it('reconoce la lista en negrita markdown', () => {
+    const out = mergeChaptersIntoDescription(
+      'Resumen.\n\n**0:00** Intro\n**2:20** Modelos',
+      chapters,
+    );
+    expect(out).toBe(`Resumen.\n\nCapítulos:\n${real}`);
+  });
+
+  it('reconoce la cabecera inline sin lista debajo', () => {
+    const out = mergeChaptersIntoDescription('Resumen del vídeo. Capítulos:', chapters);
+    expect(out).toBe(`Resumen del vídeo.\n\nCapítulos:\n${real}`);
+  });
+
+  it('reconoce la cabecera en mayúsculas y sin tilde', () => {
+    expect(mergeChaptersIntoDescription('Resumen.\n\nCAPITULOS\n0:00 a\n1:00 b', chapters)).toBe(
+      `Resumen.\n\nCapítulos:\n${real}`,
+    );
+    expect(mergeChaptersIntoDescription('Resumen.\n\nCapitulos:\n0:00 a', chapters)).toBe(
+      `Resumen.\n\nCapítulos:\n${real}`,
+    );
+  });
+
+  it('no duplica el bloque si el modelo escribió dos placeholders', () => {
+    const out = mergeChaptersIntoDescription('A\n\n{timestamps}\n\nB\n\n{timestamps}', chapters);
+    expect(out.match(/0:00 Introducción/g)).toHaveLength(1);
+  });
+
+  it('no mutila una frase que acaba en «capítulos» sin dos puntos', () => {
+    const out = mergeChaptersIntoDescription('Este vídeo tiene capítulos\n\n0:00 Intro', chapters);
+    expect(out).toContain('Este vídeo tiene capítulos');
+    expect(out).toBe(`Este vídeo tiene capítulos\n\nCapítulos:\n${real}`);
+  });
+
+  it('es idempotente', () => {
+    const una = mergeChaptersIntoDescription('Resumen. Capítulos:\n00:00 Intro', chapters);
+    expect(mergeChaptersIntoDescription(una, chapters)).toBe(una);
   });
 
   it('sin capítulos reales deja la descripción intacta', () => {
