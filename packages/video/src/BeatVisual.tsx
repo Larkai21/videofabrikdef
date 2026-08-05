@@ -9,11 +9,19 @@ import {
   useVideoConfig,
 } from 'remotion';
 import type { Beat } from '@fabrica/shared';
-import { LOOP_CROSSFADE_MS, MAX_LOOPS, SUBVISUAL_CROSSFADE_MS } from '@fabrica/shared';
+import {
+  defaultDesign,
+  LOOP_CROSSFADE_MS,
+  MAX_LOOPS,
+  SUBVISUAL_CROSSFADE_MS,
+} from '@fabrica/shared';
 import { punchScale } from './effects/punch';
+import { movimientoDe, planDeEncuadre, type MovimientoKenBurns } from './encuadre';
 import { FONT_FAMILY } from './fonts';
+import { useLienzo } from './lienzo';
 import { isRenderableSrc, toSrc } from './media-src';
 import { hashSeed } from './seed';
+import { Losa } from './themes/kernel';
 
 type BeatVisualProps = {
   beat: Beat;
@@ -33,24 +41,6 @@ const PunchWrap: React.FC<{ punchFromFrame?: number; children: React.ReactNode }
   const scale = punchScale(frame - punchFromFrame);
   return <AbsoluteFill style={{ transform: `scale(${scale})` }}>{children}</AbsoluteFill>;
 };
-
-const COVER_STYLE: React.CSSProperties = {
-  width: '100%',
-  height: '100%',
-  objectFit: 'cover',
-};
-
-// Direcciones de paneo Ken Burns; la elección deriva de hashSeed(video, beat).
-const PAN_DIRECTIONS: ReadonlyArray<readonly [number, number]> = [
-  [1, 0],
-  [-1, 0],
-  [0, 1],
-  [0, -1],
-  [1, 1],
-  [-1, 1],
-  [1, -1],
-  [-1, -1],
-];
 
 function msToFrames(ms: number, fps: number): number {
   return Math.round((ms / 1000) * fps);
@@ -92,9 +82,11 @@ const KenBurnsImage: React.FC<{
   // manda sobre la derivación local para que master.json documente lo que
   // realmente se renderiza
   effect?: string;
-}> = ({ src, seed, durationInFrames, effect }) => {
+  estilo: React.CSSProperties;
+  movimiento: MovimientoKenBurns;
+}> = ({ src, seed, durationInFrames, effect, estilo, movimiento }) => {
   const frame = useCurrentFrame();
-  let direction = PAN_DIRECTIONS[seed % PAN_DIRECTIONS.length] ?? [1, 0];
+  let direction = movimiento.direcciones[seed % movimiento.direcciones.length] ?? ([1, 0] as const);
   let zoomIn = true;
   if (effect?.startsWith('kenburns-')) {
     zoomIn = effect.includes('-in-');
@@ -104,18 +96,20 @@ const KenBurnsImage: React.FC<{
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  // el zoom 1,00→1,08 deja un 4% de margen por lado; el paneo usa como máximo
-  // la mitad de ese margen y va ligado al zoom para no descubrir bordes
+  // En apaisado el zoom 1,00→1,08 deja un 4 % de margen por lado y el paneo usa
+  // la mitad de ese margen, atado al zoom para no descubrir bordes. En vertical
+  // el elemento desborda un 108 % en horizontal, así que el paneo es un
+  // travelling de verdad y el zoom baja (ver encuadre.ts).
   const zoomProgress = zoomIn ? progress : 1 - progress;
-  const scale = 1 + 0.08 * zoomProgress;
-  const translateX = 2 * zoomProgress * direction[0];
-  const translateY = 2 * zoomProgress * direction[1];
+  const scale = 1 + movimiento.zoom * zoomProgress;
+  const translateX = movimiento.paneo * zoomProgress * direction[0]!;
+  const translateY = movimiento.paneo * zoomProgress * direction[1]!;
   return (
     <AbsoluteFill style={{ overflow: 'hidden' }}>
       <Img
         src={src}
         style={{
-          ...COVER_STYLE,
+          ...estilo,
           transform: `scale(${scale}) translate(${translateX}%, ${translateY}%)`,
         }}
       />
@@ -129,8 +123,10 @@ const KenBurnsImage: React.FC<{
 const ClipMotion: React.FC<{
   seed: number;
   durationInFrames: number;
+  /** deriva horizontal en % del elemento; 0 en apaisado (descubriría borde) */
+  deriva?: number;
   children: React.ReactNode;
-}> = ({ seed, durationInFrames, children }) => {
+}> = ({ seed, durationInFrames, deriva = 0, children }) => {
   const frame = useCurrentFrame();
   const linear = interpolate(frame, [0, Math.max(1, durationInFrames - 1)], [0, 1], {
     extrapolateLeft: 'clamp',
@@ -141,9 +137,16 @@ const ClipMotion: React.FC<{
   const eased = 1 - Math.pow(1 - linear, 3);
   const zoomProgress = seed % 2 === 0 ? eased : 1 - eased;
   const scale = 1 + 0.07 * zoomProgress;
+  // En vertical el clip desborda de sobra por los lados, así que además del
+  // zoom hay sitio para un travelling lateral real. Misma curva ya escrita, y
+  // el sentido lo decide la semilla para que no todos los planos vayan igual.
+  const sentido = seed % 2 === 0 ? 1 : -1;
+  const translateX = deriva * (eased - 0.5) * 2 * sentido;
   return (
     <AbsoluteFill style={{ overflow: 'hidden' }}>
-      <AbsoluteFill style={{ transform: `scale(${scale})` }}>{children}</AbsoluteFill>
+      <AbsoluteFill style={{ transform: `scale(${scale}) translateX(${translateX.toFixed(3)}%)` }}>
+        {children}
+      </AbsoluteFill>
     </AbsoluteFill>
   );
 };
@@ -169,12 +172,13 @@ const LoopedClip: React.FC<{
   loops: number;
   durationInFrames: number;
   fps: number;
-}> = ({ src, trimBeforeFrames, loops, durationInFrames, fps }) => {
+  estilo: React.CSSProperties;
+}> = ({ src, trimBeforeFrames, loops, durationInFrames, fps, estilo }) => {
   const plays = Math.max(1, Math.min(loops, MAX_LOOPS));
   if (plays === 1) {
     return (
       <AbsoluteFill>
-        <OffthreadVideo src={src} trimBefore={trimBeforeFrames} muted style={COVER_STYLE} />
+        <OffthreadVideo src={src} trimBefore={trimBeforeFrames} muted style={estilo} />
       </AbsoluteFill>
     );
   }
@@ -198,7 +202,7 @@ const LoopedClip: React.FC<{
           name={`Pasada ${i + 1}`}
         >
           <FadeIn fadeFrames={i === 0 ? 0 : fadeFrames}>
-            <OffthreadVideo src={src} trimBefore={trimBeforeFrames} muted style={COVER_STYLE} />
+            <OffthreadVideo src={src} trimBefore={trimBeforeFrames} muted style={estilo} />
           </FadeIn>
         </Sequence>
       ))}
@@ -217,41 +221,55 @@ const AssetVisual: React.FC<{
   fps: number;
 }> = ({ asset, seed, durationInFrames, fps }) => {
   const src = toSrc(asset.path!);
+  const lienzo = useLienzo();
+  const { estilo, conLosa } = planDeEncuadre(asset.encuadre, lienzo);
+  const movimiento = movimientoDe(lienzo, conLosa);
   const trimBeforeFrames = msToFrames(asset.fit.offset_ms ?? 0, fps);
+  // el plano no llena el lienzo: el hueco se viste con la marca en vez de
+  // dejarlo negro o rellenarlo de papilla desenfocada
+  const vestir = (contenido: React.ReactNode): React.ReactElement => (
+    <AbsoluteFill>
+      {conLosa ? <Losa design={defaultDesign()} luz={0.6} /> : null}
+      {contenido}
+    </AbsoluteFill>
+  );
   if (asset.kind === 'image') {
-    return (
+    return vestir(
       <KenBurnsImage
         src={src}
         seed={seed}
         durationInFrames={durationInFrames}
         effect={asset.effect}
-      />
+        estilo={estilo}
+        movimiento={movimiento}
+      />,
     );
   }
   if (asset.fit.mode === 'loop') {
-    return (
+    return vestir(
       <LoopedClip
         src={src}
         trimBeforeFrames={trimBeforeFrames}
         loops={asset.fit.loops ?? 1}
         durationInFrames={durationInFrames}
         fps={fps}
-      />
+        estilo={estilo}
+      />,
     );
   }
   // stretch: una sola pasada ralentizada (playback_rate < 1) que llena el tramo
   // sin reinicios; trim: clip que sobra, recortado con offset.
   const playbackRate = asset.fit.mode === 'stretch' ? (asset.fit.playback_rate ?? 1) : 1;
-  return (
-    <ClipMotion seed={seed} durationInFrames={durationInFrames}>
+  return vestir(
+    <ClipMotion seed={seed} durationInFrames={durationInFrames} deriva={movimiento.deriva}>
       <OffthreadVideo
         src={src}
         trimBefore={trimBeforeFrames}
         playbackRate={playbackRate}
         muted
-        style={COVER_STYLE}
+        style={estilo}
       />
-    </ClipMotion>
+    </ClipMotion>,
   );
 };
 
