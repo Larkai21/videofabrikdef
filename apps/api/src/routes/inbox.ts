@@ -176,6 +176,7 @@ export function registerInboxRoutes(app: FastifyInstance, ctx: ApiContext): void
           title: videoTitle(video),
           output_dir: video.outputDir ?? '',
           finished_at: video.updatedAt.toISOString(),
+          created_at: video.createdAt.toISOString(),
           thumbnail_url: await officialThumbnailUrl(ctx.outputsDir, video.id),
           youtube: video.youtube ?? null,
         })),

@@ -139,6 +139,11 @@ export const inboxDtoSchema = z.object({
       title: z.string(),
       output_dir: z.string(),
       finished_at: z.string(),
+      // Fecha de alta del vídeo, y la que ORDENA la galería: es inmutable.
+      // `finished_at` es updatedAt y lo pisa cada escritura de publicación, así
+      // que marcar como publicado un vídeo antiguo lo saltaría al principio de
+      // una lista ordenada por «más reciente».
+      created_at: z.string(),
       // URL /files de la miniatura oficial, para la galería de la bandeja;
       // null mientras no haya ninguna generada ni subida
       thumbnail_url: z.string().nullable(),
