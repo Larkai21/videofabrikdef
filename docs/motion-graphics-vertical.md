@@ -83,10 +83,14 @@ vertical. El paneo vertical desaparece, el horizontal sube al 12 % sin descubrir
 nada, y el zoom baja a 1,04 porque sobre un recorte que ya amplía 1,78× se
 empieza a ver el pixelado del origen 1080p.
 
-**Los efectos hay que encogerlos.** Su tipografía está en píxeles absolutos
-calibrados sobre 1920 de ancho, así que a 1080 salen 1,78× más grandes en
-relativo: medido, el texto cinético del gancho ocupaba el ancho entero del short
-y competía con la cartela y con los subtítulos. Se escala por `ancho/1920`.
+**Los efectos NO se encogen en bloque.** Hubo un `scale(ancho/1920)` sobre toda
+la capa, con el argumento de que su tipografía está calibrada sobre 1920 y a
+1080 saldría 1,78× más grande en relativo. Duró hasta que se miró un short
+renderizado: el callout se dibujaba a 26 px efectivos y era **ilegible en un
+móvil**. Lo que se calibró en 1920 es el **ancho de las piezas grandes**, no el
+cuerpo del texto —46 px sobre 1080 son el 4,3 % del ancho, que está bien—, así
+que cada pieza se arregla donde toca: `KineticText` deriva su tamaño del ancho
+del lienzo, y las que no caben se maquetan en columna.
 
 **Los subtítulos suben de 54 a ~128 px.** Sobre 1920, 54 px son el 2,8 % del
 ancho; sobre 1080, 128 px son el 11,9 %. Cuatro veces más grande en relativo, y
@@ -114,6 +118,15 @@ y esos no la tocan.
 
 Los tres micro-FX que `micro-fx.ts` descartó por ser _gramática de vertical_
 —`notification-pop`, `stamp-banned`, `text-stack-offset`— siguen sin portar;
-aquí sí tendrían sitio. Igual que el freeze-cut del gancho y las variantes
-verticales de `SplitVersus`, `PasosFlow` y `Tendencia`, que hoy están fuera por
-`SHORT_EDIT_ALLOWED` porque se maquetan en fila y a 1080 de ancho no se leen.
+aquí sí tendrían sitio. Igual que el freeze-cut del gancho.
+
+`SplitVersus`, `PasosFlow` y `Tendencia` **ya viajan**: se maquetan en columna
+cuando el lienzo es vertical, que es el eje que este formato sí tiene. Son las
+únicas formas del catálogo que dibujan una RELACIÓN y no texto dentro de un
+rectángulo, y además el director de edición ya las puede PEDIR (`versus`,
+`pasos`, `tendencia` en su esquema de momentos), no solo heredarlas del guion.
+El motivo está medido: la voz decía «los tres pasos» y en pantalla salía un
+rótulo que ponía «los tres pasos».
+
+Siguen fuera `device_frame` —el marco de navegador es 16:9 por definición, y no
+hay maquetación que lo salve— e `imagen_apoyo`.
