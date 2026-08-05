@@ -1,12 +1,6 @@
 import { fabricaEventSchema } from '@fabrica/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { API_URL } from './api';
 import { useToasts } from './toasts';
 
@@ -30,6 +24,8 @@ export interface SourcePollNote {
 interface LiveState {
   // progreso de render por vídeo (0–100)
   renderProgress: Record<string, number>;
+  /** progreso del render de cada SHORT, indexado por su id */
+  shortProgress: Record<string, number>;
   // última nota de progreso de job por vídeo
   jobNotes: Record<string, JobNote>;
   // feed de polls de fuentes (radar de ideas), acotado a los últimos 100
@@ -40,6 +36,7 @@ interface LiveState {
 
 const EMPTY_LIVE: LiveState = {
   renderProgress: {},
+  shortProgress: {},
   jobNotes: {},
   sourcePolls: [],
   ideasScored: {},
@@ -100,10 +97,26 @@ export function EventsProvider({ children }: { children: ReactNode }) {
           break;
         }
         case 'render_progress': {
+          // Un short renderizando NO enciende la barra del vídeo largo: la
+          // bandeja indexa renderProgress por video_id y pintaría progreso en
+          // la tarjeta de un vídeo ya entregado.
+          if (event.short_id !== undefined) {
+            const shortId = event.short_id;
+            setLive((prev) => ({
+              ...prev,
+              shortProgress: { ...prev.shortProgress, [shortId]: event.progress },
+            }));
+            break;
+          }
           setLive((prev) => ({
             ...prev,
             renderProgress: { ...prev.renderProgress, [event.video_id]: event.progress },
           }));
+          break;
+        }
+        case 'short_state': {
+          void queryClient.invalidateQueries({ queryKey: ['shorts', event.video_id] });
+          void queryClient.invalidateQueries({ queryKey: ['short', event.short_id] });
           break;
         }
         case 'incident': {

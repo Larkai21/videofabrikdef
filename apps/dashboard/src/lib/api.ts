@@ -352,6 +352,14 @@ export async function getDeliverables(videoId: string): Promise<Deliverables> {
   };
 }
 
+// ---- shorts: los DTO viven en shared, igual que el resto ----
+import {
+  shortDetailDtoSchema,
+  shortsListDtoSchema,
+  type ShortDetailDto,
+  type ShortDto,
+} from '@fabrica/shared';
+
 // ---- componentes del brand kit (S2) ----
 // import local a la sección para no tocar la cabecera del módulo
 import { componentDtoSchema, type ComponentDto } from '@fabrica/shared';
@@ -579,4 +587,44 @@ export async function getIdeasFor(status = 'new', channel?: string | null): Prom
   }
   const data = await request(`/ideas?${params.toString()}`);
   return ideaDtoSchema.array().parse(unwrapList(data, 'ideas'));
+}
+
+// ---- shorts verticales ----
+
+export async function proposeShorts(videoId: string): Promise<{ ya_en_curso: boolean }> {
+  const data = await post(`/videos/${encodeURIComponent(videoId)}/shorts`);
+  return { ya_en_curso: (data as { ya_en_curso?: unknown } | null)?.ya_en_curso === true };
+}
+
+export async function getShorts(videoId: string): Promise<ShortDto[]> {
+  const data = await request(`/videos/${encodeURIComponent(videoId)}/shorts`);
+  return shortsListDtoSchema.parse(data).shorts;
+}
+
+export async function getShort(shortId: string): Promise<ShortDetailDto> {
+  return shortDetailDtoSchema.parse(await request(`/shorts/${encodeURIComponent(shortId)}`));
+}
+
+export async function renameShort(shortId: string, title: string): Promise<void> {
+  await patch(`/shorts/${encodeURIComponent(shortId)}`, { title });
+}
+
+export async function approveShort(shortId: string): Promise<void> {
+  await post(`/shorts/${encodeURIComponent(shortId)}/approve`);
+}
+
+export async function discardShort(shortId: string, reason?: string): Promise<void> {
+  await post(`/shorts/${encodeURIComponent(shortId)}/discard`, reason ? { reason } : {});
+}
+
+export async function retryShort(shortId: string): Promise<void> {
+  await post(`/shorts/${encodeURIComponent(shortId)}/retry`);
+}
+
+export async function markShortPublished(shortId: string): Promise<void> {
+  await post(`/shorts/${encodeURIComponent(shortId)}/publicado`);
+}
+
+export function shortDownloadUrl(shortId: string): string {
+  return `${API_URL}/shorts/${encodeURIComponent(shortId)}/download`;
 }

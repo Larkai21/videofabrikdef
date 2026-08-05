@@ -1,6 +1,8 @@
 // API pública de @fabrica/video: composiciones para @remotion/player en el
 // dashboard y utilidades puras que también consume el worker de render.
 export { LongForm } from './LongForm';
+// la MISMA composición pinta los dos formatos; lo decide el tamaño del lienzo
+export { Pieza } from './Pieza';
 export { Root } from './Root';
 export { BeatVisual } from './BeatVisual';
 export { Subtitles, SAFE_AREA } from './Subtitles';
@@ -12,7 +14,11 @@ export {
 export { ThumbnailTemplate, type ThumbnailTemplateProps } from './ThumbnailTemplate';
 export { IntroBasica, type IntroOutroProps } from './themes/IntroBasica';
 export { OutroBasica } from './themes/OutroBasica';
-export { calculateLongFormMetadata, DEFAULT_DURATION_FRAMES } from './metadata';
+export {
+  calculateLongFormMetadata,
+  calculateShortFormMetadata,
+  DEFAULT_DURATION_FRAMES,
+} from './metadata';
 export {
   beatWindow,
   computeBrandKitLayout,

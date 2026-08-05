@@ -590,6 +590,25 @@ export function Entrega() {
             )}
           </div>
 
+          {/* del vídeo largo salen los shorts: el recorte se hace sobre el
+              maestro ya entregado, así que la puerta es que esté en hecho */}
+          <div className="card" style={{ padding: 'var(--pad)' }}>
+            <div className="head" style={{ fontSize: 16, marginBottom: 10 }}>
+              Shorts
+            </div>
+            <p className="muted fs-sm" style={{ margin: '0 0 10px', lineHeight: 1.5 }}>
+              El sistema lee la narración y propone los fragmentos que funcionan solos en vertical.
+              Tú eliges cuáles se renderizan.
+            </p>
+            <Button
+              variant="secondary"
+              disabled={video.state !== 'hecho'}
+              onClick={() => void navigate(`/videos/${id}/shorts`)}
+            >
+              Crear shorts
+            </Button>
+          </div>
+
           <div className="card" style={{ padding: 'var(--pad)' }}>
             <div className="head" style={{ fontSize: 16, marginBottom: 10 }}>
               Checklist de subida manual
