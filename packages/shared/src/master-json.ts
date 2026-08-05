@@ -98,6 +98,12 @@ export const beatAssetSchema = z.object({
   // permite al informe de calidad agregar la cuota de biblioteca sin BD
   // (chosen_origin vive en la tabla beats y no sobrevive a la congelación)
   origin: z.enum(['library', 'pexels', 'pixabay', 'wikimedia', 'flux', 'upload']).optional(),
+  // Cómo encuadrar el plano en un lienzo VERTICAL. Lo estampa el recorte a
+  // short a partir de las dimensiones y el tipo que la biblioteca ya conoce;
+  // el render largo lo ignora. Vive aquí y no en un esquema de beat propio del
+  // short para que los sub-planos lo hereden sin duplicar el anidamiento.
+  // Valores en short-json.ts (SHORT_FRAMINGS).
+  encuadre: z.enum(['recorte', 'cover', 'entero']).optional(),
 });
 
 export const candidateSchema = z.object({
