@@ -46,10 +46,32 @@ const SALTO_MAX_MS = 4000;
  */
 const COLA_SEGURIDAD_MS = 700;
 
-function partesPara(spanMs: number, maxMs: number): number {
+/**
+ * Topes del troceo. Por defecto los de la ingesta del vídeo largo; el short
+ * pasa los suyos, que son más agresivos porque su gramática pide un plano cada
+ * 2-3 s. Se parametrizan en vez de duplicar el módulo: partir un plano es una
+ * sola idea y dos copias divergirían.
+ */
+export interface LimitesTroceo {
+  /** duración máxima de un plano de imagen, en ms */
+  imagenMaxMs: number;
+  /** duración máxima de un plano de clip, en ms */
+  clipMaxMs: number;
+  maxPartes: number;
+  parteMinMs: number;
+}
+
+export const LIMITES_LARGO: LimitesTroceo = {
+  imagenMaxMs: IMAGE_MAX_S * 1000,
+  clipMaxMs: CLIP_MAX_S * 1000,
+  maxPartes: TROCEO_MAX_PARTES,
+  parteMinMs: TROCEO_PARTE_MIN_MS,
+};
+
+function partesPara(spanMs: number, maxMs: number, lim: LimitesTroceo): number {
   const deseadas = Math.ceil(spanMs / maxMs);
-  const legibles = Math.floor(spanMs / TROCEO_PARTE_MIN_MS);
-  return Math.max(1, Math.min(deseadas, TROCEO_MAX_PARTES, legibles));
+  const legibles = Math.floor(spanMs / lim.parteMinMs);
+  return Math.max(1, Math.min(deseadas, lim.maxPartes, legibles));
 }
 
 /**
@@ -64,7 +86,9 @@ export function trocearCongelado(args: {
   fit: Fit;
   assetDurationMs: number | null;
   seed: number;
+  limites?: LimitesTroceo;
 }): PlanoCongelado[] {
+  const lim = args.limites ?? LIMITES_LARGO;
   const span = args.to_ms - args.from_ms;
   const original: PlanoCongelado = {
     from_ms: args.from_ms,
@@ -74,8 +98,8 @@ export function trocearCongelado(args: {
   };
 
   if (args.kind === 'image') {
-    if (span <= IMAGE_MAX_S * 1000) return [original];
-    const partes = partesPara(span, IMAGE_MAX_S * 1000);
+    if (span <= lim.imagenMaxMs) return [original];
+    const partes = partesPara(span, lim.imagenMaxMs, lim);
     if (partes < 2) return [original];
     const step = span / partes;
     return Array.from({ length: partes }, (_, k) => ({
@@ -95,9 +119,9 @@ export function trocearCongelado(args: {
   // clip: solo se trocea el modo trim (recorte de una fuente más larga).
   // loop y stretch repiten o estiran material justo: partirlos no da variedad.
   if (args.fit.mode !== 'trim') return [original];
-  if (span <= CLIP_MAX_S * 1000) return [original];
+  if (span <= lim.clipMaxMs) return [original];
   const len = args.assetDurationMs ?? 0;
-  const partes = partesPara(span, CLIP_MAX_S * 1000);
+  const partes = partesPara(span, lim.clipMaxMs, lim);
   if (partes < 2) return [original];
 
   // material sobrante de la fuente = lo que el recorte centrado descartaba;

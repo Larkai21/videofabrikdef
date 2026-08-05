@@ -291,3 +291,21 @@ export const SHORT_FX_MICRO_SEP_MS = 6_000;
 export const SHORT_FX_ZOOM_SEP_MS = 5_000;
 // FX_CARD_GUARD_MS y FX_SFX_COLLISION_MS NO tienen variante corta: son del ojo
 // y del oído, no del formato.
+
+/**
+ * Ritmo de corte del short: un plano cada 2-3 s, frente a los 4-8 s del vídeo
+ * largo. No sale de beats nuevos —eso rompería la ley temporal del audio— sino
+ * de trocear MÁS los planos que ya están aprobados: jump cuts dentro del mismo
+ * clip y re-encuadres de la misma imagen.
+ *
+ * Medido sobre cuatro shorts reales antes de esto: 2,8 / 4,8 / 7,5 / 11,3 s por
+ * plano. El de 11,3 s es un plano fijo durante once segundos en una pieza que
+ * dura treinta.
+ */
+export const SHORT_PLANO_MAX_MS = 3_000;
+/** Techo de partes por plano. El del largo es 5. */
+export const SHORT_TROCEO_MAX_PARTES = 8;
+/** Por debajo de ~1,1 s el plano se lee como parpadeo y no como corte. */
+export const SHORT_TROCEO_PARTE_MIN_MS = 1_200;
+/** Planos por beat en vertical. El del largo es 3. */
+export const SHORT_MAX_VISUALS_PER_BEAT = 8;

@@ -15,6 +15,7 @@ import {
 } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
 import { directShorts, efectosPorBeat } from './director.js';
+import { densificarRitmo, type DuracionesPorRuta } from './ritmo.js';
 
 // Worker de propuesta de shorts. Lee un vídeo ya ENTREGADO, pide al director
 // qué fragmentos funcionan solos y guarda un candidato por cada uno con su
@@ -23,13 +24,14 @@ import { directShorts, efectosPorBeat } from './director.js';
 // No toca la máquina de estados del vídeo: `hecho` es terminal y meterlo en
 // `incidencia` porque falle una propuesta de short desharía una entrega buena.
 
-/** Encuadre por ruta de asset, resuelto desde lo que la biblioteca ya sabe. */
-async function encuadresDe(
+/** Lo que el recorte necesita de la biblioteca: encuadre y duración por ruta. */
+async function datosDeAssets(
   ctx: WorkerContext,
   rutas: string[],
-): Promise<Map<string, ShortFraming>> {
+): Promise<{ encuadres: Map<string, ShortFraming>; duraciones: DuracionesPorRuta }> {
   const mapa = new Map<string, ShortFraming>();
-  if (rutas.length === 0) return mapa;
+  const duraciones: DuracionesPorRuta = new Map();
+  if (rutas.length === 0) return { encuadres: mapa, duraciones };
   const filas = await ctx.db
     .select({
       path: assets.path,
@@ -39,11 +41,16 @@ async function encuadresDe(
       // el pie de foto del VLM es lo que delata un plano que ES una pantalla
       caption: assets.caption,
       tags: assets.tags,
+      // la duración de la fuente es lo que permite el jump cut del troceo
+      durationMs: assets.durationMs,
     })
     .from(assets)
     .where(inArray(assets.path, rutas));
-  for (const fila of filas) mapa.set(fila.path, encuadreDe(fila));
-  return mapa;
+  for (const fila of filas) {
+    mapa.set(fila.path, encuadreDe(fila));
+    duraciones.set(fila.path, fila.durationMs);
+  }
+  return { encuadres: mapa, duraciones };
 }
 
 async function handleProposeShorts(ctx: WorkerContext, job: Job<ShortsProposeJob>): Promise<void> {
@@ -116,7 +123,7 @@ async function handleProposeShorts(ctx: WorkerContext, job: Job<ShortsProposeJob
       ]),
     ),
   ];
-  const encuadres = await encuadresDe(ctx, rutas);
+  const { encuadres, duraciones } = await datosDeAssets(ctx, rutas);
 
   // el índice sigue a los que ya existan: los descartados conservan el suyo
   const previos = await ctx.db
@@ -127,6 +134,22 @@ async function handleProposeShorts(ctx: WorkerContext, job: Job<ShortsProposeJob
 
   const creados = candidatos.map((c) => {
     const id = nanoid(12);
+    const recortado = recortarMaster(master, {
+      id,
+      from_ms: c.from_ms,
+      to_ms: c.to_ms,
+      title: c.title,
+      hook: c.hook,
+      reason: c.reason,
+      score: c.score,
+      encuadres,
+    });
+    // el ritmo del formato: un plano cada 2-3 s, troceando lo ya aprobado
+    const { master: conRitmo, resumen } = densificarRitmo(recortado, duraciones);
+    log.info(
+      { short: id, ...resumen, segundosPorPlano: Number(resumen.segundosPorPlano.toFixed(1)) },
+      'Ritmo del short',
+    );
     return {
       id,
       videoId,
@@ -139,16 +162,7 @@ async function handleProposeShorts(ctx: WorkerContext, job: Job<ShortsProposeJob
       hook: c.hook,
       reason: c.reason,
       score: c.score,
-      master: recortarMaster(master, {
-        id,
-        from_ms: c.from_ms,
-        to_ms: c.to_ms,
-        title: c.title,
-        hook: c.hook,
-        reason: c.reason,
-        score: c.score,
-        encuadres,
-      }),
+      master: conRitmo,
     };
   });
 

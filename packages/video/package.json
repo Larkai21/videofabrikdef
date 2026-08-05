@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./entry": "./src/entry.ts",
     "./chapters": "./src/chapters.ts",
+    "./seed": "./src/seed.ts",
     "./bundling": "./src/bundling.ts",
     "./registry-meta": "./src/registry.meta.generated.ts"
   },
