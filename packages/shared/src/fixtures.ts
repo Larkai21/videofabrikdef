@@ -1,6 +1,8 @@
 import type { ChannelProfile } from './channel-profile.js';
 import { RATIO_IMAGENES_MAX } from './constants.js';
-import type { Beat, Cue, MasterVideoJson } from './master-json.js';
+import { renderableMasterV1, type Beat, type Cue, type MasterVideoJson } from './master-json.js';
+import { recortarMaster } from './short-cut.js';
+import type { ShortMasterJson } from './short-json.js';
 
 // Fixtures compartidas: el render de humo de packages/video, los tests de
 // contrato y el modo demo del dashboard usan el mismo maestro de ejemplo.
@@ -34,8 +36,16 @@ export const demoProfile: ChannelProfile = {
   },
   voice: { provider: 'edge', voice_id: 'es-ES-AlvaroNeural', rate: '-8%' },
   title_patterns: [
-    { template: 'Por qué {X} está {verbo}', example: 'Por qué todos copian a DeepSeek', source: 'mined' },
-    { template: 'El {cosa} que {consecuencia}', example: 'El modelo que abarató la inteligencia', source: 'mined' },
+    {
+      template: 'Por qué {X} está {verbo}',
+      example: 'Por qué todos copian a DeepSeek',
+      source: 'mined',
+    },
+    {
+      template: 'El {cosa} que {consecuencia}',
+      example: 'El modelo que abarató la inteligencia',
+      source: 'mined',
+    },
   ],
   high_cpm_topics: ['herramientas empresa', 'productividad', 'cloud'],
   flags: { packaging_first: false, ai_disclosure: true },
@@ -125,9 +135,7 @@ export function makeDemoMaster(opts: DemoMasterOptions = {}): MasterVideoJson {
               id: `demo-asset-${idx}`,
               kind: useImage ? ('image' as const) : ('clip' as const),
               path,
-              fit: useImage
-                ? { mode: 'kenburns' as const }
-                : { mode: 'loop' as const, loops: 3 },
+              fit: useImage ? { mode: 'kenburns' as const } : { mode: 'loop' as const, loops: 3 },
             },
           }
         : {}),
@@ -165,12 +173,41 @@ export function makeDemoMaster(opts: DemoMasterOptions = {}): MasterVideoJson {
         { text: '10× más barato', visual: 'gráfico cayendo con luz azul' },
       ],
     },
-    ...(opts.audioPath
-      ? { audio: { path: opts.audioPath, duration_ms: totalMs, lufs: -16 } }
-      : {}),
+    ...(opts.audioPath ? { audio: { path: opts.audioPath, duration_ms: totalMs, lufs: -16 } } : {}),
     cues: demoCuesFor(beats),
     beats,
     brand: { components: { subtitle_theme: 'subtitulos-basicos@0.1.0' } },
     costs: { total_usd: 0, by_provider: {} },
   };
+}
+
+export interface DemoShortOptions extends DemoMasterOptions {
+  /** ventana a recortar; por defecto los beats 1 y 2 del maestro de demo */
+  from_ms?: number;
+  to_ms?: number;
+}
+
+/**
+ * Maestro de SHORT de ejemplo, recortado del maestro largo de demo con el
+ * mismo `recortarMaster` que usa producción. Es dogfooding a propósito: si el
+ * contrato del recorte se rompe, el humo del render vertical se entera.
+ */
+export function makeDemoShort(opts: DemoShortOptions = {}): ShortMasterJson {
+  const master = makeDemoMaster({
+    audioPath: opts.audioPath ?? 'demo-audio.wav',
+    ...(opts.clipPath !== undefined ? { clipPath: opts.clipPath } : {}),
+    ...(opts.imagePath !== undefined ? { imagePath: opts.imagePath } : {}),
+  });
+  const beats = master.beats ?? [];
+  const from = opts.from_ms ?? beats[1]?.from_ms ?? 0;
+  const to = opts.to_ms ?? beats[2]?.to_ms ?? 30_000;
+  return recortarMaster(renderableMasterV1.parse(master), {
+    id: 'demo-short',
+    from_ms: from,
+    to_ms: to,
+    title: 'El precio que lo cambió',
+    hook: 'El coste por token cayó un orden de magnitud en un año',
+    reason: 'Cifra concreta y contraintuitiva, se entiende sin el contexto anterior',
+    score: 82,
+  });
 }
