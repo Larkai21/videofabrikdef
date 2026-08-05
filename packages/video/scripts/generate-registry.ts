@@ -49,6 +49,29 @@ const pkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const kitDir = path.join(pkgDir, 'src', 'kit');
 const registryPath = path.join(pkgDir, 'src', 'registry.generated.ts');
 
+/** ¿El destino ya tiene exactamente los mismos ficheros con el mismo contenido? */
+function copiaIdentica(origen: string, destino: string): boolean {
+  if (!existsSync(destino)) return false;
+  const listar = (dir: string, base = ''): string[] =>
+    readdirSync(dir, { withFileTypes: true })
+      .flatMap((e) =>
+        e.isDirectory()
+          ? listar(path.join(dir, e.name), `${base}${e.name}/`)
+          : [`${base}${e.name}`],
+      )
+      .sort();
+  const a = listar(origen);
+  const b = listar(destino);
+  if (a.length !== b.length || a.some((f, i) => f !== b[i])) return false;
+  return a.every((f) => {
+    try {
+      return readFileSync(path.join(origen, f)).equals(readFileSync(path.join(destino, f)));
+    } catch {
+      return false;
+    }
+  });
+}
+
 function writeIfChanged(filePath: string, content: string): void {
   if (existsSync(filePath) && readFileSync(filePath, 'utf8') === content) return;
   writeFileSync(filePath, content);
@@ -103,8 +126,15 @@ function main(): void {
     }
     desired.add(dirName);
     const dest = path.join(kitDir, dirName);
-    rmSync(dest, { recursive: true, force: true });
-    cpSync(sourceDir, dest, { recursive: true });
+    // Copia IDEMPOTENTE. `rm` + `cp` reescribe la mtime de cada fichero aunque
+    // el contenido sea idéntico, y los workers arrancan sincronizando el
+    // registry: tsx watch veía el cambio, reiniciaba, y el arranque volvía a
+    // copiar. Bucle infinito, el mismo que ya ocurrió con los dos ficheros
+    // generados y por la misma causa.
+    if (!copiaIdentica(sourceDir, dest)) {
+      rmSync(dest, { recursive: true, force: true });
+      cpSync(sourceDir, dest, { recursive: true });
+    }
     entries.push({
       type: component.type,
       name: component.name,
