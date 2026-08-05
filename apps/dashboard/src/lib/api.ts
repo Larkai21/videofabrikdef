@@ -318,6 +318,40 @@ export function fileUrl(path: string): string {
   return `${API_URL}/files/${path}`;
 }
 
+export interface Deliverables {
+  title: string;
+  description: string;
+  tags: string;
+}
+
+// Los ENTREGABLES finales del render, leídos de disco. No son lo mismo que
+// `master.seo`: description.txt lleva los capítulos reales calculados desde el
+// audio, y el seo crudo del maestro puede traer los tiempos inventados del LLM.
+// Lo que se copia tiene que ser lo que se sube, así que los dos sitios que
+// enseñan el texto de publicación —la pantalla de entrega y la ficha de la
+// galería— leen de aquí y no del maestro.
+export async function getDeliverables(videoId: string): Promise<Deliverables> {
+  const load = async (file: string): Promise<string> => {
+    const res = await fetch(fileUrl(`/files/outputs/${encodeURIComponent(videoId)}/${file}`));
+    if (!res.ok) throw new Error(`falta ${file}`);
+    return res.text();
+  };
+  const [rawTitle, rawDescription, rawTags] = await Promise.all([
+    load('title.txt'),
+    load('description.txt'),
+    load('tags.txt'),
+  ]);
+  return {
+    title: rawTitle.trim(),
+    description: rawDescription.replace(/\n$/, ''),
+    tags: rawTags
+      .split('\n')
+      .map((t) => t.trim())
+      .filter((t) => t !== '')
+      .join(', '),
+  };
+}
+
 // ---- componentes del brand kit (S2) ----
 // import local a la sección para no tocar la cabecera del módulo
 import { componentDtoSchema, type ComponentDto } from '@fabrica/shared';

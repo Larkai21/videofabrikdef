@@ -2,7 +2,7 @@ import type { InboxDto } from '@fabrica/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ApiError, fileUrl, getVideo, revealVideoFolder } from '../lib/api';
+import { ApiError, fileUrl, getDeliverables, getVideo, revealVideoFolder } from '../lib/api';
 import { fmtMoney } from '../lib/format';
 import { useToasts } from '../lib/toasts';
 import { Button, useModalKeyboard } from './ui';
@@ -65,9 +65,22 @@ export function FichaEntrega({ entrega, onClose }: { entrega: Entregada; onClose
       push(err instanceof ApiError ? err.message : 'No se pudo abrir la carpeta', 'danger'),
   });
 
+  // Lo que se pega en YouTube sale de los ENTREGABLES del render, no de
+  // `master.seo`: el seo crudo trae la descripción tal cual la escribió el
+  // modelo —con sus tiempos inventados y, cuando repite la cabecera, con dos
+  // «Capítulos:»—, mientras que description.txt lleva los capítulos reales.
+  // Mismo criterio que la pantalla de entrega. El maestro se sigue pidiendo
+  // para el coste y el título elegido.
+  const entregablesQ = useQuery({
+    queryKey: ['entregables', entrega.video_id],
+    queryFn: () => getDeliverables(entrega.video_id),
+    retry: false,
+  });
+
   const seo = videoQ.data?.master.seo;
-  const titulo = videoQ.data?.title_chosen ?? entrega.title;
-  const etiquetas = seo?.tags.join(', ') ?? '';
+  const titulo = entregablesQ.data?.title ?? videoQ.data?.title_chosen ?? entrega.title;
+  const descripcion = entregablesQ.data?.description ?? seo?.description ?? '';
+  const etiquetas = entregablesQ.data?.tags ?? seo?.tags.join(', ') ?? '';
 
   return (
     <div
@@ -107,7 +120,7 @@ export function FichaEntrega({ entrega, onClose }: { entrega: Entregada; onClose
 
         <div className="ficha-entrega-lado">
           <div className="ficha-entrega-campos">
-            {videoQ.isPending ? (
+            {videoQ.isPending || entregablesQ.isPending ? (
               <div className="muted fs-sm">Cargando el texto de publicación</div>
             ) : videoQ.isError ? (
               <div className="muted fs-sm">
@@ -116,7 +129,7 @@ export function FichaEntrega({ entrega, onClose }: { entrega: Entregada; onClose
             ) : (
               <>
                 <CampoCopiable etiqueta="Título" valor={titulo} />
-                <CampoCopiable etiqueta="Descripción" valor={seo?.description ?? ''} multilinea />
+                <CampoCopiable etiqueta="Descripción" valor={descripcion} multilinea />
                 <CampoCopiable etiqueta="Etiquetas" valor={etiquetas} />
               </>
             )}

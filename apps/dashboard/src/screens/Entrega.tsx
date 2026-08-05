@@ -7,6 +7,7 @@ import {
   ApiError,
   fileUrl,
   getChannel,
+  getDeliverables,
   getInbox,
   getThumbnailBrief,
   getVideo,
@@ -296,8 +297,7 @@ export function Entrega() {
     enabled: id !== '',
     // la publicación no toca la máquina de estados (no hay video_state por
     // SSE al terminar): mientras sube se sondea el detalle del vídeo
-    refetchInterval: (query) =>
-      query.state.data?.youtube?.status === 'subiendo' ? 2_000 : false,
+    refetchInterval: (query) => (query.state.data?.youtube?.status === 'subiendo' ? 2_000 : false),
   });
   const inboxQ = useQuery({ queryKey: ['inbox'], queryFn: getInbox });
 
@@ -348,30 +348,10 @@ export function Entrega() {
   });
 
   // los ENTREGABLES finales del render (description.txt lleva los capítulos
-  // reales en lugar de {timestamps}): lo que se copia es lo que se sube
+  // reales, no los que escribió el LLM): lo que se copia es lo que se sube
   const deliverablesQ = useQuery({
     queryKey: ['entregables', id],
-    queryFn: async () => {
-      const load = async (file: string) => {
-        const res = await fetch(fileUrl(`/files/outputs/${id}/${file}`));
-        if (!res.ok) throw new Error(`falta ${file}`);
-        return res.text();
-      };
-      const [rawTitle, rawDescription, rawTags] = await Promise.all([
-        load('title.txt'),
-        load('description.txt'),
-        load('tags.txt'),
-      ]);
-      return {
-        title: rawTitle.trim(),
-        description: rawDescription.replace(/\n$/, ''),
-        tags: rawTags
-          .split('\n')
-          .map((t) => t.trim())
-          .filter((t) => t !== '')
-          .join(', '),
-      };
-    },
+    queryFn: () => getDeliverables(id),
     enabled: id !== '' && videoQ.data?.state === 'hecho',
     retry: false,
   });
@@ -430,7 +410,15 @@ export function Entrega() {
           <Button variant="secondary" onClick={() => void navigate('/')}>
             ← Bandeja
           </Button>
-          <span className="head" style={{ fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <span
+            className="head"
+            style={{
+              fontSize: 15,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
             {title === '' ? 'Entrega' : title}
           </span>
           <Chip kind={video.state === 'hecho' ? 'ok' : 'neutral'}>
@@ -474,7 +462,14 @@ export function Entrega() {
           />
         </div>
 
-        <aside style={{ display: 'grid', gap: 'var(--gap)', position: 'sticky', top: 'calc(var(--row) * 2 + 18px)' }}>
+        <aside
+          style={{
+            display: 'grid',
+            gap: 'var(--gap)',
+            position: 'sticky',
+            top: 'calc(var(--row) * 2 + 18px)',
+          }}
+        >
           <div className="card" style={{ padding: 'var(--pad)' }}>
             <div className="head" style={{ fontSize: 16, marginBottom: 10 }}>
               Publicación
@@ -508,9 +503,7 @@ export function Entrega() {
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {yt?.status === 'fallido' ? (
-                  <div className="banner banner-danger fs-sm">
-                    {yt.error ?? 'La subida falló.'}
-                  </div>
+                  <div className="banner banner-danger fs-sm">{yt.error ?? 'La subida falló.'}</div>
                 ) : null}
                 <div>
                   <Button
@@ -518,7 +511,9 @@ export function Entrega() {
                     disabled={video.state !== 'hecho' || needsConnection || publishMut.isPending}
                     onClick={() => publishMut.mutate()}
                   >
-                    {yt?.status === 'fallido' ? 'Reintentar la subida' : 'Subir a YouTube en privado'}
+                    {yt?.status === 'fallido'
+                      ? 'Reintentar la subida'
+                      : 'Subir a YouTube en privado'}
                   </Button>
                 </div>
                 {needsConnection ? (
@@ -552,12 +547,20 @@ export function Entrega() {
                 <label
                   key={item.id}
                   className="fs-sm"
-                  style={{ display: 'flex', alignItems: 'flex-start', gap: 10, lineHeight: 1.5, cursor: 'pointer' }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    lineHeight: 1.5,
+                    cursor: 'pointer',
+                  }}
                 >
                   <input
                     type="checkbox"
                     checked={checked[item.id] === true}
-                    onChange={(e) => setChecked((prev) => ({ ...prev, [item.id]: e.target.checked }))}
+                    onChange={(e) =>
+                      setChecked((prev) => ({ ...prev, [item.id]: e.target.checked }))
+                    }
                     style={{ marginTop: 2 }}
                   />
                   <span>{item.label}</span>
