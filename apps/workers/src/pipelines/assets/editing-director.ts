@@ -625,10 +625,28 @@ const editingResultSchema = z.object({
     .array(
       z.object({
         beat_idx: z.number().int().nonnegative(),
-        type: z.enum(['callout', 'stat', 'quote', 'kinetic', 'annotation', 'device']),
+        type: z.enum([
+          'callout',
+          'stat',
+          'quote',
+          'kinetic',
+          'annotation',
+          'device',
+          // Las tres formas que dibujan una RELACIÓN y no texto en una caja.
+          // Existían desde siempre, pero solo las podía pedir el GUION vía
+          // edit_intents: el director nunca las tuvo en su vocabulario, así
+          // que cuando la voz decía «los tres pasos» salía un rótulo que
+          // repetía «los tres pasos» en vez de tres pasos dibujados.
+          'versus',
+          'pasos',
+          'tendencia',
+        ]),
         text: z.string().optional(),
         value: z.string().optional(),
         label: z.string().optional(),
+        /** versus: los dos lados. pasos: de 2 a 4 estaciones. */
+        items: z.array(z.string()).optional(),
+        direccion: z.enum(['sube', 'baja']).optional(),
         keyword: z.string().optional(),
         style: z.string().optional(),
       })
@@ -639,6 +657,18 @@ const editingResultSchema = z.object({
         // dato de los vídeos entregados salieron sin etiqueta.
         .refine((m) => m.type !== 'stat' || (m.label ?? '').trim() !== '', {
           message: 'un momento "stat" necesita label',
+        })
+        // una forma sin sus datos no se puede dibujar: mejor que falle el
+        // esquema y se reintente que colocar un gráfico vacío
+        .refine((m) => m.type !== 'versus' || (m.items ?? []).length === 2, {
+          message: 'un momento "versus" necesita exactamente 2 items',
+        })
+        .refine(
+          (m) => m.type !== 'pasos' || ((m.items ?? []).length >= 2 && (m.items ?? []).length <= 4),
+          { message: 'un momento "pasos" necesita de 2 a 4 items' },
+        )
+        .refine((m) => m.type !== 'tendencia' || (m.value ?? '').trim() !== '', {
+          message: 'un momento "tendencia" necesita value',
         }),
     )
     .max(8),
@@ -675,6 +705,17 @@ function buildEditingPrompt(
     vertical
       ? ''
       : '- "device": muestra una web o comando en un marco de navegador; text = la URL o el comando (p. ej. "grapheneos.org"). Solo si el guion menciona un sitio/herramienta concreta.',
+    // Las tres formas que DIBUJAN una relación. Solo en vertical: en apaisado
+    // las declara el guion vía edit_intents, con su propio vocabulario, y
+    // ofrecerlas también aquí duplicaría la decisión en dos sitios.
+    ...(vertical
+      ? [
+          '- "versus": DOS cosas enfrentadas, items = exactamente 2 etiquetas cortas. Para "frente a", "en vez de", "antes y ahora".',
+          '- "pasos": un proceso, items = de 2 a 4 estaciones muy cortas EN ORDEN. Para "primero… luego…", "los tres pasos", "el cuello de botella está en X" (pon X como última estación).',
+          '- "tendencia": una cifra que se dispara o se hunde; value = la cifra dicha, direccion = "sube" o "baja", label = de qué. Para "se disparó", "cayó a la mitad".',
+          'PREFIERE estas tres a un "callout" siempre que la frase exprese una relación: un rótulo que repite lo que ya dice el subtítulo no aporta nada.',
+        ]
+      : []),
     '',
     // sin palabra de anclaje el efecto no se puede sincronizar con la locución:
     // el código descarta el momento, así que pedirla es obligatorio
@@ -683,9 +724,11 @@ function buildEditingPrompt(
     // gancho: tipografía cinética al abrir + payoff al cerrar
     `- OBLIGATORIO: un "kinetic" en el beat ${params.beats[0]?.idx ?? 0} con la frase-golpe del gancho, y un "callout" en el beat ${lastIdx} con el PAYOFF/conclusión.`,
     vertical
-      ? `Textos en ${langName}, muy cortos, sin comillas. Máximo 8 momentos; como mucho 1 "kinetic" y 3 "annotation".`
+      ? `Textos en ${langName}, muy cortos, sin comillas. Máximo 8 momentos; como mucho 1 "kinetic", 3 "annotation" y 2 de cada forma ("versus", "pasos", "tendencia").`
       : `Textos en ${langName}, muy cortos, sin comillas. Máximo 6 momentos; como mucho 1 "kinetic", 1 "device" y 2 "annotation".`,
-    'Devuelve JSON: { "moments": [ { "beat_idx", "type", "keyword", "text"?, "value"?, "label"? } ] }.',
+    vertical
+      ? 'Devuelve JSON: { "moments": [ { "beat_idx", "type", "keyword", "text"?, "value"?, "label"?, "items"?, "direccion"? } ] }.'
+      : 'Devuelve JSON: { "moments": [ { "beat_idx", "type", "keyword", "text"?, "value"?, "label"? } ] }.',
   ].join('\n');
   const user = [
     params.title ? `Título del vídeo: ${params.title}` : '',
@@ -766,6 +809,37 @@ export function momentsToEdits(
         beat_idx: beat.idx,
         text: m.text,
       });
+    } else if (m.type === 'versus' && (m.items ?? []).length === 2) {
+      edits.push({
+        type: 'split_versus',
+        from_ms: at,
+        to_ms: window(DUR_MS.split_versus!),
+        beat_idx: beat.idx,
+        items: m.items!,
+      });
+    } else if (m.type === 'pasos' && (m.items ?? []).length >= 2) {
+      edits.push({
+        type: 'pasos_flow',
+        from_ms: at,
+        to_ms: window(DUR_MS.pasos_flow!),
+        beat_idx: beat.idx,
+        items: m.items!.slice(0, 4),
+      });
+    } else if (m.type === 'tendencia' && m.value) {
+      // la cifra sigue la misma regla que stat: dicha o respaldada, nunca
+      // redondeada ni inventada
+      if (!figureBackedBy(m.value, [beat.text, ...claimTexts])) continue;
+      edits.push({
+        type: 'tendencia',
+        from_ms: at,
+        to_ms: window(DUR_MS.tendencia!),
+        beat_idx: beat.idx,
+        value: m.value,
+        // el contrato lo llama `style`: es el perfil de la curva, no un color
+        style: m.direccion ?? 'sube',
+        ...(m.label ? { label: m.label } : {}),
+      });
+      edits.push({ type: 'sfx', from_ms: at, to_ms: at + 400, sfx: 'pop' });
     } else if (m.type === 'annotation') {
       edits.push({
         type: 'annotation',

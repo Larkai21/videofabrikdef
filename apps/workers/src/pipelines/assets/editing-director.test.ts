@@ -181,6 +181,50 @@ describe('momentsToEdits (capa IA)', () => {
     expect(out.filter((e) => e.type === 'stat_card' || e.type === 'stat_odometer')).toHaveLength(0);
   });
 
+  it('un momento "pasos" produce un pasos_flow con sus estaciones', () => {
+    const out = momentsToEdits(
+      [
+        {
+          beat_idx: 3,
+          type: 'pasos',
+          items: ['recoger', 'etiquetar', 'entregar'],
+          keyword: 'cifra',
+        },
+      ],
+      beats,
+      cues,
+      CLAIMS,
+    );
+    const paso = out.find((e) => e.type === 'pasos_flow');
+    expect(paso && 'items' in paso ? paso.items : []).toEqual([
+      'recoger',
+      'etiquetar',
+      'entregar',
+    ]);
+  });
+
+  it('un momento "versus" produce los dos lados', () => {
+    const out = momentsToEdits(
+      [{ beat_idx: 3, type: 'versus', items: ['antes', 'ahora'], keyword: 'cifra' }],
+      beats,
+      cues,
+      CLAIMS,
+    );
+    const v = out.find((e) => e.type === 'split_versus');
+    expect(v && 'items' in v ? v.items : []).toEqual(['antes', 'ahora']);
+  });
+
+  it('una tendencia con cifra no respaldada no se dibuja', () => {
+    // misma regla que stat: la cifra se dice o está en el research
+    const out = momentsToEdits(
+      [{ beat_idx: 3, type: 'tendencia', value: '999', direccion: 'sube', keyword: 'cifra' }],
+      beats,
+      cues,
+      CLAIMS,
+    );
+    expect(out.filter((e) => e.type === 'tendencia')).toHaveLength(0);
+  });
+
   it('un momento device produce device_frame con la URL', () => {
     const edits = momentsToEdits(
       [{ beat_idx: 3, type: 'device', text: 'grapheneos.org', keyword: 'grapheneos' }],
