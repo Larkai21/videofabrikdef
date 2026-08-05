@@ -483,6 +483,21 @@ export async function publishToYoutube(videoId: string): Promise<{ publish_at: s
   return { publish_at: typeof publishAt === 'string' ? publishAt : null };
 }
 
+/** El humano lo subió por su cuenta: solo se registra el enlace. */
+export async function markPublishedByHand(
+  videoId: string,
+  urlOrId: string,
+): Promise<{ youtube_id: string; url: string; ya_estaba: boolean }> {
+  const data = await post(`/videos/${encodeURIComponent(videoId)}/mark-published`, {
+    url_or_id: urlOrId,
+  });
+  const raw = (data ?? {}) as Record<string, unknown>;
+  if (typeof raw.youtube_id !== 'string' || typeof raw.url !== 'string') {
+    throw new ApiError(500, 'Respuesta inesperada de /mark-published');
+  }
+  return { youtube_id: raw.youtube_id, url: raw.url, ya_estaba: raw.ya_estaba === true };
+}
+
 // ---- radar de ideas (búsqueda manual + orden del ranking) ----
 import { sourceDtoSchema, type SourceDto } from '@fabrica/shared';
 

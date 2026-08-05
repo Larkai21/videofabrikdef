@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Chip, CostBadge, ProgressBar } from '../components/ui';
+import { extractYoutubeId } from '@fabrica/shared';
+import { Button, Chip, CostBadge, InputModal, ProgressBar } from '../components/ui';
 import { WEEKDAY_LABELS } from '../components/YoutubeSection';
 import {
   ApiError,
@@ -12,6 +13,7 @@ import {
   getThumbnailBrief,
   getVideo,
   getYoutubeStatus,
+  markPublishedByHand,
   publishToYoutube,
   requestThumbnailBrief,
   revealVideoFolder,
@@ -335,6 +337,28 @@ export function Entrega() {
       ),
   });
 
+  // marcado manual: el humano ya lo subió por su cuenta y solo registra el
+  // enlace. El error se enseña DENTRO del modal, que se queda abierto, porque
+  // el caso típico es un enlace mal pegado que hay que poder corregir.
+  const [manualAbierto, setManualAbierto] = useState(false);
+  const [manualError, setManualError] = useState<string | undefined>(undefined);
+  const manualMut = useMutation({
+    mutationFn: (urlOrId: string) => markPublishedByHand(id, urlOrId),
+    onSuccess: (r) => {
+      push(r.ya_estaba ? 'Ya estaba marcado con ese enlace' : 'Marcado como publicado');
+      setManualAbierto(false);
+      setManualError(undefined);
+      void queryClient.invalidateQueries({ queryKey: ['video', id] });
+      void queryClient.invalidateQueries({ queryKey: ['inbox'] });
+    },
+    onError: (err) =>
+      setManualError(
+        err instanceof ApiError && err.detail !== undefined
+          ? err.detail
+          : 'No se pudo marcar como publicado',
+      ),
+  });
+
   const revealMut = useMutation({
     mutationFn: () => revealVideoFolder(id),
     onSuccess: () => push('Carpeta abierta en el gestor de archivos'),
@@ -477,7 +501,9 @@ export function Entrega() {
             {yt?.status === 'subido' ? (
               <div style={{ display: 'grid', gap: 8 }}>
                 <div>
-                  <Chip kind="ok">Subido a YouTube en privado</Chip>
+                  <Chip kind="ok">
+                    {yt.origin === 'manual' ? 'Publicado a mano' : 'Subido a YouTube en privado'}
+                  </Chip>
                 </div>
                 {yt.url !== null ? (
                   <a href={yt.url} target="_blank" rel="noreferrer" className="fs-sm">
@@ -485,10 +511,25 @@ export function Entrega() {
                   </a>
                 ) : null}
                 <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.5 }}>
-                  {yt.publish_at !== null
-                    ? `Publicación programada para ${fmtInstant(yt.publish_at)}.`
-                    : 'Queda en privado sin fecha; publícalo desde YouTube Studio.'}
+                  {yt.origin === 'manual'
+                    ? 'Lo subiste tú; el sistema solo guarda el enlace.'
+                    : yt.publish_at !== null
+                      ? `Publicación programada para ${fmtInstant(yt.publish_at)}.`
+                      : 'Queda en privado sin fecha; publícalo desde YouTube Studio.'}
                 </p>
+                {yt.origin === 'manual' ? (
+                  <div>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setManualError(undefined);
+                        setManualAbierto(true);
+                      }}
+                    >
+                      Corregir el enlace
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             ) : yt?.status === 'subiendo' ? (
               <div style={{ display: 'grid', gap: 8 }}>
@@ -505,7 +546,7 @@ export function Entrega() {
                 {yt?.status === 'fallido' ? (
                   <div className="banner banner-danger fs-sm">{yt.error ?? 'La subida falló.'}</div>
                 ) : null}
-                <div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <Button
                     variant="primary"
                     disabled={video.state !== 'hecho' || needsConnection || publishMut.isPending}
@@ -514,6 +555,17 @@ export function Entrega() {
                     {yt?.status === 'fallido'
                       ? 'Reintentar la subida'
                       : 'Subir a YouTube en privado'}
+                  </Button>
+                  {/* el cierre del flujo de la checklist de abajo: hasta ahora
+                      se podía subir a mano pero no dejar constancia */}
+                  <Button
+                    disabled={video.state !== 'hecho'}
+                    onClick={() => {
+                      setManualError(undefined);
+                      setManualAbierto(true);
+                    }}
+                  >
+                    Ya lo he subido a mano
                   </Button>
                 </div>
                 {needsConnection ? (
@@ -620,6 +672,26 @@ export function Entrega() {
           </div>
         </aside>
       </div>
+
+      <InputModal
+        open={manualAbierto}
+        title="Marcar como publicado"
+        desc="Registra el vídeo que ya subiste tú. No sube nada ni cambia el estado del vídeo."
+        label="Enlace o id del vídeo en YouTube"
+        placeholder="https://www.youtube.com/watch?v=…"
+        ayuda="Pega la URL del vídeo en YouTube o su id de 11 caracteres"
+        cta="Marcar como publicado"
+        error={manualError}
+        pending={manualMut.isPending}
+        validate={(v) =>
+          extractYoutubeId(v) === null ? 'No reconozco ese enlace ni ese id' : null
+        }
+        onConfirm={(v) => manualMut.mutate(v)}
+        onClose={() => {
+          setManualAbierto(false);
+          setManualError(undefined);
+        }}
+      />
     </div>
   );
 }

@@ -13,7 +13,13 @@ import { Button, Chip, EmptyState, type ChipKind } from './ui';
 type Entregada = InboxDto['done'][number];
 
 function estadoDe(d: Entregada): { label: string; kind: ChipKind } {
-  if (d.youtube?.status === 'subido') return { label: 'En YouTube', kind: 'ok' };
+  if (d.youtube?.status === 'subido') {
+    // «En YouTube» a secas mentiría sobre quién lo hizo, que es justo lo que el
+    // humano necesita saber de un vistazo al repasar la galería
+    return d.youtube.origin === 'manual'
+      ? { label: 'Publicado a mano', kind: 'ok' }
+      : { label: 'En YouTube', kind: 'ok' };
+  }
   if (d.youtube?.status === 'subiendo') return { label: 'Subiendo', kind: 'neutral' };
   if (d.youtube?.status === 'fallido') return { label: 'Subida fallida', kind: 'danger' };
   return { label: 'Sin publicar', kind: 'warn' };

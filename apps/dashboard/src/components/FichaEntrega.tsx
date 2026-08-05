@@ -1,11 +1,19 @@
 import type { InboxDto } from '@fabrica/shared';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useRef } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ApiError, fileUrl, getDeliverables, getVideo, revealVideoFolder } from '../lib/api';
+import { extractYoutubeId } from '@fabrica/shared';
+import {
+  ApiError,
+  fileUrl,
+  getDeliverables,
+  getVideo,
+  markPublishedByHand,
+  revealVideoFolder,
+} from '../lib/api';
 import { fmtMoney } from '../lib/format';
 import { useToasts } from '../lib/toasts';
-import { Button, useModalKeyboard } from './ui';
+import { Button, InputModal, useModalKeyboard } from './ui';
 
 // La ficha completa de una entrega: el vídeo y, al lado, exactamente lo que hay
 // que pegar en YouTube. Se abre desde la galería para no perder la bandeja de
@@ -48,6 +56,7 @@ function CampoCopiable({
 
 export function FichaEntrega({ entrega, onClose }: { entrega: Entregada; onClose: () => void }) {
   const { push } = useToasts();
+  const queryClient = useQueryClient();
   const boxRef = useRef<HTMLDivElement>(null);
   const cerrarRef = useRef<HTMLButtonElement>(null);
   useModalKeyboard(true, boxRef, onClose, cerrarRef);
@@ -63,6 +72,25 @@ export function FichaEntrega({ entrega, onClose }: { entrega: Entregada; onClose
     mutationFn: () => revealVideoFolder(entrega.video_id),
     onError: (err) =>
       push(err instanceof ApiError ? err.message : 'No se pudo abrir la carpeta', 'danger'),
+  });
+
+  const [manualAbierto, setManualAbierto] = useState(false);
+  const [manualError, setManualError] = useState<string | undefined>(undefined);
+  const manualMut = useMutation({
+    mutationFn: (urlOrId: string) => markPublishedByHand(entrega.video_id, urlOrId),
+    onSuccess: (r) => {
+      push(r.ya_estaba ? 'Ya estaba marcado con ese enlace' : 'Marcado como publicado');
+      setManualAbierto(false);
+      setManualError(undefined);
+      void queryClient.invalidateQueries({ queryKey: ['video', entrega.video_id] });
+      void queryClient.invalidateQueries({ queryKey: ['inbox'] });
+    },
+    onError: (err) =>
+      setManualError(
+        err instanceof ApiError && err.detail !== undefined
+          ? err.detail
+          : 'No se pudo marcar como publicado',
+      ),
   });
 
   // Lo que se pega en YouTube sale de los ENTREGABLES del render, no de
@@ -146,6 +174,19 @@ export function FichaEntrega({ entrega, onClose }: { entrega: Entregada; onClose
             <Link className="btn btn-secondary" to={`/videos/${entrega.video_id}/entrega`}>
               Ir a la entrega
             </Link>
+            {/* atajo desde la bandeja: dos clics para cerrar la subida manual
+                sin salir de la galería */}
+            {entrega.youtube === null || entrega.youtube.status === 'fallido' ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setManualError(undefined);
+                  setManualAbierto(true);
+                }}
+              >
+                Ya lo he subido a mano
+              </Button>
+            ) : null}
             <div style={{ flex: 1 }} />
             <Button variant="ghost" ref={cerrarRef} onClick={onClose} kbd="Esc">
               Cerrar
@@ -153,6 +194,26 @@ export function FichaEntrega({ entrega, onClose }: { entrega: Entregada; onClose
           </div>
         </div>
       </div>
+
+      <InputModal
+        open={manualAbierto}
+        title="Marcar como publicado"
+        desc="Registra el vídeo que ya subiste tú. No sube nada ni cambia el estado del vídeo."
+        label="Enlace o id del vídeo en YouTube"
+        placeholder="https://www.youtube.com/watch?v=…"
+        ayuda="Pega la URL del vídeo en YouTube o su id de 11 caracteres"
+        cta="Marcar como publicado"
+        error={manualError}
+        pending={manualMut.isPending}
+        validate={(v) =>
+          extractYoutubeId(v) === null ? 'No reconozco ese enlace ni ese id' : null
+        }
+        onConfirm={(v) => manualMut.mutate(v)}
+        onClose={() => {
+          setManualAbierto(false);
+          setManualError(undefined);
+        }}
+      />
     </div>
   );
 }

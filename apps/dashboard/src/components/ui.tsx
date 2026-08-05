@@ -191,6 +191,7 @@ export function ReasonModal({
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
+        ref={boxRef}
         className="modal-box"
         role="dialog"
         aria-modal="true"
@@ -262,6 +263,136 @@ export function ReasonModal({
             }}
           >
             {cta}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface InputModalProps {
+  open: boolean;
+  title: string;
+  desc: string;
+  /** Etiqueta accesible del campo. */
+  label: string;
+  placeholder?: string;
+  cta: string;
+  /** Texto de ayuda permanente bajo el campo. */
+  ayuda?: string;
+  /** Mensaje del servidor: el modal se queda abierto para poder corregir. */
+  error?: string;
+  pending?: boolean;
+  /** null = válido; una cadena es el motivo, se enseña y deshabilita el CTA. */
+  validate?: (value: string) => string | null;
+  onConfirm: (value: string) => void;
+  onClose: () => void;
+}
+
+/**
+ * Modal con un campo de texto. Hermano de ReasonModal, que solo sabe de radios.
+ *
+ * El envío va en un <form> para que Enter confirme, y el error del servidor se
+ * enseña dentro en vez de como toast: si el humano pega un enlace que la API
+ * rechaza, tiene que poder corregirlo sin volver a abrir el diálogo.
+ */
+export function InputModal({
+  open,
+  title,
+  desc,
+  label,
+  placeholder,
+  cta,
+  ayuda,
+  error,
+  pending = false,
+  validate,
+  onConfirm,
+  onClose,
+}: InputModalProps) {
+  const [value, setValue] = useState('');
+  const boxRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const ayudaId = useId();
+
+  useEffect(() => {
+    if (open) setValue('');
+  }, [open]);
+
+  useModalKeyboard(open, boxRef, onClose, inputRef);
+
+  if (!open) return null;
+
+  const motivo = validate?.(value) ?? null;
+  // con el campo vacío no se grita todavía; el CTA se deshabilita igualmente
+  const mensaje = error ?? (value.trim() === '' ? null : motivo);
+  const puedeConfirmar = !pending && value.trim() !== '' && motivo === null;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        ref={boxRef}
+        className="modal-box"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ padding: 'var(--pad)', borderBottom: '1px solid var(--line)' }}>
+          <div className="head" style={{ fontSize: 17 }}>
+            {title}
+          </div>
+          <div className="muted fs-sm" style={{ marginTop: 5 }}>
+            {desc}
+          </div>
+        </div>
+        <form
+          style={{ padding: 'var(--pad)', display: 'flex', flexDirection: 'column', gap: 8 }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (puedeConfirmar) onConfirm(value.trim());
+          }}
+        >
+          <input
+            ref={inputRef}
+            className="control"
+            type="text"
+            value={value}
+            placeholder={placeholder}
+            aria-label={label}
+            aria-invalid={mensaje !== null}
+            aria-describedby={ayudaId}
+            onChange={(e) => setValue(e.target.value)}
+          />
+          <div
+            id={ayudaId}
+            className={clsx('fs-sm', mensaje === null && 'muted')}
+            style={mensaje !== null ? { color: 'var(--danger)' } : undefined}
+          >
+            {mensaje ?? ayuda ?? ''}
+          </div>
+          {/* submit oculto: sin él, Enter no envía en formularios de un campo
+              cuando el botón real vive fuera del <form> */}
+          <button type="submit" style={{ display: 'none' }} tabIndex={-1} aria-hidden="true" />
+        </form>
+        <div
+          style={{
+            padding: 'var(--pad)',
+            borderTop: '1px solid var(--line)',
+            display: 'flex',
+            gap: 8,
+            justifyContent: 'flex-end',
+          }}
+        >
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            variant="primary"
+            disabled={!puedeConfirmar}
+            onClick={() => onConfirm(value.trim())}
+          >
+            {pending ? 'Guardando' : cta}
           </Button>
         </div>
       </div>
