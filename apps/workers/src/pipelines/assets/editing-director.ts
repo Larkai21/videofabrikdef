@@ -631,7 +631,15 @@ const editingResultSchema = z.object({
         label: z.string().optional(),
         keyword: z.string().optional(),
         style: z.string().optional(),
-      }),
+      })
+        // Una cifra sin etiqueta no dice nada: un «5» flotando en pantalla es
+        // ruido, no un dato. El prompt ya pedía la etiqueta y el modelo la
+        // omitía sin consecuencia; aquí falla el esquema y se reintenta, que
+        // es mejor que perder la tarjeta. Medido: las DOS únicas tarjetas de
+        // dato de los vídeos entregados salieron sin etiqueta.
+        .refine((m) => m.type !== 'stat' || (m.label ?? '').trim() !== '', {
+          message: 'un momento "stat" necesita label',
+        }),
     )
     .max(8),
 });
@@ -714,6 +722,9 @@ export function momentsToEdits(
     const window = (dur: number): number => Math.min(beat.to_ms, at + dur);
     // una cifra que no está ni en el beat ni en el research no se pinta
     if (m.type === 'stat' && !figureBackedBy(m.value ?? '', [beat.text, ...claimTexts])) continue;
+    // la misma regla que el esquema, para lo que no pasa por él (mocks,
+    // maestros antiguos): sin etiqueta, la cifra no se pinta
+    if (m.type === 'stat' && (m.label ?? '').trim() === '') continue;
     // el copy de tarjeta es un titular, no una transcripción
     if ((m.text ?? '').split(/\s+/).filter(Boolean).length > MAX_CARD_WORDS) continue;
 

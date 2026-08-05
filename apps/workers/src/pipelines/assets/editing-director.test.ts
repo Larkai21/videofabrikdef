@@ -160,12 +160,25 @@ describe('momentsToEdits (capa IA)', () => {
     );
     expect(big.find((e) => e.type === 'stat_odometer')?.value).toBe('1000000');
     const small = momentsToEdits(
-      [{ beat_idx: 3, type: 'stat', value: '25%', keyword: 'cifra' }],
+      [{ beat_idx: 3, type: 'stat', value: '25%', label: 'del trimestre', keyword: 'cifra' }],
       beats,
       cues,
       [{ text: 'subió un 25% el trimestre' }],
     );
     expect(small.find((e) => e.type === 'stat_card')?.value).toBe('25%');
+  });
+
+  it('una cifra sin etiqueta no se pinta', () => {
+    // Un «5» flotando en pantalla es ruido, no un dato. Medido: las dos únicas
+    // tarjetas de dato de los vídeos entregados salieron sin etiqueta, y en el
+    // short se veía un chip con un número suelto y nada más.
+    const out = momentsToEdits(
+      [{ beat_idx: 3, type: 'stat', value: '1000000', keyword: 'cifra' }],
+      beats,
+      cues,
+      CLAIMS,
+    );
+    expect(out.filter((e) => e.type === 'stat_card' || e.type === 'stat_odometer')).toHaveLength(0);
   });
 
   it('un momento device produce device_frame con la URL', () => {
