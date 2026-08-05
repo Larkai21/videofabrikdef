@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { mapMasterMediaPaths, type MasterVideoJson } from '@fabrica/shared';
+import { mapMasterMediaPaths, type MediaBearingMaster } from '@fabrica/shared';
 
 // Reescritura de medios previa al render (estrategia (b), ver index.ts):
 // las rutas absolutas bajo LIBRARY_DIR/OUTPUTS_DIR se convierten en URLs de
@@ -31,10 +31,13 @@ export function rewriteMediaPath(mediaPath: string, opts: MediaRewriteOptions): 
   );
 }
 
-export function rewriteMasterMedia(
-  master: MasterVideoJson,
+// Genérica sobre la forma del maestro: el del short no es asignable al del
+// vídeo largo —sus literales de tamaño son otros— y duplicar la reescritura
+// sería la cuarta copia de la lista de campos de medio.
+export function rewriteMasterMedia<T extends MediaBearingMaster>(
+  master: T,
   opts: MediaRewriteOptions,
-): MasterVideoJson {
+): T {
   // la lista de campos de medio vive en shared: tres copias divergían y por
   // ese hueco salieron beats en negro y un inserto sin imagen
   return mapMasterMediaPaths(master, (p) => rewriteMediaPath(p, opts));

@@ -1,11 +1,9 @@
-import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { Worker, type Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { markIncident, transitionVideo, videos } from '@fabrica/db';
+import { markIncident, markIncidentShort, shorts, transitionVideo, videos } from '@fabrica/db';
 import {
   analizarMaster,
   cuesToSrt,
@@ -14,6 +12,7 @@ import {
   QUEUES,
   renderableMasterV1,
   type RenderableMaster,
+  type RenderShortJob,
   type RenderVideoJob,
   type ThumbnailBriefJob,
 } from '@fabrica/shared';
@@ -22,15 +21,14 @@ import {
   mergeChaptersIntoDescription,
   segmentsToChapters,
 } from '@fabrica/video/chapters';
-import { webpackOverride } from '@fabrica/video/bundling';
 import { componentMeta } from '@fabrica/video/registry-meta';
-import { bundle } from '@remotion/bundler';
 import { ensureBrowser, renderMedia, renderStill, selectComposition } from '@remotion/renderer';
 import type { WorkerContext } from '../../lib/context.js';
-import { env, REPO_ROOT } from '../../lib/env.js';
-import { videoSrcLock } from '../../lib/locks.js';
+import { env } from '../../lib/env.js';
+import { ensureBundle } from './bundle.js';
 import { ajustarLoudnessEntrega } from './loudness.js';
 import { rewriteMasterMedia } from './media-rewrite.js';
+import { handleRenderShort } from './short.js';
 
 // ESTRATEGIA DE MEDIOS — decidida leyendo @remotion/renderer 4.0.499:
 // el proxy de OffthreadVideo (offthread-video-server.js → assets/read-file.js)
@@ -43,75 +41,6 @@ import { rewriteMasterMedia } from './media-rewrite.js';
 // directorios bajo /files/library y /files/outputs; en dev la API siempre está
 // levantada). El render de humo de packages/video no depende de esto: usa
 // rutas relativas resueltas con staticFile desde el public/ del bundle.
-
-const require = createRequire(import.meta.url);
-
-function videoPackageDir(): string {
-  // resuelve el subpath exportado para localizar packages/video sin asumir
-  // la estructura del repo (funciona también instalado en contenedor)
-  const entry = require.resolve('@fabrica/video/entry');
-  return path.resolve(path.dirname(entry), '..');
-}
-
-async function hashTree(
-  hash: ReturnType<typeof createHash>,
-  dir: string,
-  relBase: string,
-): Promise<void> {
-  const entries = (await fsp.readdir(dir, { withFileTypes: true })).sort((a, b) =>
-    a.name.localeCompare(b.name),
-  );
-  for (const entry of entries) {
-    const abs = path.join(dir, entry.name);
-    const rel = `${relBase}/${entry.name}`;
-    if (entry.isDirectory()) await hashTree(hash, abs, rel);
-    else if (entry.isFile()) {
-      hash.update(rel);
-      try {
-        hash.update(await fsp.readFile(abs));
-      } catch {
-        // archivo desaparecido entre readdir y readFile (poda del kit en
-        // vuelo): se anota la ausencia; el candado evita el caso normal
-        hash.update('desaparecido');
-      }
-    }
-  }
-}
-
-// bundle() una vez por versión del código de la composición: la clave es el
-// hash de packages/video/src + fuentes + package.json, cacheado en un
-// directorio gitignoreado. Los renders siguientes reutilizan el bundle.
-async function ensureBundle(ctx: WorkerContext): Promise<string> {
-  // candado compartido con la validación del brand kit: sin él, la
-  // regeneración del registry puede mutar src/kit entre el cálculo del hash
-  // y el bundle, y el marcador perpetuaría un bundle mezclado
-  return videoSrcLock.run(async () => {
-    const pkgDir = videoPackageDir();
-    const hash = createHash('sha1');
-    await hashTree(hash, path.join(pkgDir, 'src'), 'src');
-    // la composición importa @fabrica/shared: un cambio ahí también invalida
-    const sharedDir = path.dirname(require.resolve('@fabrica/shared'));
-    await hashTree(hash, sharedDir, 'shared/src');
-    const publicDir = path.join(pkgDir, 'public');
-    if (fs.existsSync(publicDir)) await hashTree(hash, publicDir, 'public');
-    hash.update(await fsp.readFile(path.join(pkgDir, 'package.json')));
-    const key = hash.digest('hex').slice(0, 16);
-
-    const outDir = path.join(REPO_ROOT, '.turbo', 'remotion-bundle', key);
-    const marker = path.join(outDir, '.bundle-completo');
-    if (fs.existsSync(marker)) return outDir;
-    await fsp.rm(outDir, { recursive: true, force: true });
-    ctx.logger.info({ key }, 'Empaquetando la composición de Remotion');
-    const serveUrl = await bundle({
-      entryPoint: path.join(pkgDir, 'src', 'entry.ts'),
-      publicDir: path.join(pkgDir, 'public'),
-      outDir,
-      webpackOverride,
-    });
-    await fsp.writeFile(marker, key);
-    return serveUrl;
-  });
-}
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -373,14 +302,20 @@ async function handleRenderVideo(ctx: WorkerContext, job: Job<RenderVideoJob>): 
 // el paralelismo (RENDER_CONCURRENCY pestañas de Chromium) va dentro del
 // render, no entre renders (docs/render.md §3).
 export async function registerRenderWorkers(ctx: WorkerContext): Promise<Worker[]> {
-  const worker = new Worker<RenderVideoJob>(
+  // concurrency 1 INTACTO: el short comparte cola con el largo justamente para
+  // que nunca haya dos Chromium repartiéndose las vCPU (docs/render.md §3)
+  const worker = new Worker(
     QUEUES.render,
     async (job) => {
-      if (job.name !== JOBS.render.video) {
-        ctx.logger.warn({ job: job.name }, 'Job desconocido en la cola de render');
+      if (job.name === JOBS.render.video) {
+        await handleRenderVideo(ctx, job as Job<RenderVideoJob>);
         return;
       }
-      await handleRenderVideo(ctx, job);
+      if (job.name === JOBS.render.short) {
+        await handleRenderShort(ctx, job as Job<RenderShortJob>);
+        return;
+      }
+      ctx.logger.warn({ job: job.name }, 'Job desconocido en la cola de render');
     },
     { connection: ctx.connection, concurrency: 1 },
   );
@@ -400,7 +335,7 @@ export async function registerRenderWorkers(ctx: WorkerContext): Promise<Worker[
  */
 async function reportStalledRenderFailure(
   ctx: WorkerContext,
-  job: Job<RenderVideoJob> | undefined,
+  job: Job<RenderVideoJob | RenderShortJob> | undefined,
   err: Error,
 ): Promise<void> {
   ctx.logger.error({ job: job?.id, err: err.message }, 'Job de render fallido');
@@ -408,6 +343,11 @@ async function reportStalledRenderFailure(
   const definitivo =
     job.attemptsMade >= (job.opts.attempts ?? 1) || err.message.includes('stalled');
   if (!definitivo) return;
+  const shortId = (job.data as { shortId?: string }).shortId;
+  if (shortId !== undefined) {
+    await reportStalledShortFailure(ctx, shortId, err);
+    return;
+  }
   const videoId = (job.data as { videoId?: string }).videoId;
   if (!videoId) return;
   try {
@@ -429,5 +369,31 @@ async function reportStalledRenderFailure(
     });
   } catch (incErr) {
     ctx.logger.error({ err: incErr, videoId }, 'No se pudo marcar la incidencia del job fallido');
+  }
+}
+
+/** Espejo de lo anterior para el short: el stall-checker tampoco pasa por su catch. */
+async function reportStalledShortFailure(
+  ctx: WorkerContext,
+  shortId: string,
+  err: Error,
+): Promise<void> {
+  try {
+    const [short] = await ctx.db.select().from(shorts).where(eq(shorts.id, shortId)).limit(1);
+    if (!short || short.state !== 'render') return;
+    const message = `Fallo definitivo del render del short: ${err.message}`.slice(0, 500);
+    await markIncidentShort(ctx.db, shortId, {
+      message,
+      suggested_action: 'reintentar',
+      queue: QUEUES.render,
+    });
+    await ctx.publishEvent({
+      type: 'short_state',
+      short_id: shortId,
+      video_id: short.videoId,
+      state: 'incidencia',
+    });
+  } catch (incErr) {
+    ctx.logger.error({ err: incErr, shortId }, 'No se pudo marcar la incidencia del short fallido');
   }
 }
