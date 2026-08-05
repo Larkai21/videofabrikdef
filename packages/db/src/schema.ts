@@ -136,6 +136,9 @@ export const videos = pgTable(
     // publicación en YouTube (S3): estado aparte de la máquina del pipeline
     youtube: jsonb('youtube').$type<{
       status: 'subiendo' | 'subido' | 'fallido';
+      // 'manual' = lo subió el humano por su cuenta y solo marcó el resultado
+      // desde el dashboard. Ausente se lee como 'api'.
+      origin?: 'api' | 'manual';
       youtube_id: string | null;
       url: string | null;
       privacy_status: string | null;

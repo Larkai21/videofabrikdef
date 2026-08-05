@@ -81,6 +81,11 @@ export type IdeasOrderRequest = z.infer<typeof ideasOrderRequestSchema>;
 export const youtubePublicationSchema = z.object({
   // estado de la publicación, SEPARADO de la máquina de estados del vídeo
   status: z.enum(['subiendo', 'subido', 'fallido']),
+  // quién lo subió. Opcional y sin .default(): las filas escritas antes de que
+  // existiera este campo no lo traen, y un default lo haría REQUERIDO en la
+  // salida de z.infer, que rompe los `youtube: video.youtube ?? null` de la API.
+  // Ausente se lee como 'api'.
+  origin: z.enum(['api', 'manual']).optional(),
   youtube_id: z.string().nullable(),
   url: z.string().nullable(),
   privacy_status: z.string().nullable(),
@@ -89,6 +94,15 @@ export const youtubePublicationSchema = z.object({
   error: z.string().nullable(),
 });
 export type YoutubePublication = z.infer<typeof youtubePublicationSchema>;
+
+// Marcado manual: el humano subió el vídeo por su cuenta y solo registra el
+// resultado. No encola nada ni toca la máquina de estados. El esquema queda
+// tonto a propósito y la extracción del id se valida en la ruta, para dar un
+// mensaje en español en vez de un ZodError serializado.
+export const manualPublicationRequestSchema = z.object({
+  url_or_id: z.string().trim().min(1),
+});
+export type ManualPublicationRequest = z.infer<typeof manualPublicationRequestSchema>;
 
 export const inboxGateSchema = z.object({
   kind: z.enum(['idea', 'guion', 'timeline', 'entrega']),
