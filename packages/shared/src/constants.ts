@@ -289,6 +289,17 @@ export const SHORT_ZOOMS_MAX = 5;
 export const SHORT_FX_CARD_SEP_MS = 7_000;
 export const SHORT_FX_MICRO_SEP_MS = 6_000;
 export const SHORT_FX_ZOOM_SEP_MS = 5_000;
+// Ocho subrayados en 35 s son uno cada 4,4 s: con la separación del largo
+// (12 s) el tope de arriba sería inalcanzable y sobrarían seis.
+export const SHORT_FX_KEYWORD_SEP_MS = 2_500;
+/**
+ * Franja de no-amontonamiento del carril visual. En el largo esa franja es el
+ * BEAT (8-15 s) y está bien: evita apilar dos gráficos en la misma idea. En una
+ * pieza de treinta segundos es un techo duro —dos o tres beats, luego dos o tres
+ * efectos como mucho, por muchos que se generen— así que el vertical la mide en
+ * tiempo. Tres segundos es el mismo grano que el ritmo de corte.
+ */
+export const SHORT_FX_GRANO_MS = 3_000;
 // FX_CARD_GUARD_MS y FX_SFX_COLLISION_MS NO tienen variante corta: son del ojo
 // y del oído, no del formato.
 

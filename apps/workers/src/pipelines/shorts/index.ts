@@ -1,7 +1,7 @@
 import { Worker, type Job } from 'bullmq';
 import { and, eq, inArray, ne } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
-import { assets, shorts, videos } from '@fabrica/db';
+import { assets, channels, shorts, videos } from '@fabrica/db';
 import {
   encuadreDe,
   fronterasFuertes,
@@ -15,6 +15,7 @@ import {
 } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
 import { directShorts, efectosPorBeat } from './director.js';
+import { efectosDelShort } from './efectos.js';
 import { densificarRitmo, type DuracionesPorRuta } from './ritmo.js';
 
 // Worker de propuesta de shorts. Lee un vídeo ya ENTREGADO, pide al director
@@ -132,7 +133,18 @@ async function handleProposeShorts(ctx: WorkerContext, job: Job<ShortsProposeJob
     .where(eq(shorts.videoId, videoId));
   let siguienteIdx = previos.reduce((max, s) => Math.max(max, s.idx + 1), 0);
 
-  const creados = candidatos.map((c) => {
+  const [channel] = await ctx.db
+    .select({ profile: channels.profile })
+    .from(channels)
+    .where(eq(channels.id, video.channelId))
+    .limit(1);
+  const lang = channel?.profile?.language === 'en' ? 'en' : 'es';
+
+  // Secuencial a propósito: cada short cuesta una llamada al director de
+  // edición y son tres. En paralelo competirían por el mismo rate limit y el
+  // orden del ledger dejaría de ser el orden de los candidatos.
+  const creados = [];
+  for (const c of candidatos) {
     const id = nanoid(12);
     const recortado = recortarMaster(master, {
       id,
@@ -150,7 +162,16 @@ async function handleProposeShorts(ctx: WorkerContext, job: Job<ShortsProposeJob
       { short: id, ...resumen, segundosPorPlano: Number(resumen.segundosPorPlano.toFixed(1)) },
       'Ritmo del short',
     );
-    return {
+    // la pasada de efectos del formato: lo heredado del largo son cero o un
+    // overlay en treinta segundos, y un short sin nada escrito en pantalla se
+    // ve rápido y vacío
+    const { master: conEfectos, antes, despues } = await efectosDelShort(ctx, {
+      master: conRitmo,
+      largo: master,
+      lang,
+    });
+    log.info({ short: id, heredados: antes, colocados: despues }, 'Efectos del short');
+    creados.push({
       id,
       videoId,
       channelId: video.channelId,
@@ -162,9 +183,9 @@ async function handleProposeShorts(ctx: WorkerContext, job: Job<ShortsProposeJob
       hook: c.hook,
       reason: c.reason,
       score: c.score,
-      master: conRitmo,
-    };
-  });
+      master: conEfectos,
+    });
+  }
 
   await ctx.db.insert(shorts).values(creados);
 

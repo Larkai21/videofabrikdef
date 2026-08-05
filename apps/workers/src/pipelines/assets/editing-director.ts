@@ -12,6 +12,15 @@ import {
   FX_INSERTOS_PER_MIN,
   FX_MICRO_PER_MIN,
   FX_MICRO_SEP_MS,
+  SHORT_CARDS_MAX,
+  SHORT_MICRO_MAX,
+  SHORT_KEYWORDS_MAX,
+  SHORT_ZOOMS_MAX,
+  SHORT_FX_CARD_SEP_MS,
+  SHORT_FX_MICRO_SEP_MS,
+  SHORT_FX_KEYWORD_SEP_MS,
+  SHORT_FX_ZOOM_SEP_MS,
+  SHORT_FX_GRANO_MS,
   MAX_CARD_WORDS,
   microFxFor,
   normalizeWord,
@@ -814,8 +823,12 @@ const VISUAL_TYPES = new Set<string>(
  * un minuto de sentirse vacío, que es justo la discrepancia que el informe
  * denunciaba como minuto_mudo.
  */
-export function hacenFaltaMasTarjetas(puestas: readonly Edit[], durationMs: number): boolean {
-  const presupuesto = Math.max(1, Math.round((durationMs / 60_000) * FX_CARDS_PER_MIN));
+export function hacenFaltaMasTarjetas(
+  puestas: readonly Edit[],
+  durationMs: number,
+  budget?: number,
+): boolean {
+  const presupuesto = budget ?? Math.max(1, Math.round((durationMs / 60_000) * FX_CARDS_PER_MIN));
   const overlays = puestas.filter((e) => OVERLAY_TYPES.has(e.type));
   if (overlays.length < presupuesto) return true;
   const windowMs = Math.max(1, durationMs / presupuesto);
@@ -896,17 +909,79 @@ export function spreadByWindows<T>(
   return { kept, dropped: items.filter((t) => !keptSet.has(t)) };
 }
 
+/**
+ * Cuántos efectos caben en la pieza y cada cuánto. Existe porque los topes eran
+ * TASAS POR MINUTO y la franja de no-amontonamiento era el BEAT: los dos
+ * mecanismos son correctos en ocho minutos y degeneran en treinta segundos —la
+ * tasa da 0,6 tarjetas y el beat impone un techo de dos o tres efectos por
+ * pieza—. El largo pasa `presupuestoLargo()` y sale exactamente lo de antes.
+ */
+export interface PresupuestoFx {
+  tarjetas: number;
+  acentos: number;
+  keywords: number;
+  insertos: number;
+  sepTarjetaMs: number;
+  sepMicroMs: number;
+  sepKeywordMs: number;
+  /**
+   * Carril propio para el zoom. Sin él, el zoom compite por el hueco de la
+   * tarjeta, que es lo correcto en el largo: los dos ocupan el centro y uno
+   * tapa al otro. En vertical el zoom es RITMO, no gráfico, y perder una cifra
+   * en pantalla para ganar un empujón de cámara sale caro.
+   */
+  zooms?: number;
+  sepZoomMs?: number;
+  /** franja de un solo overlay visual, en ms. Sin ella, la franja es el beat. */
+  granoMs?: number;
+}
+
+export function presupuestoLargo(durationMs: number): PresupuestoFx {
+  const minutos = durationMs / 60_000;
+  const porMin = (tasa: number): number => Math.max(1, Math.round(minutos * tasa));
+  return {
+    tarjetas: porMin(FX_CARDS_PER_MIN),
+    acentos: porMin(FX_MICRO_PER_MIN),
+    keywords: porMin(FX_KEYWORDS_PER_MIN),
+    insertos: porMin(FX_INSERTOS_PER_MIN),
+    sepTarjetaMs: FX_CARD_SEP_MS,
+    sepMicroMs: FX_MICRO_SEP_MS,
+    sepKeywordMs: FX_KEYWORD_SEP_MS,
+  };
+}
+
+/** Absoluto por pieza. `insertos: 0` porque `imagen_apoyo` no vive en vertical. */
+export const PRESUPUESTO_VERTICAL: PresupuestoFx = {
+  tarjetas: SHORT_CARDS_MAX,
+  acentos: SHORT_MICRO_MAX,
+  keywords: SHORT_KEYWORDS_MAX,
+  insertos: 0,
+  sepTarjetaMs: SHORT_FX_CARD_SEP_MS,
+  sepMicroMs: SHORT_FX_MICRO_SEP_MS,
+  sepKeywordMs: SHORT_FX_KEYWORD_SEP_MS,
+  zooms: SHORT_ZOOMS_MAX,
+  sepZoomMs: SHORT_FX_ZOOM_SEP_MS,
+  granoMs: SHORT_FX_GRANO_MS,
+};
+
 export function dedupeAndCap(
   edits: Edit[],
   durationMs: number,
   declared: ReadonlySet<Edit> = new Set(),
+  presupuesto?: PresupuestoFx,
 ): Edit[] {
-  // dedupe overlays por (type, beat_idx); un beat no lleva dos del mismo tipo
+  const p = presupuesto ?? presupuestoLargo(durationMs);
+  // La franja: el beat en el largo, un tramo de tiempo cuando el formato lo
+  // pide. Es el mismo criterio —no apilar dos gráficos en la misma idea— con
+  // otra unidad; en treinta segundos la idea no dura un beat entero.
+  const franja = (e: Edit): number =>
+    p.granoMs === undefined ? (e.beat_idx ?? e.from_ms) : Math.floor(e.from_ms / p.granoMs);
+  // dedupe overlays por (type, franja); una franja no lleva dos del mismo tipo
   const seen = new Set<string>();
   const kept: Edit[] = [];
   for (const e of edits) {
     if (VISUAL_TYPES.has(e.type)) {
-      const key = `${e.type}:${e.beat_idx ?? e.from_ms}`;
+      const key = `${e.type}:${franja(e)}`;
       if (seen.has(key)) continue;
       seen.add(key);
     }
@@ -926,22 +1001,27 @@ export function dedupeAndCap(
   const puntua = (e: Edit): number => (PRIORITY[e.type] ?? 0) + (declared.has(e) ? 10 : 0);
   const bestPerBeat = new Map<number, Edit>();
   const passthrough: Edit[] = [];
+  const zooms: Edit[] = [];
   for (const e of kept) {
     if (!VISUAL_TYPES.has(e.type) || e.beat_idx === undefined) {
       passthrough.push(e);
       continue;
     }
-    const cur = bestPerBeat.get(e.beat_idx);
-    if (!cur || puntua(e) > puntua(cur)) bestPerBeat.set(e.beat_idx, e);
+    if (p.zooms !== undefined && e.type === 'zoom_punch') {
+      zooms.push(e);
+      continue;
+    }
+    const clave = franja(e);
+    const cur = bestPerBeat.get(clave);
+    if (!cur || puntua(e) > puntua(cur)) bestPerBeat.set(clave, e);
   }
   // Reparto por ventanas en vez del recorte por prioridad: con el `slice`
   // anterior, un vídeo cuyo primer minuto daba mucho material se quedaba con
   // todos los efectos apelotonados al principio y minutos enteros mudos.
-  const minutos = durationMs / 60_000;
-  const visuals = spreadByWindows([...bestPerBeat.values()], {
-    budget: Math.max(1, Math.round(minutos * FX_CARDS_PER_MIN)),
+  const tarjetas = spreadByWindows([...bestPerBeat.values()], {
+    budget: p.tarjetas,
     durationMs,
-    sepMs: FX_CARD_SEP_MS,
+    sepMs: p.sepTarjetaMs,
     at: (e) => e.from_ms,
     // lo DECLARADO por el guion gana a lo inferido por reglas o por la IA
     score: puntua,
@@ -953,6 +1033,19 @@ export function dedupeAndCap(
     // un solo candidato. Eso se arregla arriba, en qué escenas declara tarjeta
     // el guion, no aquí.
   }).kept;
+  // El carril del zoom solo existe si el formato lo pidió; en el largo `zooms`
+  // está vacío porque los zoom_punch siguen compitiendo arriba con las tarjetas.
+  const zoomsKept =
+    p.zooms === undefined
+      ? []
+      : spreadByWindows(zooms, {
+          budget: p.zooms,
+          durationMs,
+          sepMs: p.sepZoomMs ?? p.sepTarjetaMs,
+          at: (e) => e.from_ms,
+          score: puntua,
+        }).kept;
+  const visuals = [...tarjetas, ...zoomsKept];
   // conserva SFX/keyword; recorta los "pop" cuyos overlays fueron descartados
   const keptVisualFroms = new Set(visuals.map((v) => v.from_ms));
   const others = passthrough.filter((e) =>
@@ -992,22 +1085,22 @@ export function dedupeAndCap(
   // y uno moría sin estar apelotonado con nada. El criterio correcto para
   // material escaso es «todos los que quepan sin pisarse»: orden temporal,
   // separación mínima y tope.
-  const topeInsertos = Math.max(1, Math.round(minutos * FX_INSERTOS_PER_MIN));
+  const topeInsertos = p.insertos;
   const insertosKept: Edit[] = [];
   for (const e of [...insertos].sort((a, b) => a.from_ms - b.from_ms)) {
     if (insertosKept.length >= topeInsertos) break;
     if (visuals.filter(enBandaSuperior).some((v) => solapa(e, v))) continue;
     const ultimo = insertosKept[insertosKept.length - 1];
-    if (ultimo && e.from_ms - ultimo.from_ms < FX_CARD_SEP_MS) continue;
+    if (ultimo && e.from_ms - ultimo.from_ms < p.sepTarjetaMs) continue;
     insertosKept.push(e);
   }
   // acentos y subrayados esquivan tanto las tarjetas como los insertos
   const pisaTarjeta = (e: Edit): boolean =>
     visuals.some((v) => solapa(e, v)) || insertosKept.some((v) => solapa(e, v));
   const acentosKept = spreadByWindows(acentos, {
-    budget: Math.max(1, Math.round(minutos * FX_MICRO_PER_MIN)),
+    budget: p.acentos,
     durationMs,
-    sepMs: FX_MICRO_SEP_MS,
+    sepMs: p.sepMicroMs,
     at: (e) => e.from_ms,
     score: (e) => (declared.has(e) ? 10 : 0),
     reject: pisaTarjeta,
@@ -1015,9 +1108,9 @@ export function dedupeAndCap(
   // El subrayado de subtítulo antes NO tenía tope: partía todos los tags de SEO
   // y encendía la palabra allá donde cayera, decenas de veces por vídeo.
   const keywordsKept = spreadByWindows(keywords, {
-    budget: Math.max(1, Math.round(minutos * FX_KEYWORDS_PER_MIN)),
+    budget: p.keywords,
     durationMs,
-    sepMs: FX_KEYWORD_SEP_MS,
+    sepMs: p.sepKeywordMs,
     at: (e) => e.from_ms,
     // una tarjeta centrada tapa el subtítulo: resaltarlo debajo no se vería
     // a igualdad, gana la palabra más larga: las cortas suelen ser genéricas
@@ -1053,6 +1146,15 @@ export async function directEdits(
     resolverInsertos?: (
       pendientes: IntentPlacement['insertos'],
     ) => Promise<Map<number, { imagePath: string; credit?: string }>>;
+    /** topes y separaciones del formato; sin él, los del vídeo largo */
+    presupuesto?: PresupuestoFx;
+    /**
+     * Efectos que la pieza ya trae puestos y hay que respetar. Los usa el
+     * short: hereda del maestro largo los que caen en su ventana, y esos SÍ
+     * vienen del guion aunque aquí no haya `scenes` para declararlos otra vez.
+     * Entran como declarados, así que ganan el reparto.
+     */
+    heredados?: readonly Edit[];
   },
 ): Promise<Edit[]> {
   if (params.beats.length === 0) return [];
@@ -1061,6 +1163,12 @@ export async function directEdits(
   // 1) lo que el guion declaró: máxima prioridad y sin adivinar nada
   const intents = intentEdits(params);
   const declared = new Set(intents.edits);
+  const heredados = opts?.heredados ?? [];
+  for (const e of heredados) {
+    declared.add(e);
+    if (e.beat_idx !== undefined) intents.covered.add(e.beat_idx);
+  }
+  const presupuesto = opts?.presupuesto;
 
   // 1b) insertos: la imagen se resuelve fuera (stock → Commons → juez) y el
   // que vuelve entra como edit DECLARADO (+10 en el reparto, como el resto de
@@ -1160,7 +1268,14 @@ export async function directEdits(
   ]);
   const huecos = params.beats.filter((b) => !cubiertos.has(b.idx));
   let aiEdits: Edit[] = [];
-  if (hacenFaltaMasTarjetas([...intents.edits, ...rules], durationMs) && huecos.length > 0) {
+  if (
+    hacenFaltaMasTarjetas(
+      [...heredados, ...intents.edits, ...rules],
+      durationMs,
+      presupuesto?.tarjetas,
+    ) &&
+    huecos.length > 0
+  ) {
     try {
       const { system, user } = buildEditingPrompt({ ...params, beats: huecos });
       const data = await ledgeredLlmJson(ctx, {
@@ -1182,13 +1297,15 @@ export async function directEdits(
   }
 
   const final = dedupeAndCap(
-    [...intents.edits, ...rules, ...micro, ...aiEdits],
+    [...heredados, ...intents.edits, ...rules, ...micro, ...aiEdits],
     durationMs,
     declared,
+    presupuesto,
   );
   ctx.logger.info(
     {
       videoId: params.videoId,
+      heredados: heredados.length,
       declarados: intents.edits.length,
       descartados: intents.dropped,
       reglas: rules.length,

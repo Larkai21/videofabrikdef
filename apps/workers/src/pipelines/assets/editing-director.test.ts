@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { Cue, Edit } from '@fabrica/shared';
 import {
   dedupeAndCap,
+  presupuestoLargo,
+  PRESUPUESTO_VERTICAL,
   entidadNombrada,
   hacenFaltaMasTarjetas,
   insertoAutomatico,
@@ -716,5 +718,55 @@ describe('inserto automático y su carril propio (S11 bis)', () => {
     declared.add(b);
     const out = dedupeAndCap([a, b], 474_000, declared);
     expect(out.filter((e) => e.type === 'imagen_apoyo')).toHaveLength(2);
+  });
+});
+
+describe('presupuesto por formato', () => {
+  // Efectos de sobra repartidos por una pieza corta: dos beats de 15 s, un
+  // candidato cada dos segundos. Es la forma real de un short densificado.
+  const monton: Edit[] = Array.from({ length: 15 }, (_, i) => ({
+    type: i % 3 === 0 ? ('text_callout' as const) : ('zoom_punch' as const),
+    from_ms: i * 2_000,
+    to_ms: i * 2_000 + 1_500,
+    beat_idx: i < 8 ? 0 : 1,
+    ...(i % 3 === 0 ? { text: `t${i}` } : {}),
+  })) as Edit[];
+
+  it('el defecto es exactamente el presupuesto del largo', () => {
+    // La red del refactor: si algún día el defecto deja de ser el largo, el
+    // vídeo de ocho minutos cambia de montaje sin que nadie lo haya pedido.
+    const a = dedupeAndCap([...monton], 300_000);
+    const b = dedupeAndCap([...monton], 300_000, new Set(), presupuestoLargo(300_000));
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+
+  it('con el presupuesto del largo, treinta segundos dan un solo overlay', () => {
+    // El techo que motivó todo esto: la tasa por minuto da 1 tarjeta y la
+    // franja es el beat, así que dos beats no pueden dar más de dos efectos.
+    const out = dedupeAndCap([...monton], 30_000);
+    const visuales = out.filter((e) => e.type === 'text_callout' || e.type === 'zoom_punch');
+    expect(visuales.length).toBeLessThanOrEqual(2);
+  });
+
+  it('con el presupuesto vertical, la misma pieza se llena', () => {
+    const out = dedupeAndCap([...monton], 30_000, new Set(), PRESUPUESTO_VERTICAL);
+    const tarjetas = out.filter((e) => e.type === 'text_callout');
+    const zooms = out.filter((e) => e.type === 'zoom_punch');
+    // el zoom tiene carril propio: no le quita el hueco a la tarjeta
+    expect(tarjetas.length).toBeGreaterThanOrEqual(2);
+    expect(zooms.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('el presupuesto vertical respeta sus propios topes y separaciones', () => {
+    const out = dedupeAndCap([...monton], 30_000, new Set(), PRESUPUESTO_VERTICAL);
+    const tarjetas = out.filter((e) => e.type === 'text_callout');
+    const zooms = out.filter((e) => e.type === 'zoom_punch');
+    expect(tarjetas.length).toBeLessThanOrEqual(PRESUPUESTO_VERTICAL.tarjetas);
+    expect(zooms.length).toBeLessThanOrEqual(PRESUPUESTO_VERTICAL.zooms!);
+    for (let i = 1; i < zooms.length; i += 1) {
+      expect(zooms[i]!.from_ms - zooms[i - 1]!.from_ms).toBeGreaterThanOrEqual(
+        PRESUPUESTO_VERTICAL.sepZoomMs!,
+      );
+    }
   });
 });
