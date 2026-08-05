@@ -37,6 +37,13 @@ function fecha(iso: string): string {
   });
 }
 
+/** «14 de marzo de 2026, 18:20» — solo para el title del ratón. */
+function fechaLarga(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'fecha desconocida';
+  return d.toLocaleString('es-ES', { dateStyle: 'long', timeStyle: 'short' });
+}
+
 function Tarjeta({ d, onAbrir }: { d: Entregada; onAbrir: () => void }) {
   const { push } = useToasts();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -93,7 +100,13 @@ function Tarjeta({ d, onAbrir }: { d: Entregada; onAbrir: () => void }) {
           {d.title}
         </button>
         <div className="entrega-pie">
-          <span>{fecha(d.finished_at)}</span>
+          {/* la de CREACIÓN, que es la que ordena: `finished_at` es updatedAt y
+              lo mueve cada escritura de publicación */}
+          <span
+            title={`Creado el ${fechaLarga(d.created_at)} · última escritura ${fechaLarga(d.finished_at)}`}
+          >
+            {fecha(d.created_at)}
+          </span>
           <Button variant="ghost" disabled={revealMut.isPending} onClick={() => revealMut.mutate()}>
             Abrir la carpeta
           </Button>

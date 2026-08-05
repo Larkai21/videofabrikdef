@@ -22,6 +22,13 @@ import { Button, InputModal, useModalKeyboard } from './ui';
 
 type Entregada = InboxDto['done'][number];
 
+/** «14 mar 2026» para la tira de datos bajo el vídeo. */
+function fechaCorta(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'fecha desconocida';
+  return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 function CampoCopiable({
   etiqueta,
   valor,
@@ -141,6 +148,10 @@ export function FichaEntrega({ entrega, onClose }: { entrega: Entregada; onClose
                 ? `${fmtMoney(videoQ.data.costs_total)} de coste`
                 : 'cargando el coste'}
             </span>
+            <span>·</span>
+            {/* aquí sí caben las dos: la de creación ordena la galería y la de
+                última escritura dice cuándo se tocó por última vez */}
+            <span>creado el {fechaCorta(entrega.created_at)}</span>
             <span>·</span>
             <span>{entrega.output_dir === '' ? 'sin carpeta' : entrega.output_dir}</span>
           </div>

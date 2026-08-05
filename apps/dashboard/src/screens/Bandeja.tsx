@@ -1,20 +1,24 @@
 import type { VideoState } from '@fabrica/shared';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getInboxFor } from '../lib/api';
 import { useChannel } from '../lib/channel';
+import {
+  filtrarEntregas,
+  FILTRO_VACIO,
+  hayFiltroDeFecha,
+  type FiltroEntregas,
+} from '../lib/entregas';
 import { useLive } from '../lib/events';
 import { fmtMoney } from '../lib/format';
 import { useHotkeys } from '../lib/hotkeys';
 import { useSearch } from '../lib/search';
+import { FiltrosEntregas } from '../components/FiltrosEntregas';
 import { Radar } from '../components/Radar';
-import {
-  LineaProduccion,
-  esperandoFirma,
-  type EnVuelo,
-} from '../components/LineaProduccion';
+import { LineaProduccion, esperandoFirma, type EnVuelo } from '../components/LineaProduccion';
 import { Galeria } from '../components/Galeria';
-import { Button, SkeletonRows } from '../components/ui';
+import { Button, EmptyState, SkeletonRows } from '../components/ui';
 
 /**
  * Una puerta abierta implica el estado que la abrió: la API deriva `kind` del
@@ -32,8 +36,14 @@ export function Bandeja() {
   const { search } = useSearch();
   const live = useLive();
   const { activeChannelId } = useChannel();
+  const [filtroEntregas, setFiltroEntregas] = useState<FiltroEntregas>(FILTRO_VACIO);
 
-  const { data: inbox, isPending, isError, refetch } = useQuery({
+  const {
+    data: inbox,
+    isPending,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['inbox', activeChannelId],
     queryFn: () => getInboxFor(activeChannelId),
     refetchInterval: 30_000,
@@ -51,7 +61,13 @@ export function Bandeja() {
   const running = (inbox?.running ?? []).filter(
     (v) => q === '' || v.title.toLowerCase().includes(q),
   );
-  const done = (inbox?.done ?? []).filter((d) => q === '' || d.title.toLowerCase().includes(q));
+  // la galería filtra y ordena aparte: el texto se compone con el rango de
+  // fechas y con el orden dentro de filtrarEntregas
+  const done = inbox?.done ?? [];
+  const entregas = useMemo(
+    () => filtrarEntregas(done, { ...filtroEntregas, q: search }),
+    [done, filtroEntregas, search],
+  );
 
   // El raíl se alimenta de las dos fuentes a la vez: «en curso» aporta estado y
   // progreso, las puertas aportan el porqué y el tiempo que te va a costar. Un
@@ -106,7 +122,10 @@ export function Bandeja() {
   if (isError) {
     return (
       <div className="wrap-1160" style={{ padding: 'calc(var(--pad) * 2) 26px' }}>
-        <div className="banner banner-danger" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div
+          className="banner banner-danger"
+          style={{ display: 'flex', alignItems: 'center', gap: 12 }}
+        >
           <span style={{ flex: 1 }}>No se pudo cargar la bandeja. La API no responde.</span>
           <Button variant="secondary" onClick={() => void refetch()}>
             Reintentar
@@ -165,10 +184,30 @@ export function Bandeja() {
         </span>
       </div>
 
+      {done.length > 0 ? (
+        <FiltrosEntregas
+          filtro={filtroEntregas}
+          onChange={setFiltroEntregas}
+          visibles={entregas.length}
+          total={done.length}
+        />
+      ) : null}
+
       {isPending ? (
         <SkeletonRows rows={2} label="Cargando las entregas" />
+      ) : entregas.length === 0 && done.length > 0 ? (
+        // «Nada pendiente de publicar» (el vacío de la galería) sería mentira
+        // aquí: hay entregas, es el filtro el que no deja pasar ninguna
+        <EmptyState title="Ningún vídeo en ese rango">
+          <Button
+            onClick={() => setFiltroEntregas({ ...filtroEntregas, desde: '', hasta: '' })}
+            disabled={!hayFiltroDeFecha(filtroEntregas)}
+          >
+            Quitar filtros
+          </Button>
+        </EmptyState>
       ) : (
-        <Galeria entregas={done} />
+        <Galeria entregas={entregas} />
       )}
 
       {/* El coste cierra la página como una franja, no como una columna al lado
