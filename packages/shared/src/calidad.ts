@@ -28,6 +28,13 @@ import { EDIT_RENDER_KIND, type Edit, type MasterVideoJson } from './master-json
  * mostraba el centro, con una mediana de 5,9 s de separación.
  */
 export const DESFASE_ENCUADRE_MS = 1_500;
+
+/**
+ * Tramo seguido sin nada dibujado a partir del cual se avisa. Un minuto de
+ * b-roll con subtítulos y nada más es el hueco que hace que una pieza «se vea
+ * vacía»; por debajo de eso el respiro es deliberado.
+ */
+export const HUECO_GRAFICO_MAX_MS = 60_000;
 // Cuota de imágenes fijas por encima de la cual el vídeo deja de parecer
 // metraje. Vive en `constants.ts` porque el mismo número gobierna la PRODUCCIÓN
 // (reparto de plazas de finalista en la cascada) y no solo esta auditoría.
@@ -74,10 +81,60 @@ export interface MetricasVideo {
   efectos_visuales_por_min: number;
   reparto_por_minuto: number[];
   minutos_mudos: number;
+  /** fracción de la pieza con un gráfico en pantalla (ver `cobertura`) */
+  cobertura_grafica: number;
+  /** el tramo seguido más largo sin nada dibujado, en segundos */
+  hueco_grafico_s: number;
   // intenciones declaradas (si el maestro trae telemetría)
   intents_declaradas: number | null;
   intents_vivas: number | null;
   avisos: Aviso[];
+}
+
+/**
+ * Cuánto de la pieza tiene algo DIBUJADO en pantalla, y dónde están los huecos.
+ *
+ * Es el número que mide si una pieza «se ve vacía», y hasta ahora no existía:
+ * `minutos_mudos` cuenta minutos de reloj, que en una pieza de treinta segundos
+ * no dice nada. Cuenta solo lo que pinta algo nuevo —`overlay` y `anotacion`—,
+ * no el b-roll ni el subtítulo, que siempre están, ni el `zoom_punch`, que
+ * mueve la cámara sobre lo que ya había, ni el `keyword_highlight`, que tiñe
+ * una palabra del subtítulo. Los tramos solapados se funden antes de medir.
+ */
+export function cobertura(
+  edits: readonly { type: string; from_ms: number; to_ms: number }[],
+  durationMs: number,
+): { ms_con_grafico: number; ratio: number; hueco_max_ms: number; huecos: [number, number][] } {
+  const dibuja = new Set<string>(
+    Object.entries(EDIT_RENDER_KIND)
+      .filter(([, kind]) => kind === 'overlay' || kind === 'anotacion')
+      .map(([type]) => type),
+  );
+  const tramos = edits
+    .filter((e) => dibuja.has(e.type))
+    .map((e): [number, number] => [Math.max(0, e.from_ms), Math.min(durationMs, e.to_ms)])
+    .filter(([a, b]) => b > a)
+    .sort((x, y) => x[0] - y[0]);
+  const fundidos: [number, number][] = [];
+  for (const [a, b] of tramos) {
+    const ultimo = fundidos[fundidos.length - 1];
+    if (ultimo && a <= ultimo[1]) ultimo[1] = Math.max(ultimo[1], b);
+    else fundidos.push([a, b]);
+  }
+  const conGrafico = fundidos.reduce((acc, [a, b]) => acc + (b - a), 0);
+  const huecos: [number, number][] = [];
+  let cursor = 0;
+  for (const [a, b] of fundidos) {
+    if (a > cursor) huecos.push([cursor, a]);
+    cursor = b;
+  }
+  if (cursor < durationMs) huecos.push([cursor, durationMs]);
+  return {
+    ms_con_grafico: conGrafico,
+    ratio: durationMs > 0 ? conGrafico / durationMs : 0,
+    hueco_max_ms: huecos.reduce((max, [a, b]) => Math.max(max, b - a), 0),
+    huecos,
+  };
 }
 
 /** Overlays que ocupan el centro de la pantalla y por tanto compiten entre sí. */
@@ -429,6 +486,19 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
     }
   }
 
+  const cob = cobertura(edits, durMs);
+  // Un minuto entero sin nada dibujado es un tramo en el que la pantalla solo
+  // enseña b-roll y subtítulos. No es un fallo de render: es material que falta.
+  if (cob.hueco_max_ms > HUECO_GRAFICO_MAX_MS) {
+    const peor = cob.huecos.reduce((a, b) => (b[1] - b[0] > a[1] - a[0] ? b : a), [0, 0]);
+    avisos.push({
+      gravedad: 'media',
+      codigo: 'hueco_grafico',
+      detalle: `${Math.round(cob.hueco_max_ms / 1000)} s seguidos sin nada dibujado en pantalla: solo b-roll y subtítulos`,
+      at_ms: peor[0],
+    });
+  }
+
   const tel = master.script_telemetry;
   return {
     duracion_min: durMin,
@@ -448,6 +518,8 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
     efectos_visuales_por_min: durMin > 0 ? visuales.length / durMin : 0,
     reparto_por_minuto: reparto,
     minutos_mudos: mudos,
+    cobertura_grafica: cob.ratio,
+    hueco_grafico_s: cob.hueco_max_ms / 1000,
     intents_declaradas: tel?.intents_declared ?? null,
     intents_vivas: tel?.intents_kept ?? null,
     avisos: avisos.sort((a, b) => (a.gravedad === b.gravedad ? 0 : a.gravedad === 'alta' ? -1 : 1)),
