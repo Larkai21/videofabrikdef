@@ -285,8 +285,11 @@ describe('recortarMaster', () => {
       const b1 = base.beats[1]!;
       const m = master([
         {
-          type: 'split_versus',
-          items: ['antes', 'ahora'],
+          // el marco de navegador es 16:9 por definición: no hay maquetación
+          // vertical que lo salve, al contrario que los tres de enumerar, que
+          // ahora se apilan en columna y sí viajan
+          type: 'device_frame',
+          text: 'grapheneos.org',
           from_ms: b1.from_ms + 100,
           to_ms: b1.from_ms + 3_100,
         },

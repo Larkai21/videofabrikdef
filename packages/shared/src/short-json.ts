@@ -102,10 +102,14 @@ export const SHORT_EDIT_ALLOWED: Record<EditType, boolean> = {
   stat_odometer: true,
   annotation: true,
   micro_fx: true,
-  // los tres de enumerar se maquetan en FILA: a 1080 de ancho no se leen
-  split_versus: false,
-  pasos_flow: false,
-  tendencia: false,
+  // Los tres de enumerar ya se maquetan en COLUMNA cuando el lienzo es
+  // vertical, que es el eje que este formato sí tiene. Son las únicas formas
+  // del catálogo que dibujan una RELACIÓN y no texto en una caja, así que
+  // dejarlas fuera era dejar al short sin vocabulario. `pasos_flow` con la
+  // última estación acentuada es, literalmente, un cuello de botella.
+  split_versus: true,
+  pasos_flow: true,
+  tendencia: true,
   // el marco de navegador es 16:9 por definición
   device_frame: false,
   // un recuadro apaisado sobre un plano apaisado: dos cajas 16:9 en un lienzo

@@ -405,18 +405,14 @@ export const Pieza: React.FC<PiezaMaster> = (master) => {
           durationInFrames={cue.durationInFrames}
           name={cue.type}
         >
-          {/* La escala del lienzo conserva el tamaño RELATIVO con el que se
-              calibraron las tarjetas: sus px son absolutos sobre 1920 de ancho.
-              Sin escalar NO se envuelve: un `transform: scale(1)` crea un
-              contexto de composición y cambia el rasterizado —medido, 49 bytes
-              de diferencia en el humo del vídeo largo—. */}
-          {lienzo.escala === 1 ? (
-            <EditOverlay cue={cue} design={design} />
-          ) : (
-            <AbsoluteFill style={{ transform: `scale(${lienzo.escala})` }}>
-              <EditOverlay cue={cue} design={design} />
-            </AbsoluteFill>
-          )}
+          {/* Sin envolver. Hubo aquí un `scale(ancho/1920)` para conservar el
+              tamaño con el que se calibraron las tarjetas, y encogía TODA la
+              capa un 44 %: medido sobre un short renderizado, el callout salía
+              a 26 px efectivos y era ilegible en un móvil. Lo que se calibró en
+              1920 es el ANCHO de las piezas grandes, no el cuerpo del texto;
+              las que no caben en 1080 se maquetan en columna, que es lo que
+              pedía el formato desde el principio. */}
+          <EditOverlay cue={cue} design={design} />
         </Sequence>
       ))}
       {annotationCues.map((cue, i) => (

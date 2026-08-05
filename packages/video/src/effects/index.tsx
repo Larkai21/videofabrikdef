@@ -264,6 +264,7 @@ export const KineticText: React.FC<{ text: string; seed?: number; design?: Desig
 }) => {
   const d = design ?? defaultDesign();
   const frame = useCurrentFrame();
+  const lienzo = useLienzo();
   const { durationInFrames, fps } = useVideoConfig();
   const words = text.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return null;
@@ -314,7 +315,9 @@ export const KineticText: React.FC<{ text: string; seed?: number; design?: Desig
           // la última palabra es el remate → acento; el resto rota estilo
           // (normal/bloque/contorno) de forma determinista para dar variedad
           const isLast = i === words.length - 1;
-          const size = clamp(1500 / Math.max(3, w.length), 90, 220);
+          // 1500 era el 78 % de 1920: la palabra ocupa esa parte del ancho.
+          // Cableado, en 1080 daba palabras que se salían por los lados.
+          const size = clamp((lienzo.ancho * 0.78) / Math.max(3, w.length), 90, 220);
           const variant = isLast
             ? 'acento'
             : // «contorno» (color transparente + trazo de 3 px del acento) era
@@ -1028,9 +1031,14 @@ export const SplitVersus: React.FC<{ items: string[]; design?: DesignTokens }> =
 }) => {
   const d = design ?? defaultDesign();
   const frame = useCurrentFrame();
+  const lienzo = useLienzo();
   const { opacity } = useInOut();
   const [a, b] = items;
   if (a === undefined || b === undefined) return null;
+  // En vertical los dos lados se apilan: 1500 px de ancho no caben en 1080, y
+  // partir la pantalla por la mitad EN ALTO es el mismo gesto —dos cosas
+  // enfrentadas con un canto entre ellas— en el eje que el formato sí tiene.
+  const col = lienzo.vertical;
 
   const corte = span(frame, 4, 16, Ease.inOutCubic);
   // el trazo gana CUERPO al abrirse: 2 px de raya a 13 px de canto
@@ -1047,7 +1055,7 @@ export const SplitVersus: React.FC<{ items: string[]; design?: DesignTokens }> =
         justifyContent: 'center',
         padding: `0 ${S[6]}px`,
         opacity: p,
-        transform: `translateX(${(1 - p) * desde}px)`,
+        transform: col ? `translateY(${(1 - p) * desde}px)` : `translateX(${(1 - p) * desde}px)`,
         ...displayText(800),
         fontSize: T.xl,
         lineHeight: 1.1,
@@ -1065,9 +1073,10 @@ export const SplitVersus: React.FC<{ items: string[]; design?: DesignTokens }> =
         style={{
           opacity,
           display: 'flex',
+          flexDirection: col ? 'column' : 'row',
           alignItems: 'stretch',
-          width: 1500,
-          height: 260,
+          width: col ? lienzo.ancho - lienzo.safe.left - lienzo.safe.right : 1500,
+          height: col ? 520 : 260,
           borderRadius: R.lg,
           ...glassSurface(d),
           overflow: 'hidden',
@@ -1076,11 +1085,13 @@ export const SplitVersus: React.FC<{ items: string[]; design?: DesignTokens }> =
         {lado(a, ladoA, -40)}
         <div
           style={{
-            width: grosor,
+            ...(col ? { height: grosor } : { width: grosor }),
             alignSelf: 'stretch',
             background: d.accent,
             // se abre desde el centro: el canto se apoya en la junta
-            clipPath: `inset(${((1 - corte) * 50).toFixed(2)}% 0 ${((1 - corte) * 50).toFixed(2)}% 0)`,
+            clipPath: col
+              ? `inset(0 ${((1 - corte) * 50).toFixed(2)}% 0 ${((1 - corte) * 50).toFixed(2)}%)`
+              : `inset(${((1 - corte) * 50).toFixed(2)}% 0 ${((1 - corte) * 50).toFixed(2)}% 0)`,
           }}
         />
         {lado(b, ladoB, 40)}
@@ -1102,14 +1113,28 @@ export const PasosFlow: React.FC<{ items: string[]; design?: DesignTokens }> = (
 }) => {
   const d = design ?? defaultDesign();
   const frame = useCurrentFrame();
+  const lienzo = useLienzo();
   const { opacity } = useInOut();
   const pasos = items.filter((s) => s.trim() !== '').slice(0, 4);
   if (pasos.length < 2) return null;
   const ESCALON = 9; // frames entre estaciones
+  // Cuatro fichas en fila piden 4x240 + 3x40 = 1080: el ancho ENTERO del
+  // lienzo vertical, sin margen. Apiladas, el proceso se lee de arriba abajo,
+  // que además es como se desliza en este formato.
+  const col = lienzo.vertical;
 
   return (
     <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-      <div style={{ opacity, display: 'flex', gap: 40, alignItems: 'stretch' }}>
+      <div
+        style={{
+          opacity,
+          display: 'flex',
+          flexDirection: col ? 'column' : 'row',
+          gap: 40,
+          alignItems: 'stretch',
+          ...(col ? { width: lienzo.ancho - lienzo.safe.left - lienzo.safe.right } : {}),
+        }}
+      >
         {pasos.map((paso, i) => {
           const p = span(frame, 4 + i * ESCALON, 14, Ease.outBack6);
           return (
@@ -1117,7 +1142,9 @@ export const PasosFlow: React.FC<{ items: string[]; design?: DesignTokens }> = (
               key={`${i}-${paso}`}
               style={{
                 opacity: Math.min(1, p),
-                transform: `translateY(${(1 - Math.min(1, p)) * 22}px) scale(${0.94 + 0.06 * Math.min(1, p)})`,
+                transform: col
+                  ? `translateX(${(1 - Math.min(1, p)) * 22}px) scale(${0.94 + 0.06 * Math.min(1, p)})`
+                  : `translateY(${(1 - Math.min(1, p)) * 22}px) scale(${0.94 + 0.06 * Math.min(1, p)})`,
                 ...glassSurface(d, { accent: i === pasos.length - 1 }),
                 borderRadius: R.md,
                 padding: `${S[5]}px ${S[6]}px`,
