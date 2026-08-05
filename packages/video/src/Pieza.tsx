@@ -21,7 +21,8 @@ import {
 } from './brand-kit';
 import { useLienzo } from './lienzo';
 import { perfilDe } from './perfil';
-import { SECTION_TRANSITIONS } from './effects/transitions';
+import { CARTELA_FRAMES, CartelaGancho } from './short/CartelaGancho';
+import { SECTION_TRANSITIONS, whip } from './effects/transitions';
 import {
   Ambience,
   Annotation,
@@ -78,11 +79,16 @@ const SFX_VOLUME: Record<SfxName, number> = {
 // cortes y es la transición que más lee a plantilla.
 const DIRS = ['from-left', 'from-right', 'from-top', 'from-bottom'] as const;
 function pickTransition(
-  kind: 'fundido' | 'slide' | 'section',
+  kind: 'fundido' | 'slide' | 'section' | 'whip',
   i: number,
   seedBase: string,
 ): TransitionPresentation<Record<string, unknown>> {
   const seed = hashSeed(`${seedBase}:trans:${i}`);
+  if (kind === 'whip') {
+    return whip(seed % 2 === 0 ? 'izquierda' : 'derecha') as unknown as TransitionPresentation<
+      Record<string, unknown>
+    >;
+  }
   if (kind === 'section') {
     const make = SECTION_TRANSITIONS[seed % SECTION_TRANSITIONS.length]!;
     return make() as unknown as TransitionPresentation<Record<string, unknown>>;
@@ -339,6 +345,12 @@ export const Pieza: React.FC<PiezaMaster> = (master) => {
       ) : (
         subtitlesEl
       )}
+      {/* el titular del short: en la banda que en 9:16 existe y en 16:9 no */}
+      {perfil.cartela && master.short !== undefined ? (
+        <Sequence from={0} durationInFrames={CARTELA_FRAMES} name="Cartela">
+          <CartelaGancho title={master.short.title} design={design} />
+        </Sequence>
+      ) : null}
       {layout.titleCard !== null ? (
         <Sequence
           from={layout.titleCard.from}
@@ -393,7 +405,18 @@ export const Pieza: React.FC<PiezaMaster> = (master) => {
           durationInFrames={cue.durationInFrames}
           name={cue.type}
         >
-          <EditOverlay cue={cue} design={design} />
+          {/* La escala del lienzo conserva el tamaño RELATIVO con el que se
+              calibraron las tarjetas: sus px son absolutos sobre 1920 de ancho.
+              Sin escalar NO se envuelve: un `transform: scale(1)` crea un
+              contexto de composición y cambia el rasterizado —medido, 49 bytes
+              de diferencia en el humo del vídeo largo—. */}
+          {lienzo.escala === 1 ? (
+            <EditOverlay cue={cue} design={design} />
+          ) : (
+            <AbsoluteFill style={{ transform: `scale(${lienzo.escala})` }}>
+              <EditOverlay cue={cue} design={design} />
+            </AbsoluteFill>
+          )}
         </Sequence>
       ))}
       {annotationCues.map((cue, i) => (

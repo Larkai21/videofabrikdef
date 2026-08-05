@@ -58,6 +58,16 @@ export interface Lienzo {
    * y centrado como problema, y esos no la tocan.
    */
   columnaAcciones: { x: number; y: number; ancho: number } | null;
+  /**
+   * Cuánto hay que escalar la tipografía de los efectos de edición.
+   *
+   * Sus tamaños están en píxeles absolutos calibrados sobre 1920 de ancho, así
+   * que a 1080 salen 1,78x más grandes EN RELATIVO: medido, el texto cinético
+   * del gancho ocupaba el ancho entero del short y competía con la cartela y
+   * con los subtítulos. Escalar por esta fracción conserva el tamaño relativo
+   * con el que se calibraron.
+   */
+  escala: number;
   anclajes: Anclajes;
   viewBox: string;
   /** fracción del lienzo → píxeles */
@@ -108,6 +118,7 @@ export function lienzoDe(ancho: number, alto: number): Lienzo {
         subtitulos: [alto - safe.bottom - Math.round(alto * 0.18), alto - safe.bottom],
       },
       columnaAcciones: null,
+      escala: 1,
       // Los mismos números que estaban escritos a mano, expresados como
       // fracción del lienzo. A 1920×1080 tienen que dar exactamente los de
       // antes, y hay un test que lo exige.
@@ -164,6 +175,7 @@ export function lienzoDe(ancho: number, alto: number): Lienzo {
       ventana: [cartelaFin, subtitulosIni],
       subtitulos: [subtitulosIni, alto - plataformaInf],
     },
+    escala: ancho / 1920,
     columnaAcciones: {
       x: r(ancho, 0.88),
       y: r(alto, 0.52),

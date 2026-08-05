@@ -325,7 +325,7 @@ export interface BrollTransition {
    * deslizamiento cada 8-15 segundos durante todo el vídeo lee a plantilla. El
    * lenguaje del vídeo de noticias es el corte; la transición es el acento.
    */
-  kind: 'dura' | 'fundido' | 'slide' | 'section';
+  kind: 'dura' | 'fundido' | 'slide' | 'section' | 'whip';
 }
 export interface BrollTrack {
   sequences: BrollSeq[];
@@ -349,7 +349,7 @@ export function computeBrollTrack(
     // duro, reproducible entre renders
     seed?: number;
     /** décimas de cada tipo de corte; por defecto el reparto del vídeo largo */
-    reparto?: { dura: number; fundido: number; slide: number };
+    reparto?: { dura: number; fundido: number; slide: number; whip?: number };
   },
 ): BrollTrack {
   const n = beats.length;
@@ -385,9 +385,12 @@ export function computeBrollTrack(
     // el reparto viene por opciones (perfil.ts): el largo pasa el suyo de
     // siempre —6/3/1— y el vertical uno mucho más seco, porque a 1,2-2,5 s por
     // plano una transición de 6 frames se come el 15 % del plano
+    const whip = reparto.whip ?? 0;
     if (r < reparto.dura) transitions.push({ durationInFrames: 0, kind: 'dura' });
     else if (r < reparto.dura + reparto.fundido) {
       transitions.push({ durationInFrames: Math.floor(D / 2), kind: 'fundido' });
+    } else if (r < reparto.dura + reparto.fundido + whip) {
+      transitions.push({ durationInFrames: D, kind: 'whip' });
     } else transitions.push({ durationInFrames: D, kind: 'slide' });
   }
 

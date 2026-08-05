@@ -19,6 +19,10 @@ describe('lienzoDe en apaisado', () => {
     expect(lienzoDe(VIDEO_WIDTH, VIDEO_HEIGHT).vertical).toBe(false);
   });
 
+  it('la escala de los efectos es 1: sus px se calibraron aquí', () => {
+    expect(lienzoDe(VIDEO_WIDTH, VIDEO_HEIGHT).escala).toBe(1);
+  });
+
   it('el viewBox es el del lienzo', () => {
     expect(lienzoDe(VIDEO_WIDTH, VIDEO_HEIGHT).viewBox).toBe('0 0 1920 1080');
   });
@@ -48,6 +52,12 @@ describe('lienzoDe en vertical', () => {
     expect(l.safe.top).toBe(230);
     expect(l.safe.bottom).toBe(470);
     expect(l.vertical).toBe(true);
+  });
+
+  // Sin esto el texto cinético del gancho ocupa el ancho entero del short.
+  it('los efectos se encogen para conservar su tamaño relativo', () => {
+    expect(l.escala).toBeCloseTo(1080 / 1920, 5);
+    expect(l.escala).toBeLessThan(1);
   });
 
   it('las tres zonas cubren el lienzo sin huecos ni solapes', () => {

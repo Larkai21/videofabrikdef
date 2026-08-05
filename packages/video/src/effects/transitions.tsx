@@ -45,3 +45,56 @@ export const cortina = makePresentation(
 );
 
 export const SECTION_TRANSITIONS = [iris, barrido, cortina] as const;
+
+/**
+ * Whip-pan: las dos escenas barren lateralmente y el desenfoque de movimiento
+ * tapa el cambio. Es la transición marcada del formato vertical.
+ *
+ * Portada de `whip-pan` de HyperFrames, pero NO su implementación: la suya
+ * reconstruye el DOM en un canvas 2D dibujando cajas y texto elemento a
+ * elemento para poder texturizarlo con WebGL, y por el camino pierde radios,
+ * sombras, imágenes y máscaras. Aquí se hace con `translateX` y `blur`, que es
+ * la misma coreografía y no pierde nada.
+ *
+ * El desenfoque va ligado a la VELOCIDAD, no al progreso: acelera al arrancar,
+ * llega a su máximo a mitad del barrido y se apaga al aterrizar, que es lo que
+ * lo hace leer como un latigazo y no como un deslizamiento borroso. La derivada
+ * de inOutCubic es una parábola, así que basta con `4·p·(1-p)`.
+ *
+ * `inset` de 1,5·blur en la capa desenfocada: sin ese desbordamiento el blur
+ * descubre un canto translúcido en el borde del lienzo. Es el mismo detalle que
+ * el catálogo de origen documenta en su relleno vertical.
+ */
+const WHIP_BLUR_MAX = 26;
+
+export function whip(
+  direccion: 'izquierda' | 'derecha' = 'izquierda',
+): TransitionPresentation<Empty> {
+  const signo = direccion === 'izquierda' ? -1 : 1;
+  const Component: React.FC<TransitionPresentationComponentProps<Empty>> = ({
+    children,
+    presentationProgress,
+    presentationDirection,
+  }) => {
+    const p = Ease.inOutCubic(presentationProgress);
+    // velocidad normalizada: 0 en los extremos, 1 en el centro del barrido
+    const velocidad = 4 * p * (1 - p);
+    const blur = WHIP_BLUR_MAX * velocidad;
+    const desbordamiento = -Math.ceil(blur * 1.5) - 2;
+    const x = presentationDirection === 'exiting' ? p * 100 * signo : (p - 1) * 100 * signo;
+    return (
+      <AbsoluteFill style={{ overflow: 'hidden' }}>
+        <AbsoluteFill
+          style={{
+            inset: desbordamiento,
+            transform: `translateX(${x.toFixed(2)}%)`,
+            filter: blur > 0.2 ? `blur(${blur.toFixed(1)}px)` : undefined,
+          }}
+        >
+          {children}
+        </AbsoluteFill>
+      </AbsoluteFill>
+    );
+  };
+  return { component: Component, props: {} };
+}

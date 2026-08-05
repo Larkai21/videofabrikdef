@@ -102,8 +102,12 @@ export const TextCallout: React.FC<{ text: string; design?: DesignTokens }> = ({
   design,
 }) => {
   const d = design ?? defaultDesign();
+  const lienzo = useLienzo();
   const { opacity, pop } = useInOut();
   if (text.trim() === '') return null;
+  // en vertical un marginTop fijo caería dentro de la banda que tapa la
+  // interfaz de la plataforma; el sitio es la cartela, que el lienzo ya sitúa
+  const arriba = lienzo.vertical ? lienzo.zonas.cartela[1] + 20 : 130;
   return (
     <AbsoluteFill
       style={{
@@ -115,7 +119,7 @@ export const TextCallout: React.FC<{ text: string; design?: DesignTokens }> = ({
     >
       <div
         style={{
-          marginTop: 130,
+          marginTop: arriba,
           opacity,
           transform: `scale(${0.85 + 0.15 * pop})`,
           ...displayText(800),
