@@ -1,4 +1,18 @@
-import type { MasterVideoJson } from './master-json.js';
+// Firma ESTRUCTURAL: solo los campos que esta función toca. Así el maestro de
+// un short —que no es asignable a MasterVideoJson porque sus literales de
+// tamaño son otros— pasa por aquí sin duplicar la lista de campos de medio,
+// que es justo lo que este módulo existe para evitar.
+export interface MediaBearingMaster {
+  audio?: { path: string } | undefined;
+  brand?: { avatar_path?: string | undefined } | undefined;
+  beats?:
+    | Array<{
+        asset?: { path?: string | undefined } | undefined;
+        visuals?: Array<{ asset?: { path?: string | undefined } | undefined }> | undefined;
+      }>
+    | undefined;
+  edits?: Array<{ type: string; image_path?: string }> | undefined;
+}
 
 // El ÚNICO sitio donde se enumera qué campos del maestro son rutas de medio.
 //
@@ -19,13 +33,13 @@ import type { MasterVideoJson } from './master-json.js';
  * No muta el original: el maestro se congela en master.json con sus rutas
  * locales, que es lo que permite re-renderizar y auditar.
  */
-export function mapMasterMediaPaths(
-  master: MasterVideoJson,
+export function mapMasterMediaPaths<T extends MediaBearingMaster>(
+  master: T,
   fn: (path: string) => string,
-): MasterVideoJson {
+): T {
   // clon profundo por JSON: `structuredClone` no está en las libs de este
   // paquete (shared compila sin DOM) y el maestro es JSON puro por contrato
-  const c = JSON.parse(JSON.stringify(master)) as MasterVideoJson;
+  const c = JSON.parse(JSON.stringify(master)) as T;
   if (c.audio) c.audio.path = fn(c.audio.path);
   // avatar del canal congelado en la marca: intro/outro lo cargan como logo
   const avatar = c.brand?.avatar_path;
@@ -37,9 +51,13 @@ export function mapMasterMediaPaths(
       if (sv.asset?.path !== undefined) sv.asset.path = fn(sv.asset.path);
     }
   }
-  // el inserto de referencia lleva su imagen congelada en el propio edit
+  // el inserto de referencia lleva su imagen congelada en el propio edit. La
+  // firma estructural no puede atar `image_path` al discriminante, así que se
+  // comprueba a mano; en el contrato, un imagen_apoyo siempre lo trae.
   for (const edit of c.edits ?? []) {
-    if (edit.type === 'imagen_apoyo') edit.image_path = fn(edit.image_path);
+    if (edit.type === 'imagen_apoyo' && edit.image_path !== undefined) {
+      edit.image_path = fn(edit.image_path);
+    }
   }
   return c;
 }
