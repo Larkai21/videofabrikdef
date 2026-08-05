@@ -1,8 +1,8 @@
 import React from 'react';
 import { AbsoluteFill, Composition, Still } from 'remotion';
-import { defaultDesign, makeDemoMaster } from '@fabrica/shared';
-import { LongForm } from './LongForm';
-import { calculateLongFormMetadata } from './metadata';
+import { defaultDesign, makeDemoMaster, makeDemoShort } from '@fabrica/shared';
+import { Pieza } from './Pieza';
+import { calculateLongFormMetadata, calculateShortFormMetadata } from './metadata';
 import { INTRO_BASICA_DURATION_FRAMES, OUTRO_BASICA_DURATION_FRAMES } from './registry-gen';
 import { IntroBasica } from './themes/IntroBasica';
 import { OutroBasica } from './themes/OutroBasica';
@@ -51,11 +51,21 @@ const RotuloBasicoPreview: React.FC<{ title: string; subtitle?: string }> = ({
 export const Root: React.FC = () => {
   return (
     <>
+      {/* Los dos formatos comparten componente: lo que cambia entre ellos vive
+          en perfilDe(lienzo). El id 'LongForm' NO se toca nunca: lo seleccionan
+          por literal el worker de render, render-master, preview-marca y el
+          humo. */}
       <Composition
         id="LongForm"
-        component={LongForm}
+        component={Pieza}
         calculateMetadata={calculateLongFormMetadata}
         defaultProps={makeDemoMaster()}
+      />
+      <Composition
+        id="ShortForm"
+        component={Pieza}
+        calculateMetadata={calculateShortFormMetadata}
+        defaultProps={makeDemoShort()}
       />
       <Still
         id="Thumbnail"

@@ -1,7 +1,62 @@
-import type { ComponentType, EditType, MasterVideoJson, SfxName } from '@fabrica/shared';
+import type {
+  Beat,
+  ComponentType,
+  Cue,
+  DesignTokens,
+  Edit,
+  EditType,
+  Scene,
+  Segment,
+  Seo,
+  SfxName,
+} from '@fabrica/shared';
 import { hashSeed } from './seed';
 import { computeChapters } from './chapters';
 import { componentMeta, componentRegistry, type KitComponentMeta } from './registry.generated';
+
+/**
+ * Lo que el montaje necesita de una pieza, sea larga o vertical.
+ *
+ * Firma ESTRUCTURAL y no `MasterVideoJson`: el maestro de un short no es
+ * asignable a ese tipo —sus literales de tamaño son otros y no trae `script`
+ * ni `components`— y duplicar el cálculo del montaje sería tener dos verdades
+ * sobre dónde empieza cada cosa, que es exactamente el bug que este módulo
+ * existe para evitar (el player y el render tienen que calcular lo mismo).
+ *
+ * `type` y no `interface`: Remotion exige que las props de una Composition
+ * satisfagan `Record<string, unknown>`, y una interface no recibe índice
+ * implícito.
+ */
+export type PiezaMaster = {
+  video: { id: string; fps: number };
+  audio?: { path: string; duration_ms: number } | undefined;
+  beats?: Beat[] | undefined;
+  cues?: Cue[] | undefined;
+  seo?: Seo | undefined;
+  segments?: Segment[] | undefined;
+  script?: { scenes: Scene[] } | undefined;
+  edits?: Edit[] | undefined;
+  brand?:
+    | {
+        channel_name?: string | undefined;
+        tagline?: string | undefined;
+        design?: DesignTokens | undefined;
+        avatar_path?: string | undefined;
+        components?:
+          | {
+              intro?: string | undefined;
+              outro?: string | undefined;
+              title_card?: string | undefined;
+              lower_third?: string | undefined;
+              subtitle_theme?: string | undefined;
+              transition?: string | undefined;
+            }
+          | undefined;
+      }
+    | undefined;
+  /** solo en vertical: la ventana recortada del vídeo largo */
+  short?: { source_from_ms: number; duration_ms: number; title: string } | undefined;
+};
 
 // Montaje del brand kit sobre la ley temporal del audio (SPEC §10,
 // docs/render.md §1): la intro DESPLAZA beats, audio y subtítulos intro
@@ -93,7 +148,7 @@ export interface BrandKitLayout {
 // Convierte master.edits (ms) a EffectCue[] en frames, aplicando el offset de la
 // intro. Los overlays solo cubren frames existentes → no cambian totalFrames.
 export function computeEffectsTrack(
-  master: MasterVideoJson,
+  master: PiezaMaster,
   fps: number,
   introFrames: number,
 ): EffectCue[] {
@@ -130,7 +185,7 @@ function msToFrames(ms: number, fps: number): number {
 
 // La duración la fija el audio (principio 1 del proyecto): los beats solo son
 // el fallback mientras la voz no existe.
-function computeBaseFrames(master: MasterVideoJson, fps: number): number {
+function computeBaseFrames(master: PiezaMaster, fps: number): number {
   if (master.audio) return Math.ceil((master.audio.duration_ms / 1000) * fps);
   const last = master.beats?.[master.beats.length - 1];
   if (last) return Math.max(1, Math.ceil((last.to_ms / 1000) * fps));
@@ -159,14 +214,14 @@ function overlayFrames(view: KitView, ref: string, fallback: number): number {
   return view.meta(ref)?.fixed_duration_frames ?? fallback;
 }
 
-function chosenTitle(master: MasterVideoJson): string | null {
+function chosenTitle(master: PiezaMaster): string | null {
   const seo = master.seo;
   if (!seo) return null;
   return seo.titles[seo.chosen_idx ?? 0] ?? seo.titles[0] ?? null;
 }
 
 export function computeBrandKitLayout(
-  master: MasterVideoJson,
+  master: PiezaMaster,
   view: KitView = DEFAULT_VIEW,
 ): BrandKitLayout {
   const fps = master.video.fps;
@@ -293,6 +348,8 @@ export function computeBrollTrack(
     // semilla del vídeo: decide qué límites llevan transición y cuáles corte
     // duro, reproducible entre renders
     seed?: number;
+    /** décimas de cada tipo de corte; por defecto el reparto del vídeo largo */
+    reparto?: { dura: number; fundido: number; slide: number };
   },
 ): BrollTrack {
   const n = beats.length;
@@ -312,6 +369,7 @@ export function computeBrollTrack(
   const D = opts.transitionFrames ?? TRANSITION_FRAMES;
   const segStarts = opts.segmentStartIdxs ?? new Set<number>();
   const semilla = opts.seed ?? 0;
+  const reparto = opts.reparto ?? { dura: 6, fundido: 3, slide: 1 };
 
   // Una transición por límite (entre beat i-1 e i), con duración PROPIA:
   // sección 12 frames, fundido 6, slide 12, corte duro 0. El reparto de los
@@ -324,9 +382,13 @@ export function computeBrollTrack(
       continue;
     }
     const r = hashSeed(`${semilla}:corte:${i}`) % 10;
-    if (r < 6) transitions.push({ durationInFrames: 0, kind: 'dura' });
-    else if (r < 9) transitions.push({ durationInFrames: Math.floor(D / 2), kind: 'fundido' });
-    else transitions.push({ durationInFrames: D, kind: 'slide' });
+    // el reparto viene por opciones (perfil.ts): el largo pasa el suyo de
+    // siempre —6/3/1— y el vertical uno mucho más seco, porque a 1,2-2,5 s por
+    // plano una transición de 6 frames se come el 15 % del plano
+    if (r < reparto.dura) transitions.push({ durationInFrames: 0, kind: 'dura' });
+    else if (r < reparto.dura + reparto.fundido) {
+      transitions.push({ durationInFrames: Math.floor(D / 2), kind: 'fundido' });
+    } else transitions.push({ durationInFrames: D, kind: 'slide' });
   }
 
   // El solape de cada transición se reparte a partes iguales entre sus dos

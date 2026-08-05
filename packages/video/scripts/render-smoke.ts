@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bundle } from '@remotion/bundler';
 import { ensureBrowser, renderMedia, selectComposition } from '@remotion/renderer';
-import { makeDemoMaster } from '@fabrica/shared';
+import { makeDemoMaster, makeDemoShort, SHORT_HEIGHT, SHORT_WIDTH } from '@fabrica/shared';
 import { webpackOverride } from '../src/bundling';
 import { INTRO_BASICA_DURATION_FRAMES, OUTRO_BASICA_DURATION_FRAMES } from '../src/registry-gen';
 
@@ -230,10 +230,58 @@ async function main(): Promise<void> {
     throw new Error(`El render de humo del outro no produjo ${outroOutput}`);
   }
 
+  // ---- cuarta pasada: el lienzo VERTICAL. La composición es la misma; lo que
+  // cambia lo decide perfilDe(lienzo), así que esto es lo que comprueba que el
+  // formato no se cuela por el sitio equivocado.
+  const short = makeDemoShort({
+    audioPath: 'demo/silence.wav',
+    clipPath: 'demo/clip-1.mp4',
+    imagePath: 'demo/image.png',
+  });
+  const shortComposition = await selectComposition({
+    serveUrl,
+    id: 'ShortForm',
+    inputProps: short,
+  });
+  if (shortComposition.width !== SHORT_WIDTH || shortComposition.height !== SHORT_HEIGHT) {
+    throw new Error(
+      `La composición vertical no mide ${SHORT_WIDTH}x${SHORT_HEIGHT}: ` +
+        `${shortComposition.width}x${shortComposition.height}`,
+    );
+  }
+  const shortEsperado = Math.ceil((short.short.duration_ms / 1000) * shortComposition.fps);
+  if (shortComposition.durationInFrames !== shortEsperado) {
+    throw new Error(
+      `El short no dura lo que su ventana: durationInFrames=${shortComposition.durationInFrames}, ` +
+        `esperado ${shortEsperado} (sin intro ni outro)`,
+    );
+  }
+  const shortOutput = path.join(outDir, 'smoke-short.mp4');
+  console.log('Renderizando el short vertical (frames 0–59)…');
+  await renderMedia({
+    composition: shortComposition,
+    serveUrl,
+    codec: 'h264',
+    crf: 18,
+    pixelFormat: 'yuv420p',
+    audioCodec: 'aac',
+    audioBitrate: '192k',
+    frameRange: [0, 59],
+    inputProps: short,
+    outputLocation: shortOutput,
+    onProgress: ({ progress }) => {
+      if (progress === 1) console.log('Codificación del short terminada');
+    },
+  });
+  if (!existsSync(shortOutput) || statSync(shortOutput).size <= 0) {
+    throw new Error(`El render de humo vertical no produjo ${shortOutput}`);
+  }
+
   const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
   console.log(
-    `Render de humo correcto: ${outputLocation} (${size} bytes) y ${kitOutput} ` +
-      `(${statSync(kitOutput).size} bytes, montaje ${expectedFrames} frames) en ${elapsed} s`,
+    `Render de humo correcto: ${outputLocation} (${size} bytes), ${kitOutput} ` +
+      `(${statSync(kitOutput).size} bytes, montaje ${expectedFrames} frames) y ${shortOutput} ` +
+      `(${statSync(shortOutput).size} bytes, ${shortComposition.width}x${shortComposition.height}) en ${elapsed} s`,
   );
 }
 
