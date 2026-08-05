@@ -22,6 +22,22 @@ describe('lienzoDe en apaisado', () => {
   it('el viewBox es el del lienzo', () => {
     expect(lienzoDe(VIDEO_WIDTH, VIDEO_HEIGHT).viewBox).toBe('0 0 1920 1080');
   });
+
+  // Los trazos de Annotation y MicroFx se generaban con estas coordenadas
+  // escritas a mano. Los generadores de path no se han tocado, así que fijar
+  // los anclajes equivale a fijar los `d=`: si estos números no se mueven, el
+  // vídeo largo dibuja exactamente lo mismo que antes del refactor.
+  it('los anclajes son los mismos números que estaban cableados', () => {
+    expect(lienzoDe(VIDEO_WIDTH, VIDEO_HEIGHT).anclajes).toEqual({
+      microFx: { cx: 1580, cy: 240 },
+      circulo: { cx: 960, cy: 470, rx: 320, ry: 210 },
+      subrayado: { x1: 620, x2: 1300, y: 650 },
+      tachado: { x1: 620, x2: 1300, y: 520 },
+      visto: { cx: 960, cy: 470, r: 190 },
+      flecha: { x1: 560, y1: 820, x2: 900, y2: 540 },
+      etiqueta: { subrayado: 500, flecha: 700, tachado: 380, otras: 210 },
+    });
+  });
 });
 
 describe('lienzoDe en vertical', () => {
@@ -59,6 +75,26 @@ describe('lienzoDe en vertical', () => {
   it('los márgenes laterales son tipográficos, no el ancho de la columna', () => {
     expect(l.safe.left).toBe(l.safe.right);
     expect(l.safe.right).toBeLessThan(l.columnaAcciones!.ancho);
+  });
+
+  // Trasladar los anclajes del apaisado por fracción los metería en la cartela
+  // y al borde de la columna de acciones. En vertical los subtítulos se van al
+  // 67 % del alto, así que la ventana limpia queda libre y es donde se lee.
+  it('las marcas se centran en la ventana limpia', () => {
+    const a = l.anclajes;
+    const [ini, fin] = l.zonas.ventana;
+    for (const y of [a.microFx.cy, a.circulo.cy, a.visto.cy, a.tachado.y]) {
+      expect(y).toBeGreaterThan(ini);
+      expect(y).toBeLessThan(fin);
+    }
+    expect(a.microFx.cx).toBe(Math.round(l.ancho / 2));
+  });
+
+  it('ninguna marca invade la columna de acciones', () => {
+    const { x } = l.columnaAcciones!;
+    for (const borde of [l.anclajes.subrayado.x2, l.anclajes.tachado.x2]) {
+      expect(borde).toBeLessThan(x);
+    }
   });
 });
 

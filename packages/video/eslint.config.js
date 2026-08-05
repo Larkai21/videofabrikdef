@@ -48,6 +48,13 @@ export default tseslint.config(
           selector: "NewExpression[callee.name='Date'][arguments.length=0]",
           message: 'Sin reloj en render: usa useCurrentFrame.',
         },
+        {
+          // Un SVG con viewBox fijo a 1920x1080 y width/height al 100 % no
+          // revienta en un lienzo vertical: sale a media escala y en el sitio
+          // equivocado, que es peor porque no lo denuncia nadie.
+          selector: "JSXAttribute[name.name='viewBox'] > Literal[value=/^0 0 1920 1080$/]",
+          message: 'El viewBox sale del lienzo: usa lienzo.viewBox (src/lienzo.ts).',
+        },
       ],
     },
   },

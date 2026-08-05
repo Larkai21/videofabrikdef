@@ -1,7 +1,14 @@
 import React from 'react';
 import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
-import { defaultDesign, formatCifra, hexToRgba, tokenCifra, type DesignTokens } from '@fabrica/shared';
+import {
+  defaultDesign,
+  formatCifra,
+  hexToRgba,
+  tokenCifra,
+  type DesignTokens,
+} from '@fabrica/shared';
 import { displayText, FONT_FAMILY } from '../fonts';
+import { useLienzo } from '../lienzo';
 import { isRenderableSrc, toSrc } from '../media-src';
 import { hashSeed } from '../seed';
 import { clamp, Ease, mix, noise, pulse, span, typed } from './motion';
@@ -371,8 +378,7 @@ export const StatOdometer: React.FC<{ value: string; label?: string; design?: De
   const prefix = raw !== '' ? value.slice(0, idx) : value;
   const suffix = raw !== '' ? value.slice(idx + raw.length) : '';
   const target = token !== null ? Math.round(token.target) : Number.NaN;
-  const valid =
-    token !== null && token.decimales === 0 && target >= 0 && Number.isFinite(target);
+  const valid = token !== null && token.decimales === 0 && target >= 0 && Number.isFinite(target);
 
   // El conteo va con outExpo, no con outCubic: arranca rápido y frena al final.
   // Es la nota literal de `hero-stat.html` en el catálogo de motion graphics —
@@ -754,6 +760,7 @@ export const MicroFx: React.FC<{ shape?: string; design?: DesignTokens }> = ({ s
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
   const { opacity, pop } = useInOut({ enterFrames: 8, exitFrames: 8 });
+  const lienzo = useLienzo();
   const kind: MicroShape = (MICRO_SHAPES as readonly string[]).includes(shape ?? '')
     ? (shape as MicroShape)
     : 'spark_up';
@@ -765,15 +772,14 @@ export const MicroFx: React.FC<{ shape?: string; design?: DesignTokens }> = ({ s
   const sube = kind === 'spark_up';
   const color = kind === 'spark_down' ? '#ff6b6b' : kind === 'spark_up' ? '#3ddc84' : d.accent;
 
-  // ancla arriba a la derecha: no compite con las tarjetas (centro) ni con los
-  // subtítulos (abajo)
-  const cx = 1580;
-  const cy = 240;
+  // el ancla la fija el lienzo: en apaisado arriba a la derecha (no compite con
+  // las tarjetas ni con los subtítulos), en vertical el centro de la ventana
+  const { cx, cy } = lienzo.anclajes.microFx;
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
       <svg
-        viewBox="0 0 1920 1080"
+        viewBox={lienzo.viewBox}
         width="100%"
         height="100%"
         style={{ position: 'absolute', inset: 0, opacity }}
@@ -868,30 +874,40 @@ export const Annotation: React.FC<{
   // se dibuja en el primer ~45% del efecto; luego se queda
   const drawFrames = Math.max(6, Math.round(durationInFrames * 0.45));
   const draw = span(frame, 0, drawFrames, Ease.outExpo);
+  const lienzo = useLienzo();
   const kind: AnnotationShape = (ANNOTATION_SHAPES as readonly string[]).includes(shape ?? '')
     ? (shape as AnnotationShape)
     : ANNOTATION_SHAPES[seed % ANNOTATION_SHAPES.length]!;
 
+  // las coordenadas salen del lienzo: en apaisado son las de siempre, en
+  // vertical se centran en la ventana limpia
+  const a = lienzo.anclajes;
   const path =
     kind === 'circle'
-      ? circlePath(960, 470, 320, 210, seed)
+      ? circlePath(a.circulo.cx, a.circulo.cy, a.circulo.rx, a.circulo.ry, seed)
       : kind === 'underline'
-        ? underlinePath(620, 1300, 650, seed)
+        ? underlinePath(a.subrayado.x1, a.subrayado.x2, a.subrayado.y, seed)
         : kind === 'strike'
-          ? strikePath(620, 1300, 520, seed)
+          ? strikePath(a.tachado.x1, a.tachado.x2, a.tachado.y, seed)
           : kind === 'check'
-            ? checkPath(960, 470, 190, seed)
-            : arrowPath(560, 820, 900, 540, seed);
+            ? checkPath(a.visto.cx, a.visto.cy, a.visto.r, seed)
+            : arrowPath(a.flecha.x1, a.flecha.y1, a.flecha.x2, a.flecha.y2, seed);
   // etiqueta opcional sobre la marca
   const labelTop =
-    kind === 'underline' ? 500 : kind === 'arrow' ? 700 : kind === 'strike' ? 380 : 210;
+    kind === 'underline'
+      ? a.etiqueta.subrayado
+      : kind === 'arrow'
+        ? a.etiqueta.flecha
+        : kind === 'strike'
+          ? a.etiqueta.tachado
+          : a.etiqueta.otras;
   // el visto va en verde de acierto, no en el acento de marca: es semántico
   const stroke = kind === 'check' ? '#3ddc84' : d.accent;
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
       <svg
-        viewBox="0 0 1920 1080"
+        viewBox={lienzo.viewBox}
         width="100%"
         height="100%"
         style={{ position: 'absolute', inset: 0, opacity }}

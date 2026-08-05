@@ -18,6 +18,26 @@ export interface SafeArea {
 /** Franja vertical [desde, hasta] en píxeles. */
 export type Zona = readonly [number, number];
 
+/**
+ * Dónde se dibujan las marcas a mano y los micro-FX. Estaban cableadas en las
+ * coordenadas de un SVG con `viewBox="0 0 1920 1080"`: como el SVG es
+ * width/height 100 %, en un lienzo 1080×1920 no reventaba —salía a media escala
+ * y en el sitio equivocado—, que es peor porque no lo denuncia nadie.
+ *
+ * Viven aquí y no en cada componente para que el único punto donde el formato
+ * ramifica siga siendo `lienzoDe`.
+ */
+export interface Anclajes {
+  microFx: { cx: number; cy: number };
+  circulo: { cx: number; cy: number; rx: number; ry: number };
+  subrayado: { x1: number; x2: number; y: number };
+  tachado: { x1: number; x2: number; y: number };
+  visto: { cx: number; cy: number; r: number };
+  flecha: { x1: number; y1: number; x2: number; y2: number };
+  /** top de la etiqueta opcional, según la forma que acompaña */
+  etiqueta: { subrayado: number; flecha: number; tachado: number; otras: number };
+}
+
 export interface Lienzo {
   ancho: number;
   alto: number;
@@ -38,6 +58,7 @@ export interface Lienzo {
    * y centrado como problema, y esos no la tocan.
    */
   columnaAcciones: { x: number; y: number; ancho: number } | null;
+  anclajes: Anclajes;
   viewBox: string;
   /** fracción del lienzo → píxeles */
   fr: (fx: number, fy: number) => [number, number];
@@ -65,6 +86,8 @@ const VERTICAL_PLATAFORMA_INF = 0.245;
  * de la columna, todo lo centrado se descentraría. */
 const VERTICAL_MARGEN_LATERAL = 96;
 
+const r = (total: number, fraccion: number): number => Math.round(total * fraccion);
+
 export function lienzoDe(ancho: number, alto: number): Lienzo {
   const vertical = alto > ancho;
   const fr = (fx: number, fy: number): [number, number] => [ancho * fx, alto * fy];
@@ -85,6 +108,35 @@ export function lienzoDe(ancho: number, alto: number): Lienzo {
         subtitulos: [alto - safe.bottom - Math.round(alto * 0.18), alto - safe.bottom],
       },
       columnaAcciones: null,
+      // Los mismos números que estaban escritos a mano, expresados como
+      // fracción del lienzo. A 1920×1080 tienen que dar exactamente los de
+      // antes, y hay un test que lo exige.
+      anclajes: {
+        // arriba a la derecha: no compite con las tarjetas (centro) ni con los
+        // subtítulos (abajo)
+        microFx: { cx: r(ancho, 1580 / 1920), cy: r(alto, 240 / 1080) },
+        circulo: {
+          cx: r(ancho, 0.5),
+          cy: r(alto, 470 / 1080),
+          rx: r(ancho, 320 / 1920),
+          ry: r(alto, 210 / 1080),
+        },
+        subrayado: { x1: r(ancho, 620 / 1920), x2: r(ancho, 1300 / 1920), y: r(alto, 650 / 1080) },
+        tachado: { x1: r(ancho, 620 / 1920), x2: r(ancho, 1300 / 1920), y: r(alto, 520 / 1080) },
+        visto: { cx: r(ancho, 0.5), cy: r(alto, 470 / 1080), r: r(ancho, 190 / 1920) },
+        flecha: {
+          x1: r(ancho, 560 / 1920),
+          y1: r(alto, 820 / 1080),
+          x2: r(ancho, 900 / 1920),
+          y2: r(alto, 540 / 1080),
+        },
+        etiqueta: {
+          subrayado: r(alto, 500 / 1080),
+          flecha: r(alto, 700 / 1080),
+          tachado: r(alto, 380 / 1080),
+          otras: r(alto, 210 / 1080),
+        },
+      },
       viewBox,
       fr,
     };
@@ -113,10 +165,38 @@ export function lienzoDe(ancho: number, alto: number): Lienzo {
       subtitulos: [subtitulosIni, alto - plataformaInf],
     },
     columnaAcciones: {
-      x: Math.round(ancho * 0.88),
-      y: Math.round(alto * 0.52),
-      ancho: Math.round(ancho * 0.12),
+      x: r(ancho, 0.88),
+      y: r(alto, 0.52),
+      ancho: r(ancho, 0.12),
     },
+    // En vertical las marcas NO pueden ir donde iban. El ancla del micro-FX,
+    // trasladada por fracción, caería en el borde de la cartela y cerca de la
+    // columna de acciones; y los subtítulos se han ido al 67 % del alto, así
+    // que la ventana limpia está libre y es donde se lee. Todo se centra ahí.
+    anclajes: (() => {
+      const centroY = Math.round((cartelaFin + subtitulosIni) / 2);
+      const cx = r(ancho, 0.5);
+      return {
+        microFx: { cx, cy: centroY },
+        circulo: { cx, cy: centroY, rx: r(ancho, 0.3), ry: r(alto, 0.11) },
+        // los extremos se quedan cortos de la columna de acciones a propósito
+        subrayado: { x1: r(ancho, 0.13), x2: r(ancho, 0.85), y: centroY + r(alto, 0.06) },
+        tachado: { x1: r(ancho, 0.13), x2: r(ancho, 0.85), y: centroY },
+        visto: { cx, cy: centroY, r: r(ancho, 0.18) },
+        flecha: {
+          x1: r(ancho, 0.28),
+          y1: subtitulosIni - r(alto, 0.04),
+          x2: r(ancho, 0.62),
+          y2: cartelaFin + r(alto, 0.06),
+        },
+        etiqueta: {
+          subrayado: centroY - r(alto, 0.09),
+          flecha: cartelaFin + r(alto, 0.02),
+          tachado: centroY - r(alto, 0.11),
+          otras: cartelaFin + r(alto, 0.02),
+        },
+      };
+    })(),
     viewBox,
     fr,
   };
