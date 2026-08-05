@@ -10,9 +10,12 @@ import { videoMetricsSchema, type VideoMetrics } from '@fabrica/shared';
 // export manual. Uso:
 //   pnpm metricas <ruta/al/Datos\ de\ la\ tabla.csv>
 //
-// El casado fila→vídeo va por TÍTULO normalizado (el CSV no conoce nuestros
-// ids): funciona porque los títulos salen del propio sistema. Una fila sin
-// vídeo o un vídeo sin fila se listan al final — nunca se adivina.
+// El casado fila→vídeo va primero por el ID de YouTube (la primera columna del
+// export), que es exacto pero solo lo tenemos de los vídeos subidos por la API
+// o marcados a mano; si no, cae al TÍTULO normalizado, que funciona porque los
+// títulos salen del propio sistema pero se rompe en cuanto alguien lo edita en
+// Studio. Una fila sin vídeo o un vídeo sin fila se listan al final — nunca se
+// adivina.
 
 function norm(s: string): string {
   return s
@@ -64,6 +67,11 @@ function parseCsv(text: string): string[][] {
 // cabeceras del export en español y en inglés (YouTube las localiza), ya en
 // forma NORMALIZADA (norm() quita tildes y signos antes de comparar)
 const COLS: Record<string, string[]> = {
+  // la primera columna del export de la pestaña Contenido es el id de 11
+  // caracteres. Casar por ahí deja de ser heurístico, pero solo funciona con
+  // los vídeos cuyo youtube_id conocemos (los subidos por la API o marcados a
+  // mano); para el resto sigue estando el título.
+  id: ['contenido del video', 'contenido', 'content', 'video id', 'id del video'],
   title: ['titulo del video', 'video title'],
   views: ['visualizaciones', 'views'],
   impressions: ['impresiones', 'impressions'],
@@ -135,16 +143,32 @@ async function main(): Promise<void> {
 
   const { db } = createDb();
   const publicados = await db
-    .select({ id: videos.id, titleChosen: videos.titleChosen, master: videos.master })
+    .select({
+      id: videos.id,
+      titleChosen: videos.titleChosen,
+      master: videos.master,
+      youtube: videos.youtube,
+    })
     .from(videos)
     .where(eq(videos.state, 'hecho'));
   const porTitulo = new Map<string, string>();
+  const porYoutubeId = new Map<string, string>();
+  // el título normalizado de cada vídeo, para poder podar los dos mapas cuando
+  // el casado entra por el id: el informe final se construye con lo que quede
+  // en porTitulo, y si no se borra ahí, un vídeo casado por id aparecería
+  // después como «sin fila en el CSV»
+  const tituloDe = new Map<string, string>();
   for (const v of publicados) {
     const t =
       v.titleChosen ??
       v.master.seo?.titles?.[v.master.seo?.chosen_idx ?? 0] ??
       v.master.seo?.titles?.[0];
-    if (t) porTitulo.set(norm(t), v.id);
+    if (t) {
+      porTitulo.set(norm(t), v.id);
+      tituloDe.set(v.id, norm(t));
+    }
+    const ytId = v.youtube?.youtube_id;
+    if (ytId != null && ytId !== '') porYoutubeId.set(ytId, v.id);
   }
 
   let importadas = 0;
@@ -152,7 +176,10 @@ async function main(): Promise<void> {
   for (const row of rows.slice(1)) {
     const titulo = row[idx.title] ?? '';
     if (titulo.trim() === '' || norm(titulo) === 'total') continue;
-    const videoId = porTitulo.get(norm(titulo));
+    // el id manda sobre el título: es exacto y el título se edita en Studio
+    const ytId = idx.id >= 0 ? (row[idx.id] ?? '').trim() : '';
+    const videoId =
+      (ytId !== '' ? porYoutubeId.get(ytId) : undefined) ?? porTitulo.get(norm(titulo));
     if (videoId === undefined) {
       sinVideo.push(titulo);
       continue;
@@ -169,7 +196,12 @@ async function main(): Promise<void> {
       ...(idx.subs >= 0 ? { subscribers_gained: num(row[idx.subs]) } : {}),
     });
     await db.update(videos).set({ metrics }).where(eq(videos.id, videoId));
+    // se borra de los DOS mapas: el informe de «vídeos hechos sin fila» sale de
+    // porTitulo, y el título de la fila puede no ser el que tenemos guardado
     porTitulo.delete(norm(titulo));
+    const tituloGuardado = tituloDe.get(videoId);
+    if (tituloGuardado !== undefined) porTitulo.delete(tituloGuardado);
+    if (ytId !== '') porYoutubeId.delete(ytId);
     importadas++;
     console.log(
       `✓ ${titulo} → ${videoId}  (${metrics.views ?? '—'} visualizaciones, CTR ${metrics.ctr_pct ?? '—'} %)`,
