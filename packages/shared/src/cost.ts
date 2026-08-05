@@ -33,6 +33,8 @@ export const COST_OPERATIONS = [
   'broll_rerank',
   'chapter_director',
   'editing_director',
+  // elige qué fragmentos del vídeo largo funcionan solos como short vertical
+  'shorts_director',
   'vlm_caption',
   'component_author',
   'thumbnail_brief',

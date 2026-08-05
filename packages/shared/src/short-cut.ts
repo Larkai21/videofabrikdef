@@ -5,7 +5,7 @@ import {
   SHORT_HEIGHT,
   SHORT_WIDTH,
 } from './constants.js';
-import { SHORT_EDIT_ALLOWED, type ShortFraming, type ShortMasterJson } from './short-json.js';
+import { SHORT_EDIT_ALLOWED, type RenderableShort, type ShortFraming } from './short-json.js';
 import type { Beat, Cue, Edit, RenderableMaster, SceneSpan, Subvisual } from './master-json.js';
 
 // Recorte puro de un maestro largo a la ventana de un short. Sin React, sin
@@ -226,8 +226,13 @@ function recortarSceneSpans(spans: SceneSpan[], desde: number, hasta: number): S
  * `<Audio trimBefore>`. Cortar el WAV significaría un fichero nuevo por short,
  * una escritura en disco dentro de una función pura y una desincronización
  * posible entre el audio y unos word timestamps que ya están alineados.
+ *
+ * Devuelve `RenderableShort` y no `ShortMasterJson` porque siempre produce
+ * audio, cues, beats y marca: la entrada es un maestro ya renderizable, así que
+ * declarar el tipo débil obligaría a cada consumidor a comprobar campos que no
+ * pueden faltar.
  */
-export function recortarMaster(master: RenderableMaster, cut: CutInput): ShortMasterJson {
+export function recortarMaster(master: RenderableMaster, cut: CutInput): RenderableShort {
   const desde = cut.from_ms;
   const hasta = cut.to_ms;
   const duracion = hasta - desde;

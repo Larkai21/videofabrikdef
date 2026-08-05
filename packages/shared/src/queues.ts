@@ -13,6 +13,7 @@ export const QUEUES = {
   components: 'components',
   library: 'library',
   publish: 'publish',
+  shorts: 'shorts',
 } as const;
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
@@ -29,10 +30,11 @@ export const JOBS = {
   },
   tts: { synthesize: 'synthesize' },
   assets: { match: 'match', ingest: 'ingest' },
-  render: { video: 'video' },
+  render: { video: 'video', short: 'short' },
   components: { validate: 'validate', author: 'author' },
   library: { backfill: 'backfill', purgeScan: 'purge-scan', reembed: 'reembed' },
   publish: { upload: 'upload' },
+  shorts: { propose: 'propose' },
 } as const;
 
 export interface SourcePollJob {
@@ -146,6 +148,22 @@ export interface LibraryReembedJob {
 // humana desde la bandeja, nunca automática al terminar el render
 export interface PublishUploadJob {
   videoId: string;
+}
+
+// Propuesta de shorts a partir de un vídeo ya entregado. Una sola llamada al
+// director por ejecución; `excluir` son las ventanas que el humano ya descartó,
+// para que «proponer otros» no devuelva lo mismo.
+export interface ShortsProposeJob {
+  videoId: string;
+  excluir?: { from_ms: number; to_ms: number }[];
+  // vuelve a proponer aunque ya haya candidatos vivos
+  force?: boolean;
+}
+
+// Render de un short aprobado. Va en la cola `render` y no en `shorts` para no
+// romper el invariante de un solo Chromium a la vez (concurrency 1).
+export interface RenderShortJob {
+  shortId: string;
 }
 
 // Progreso y eventos se publican en Redis pub/sub con este canal
