@@ -193,10 +193,13 @@ export interface DemoShortOptions extends DemoMasterOptions {
  * contrato del recorte se rompe, el humo del render vertical se entera.
  */
 export function makeDemoShort(opts: DemoShortOptions = {}): ShortMasterJson {
+  // rutas por defecto: un short SIN assets resueltos no pasa renderableShortV1,
+  // y esta fixture existe para ser un short válido (la usan el humo vertical,
+  // los defaultProps de la composición y los tests de la tabla)
   const master = makeDemoMaster({
     audioPath: opts.audioPath ?? 'demo-audio.wav',
-    ...(opts.clipPath !== undefined ? { clipPath: opts.clipPath } : {}),
-    ...(opts.imagePath !== undefined ? { imagePath: opts.imagePath } : {}),
+    clipPath: opts.clipPath ?? 'demo-clip.mp4',
+    imagePath: opts.imagePath ?? 'demo-image.jpg',
   });
   const beats = master.beats ?? [];
   const from = opts.from_ms ?? beats[1]?.from_ms ?? 0;

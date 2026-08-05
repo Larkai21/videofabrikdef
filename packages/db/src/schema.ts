@@ -17,6 +17,7 @@ import type {
   ComponentManifest,
   Fit,
   MasterVideoJson,
+  ShortMasterJson,
   StoredSubvisual,
   VideoMetrics,
 } from '@fabrica/shared';
@@ -159,6 +160,62 @@ export const videos = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('videos_state_idx').on(t.state), index('videos_channel_idx').on(t.channelId)],
+);
+
+// Shorts verticales recortados de un vídeo ya entregado. Tabla propia y no un
+// jsonb en `videos` porque son N por vídeo con ciclo de vida propio: un array
+// dentro de la fila del vídeo sería read-modify-write, y dos aprobaciones
+// simultáneas perderían una.
+export const shorts = pgTable(
+  'shorts',
+  {
+    id: text('id').primaryKey(),
+    videoId: text('video_id')
+      .notNull()
+      .references(() => videos.id),
+    // desnormalizado a propósito: la bandeja y el ledger filtran por canal sin
+    // tener que unir con videos
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => channels.id),
+    idx: integer('idx').notNull(),
+    state: text('state').notNull().default('propuesto'),
+    stateBeforeIncident: text('state_before_incident'),
+    incident: jsonb('incident').$type<{
+      message: string;
+      suggested_action: 'reintentar' | 'regenerar' | 'descartar' | null;
+      queue?: string;
+      job?: { queue: string; name: string; data?: Record<string, unknown> };
+    }>(),
+    // la ventana en el reloj del vídeo largo
+    fromMs: integer('from_ms').notNull(),
+    toMs: integer('to_ms').notNull(),
+    title: text('title').notNull(),
+    hook: text('hook').notNull(),
+    reason: text('reason').notNull().default(''),
+    score: doublePrecision('score').notNull().default(0),
+    /**
+     * Maestro vertical CONGELADO en el momento de proponer, no recalculado al
+     * renderizar. El maestro largo ya está congelado y `recortarMaster` es
+     * determinista, así que congelar aquí consigue tres cosas: el player del
+     * dashboard previsualiza EXACTAMENTE lo que se va a renderizar (invariante
+     * de docs/render.md §6), el render no re-deriva nada, y un cambio futuro en
+     * el recorte no re-califica en silencio los shorts ya aprobados —el mismo
+     * razonamiento que broll_telemetry en el maestro largo—.
+     */
+    master: jsonb('master').$type<ShortMasterJson>().notNull(),
+    outputDir: text('output_dir'),
+    // publicación a mano, fuera de la máquina de estados igual que en videos
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    discardReason: text('discard_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('shorts_video_idx_idx').on(t.videoId, t.idx),
+    index('shorts_state_idx').on(t.state),
+    index('shorts_channel_idx').on(t.channelId),
+  ],
 );
 
 export const beats = pgTable(
