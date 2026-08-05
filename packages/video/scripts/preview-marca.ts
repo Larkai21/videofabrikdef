@@ -5,6 +5,7 @@
  *   pnpm --filter @fabrica/video preview:marca                      # sin avatar
  *   pnpm --filter @fabrica/video preview:marca demo/avatar.jpg      # con él
  *   pnpm --filter @fabrica/video preview:marca --video              # y los clips
+ *   pnpm --filter @fabrica/video preview:marca --vertical           # el short
  *
  * Existe porque `render:smoke` usa el maestro de demo con la paleta por defecto:
  * comprueba que el montaje no se rompe, no que la marca se vea bien. Y una
@@ -16,7 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bundle } from '@remotion/bundler';
 import { ensureBrowser, renderMedia, renderStill, selectComposition } from '@remotion/renderer';
-import { makeDemoMaster, type MasterVideoJson } from '@fabrica/shared';
+import { makeDemoMaster, makeDemoShort, type MasterVideoJson } from '@fabrica/shared';
 import { webpackOverride } from '../src/bundling';
 
 const pkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -140,6 +141,55 @@ async function main(): Promise<void> {
         overwrite: true,
       });
       console.log(`  ${nombre}.mp4 (frames ${desde}-${hasta})`);
+    }
+  }
+
+  // El lienzo VERTICAL. La gramática del short —cuerpo de subtítulo, cartela,
+  // recorte con foco— no se puede juzgar en 16:9, y una decisión de diseño se
+  // juzga mirando el fotograma.
+  if (process.argv.includes('--vertical')) {
+    const short = makeDemoShort({
+      audioPath: 'demo/silence.wav',
+      clipPath: 'demo/clip-1.mp4',
+      imagePath: 'demo/image.png',
+    });
+    short.brand = { ...short.brand, channel_name: 'Kernel AI', design: MARCA };
+    const shortComposition = await selectComposition({
+      serveUrl,
+      id: 'ShortForm',
+      inputProps: short,
+    });
+    const totalShort = shortComposition.durationInFrames;
+    const framesShort: [string, number][] = [
+      ['short-cartela', 20],
+      ['short-cartela-fin', 90],
+      ['short-cuerpo', Math.round(totalShort * 0.35)],
+      ['short-cuerpo-b', Math.round(totalShort * 0.6)],
+      ['short-final', Math.max(0, totalShort - 20)],
+    ];
+    for (const [nombre, frame] of framesShort) {
+      if (frame < 0 || frame >= totalShort) continue;
+      await renderStill({
+        composition: shortComposition,
+        serveUrl,
+        output: path.join(outDir, `${nombre}.png`),
+        frame,
+        inputProps: short,
+        overwrite: true,
+      });
+      console.log(`  ${nombre} (frame ${frame})`);
+    }
+    if (process.argv.includes('--video')) {
+      await renderMedia({
+        composition: shortComposition,
+        serveUrl,
+        codec: 'h264',
+        outputLocation: path.join(outDir, 'short.mp4'),
+        frameRange: [0, Math.min(150, totalShort - 1)],
+        inputProps: short,
+        overwrite: true,
+      });
+      console.log('  short.mp4 (frames 0-150)');
     }
   }
 

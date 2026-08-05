@@ -7,17 +7,21 @@ La especificación completa está en `SPEC.md` (raíz del repo): léela entera a
 diseñar módulos nuevos o tomar decisiones de arquitectura.
 
 ## Stack (decidido — no reabrir sin preguntar)
+
 - Monorepo pnpm + Turborepo, TypeScript estricto, ESM.
 - `apps/dashboard`: Vite + React SPA (sin SSR), shadcn/ui, Tailwind, TanStack Query.
 - `apps/api`: Fastify + Drizzle ORM + PostgreSQL (con pgvector).
 - `apps/workers`: BullMQ sobre Redis; jobs idempotentes y reanudables.
 - `packages/video`: composiciones Remotion, compartidas entre @remotion/player
   (preview en dashboard) y render SSR (worker). React es obligatorio en el front por esto.
+  Una sola composición (`Pieza`) pinta el vídeo largo y el short vertical; lo que
+  cambia entre formatos vive en `perfilDe(lienzo)`.
 - `packages/shared`: esquemas Zod como única fuente de tipos (channel_profile,
   JSON maestro, contratos de componentes del brand kit).
 - Almacenamiento MVP: sistema de archivos local (`library/`, `outputs/`). MinIO, después.
 
 ## Principios no negociables
+
 1. La timeline es de revisión, no de edición: los tiempos los fija el audio
    (word timestamps → beats de 8–15 s). El humano cambia el contenido de los huecos,
    nunca los cortes. Sin asas de recorte ni arrastre de bordes.
@@ -37,6 +41,7 @@ diseñar módulos nuevos o tomar decisiones de arquitectura.
 8. UI en español, sentence case, textos de sistema sin exclamaciones.
 
 ## Convenciones
+
 - Zod primero: el esquema se define en `packages/shared` y los tipos se derivan (z.infer).
 - Los workers no importan de `apps/*`; solo comparten `packages/*`.
 - Migraciones con drizzle-kit; no editar SQL generado a mano.
@@ -44,6 +49,7 @@ diseñar módulos nuevos o tomar decisiones de arquitectura.
 - Commits pequeños por módulo.
 
 ## Comandos (mantener esta lista al día al crearlos)
+
 - `pnpm dev` — dashboard + api + workers en local
 - `pnpm typecheck` / `pnpm lint` / `pnpm test`
 - `docker compose up -d` — postgres, redis
@@ -63,13 +69,24 @@ diseñar módulos nuevos o tomar decisiones de arquitectura.
 - `pnpm probar:voz <videoId> --voz <id>` — mide wpm real y alineación de una voz TTS
 - `pnpm reescala:biblioteca [--dry]` — normaliza a 1080p los clips grandes ya ingeridos
 - `pnpm sfx` — regenera los 14 .wav sintetizados
+- `pnpm --filter @fabrica/video preview:marca --vertical [--video]` — fotogramas
+  del short con la marca real (cartela, subtítulos cinéticos, recorte 9:16)
 
 ## No hacer
+
 - No añadir edición de vídeo (trims, timeline arrastrable, capas).
 - No llamar todavía a la YouTube Data API desde el pipeline.
 - No introducir Next.js/SSR ni cambiar el stack del front.
 - No usar MoviePy ni FFmpeg directo para el cuerpo del vídeo: Remotion es el motor;
   FFmpeg queda para utilidades (loudnorm, probes, extracción de frames).
+- No añadir un segundo motor de render. HyperFrames (HTML + Puppeteer) y
+  editor-youtube (HTML + Playwright) son CATÁLOGOS DE REFERENCIA VISUAL: se
+  portan sus coreografías a Remotion, con su porqué, y se documenta qué se
+  descarta. Ver docs/motion-graphics.md y docs/motion-graphics-vertical.md.
+- No añadir un control para mover la ventana de un short. Es un asa de recorte
+  (principio 1) y además rompe el invariante: la ventana cae en frontera de
+  beat, que es lo que garantiza que el corte no parte una frase. El humano
+  elige entre candidatos, descarta con motivo y pide otros. Ver docs/shorts.md.
 - No reintroducir generación de imagen por IA (Flux/fal.ai, Google/Gemini, Imagen) en
   ninguna parte del pipeline. El avatar del canal se sube desde el dashboard. Los enums
   y etiquetas que aún dicen `flux` son legado: describen datos ya guardados y no se
