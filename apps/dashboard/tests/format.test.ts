@@ -1,8 +1,8 @@
 // Tests de la lógica pura de formato. Se ejecutan con el runner de node vía tsx:
-//   pnpm --filter @fabrica/dashboard exec tsx --test tests/*.test.ts
-// (vitest no está declarado en este paquete; ver informe del módulo.)
+//   pnpm --filter @fabrica/dashboard test
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { WORDS_PER_MIN } from '@fabrica/shared';
 import {
   beatShortLabel,
   fmtClock,
@@ -25,8 +25,10 @@ test('fmtClock formatea m:ss', () => {
 
 test('fmtMoney usa coma decimal y símbolo detrás', () => {
   assert.equal(fmtMoney(4.8), '4,80 $');
-  assert.equal(fmtMoney(0), '0,00 $');
   assert.equal(fmtMoney(0.533), '0,53 $');
+  // los enteros van limpios a propósito («límite 15 $», no «15,00 $»)
+  assert.equal(fmtMoney(0), '0 $');
+  assert.equal(fmtMoney(15), '15 $');
 });
 
 test('fmtSim redondea a dos decimales con coma', () => {
@@ -42,9 +44,13 @@ test('wordCount cuenta palabras separadas por espacios', () => {
   assert.equal(wordCount('el precio  no fue\nel modelo'), 6);
 });
 
-test('speechMs estima a 150 palabras por minuto', () => {
-  assert.equal(speechMs(150), 60_000);
-  assert.equal(speechMs(75), 30_000);
+// El ritmo por defecto sale de WORDS_PER_MIN, que se REMIDE contra la voz que
+// esté puesta (139 hoy, 150 cuando se escribió esto). Cablear el número aquí
+// era garantizar que el test caducara: lo que importa es la proporción.
+test('speechMs estima con el ritmo del canal', () => {
+  assert.equal(speechMs(WORDS_PER_MIN), 60_000);
+  assert.equal(speechMs(WORDS_PER_MIN / 2), 30_000);
+  assert.equal(speechMs(300, 150), 120_000);
   assert.equal(speechMs(0), 0);
   assert.equal(speechMs(100, 0), 0);
 });
@@ -69,11 +75,8 @@ test('timeMarks devuelve n marcas equiespaciadas', () => {
 });
 
 test('sceneOffsets acumula la duración estimada por palabras', () => {
-  const textos = [
-    Array.from({ length: 150 }, () => 'palabra').join(' '),
-    Array.from({ length: 75 }, () => 'palabra').join(' '),
-    'final',
-  ];
-  const offsets = sceneOffsets(textos);
+  const palabras = (n: number) => Array.from({ length: n }, () => 'palabra').join(' ');
+  // wpm explícito: el offset acumulado es lo que se prueba, no la constante
+  const offsets = sceneOffsets([palabras(150), palabras(75), 'final'], 150);
   assert.deepEqual(offsets, [0, 60_000, 90_000]);
 });
