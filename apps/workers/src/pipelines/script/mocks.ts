@@ -6,13 +6,48 @@ import { mockHash, registerMockOp } from '../../providers/llm.js';
 // funcionen de verdad en el E2E sin claves.
 
 const WORD_BANK = [
-  'modelo', 'datos', 'coste', 'equipo', 'sistema', 'herramienta', 'mercado', 'señal',
-  'cambio', 'producto', 'industria', 'resultado', 'proceso', 'contexto', 'límite',
-  'ventaja', 'riesgo', 'uso', 'práctica', 'detalle', 'medida', 'impacto', 'ejemplo',
-  'caso', 'cifra', 'fuente', 'análisis', 'tendencia', 'plataforma', 'servicio',
+  'modelo',
+  'datos',
+  'coste',
+  'equipo',
+  'sistema',
+  'herramienta',
+  'mercado',
+  'señal',
+  'cambio',
+  'producto',
+  'industria',
+  'resultado',
+  'proceso',
+  'contexto',
+  'límite',
+  'ventaja',
+  'riesgo',
+  'uso',
+  'práctica',
+  'detalle',
+  'medida',
+  'impacto',
+  'ejemplo',
+  'caso',
+  'cifra',
+  'fuente',
+  'análisis',
+  'tendencia',
+  'plataforma',
+  'servicio',
 ];
 
-const CONNECTORS = ['además', 'entonces', 'después', 'mientras', 'aquí', 'también', 'ahora', 'pero'];
+const CONNECTORS = [
+  'además',
+  'entonces',
+  'después',
+  'mientras',
+  'aquí',
+  'también',
+  'ahora',
+  'pero',
+];
 
 const VISUAL_QUERY_POOL = [
   'server room aisle cold blue lights',
@@ -141,8 +176,9 @@ export function mockScriptPayload(opts: MockScriptOptions): MockScriptPayload {
   ];
   const description = [
     `${capitalize(topic)} explicado sin ruido: qué acaba de pasar, qué dicen las fuentes y qué significa para quien lo usa a diario.`,
+    // sin bloque de capítulos: el prompt ya no lo pide (los calcula el render),
+    // y el camino simulado tiene que reflejar lo que se le pide al modelo real
     'Primero el contexto, después los datos disponibles y al final una lectura práctica con los límites de lo que sabemos hoy.',
-    'Capítulos:\n{timestamps}',
     ...(opts.aiDisclosure ? ['Contenido producido con asistencia de IA y revisión humana.'] : []),
   ].join('\n\n');
   const tags = [
@@ -170,8 +206,14 @@ export function mockScriptPayload(opts: MockScriptOptions): MockScriptPayload {
       description,
       tags,
       thumbnails: [
-        { text: 'El cambio real', visual: 'primer plano de un chip con luz azul sobre fondo oscuro' },
-        { text: 'Nadie lo vio', visual: 'gráfico ascendente en una pantalla dentro de una sala en penumbra' },
+        {
+          text: 'El cambio real',
+          visual: 'primer plano de un chip con luz azul sobre fondo oscuro',
+        },
+        {
+          text: 'Nadie lo vio',
+          visual: 'gráfico ascendente en una pantalla dentro de una sala en penumbra',
+        },
       ],
     },
   };
@@ -236,7 +278,9 @@ export function registerScriptMocks(): void {
   registerMockOp('script', ({ mockContext }) =>
     mockScriptPayload({
       ideaTitle:
-        typeof mockContext.ideaTitle === 'string' ? mockContext.ideaTitle : 'una novedad del sector',
+        typeof mockContext.ideaTitle === 'string'
+          ? mockContext.ideaTitle
+          : 'una novedad del sector',
       targetMinutes:
         typeof mockContext.targetMinutes === 'number' && mockContext.targetMinutes > 0
           ? mockContext.targetMinutes

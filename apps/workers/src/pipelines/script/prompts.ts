@@ -217,6 +217,18 @@ export function craftRules(): string {
   ].join('\n');
 }
 
+// Los capítulos REALES los calcula el render desde el audio y los inserta él
+// (packages/video/src/chapters.ts). La versión anterior de esta regla pedía la
+// cabecera Y el placeholder —«un bloque de capítulos EXACTAMENTE así:
+// \nCapítulos:\n{timestamps}»— y el resultado medido sobre los tres vídeos
+// producidos fue: 3 de 3 escribieron «Capítulos:» pegada al final del párrafo,
+// 0 de 3 escribieron el placeholder, y uno además repitió la cabecera. Lo que
+// menos formas de fallar tiene es no pedir ni una cosa ni la otra.
+// La regla es idéntica en el guion y en el packaging: vive aquí para que no
+// puedan divergir, que es lo que pasó con las dos copias anteriores.
+const SEO_DESCRIPTION_RULE =
+  'seo.description: SOLO prosa, 2 párrafos separados por una línea en blanco; el primero abre con la keyword principal. No escribas la palabra «Capítulos» ni ninguna marca de tiempo: el sistema calcula los capítulos reales a partir del audio y los añade al final por su cuenta. Si escribes tiempos, se borran.';
+
 export function scriptSystem(profile: ChannelProfile, targetWords: number): string {
   const patterns = profile.title_patterns
     .map((p) => `«${p.template}» (ej.: ${p.example})`)
@@ -293,7 +305,7 @@ export function scriptSystem(profile: ChannelProfile, targetWords: number): stri
     // 11 elegidos en producción también. Lo que hace falta es que los tres se
     // diferencien en FORMA, y que alguno nombre algo.
     `seo.titles: exactamente 3 títulos de 70 caracteres máximo. Los tres tienen que ser DISTINTOS EN FORMA entre sí: no pueden empezar las tres por la misma palabra ni compartir estructura. Al menos uno lleva un nombre propio o una cifra sacados del research. Ninguno empieza por «Por qué». Voz del canal, como referencia y no como molde: ${patterns || 'los del nicho'}. Sin promesas que el guion no pague.`,
-    'seo.description: 2 párrafos (el primero abre con la keyword principal) y al final un bloque de capítulos EXACTAMENTE así:\nCapítulos:\n{timestamps}',
+    SEO_DESCRIPTION_RULE,
     profile.flags.ai_disclosure
       ? 'Añade al final de la descripción una línea de transparencia sobre asistencia de IA.'
       : '',
@@ -366,7 +378,7 @@ export function packagingSystem(profile: ChannelProfile): string {
     // 11 elegidos en producción también. Lo que hace falta es que los tres se
     // diferencien en FORMA, y que alguno nombre algo.
     `seo.titles: exactamente 3 títulos de 70 caracteres máximo. Los tres tienen que ser DISTINTOS EN FORMA entre sí: no pueden empezar las tres por la misma palabra ni compartir estructura. Al menos uno lleva un nombre propio o una cifra sacados del research. Ninguno empieza por «Por qué». Voz del canal, como referencia y no como molde: ${patterns || 'los del nicho'}. Promesas concretas que un guion pueda pagar.`,
-    'seo.description: 2 párrafos (el primero abre con la keyword principal) y al final un bloque de capítulos EXACTAMENTE así:\nCapítulos:\n{timestamps}',
+    SEO_DESCRIPTION_RULE,
     profile.flags.ai_disclosure
       ? 'Añade al final de la descripción una línea de transparencia sobre asistencia de IA.'
       : '',

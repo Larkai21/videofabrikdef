@@ -58,7 +58,12 @@ describe('mockScriptPayload', () => {
     ).not.toThrow();
     expect(payload.seo.titles).toHaveLength(3);
     for (const title of payload.seo.titles) expect(title.length).toBeLessThanOrEqual(70);
-    expect(payload.seo.description).toContain('{timestamps}');
+    // el prompt ya no pide el bloque de capítulos: los calcula el render desde
+    // el audio (packages/video/src/chapters.ts). El mock tiene que pedir lo
+    // mismo que el prompt real, o el camino simulado prueba un contrato muerto.
+    expect(payload.seo.description).not.toContain('{timestamps}');
+    expect(payload.seo.description).not.toMatch(/cap[íi]tulos/i);
+    expect(payload.seo.description).not.toMatch(/\d{1,2}:\d{2}/);
     expect(payload.seo.description).toContain('IA');
     expect(payload.seo.tags.length).toBeGreaterThanOrEqual(10);
     expect(payload.seo.tags.length).toBeLessThanOrEqual(15);
