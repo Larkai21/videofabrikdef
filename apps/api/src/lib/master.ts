@@ -1,4 +1,8 @@
-import { mapMasterMediaPaths, type MasterVideoJson } from '@fabrica/shared';
+import {
+  mapMasterMediaPaths,
+  type MasterVideoJson,
+  type MediaBearingMaster,
+} from '@fabrica/shared';
 import { toFileUrl } from './files.js';
 
 export function videoTitle(row: {
@@ -15,7 +19,10 @@ export function videoTitle(row: {
   return `Vídeo ${row.id}`;
 }
 
-export function masterWithFileUrls(master: MasterVideoJson): MasterVideoJson {
+// Genérica sobre la forma del maestro: el del short tampoco es asignable al
+// del largo, y esta función existe justamente para que la lista de campos de
+// medio esté escrita una sola vez.
+export function masterWithFileUrls<T extends MediaBearingMaster>(master: T): T {
   // la lista de campos de medio vive en shared: tres copias de esta función
   // divergían y por ese hueco salieron beats en negro en el player y un
   // inserto que la curación no podía ver

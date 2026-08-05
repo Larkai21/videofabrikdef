@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { channelProfileV1 } from './channel-profile.js';
 import { beatSchema, candidateSchema, editSchema, masterVideoJsonV1 } from './master-json.js';
+import { shortMasterV1 } from './short-json.js';
+import { shortStateSchema } from './short-states.js';
 import { beatStatusSchema, ideaStatusSchema, videoStateSchema } from './states.js';
 
 // DTOs de la API interna (docs/contratos.md §4). Contrato fijo entre
@@ -103,6 +105,50 @@ export const manualPublicationRequestSchema = z.object({
   url_or_id: z.string().trim().min(1),
 });
 export type ManualPublicationRequest = z.infer<typeof manualPublicationRequestSchema>;
+
+// ---- shorts verticales ----
+
+export const shortDtoSchema = z.object({
+  id: z.string(),
+  video_id: z.string(),
+  idx: z.number().int(),
+  state: shortStateSchema,
+  from_ms: z.number().int(),
+  to_ms: z.number().int(),
+  duration_ms: z.number().int(),
+  title: z.string(),
+  hook: z.string(),
+  reason: z.string(),
+  score: z.number(),
+  output_dir: z.string().nullable(),
+  /** URL /files del MP4 cuando está renderizado */
+  video_url: z.string().nullable(),
+  thumbnail_url: z.string().nullable(),
+  published_at: z.string().nullable(),
+  incident: z
+    .object({
+      message: z.string(),
+      suggested_action: z.enum(['reintentar', 'regenerar', 'descartar']).nullable(),
+    })
+    .nullable(),
+  created_at: z.string(),
+});
+export type ShortDto = z.infer<typeof shortDtoSchema>;
+
+/** El detalle añade el maestro, que es lo que previsualiza el player. */
+export const shortDetailDtoSchema = shortDtoSchema.extend({ master: shortMasterV1 });
+export type ShortDetailDto = z.infer<typeof shortDetailDtoSchema>;
+
+export const shortsListDtoSchema = z.object({ shorts: z.array(shortDtoSchema) });
+export type ShortsListDto = z.infer<typeof shortsListDtoSchema>;
+
+// El título es CONTENIDO, no un corte: misma frontera que separa editar el
+// guion (permitido) de mover los beats (prohibido).
+export const shortTitleRequestSchema = z.object({ title: z.string().trim().min(1).max(60) });
+export type ShortTitleRequest = z.infer<typeof shortTitleRequestSchema>;
+
+export const shortDiscardRequestSchema = z.object({ reason: z.string().trim().max(200).optional() });
+export type ShortDiscardRequest = z.infer<typeof shortDiscardRequestSchema>;
 
 export const inboxGateSchema = z.object({
   kind: z.enum(['idea', 'guion', 'timeline', 'entrega']),
