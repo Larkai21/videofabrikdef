@@ -241,3 +241,53 @@ export const FX_ZOOM_SEP_MS = 12_000;
 export const FX_CARD_GUARD_MS = 600;
 /** Dos sonidos más juntos que esto se emborronan. */
 export const FX_SFX_COLLISION_MS = 120;
+
+// ---- shorts verticales ----
+// VIDEO_WIDTH/HEIGHT siguen significando el lienzo del LARGO y no se tocan.
+export const SHORT_WIDTH = 1080;
+export const SHORT_HEIGHT = 1920;
+
+/** Tope de YouTube Shorts. */
+export const SHORT_MAX_S = 59;
+export const SHORT_MIN_S = 20;
+export const SHORT_TARGET_S = 35;
+/** Cuántos candidatos propone el director por vídeo. */
+export const SHORTS_PER_VIDEO = 3;
+
+/**
+ * Un efecto truncado por el borde de la ventana se descarta si le queda menos
+ * de esta fracción de su duración. Un odómetro cortado por la mitad —que empieza
+ * a contar y desaparece— es peor que no tener odómetro.
+ */
+export const SHORT_EDIT_TRUNCATE_MIN = 0.6;
+/** Y por debajo de esto no da tiempo ni a leerlo, aunque la fracción cuadre. */
+export const SHORT_EDIT_MIN_MS = 400;
+
+/**
+ * Tolerancia del ajuste de la ventana a una frontera fuerte. La frontera de
+ * beat ya garantiza que no se corta a mitad de palabra; esto solo afina hacia
+ * el final de frase más cercano.
+ */
+export const SHORT_SNAP_MS = 400;
+/** Un límite de beat cuenta como fin de frase si cae así de cerca de un cue. */
+export const SHORT_FRONTERA_TOL_MS = 120;
+
+/**
+ * Presupuesto de motion del short, ABSOLUTO por pieza y no por minuto: el
+ * reparto en ventanas parte la duración entre el presupuesto, y una tasa por
+ * minuto sobre 30 s degenera en una sola ventana y pierde el mecanismo entero.
+ *
+ * No son las del largo escaladas. Las del largo son la TRADUCCIÓN a ocho
+ * minutos de los números del proyecto hermano, que estaban calibrados para
+ * piezas de ~50 s: aquí se vuelve al origen. Ver el comentario de FX_*_PER_MIN
+ * y micro-fx.ts:54-57.
+ */
+export const SHORT_CARDS_MAX = 3;
+export const SHORT_MICRO_MAX = 4;
+export const SHORT_KEYWORDS_MAX = 8;
+export const SHORT_ZOOMS_MAX = 5;
+export const SHORT_FX_CARD_SEP_MS = 7_000;
+export const SHORT_FX_MICRO_SEP_MS = 6_000;
+export const SHORT_FX_ZOOM_SEP_MS = 5_000;
+// FX_CARD_GUARD_MS y FX_SFX_COLLISION_MS NO tienen variante corta: son del ojo
+// y del oído, no del formato.
