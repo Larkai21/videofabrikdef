@@ -44,7 +44,11 @@ async function readDeliverable(outDir: string, file: string): Promise<string> {
 type VideoRow = typeof videos.$inferSelect;
 type Publication = NonNullable<VideoRow['youtube']>;
 
-async function saveYoutube(ctx: WorkerContext, videoId: string, publication: Publication): Promise<void> {
+async function saveYoutube(
+  ctx: WorkerContext,
+  videoId: string,
+  publication: Publication,
+): Promise<void> {
   await ctx.db
     .update(videos)
     .set({ youtube: publication, updatedAt: new Date() })
@@ -52,7 +56,11 @@ async function saveYoutube(ctx: WorkerContext, videoId: string, publication: Pub
 }
 
 /** 'fallido' con motivo legible + eventos; el humano reintenta desde Entrega. */
-async function markUploadFailed(ctx: WorkerContext, videoId: string, message: string): Promise<void> {
+async function markUploadFailed(
+  ctx: WorkerContext,
+  videoId: string,
+  message: string,
+): Promise<void> {
   const [row] = await ctx.db
     .select({ youtube: videos.youtube })
     .from(videos)
@@ -61,6 +69,9 @@ async function markUploadFailed(ctx: WorkerContext, videoId: string, message: st
   const prev = row?.youtube ?? null;
   await saveYoutube(ctx, videoId, {
     status: 'fallido',
+    // se propaga el origen anterior, igual que el id y la url: un fallo no
+    // convierte en subida por API lo que el humano había marcado a mano
+    ...(prev?.origin !== undefined ? { origin: prev.origin } : {}),
     youtube_id: prev?.youtube_id ?? null,
     url: prev?.url ?? null,
     privacy_status: prev?.privacy_status ?? null,
@@ -232,7 +243,9 @@ async function handlePublishUpload(ctx: WorkerContext, job: Job<PublishUploadJob
     await fsp.access(thumbPath);
     thumbOk = true;
   } catch {
-    log.warn('No hay miniatura (thumb_custom/thumb_a); el vídeo queda con la automática de YouTube');
+    log.warn(
+      'No hay miniatura (thumb_custom/thumb_a); el vídeo queda con la automática de YouTube',
+    );
   }
   if (thumbOk) {
     const thumbCost = await openCost(ctx.db, {
@@ -258,6 +271,7 @@ async function handlePublishUpload(ctx: WorkerContext, job: Job<PublishUploadJob
 
   await saveYoutube(ctx, videoId, {
     status: 'subido',
+    origin: 'api',
     youtube_id: result.youtubeId,
     url: result.url,
     privacy_status: 'private',

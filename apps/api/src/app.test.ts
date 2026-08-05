@@ -254,6 +254,164 @@ describe('puertas de la API', () => {
     expect(v?.state).toBe('timeline_ok');
   });
 
+  // Marcado manual: el humano subió el vídeo por su cuenta. No sube nada, no
+  // encola nada y no toca la máquina de estados (hecho es terminal).
+  describe('POST /videos/:id/mark-published', () => {
+    const ID = 'dQw4w9WgXcQ';
+
+    async function videoHecho(): Promise<string> {
+      const ideaId = await insertIdea();
+      const videoId = `test-vid-${nanoid(8)}`;
+      createdVideoIds.push(videoId);
+      await db.update(ideas).set({ status: 'approved' }).where(eq(ideas.id, ideaId));
+      await db.insert(videos).values({
+        id: videoId,
+        channelId,
+        ideaId,
+        state: 'hecho',
+        master: masterVideoJsonV1.parse({
+          version: '1',
+          video: {
+            id: videoId,
+            channel_id: channelId,
+            idea_id: ideaId,
+            fps: 30,
+            width: 1920,
+            height: 1080,
+          },
+        }),
+      });
+      return videoId;
+    }
+
+    const marcar = async (videoId: string, urlOrId: string) =>
+      app.inject({
+        method: 'POST',
+        url: `/videos/${videoId}/mark-published`,
+        payload: { url_or_id: urlOrId },
+      });
+
+    it('registra la publicación con origen manual y no cambia de estado', async () => {
+      const videoId = await videoHecho();
+      const res = await marcar(videoId, `https://youtu.be/${ID}?t=30`);
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject({
+        ok: true,
+        youtube_id: ID,
+        url: `https://www.youtube.com/watch?v=${ID}`,
+        ya_estaba: false,
+      });
+
+      const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
+      expect(video?.state).toBe('hecho');
+      expect(video?.youtube).toMatchObject({ status: 'subido', origin: 'manual', youtube_id: ID });
+      expect(video?.youtube?.uploaded_at).toBeTruthy();
+    });
+
+    it('no encola ningún job', async () => {
+      const videoId = await videoHecho();
+      const antes = calls.length;
+      await marcar(videoId, ID);
+      expect(calls).toHaveLength(antes);
+    });
+
+    it('es idempotente con el mismo enlace', async () => {
+      const videoId = await videoHecho();
+      await marcar(videoId, ID);
+      const [primero] = await db.select().from(videos).where(eq(videos.id, videoId));
+      const segunda = await marcar(videoId, `https://www.youtube.com/watch?v=${ID}`);
+      expect(segunda.statusCode).toBe(200);
+      expect((segunda.json() as { ya_estaba: boolean }).ya_estaba).toBe(true);
+      const [despues] = await db.select().from(videos).where(eq(videos.id, videoId));
+      // no reescribe: conserva la marca temporal original
+      expect(despues?.youtube?.uploaded_at).toBe(primero?.youtube?.uploaded_at);
+    });
+
+    it('permite corregir un id mal pegado si el marcado era manual', async () => {
+      const videoId = await videoHecho();
+      await marcar(videoId, ID);
+      const otro = 'aBcDeFgHiJk';
+      const res = await marcar(videoId, otro);
+      expect(res.statusCode).toBe(200);
+      const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
+      expect(video?.youtube?.youtube_id).toBe(otro);
+    });
+
+    it('no sobrescribe una subida hecha por la API', async () => {
+      const videoId = await videoHecho();
+      await db
+        .update(videos)
+        .set({
+          youtube: {
+            status: 'subido',
+            origin: 'api',
+            youtube_id: 'apiApiApi1',
+            url: 'https://www.youtube.com/watch?v=apiApiApi1',
+            privacy_status: 'private',
+            publish_at: null,
+            uploaded_at: new Date().toISOString(),
+            error: null,
+          },
+        })
+        .where(eq(videos.id, videoId));
+      const res = await marcar(videoId, ID);
+      expect(res.statusCode).toBe(409);
+    });
+
+    // un job ACTIVO acabaría escribiendo el id de la API encima del manual
+    it('rechaza si hay una subida en marcha', async () => {
+      const videoId = await videoHecho();
+      await db
+        .update(videos)
+        .set({
+          youtube: {
+            status: 'subiendo',
+            origin: 'api',
+            youtube_id: null,
+            url: null,
+            privacy_status: null,
+            publish_at: null,
+            uploaded_at: null,
+            error: null,
+          },
+        })
+        .where(eq(videos.id, videoId));
+      expect((await marcar(videoId, ID)).statusCode).toBe(409);
+    });
+
+    it('rechaza un enlace irreconocible con 400', async () => {
+      const videoId = await videoHecho();
+      const res = await marcar(videoId, 'https://vimeo.com/123456');
+      expect(res.statusCode).toBe(400);
+      const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
+      expect(video?.youtube).toBeNull();
+    });
+
+    it('rechaza un vídeo que no está en hecho', async () => {
+      const ideaId = await insertIdea();
+      const videoId = `test-vid-${nanoid(8)}`;
+      createdVideoIds.push(videoId);
+      await db.insert(videos).values({
+        id: videoId,
+        channelId,
+        ideaId,
+        state: 'render',
+        master: masterVideoJsonV1.parse({
+          version: '1',
+          video: {
+            id: videoId,
+            channel_id: channelId,
+            idea_id: ideaId,
+            fps: 30,
+            width: 1920,
+            height: 1080,
+          },
+        }),
+      });
+      expect((await marcar(videoId, ID)).statusCode).toBe(409);
+    });
+  });
+
   it('GET /inbox devuelve un InboxDto válido', async () => {
     await insertIdea();
     const res = await app.inject({ method: 'GET', url: '/inbox' });

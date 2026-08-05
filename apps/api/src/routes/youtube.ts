@@ -9,9 +9,11 @@ import { z } from 'zod';
 import { channels, videos } from '@fabrica/db';
 import {
   channelSettingsSchema,
+  extractYoutubeId,
   JOBS,
   nextPublishSlot,
   QUEUES,
+  youtubeWatchUrl,
   type ChannelSettings,
   type PublishUploadJob,
 } from '@fabrica/shared';
@@ -42,7 +44,10 @@ function oauthClient(): { clientId: string; clientSecret: string } | null {
 }
 
 function redirectUri(): string {
-  return env('YT_OAUTH_REDIRECT_URL', `http://localhost:${env('API_PORT', '3001')}/youtube/callback`);
+  return env(
+    'YT_OAUTH_REDIRECT_URL',
+    `http://localhost:${env('API_PORT', '3001')}/youtube/callback`,
+  );
 }
 
 // ---- programación de publicación ----
@@ -199,6 +204,7 @@ export async function publishVideo(
     .set({
       youtube: {
         status: 'subiendo',
+        origin: 'api',
         youtube_id: null,
         url: null,
         privacy_status: null,
@@ -222,6 +228,7 @@ export async function publishVideo(
       .set({
         youtube: {
           status: 'fallido',
+          origin: 'api',
           youtube_id: null,
           url: null,
           privacy_status: null,
@@ -238,6 +245,78 @@ export async function publishVideo(
 
   await ctx.events.publish({ type: 'inbox_changed' });
   return { ok: true as const, publish_at: publishAt };
+}
+
+// ---- marcado manual (la llama POST /videos/:id/mark-published) ----
+
+// El humano subió el vídeo por su cuenta y aquí solo registra el resultado.
+// No sube nada, no encola nada y no toca la máquina de estados.
+//
+// A propósito NO se comprueban outputDir, la existencia de video.mp4 ni la
+// conexión OAuth del canal: exigirlos bloquearía justo el caso de uso, que es
+// «lo subí a mano porque la máquina no podía».
+export async function markPublishedByHand(
+  ctx: ApiContext,
+  videoId: string,
+  urlOrId: string,
+): Promise<{ ok: true; youtube_id: string; url: string; ya_estaba: boolean }> {
+  const [video] = await ctx.db.select().from(videos).where(eq(videos.id, videoId)).limit(1);
+  if (!video) throw notFound(`Vídeo ${videoId} no existe`);
+
+  const id = extractYoutubeId(urlOrId);
+  if (id === null) {
+    throw badRequest(
+      'No reconozco ese enlace ni ese id de YouTube. Pega la URL del vídeo o su id de 11 caracteres.',
+    );
+  }
+  if (video.state !== 'hecho') {
+    throw conflict(`Solo se marca un vídeo en hecho (estado actual: ${video.state})`);
+  }
+
+  const prev = video.youtube;
+  // un job ACTIVO acabaría escribiendo 'subido' con el id de la API encima del
+  // manual; los que estén en cola verán 'subido' y saldrán solos
+  if (prev?.status === 'subiendo') {
+    throw conflict('Hay una subida en marcha; espera a que termine antes de marcarlo a mano');
+  }
+  if (prev?.status === 'subido') {
+    if (prev.youtube_id === id) {
+      return {
+        ok: true as const,
+        youtube_id: id,
+        url: prev.url ?? youtubeWatchUrl(id),
+        ya_estaba: true,
+      };
+    }
+    if (prev.origin !== 'manual') {
+      throw conflict(
+        `Ya está subido por la API con el id ${prev.youtube_id ?? 'desconocido'}; no se sobrescribe`,
+      );
+    }
+    // marcado a mano con un id distinto: es una corrección de un enlace mal
+    // pegado, que es exactamente lo que hay que dejar hacer
+  }
+
+  await ctx.db
+    .update(videos)
+    .set({
+      youtube: {
+        status: 'subido',
+        origin: 'manual',
+        youtube_id: id,
+        url: youtubeWatchUrl(id),
+        // lo configuró el humano en Studio: aquí no se sabe y no se inventa
+        privacy_status: null,
+        publish_at: prev?.publish_at ?? null,
+        uploaded_at: prev?.uploaded_at ?? new Date().toISOString(),
+        error: null,
+      },
+      updatedAt: new Date(),
+    })
+    .where(eq(videos.id, videoId));
+  await ctx.events.publish({ type: 'inbox_changed' });
+
+  return { ok: true as const, youtube_id: id, url: youtubeWatchUrl(id), ya_estaba: false };
 }
 
 // ---- respuestas HTML del callback (el navegador aterriza aquí) ----
@@ -330,11 +409,21 @@ export function registerYoutubeRoutes(app: FastifyInstance, ctx: ApiContext): vo
       );
     }
     if (query.code === undefined || query.state === undefined) {
-      return htmlPage(reply, 'Petición incompleta', 'Faltan code o state en el retorno de Google.', 400);
+      return htmlPage(
+        reply,
+        'Petición incompleta',
+        'Faltan code o state en el retorno de Google.',
+        400,
+      );
     }
     const channelId = verifyState(query.state, client.clientSecret);
     if (channelId === null) {
-      return htmlPage(reply, 'Estado inválido', 'El state no pasó la verificación; repite la conexión desde Ajustes.', 400);
+      return htmlPage(
+        reply,
+        'Estado inválido',
+        'El state no pasó la verificación; repite la conexión desde Ajustes.',
+        400,
+      );
     }
     const channel = await loadChannel(ctx, channelId);
 
@@ -401,7 +490,11 @@ export function registerYoutubeRoutes(app: FastifyInstance, ctx: ApiContext): vo
       },
     });
 
-    return htmlPage(reply, 'Conexión completada', 'Vuelve al dashboard; el canal ya puede subir vídeos en privado.');
+    return htmlPage(
+      reply,
+      'Conexión completada',
+      'Vuelve al dashboard; el canal ya puede subir vídeos en privado.',
+    );
   });
 
   // desconexión: revoca el token best-effort y borra la conexión del canal

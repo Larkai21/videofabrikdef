@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { assets, beats, channels, markIncident, transitionVideo, videos } from '@fabrica/db';
 import {
   JOBS,
+  manualPublicationRequestSchema,
   QUEUES,
   scriptEditRequestSchema,
   titleChoiceRequestSchema,
@@ -26,7 +27,7 @@ import type { ApiContext } from '../lib/context.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { officialThumbnailUrl } from '../lib/files.js';
 import { masterWithFileUrls } from '../lib/master.js';
-import { publishVideo } from './youtube.js';
+import { markPublishedByHand, publishVideo } from './youtube.js';
 
 type VideoRow = typeof videos.$inferSelect;
 
@@ -389,6 +390,14 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
   app.post('/videos/:id/publish', async (req) => {
     const { id } = req.params as { id: string };
     return publishVideo(ctx, id);
+  });
+
+  // El humano lo subió por su cuenta y solo registra el resultado: mismo
+  // criterio que /publish, no toca la máquina de estados ni encola nada.
+  app.post('/videos/:id/mark-published', async (req) => {
+    const { id } = req.params as { id: string };
+    const body = manualPublicationRequestSchema.parse(req.body);
+    return markPublishedByHand(ctx, id, body.url_or_id);
   });
 
   // Descarga del MP4 final como attachment. /files sirve inline (el player lo
