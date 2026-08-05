@@ -636,13 +636,23 @@ const editingResultSchema = z.object({
     .max(8),
 });
 
-function buildEditingPrompt(params: EditingParams): { system: string; user: string } {
+function buildEditingPrompt(
+  params: EditingParams,
+  /** vertical: pieza de menos de un minuto, con su propia densidad */
+  vertical = false,
+): { system: string; user: string } {
   const langName = params.lang === 'en' ? 'inglés' : 'español';
   const lastIdx = params.beats.length > 0 ? params.beats[params.beats.length - 1]!.idx : 0;
   const system = [
     'Eres editor de vídeo de un canal de YouTube tipo "faceless".',
     'Recibes la narración por beats numerados. Elige los MOMENTOS más potentes',
-    'para superponer un efecto que enganche, sin recargar (máximo ~1 cada 2-3 beats).',
+    vertical
+      ? // Un short tiene DOS O TRES beats en total, así que «uno cada 2-3
+        // beats» da uno o dos efectos en toda la pieza. La densidad de este
+        // formato se mide en segundos, y varios momentos caben en un beat:
+        // cada uno se ancla a SU palabra, no al principio del beat.
+        'para superponer un efecto que enganche. Es una pieza VERTICAL de menos de un minuto: elige un momento cada 2-3 SEGUNDOS de narración. Varios momentos pueden caer en el MISMO beat, cada uno con su propia keyword.'
+      : 'para superponer un efecto que enganche, sin recargar (máximo ~1 cada 2-3 beats).',
     'Tipos:',
     '- "kinetic": tipografía cinética a pantalla completa, una frase MUY corta de 2-4 palabras (text) que es el golpe del gancho. Úsalo SOLO en el arranque.',
     '- "callout": una etiqueta de 2-5 palabras que refuerza la idea clave del beat.',
@@ -652,7 +662,11 @@ function buildEditingPrompt(params: EditingParams): { system: string; user: stri
     '- "stat": una cifra que se DICE en ese beat (value) + label corto. value debe aparecer literalmente en la narración del beat: si se dice con letra, escríbela con letra tal cual. Si el beat no trae cifra, no propongas stat. Nunca redondees ni inventes una magnitud.',
     '- "quote": una frase textual breve y citable del beat (text).',
     '- "annotation": marca dibujada a mano para SEÑALAR algo concreto en pantalla; text = etiqueta muy corta opcional. Úsalo con moderación (momentos de "mira esto").',
-    '- "device": muestra una web o comando en un marco de navegador; text = la URL o el comando (p. ej. "grapheneos.org"). Solo si el guion menciona un sitio/herramienta concreta.',
+    // el marco de navegador es 16:9 por definición: en vertical no se ofrece,
+    // porque un momento que el render va a tirar es una ranura desperdiciada
+    vertical
+      ? ''
+      : '- "device": muestra una web o comando en un marco de navegador; text = la URL o el comando (p. ej. "grapheneos.org"). Solo si el guion menciona un sitio/herramienta concreta.',
     '',
     // sin palabra de anclaje el efecto no se puede sincronizar con la locución:
     // el código descarta el momento, así que pedirla es obligatorio
@@ -660,7 +674,9 @@ function buildEditingPrompt(params: EditingParams): { system: string; user: stri
     `text/card: como mucho ${MAX_CARD_WORDS} palabras. Es un titular que resume la frase, no una transcripción.`,
     // gancho: tipografía cinética al abrir + payoff al cerrar
     `- OBLIGATORIO: un "kinetic" en el beat ${params.beats[0]?.idx ?? 0} con la frase-golpe del gancho, y un "callout" en el beat ${lastIdx} con el PAYOFF/conclusión.`,
-    `Textos en ${langName}, muy cortos, sin comillas. Máximo 6 momentos; como mucho 1 "kinetic", 1 "device" y 2 "annotation".`,
+    vertical
+      ? `Textos en ${langName}, muy cortos, sin comillas. Máximo 8 momentos; como mucho 1 "kinetic" y 3 "annotation".`
+      : `Textos en ${langName}, muy cortos, sin comillas. Máximo 6 momentos; como mucho 1 "kinetic", 1 "device" y 2 "annotation".`,
     'Devuelve JSON: { "moments": [ { "beat_idx", "type", "keyword", "text"?, "value"?, "label"? } ] }.',
   ].join('\n');
   const user = [
@@ -1266,18 +1282,24 @@ export async function directEdits(
     ...intents.covered,
     ...rules.flatMap((e) => (e.beat_idx !== undefined ? [e.beat_idx] : [])),
   ]);
-  const huecos = params.beats.filter((b) => !cubiertos.has(b.idx));
+  // El ahorro de «solo los beats que nadie ha cubierto» existe para no gastar
+  // contexto en un vídeo de cuarenta beats. En una pieza de dos, un beat con un
+  // solo efecto ya cuenta como cubierto y la llamada no llega a hacerse: el
+  // formato denso pregunta siempre, y por toda la pieza.
+  const denso = presupuesto?.granoMs !== undefined;
+  const huecos = denso ? params.beats : params.beats.filter((b) => !cubiertos.has(b.idx));
   let aiEdits: Edit[] = [];
   if (
-    hacenFaltaMasTarjetas(
-      [...heredados, ...intents.edits, ...rules],
-      durationMs,
-      presupuesto?.tarjetas,
-    ) &&
+    (denso ||
+      hacenFaltaMasTarjetas(
+        [...heredados, ...intents.edits, ...rules],
+        durationMs,
+        presupuesto?.tarjetas,
+      )) &&
     huecos.length > 0
   ) {
     try {
-      const { system, user } = buildEditingPrompt({ ...params, beats: huecos });
+      const { system, user } = buildEditingPrompt({ ...params, beats: huecos }, denso);
       const data = await ledgeredLlmJson(ctx, {
         videoId: params.videoId,
         channelId: params.channelId,
