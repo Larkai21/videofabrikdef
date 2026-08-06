@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   deviceTextValido,
+  EDIT_BANDA,
   EDIT_RENDER_KIND,
   figureBackedBy,
   FX_CARD_GUARD_MS,
@@ -1212,13 +1213,16 @@ export function dedupeAndCap(
   }
   const solapa = (e: Edit, v: Edit): boolean =>
     e.from_ms >= v.from_ms - FX_CARD_GUARD_MS && e.from_ms <= v.to_ms + FX_CARD_GUARD_MS;
+  /** ¿Se pisan los dos TRAMOS? (`solapa` solo mira dónde empieza el primero) */
+  const seTapan = (a: Edit, b: Edit): boolean =>
+    a.from_ms < b.to_ms + FX_CARD_GUARD_MS && b.from_ms < a.to_ms + FX_CARD_GUARD_MS;
   // Qué tarjetas ocupan de verdad la BANDA SUPERIOR, que es donde vive el
   // inserto (marginTop 110, igual que TextCallout). Las demás van centradas en
   // pantalla y conviven con él sin taparlo: una foto arriba y una cifra en el
   // centro es un montaje normal, no un choque. Sin esta distinción, el inserto
   // de la primera mención moría contra cualquier tarjeta del gancho — que es
   // justo el momento en que hay que presentar al sujeto del vídeo.
-  const enBandaSuperior = (e: Edit): boolean => e.type === 'text_callout';
+  const enBandaSuperior = (e: Edit): boolean => EDIT_BANDA[e.type] === 'superior';
   // Carril de INSERTOS: tope propio y guarda contra las tarjetas (los dos
   // ocupan la banda superior). Va antes que acentos y subrayados porque su
   // imagen ya está buscada, juzgada y descargada: si cae, se pierde la única
@@ -1240,9 +1244,31 @@ export function dedupeAndCap(
     if (ultimo && e.from_ms - ultimo.from_ms < p.sepTarjetaMs) continue;
     insertosKept.push(e);
   }
+  // Una tarjeta CENTRADA y un inserto no conviven: pierde la de menos peso.
+  //
+  // El reparto de arriba deja pasar al inserto si no choca con nada de la banda
+  // superior, con el argumento de que una foto arriba y una cifra en el centro
+  // conviven. Medido sobre un fotograma real: el recuadro del inserto es lo
+  // bastante alto como para llegar al centro, y la tarjeta de cita quedó
+  // ILEGIBLE detrás de la foto. El informe lo denunciaba y producción decía ok.
+  //
+  // No se tira siempre la tarjeta: `kinetic_text` es el centro del gancho y
+  // vale más que cualquier foto. Decide la misma prioridad que reparte todo lo
+  // demás, y el empate lo gana el inserto porque es lo ESCASO: costó una
+  // búsqueda, un juez y una descarga, y es la única vez que el espectador puede
+  // VER a la persona nombrada.
+  const tapadas = new Set(
+    visuals.filter((v) => insertosKept.some((ins) => seTapan(v, ins) && puntua(v) <= puntua(ins))),
+  );
+  const visualesVivos = visuals.filter((v) => !tapadas.has(v));
+  // y al revés: el inserto cede ante lo que vale más que él
+  const insertosVivos = insertosKept.filter(
+    (ins) => !visualesVivos.some((v) => seTapan(v, ins) && puntua(v) > puntua(ins)),
+  );
+
   // acentos y subrayados esquivan tanto las tarjetas como los insertos
   const pisaTarjeta = (e: Edit): boolean =>
-    visuals.some((v) => solapa(e, v)) || insertosKept.some((v) => solapa(e, v));
+    visualesVivos.some((v) => solapa(e, v)) || insertosVivos.some((v) => solapa(e, v));
   const acentosKept = spreadByWindows(acentos, {
     budget: p.acentos,
     durationMs,
@@ -1268,14 +1294,14 @@ export function dedupeAndCap(
   // Los SFX se quedan huérfanos si su dueño cayó en el reparto. Antes solo se
   // limpiaba el `pop`, así que un `ding` podía sonar sin cifra en pantalla.
   const vivos = new Set(
-    [...visuals, ...insertosKept, ...acentosKept, ...keywordsKept].map((e) => e.from_ms),
+    [...visualesVivos, ...insertosVivos, ...acentosKept, ...keywordsKept].map((e) => e.from_ms),
   );
   const ESTRUCTURALES = new Set(['riser', 'whoosh', 'resolucion', 'impacto']);
   const sonidos = rest.filter(
     (e) => e.type !== 'sfx' || ESTRUCTURALES.has(e.sfx ?? '') || vivos.has(e.from_ms),
   );
 
-  return [...visuals, ...insertosKept, ...acentosKept, ...keywordsKept, ...sonidos].sort(
+  return [...visualesVivos, ...insertosVivos, ...acentosKept, ...keywordsKept, ...sonidos].sort(
     (a, b) => a.from_ms - b.from_ms,
   );
 }

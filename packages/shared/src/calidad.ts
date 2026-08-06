@@ -471,7 +471,13 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
     }
   }
 
-  // dos tarjetas a la vez compiten por el centro de la pantalla
+  // Dos tarjetas a la vez compiten por el centro de la pantalla.
+  //
+  // Se probó relajarlo a «solo si comparten banda», con el argumento de que el
+  // montador deja convivir la banda superior con el centro. Es falso: medido
+  // sobre el fotograma, el recuadro del inserto es lo bastante alto como para
+  // llegar al centro y TAPA la tarjeta de cita. El informe tenía razón y el
+  // montaje no; se arregló allí (los centrados que pisan un inserto se caen).
   const orden = [...visuales].sort((a, b) => a.from_ms - b.from_ms);
   for (let i = 1; i < orden.length; i += 1) {
     const prev = orden[i - 1]!;

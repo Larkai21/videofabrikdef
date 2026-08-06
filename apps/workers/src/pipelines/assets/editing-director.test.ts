@@ -718,10 +718,14 @@ describe('inserto automático y su carril propio (S11 bis)', () => {
     expect(out.some((e) => e.type === 'imagen_apoyo')).toBe(true);
   });
 
-  it('un inserto convive con una tarjeta CENTRADA: uno arriba, otra en el centro', () => {
-    // el caso que lo motiva: «Musk» es la primera palabra del vídeo y en el
-    // gancho hay una tarjeta de dato centrada. Si el inserto se cayera por
-    // eso, el sujeto del vídeo no se vería justo cuando se le nombra.
+  it('ante una tarjeta CENTRADA gana el inserto, que es lo escaso', () => {
+    // Este test decía que convivían —«uno arriba, otra en el centro»— y era
+    // falso: medido sobre un fotograma renderizado, el recuadro del inserto
+    // llega al centro y deja la tarjeta ilegible detrás de la foto.
+    //
+    // Lo que el caso original protegía sigue en pie: «Musk» es la primera
+    // palabra del vídeo y el sujeto tiene que verse cuando se le nombra. Lo que
+    // cambia es quién cede: la tarjeta, no el inserto.
     const declared = new Set<Edit>();
     const stat: Edit = { type: 'stat_card', from_ms: 1_500, to_ms: 4_100, beat_idx: 0, value: '5' };
     const inserto: Edit = {
@@ -735,8 +739,35 @@ describe('inserto automático y su carril propio (S11 bis)', () => {
     declared.add(stat);
     declared.add(inserto);
     const out = dedupeAndCap([stat, inserto], 474_000, declared);
-    expect(out.some((e) => e.type === 'stat_card')).toBe(true);
     expect(out.some((e) => e.type === 'imagen_apoyo')).toBe(true);
+    expect(out.some((e) => e.type === 'stat_card')).toBe(false);
+  });
+
+  it('pero el texto cinético del gancho no cede ante ninguna foto', () => {
+    // kinetic_text es el centro del gancho y tiene la prioridad más alta del
+    // reparto: si cediera, el inserto se comería justo el momento que decide
+    // si alguien se queda.
+    const declared = new Set<Edit>();
+    const kinetic: Edit = {
+      type: 'kinetic_text',
+      from_ms: 0,
+      to_ms: 2_400,
+      beat_idx: 0,
+      text: 'esto cambia todo',
+    };
+    const inserto: Edit = {
+      type: 'imagen_apoyo',
+      from_ms: 500,
+      to_ms: 3_500,
+      beat_idx: 0,
+      image_path: '/x.jpg',
+      text: 'Elon Musk',
+    };
+    declared.add(kinetic);
+    declared.add(inserto);
+    const out = dedupeAndCap([kinetic, inserto], 474_000, declared);
+    expect(out.some((e) => e.type === 'kinetic_text')).toBe(true);
+    expect(out.some((e) => e.type === 'imagen_apoyo')).toBe(false);
   });
 
   it('pero un inserto que pisa un CALLOUT sí se cae: comparten banda superior', () => {
@@ -829,5 +860,39 @@ describe('presupuesto por formato', () => {
         PRESUPUESTO_VERTICAL.sepZoomMs!,
       );
     }
+  });
+});
+
+describe('el inserto y las tarjetas centradas', () => {
+  // Medido sobre un fotograma real: el recuadro del inserto llega al centro de
+  // la pantalla y la tarjeta de cita quedaba ilegible detrás de la foto. Las
+  // dos estaban declaradas en el mismo tramo (240,9 → 243,9 s).
+  const cita: Edit = {
+    type: 'quote_card',
+    from_ms: 240_900,
+    to_ms: 243_900,
+    beat_idx: 20,
+    text: 'una frase citable',
+  };
+  const inserto: Edit = {
+    type: 'imagen_apoyo',
+    from_ms: 240_900,
+    to_ms: 243_900,
+    beat_idx: 20,
+    image_path: '/x.jpg',
+    text: 'Comando ciber',
+  };
+
+  it('la tarjeta centrada se cae; el inserto, que es lo escaso, se queda', () => {
+    const out = dedupeAndCap([cita, inserto], 300_000, new Set([cita, inserto]));
+    expect(out.map((e) => e.type)).toContain('imagen_apoyo');
+    expect(out.map((e) => e.type)).not.toContain('quote_card');
+  });
+
+  it('lejos del inserto, la tarjeta sobrevive', () => {
+    const lejos: Edit = { ...cita, from_ms: 200_000, to_ms: 203_000, beat_idx: 16 };
+    const out = dedupeAndCap([lejos, inserto], 300_000, new Set([lejos, inserto]));
+    expect(out.map((e) => e.type)).toContain('imagen_apoyo');
+    expect(out.map((e) => e.type)).toContain('quote_card');
   });
 });

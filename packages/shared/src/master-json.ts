@@ -271,6 +271,37 @@ export type EditType = z.infer<typeof editTypeSchema>;
  * - `camara`: mueve el plano (no pinta nada propio).
  * - `audio`: no se ve.
  */
+/**
+ * Dónde se pinta cada efecto. Existe porque producir y auditar discrepaban:
+ * `dedupeAndCap` deja convivir un inserto arriba con una cifra en el centro
+ * —una foto en la banda superior y un dato centrado es un montaje normal— y el
+ * informe los denunciaba como solape. Con el presupuesto viejo casi nunca
+ * coincidían; al subirlo, el aviso salta en un vídeo perfectamente montado.
+ *
+ * `Record` COMPLETO por el mismo motivo que EDIT_RENDER_KIND: un efecto nuevo
+ * sin decidir dónde vive no compila. `null` = no ocupa sitio en pantalla.
+ */
+export const EDIT_BANDA: Record<EditType, 'superior' | 'centro' | null> = {
+  // banda superior: no compiten con lo centrado
+  text_callout: 'superior',
+  imagen_apoyo: 'superior',
+  // centro de la pantalla: estos sí se pisan entre ellos
+  stat_card: 'centro',
+  stat_odometer: 'centro',
+  quote_card: 'centro',
+  kinetic_text: 'centro',
+  device_frame: 'centro',
+  split_versus: 'centro',
+  pasos_flow: 'centro',
+  tendencia: 'centro',
+  // no ocupan sitio: mueven la cámara, tiñen el subtítulo, marcan el b-roll o suenan
+  zoom_punch: null,
+  keyword_highlight: null,
+  annotation: null,
+  micro_fx: null,
+  sfx: null,
+};
+
 export const EDIT_RENDER_KIND: Record<
   EditType,
   'overlay' | 'anotacion' | 'subtitulo' | 'camara' | 'audio'
