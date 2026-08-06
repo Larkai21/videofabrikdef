@@ -6,6 +6,7 @@ import {
   FX_CARD_GUARD_MS,
   FX_CARD_SEP_MS,
   FX_CARDS_PER_MIN,
+  FX_FRANJA_MS,
   palabraResaltable,
   FX_KEYWORD_SEP_MS,
   FX_KEYWORDS_PER_MIN,
@@ -671,7 +672,11 @@ const editingResultSchema = z.object({
           message: 'un momento "tendencia" necesita value',
         }),
     )
-    .max(8),
+    // 8 era el techo real del vídeo largo: por muchos beats que tuviera, el
+    // director no podía proponer más de ocho momentos en ocho minutos. El
+    // prompt pide el número que toca según la duración; esto solo deja de
+    // estorbar.
+    .max(24),
 });
 
 function buildEditingPrompt(
@@ -681,6 +686,10 @@ function buildEditingPrompt(
 ): { system: string; user: string } {
   const langName = params.lang === 'en' ? 'inglés' : 'español';
   const lastIdx = params.beats.length > 0 ? params.beats[params.beats.length - 1]!.idx : 0;
+  // Los beats que llegan aquí son los HUECOS: los que nadie ha cubierto. Pedir
+  // la mitad dejaba la mitad vacía por construcción, que es justo lo contrario
+  // de para lo que existe esta capa.
+  const maxMomentos = Math.min(24, Math.max(6, params.beats.length));
   const system = [
     'Eres editor de vídeo de un canal de YouTube tipo "faceless".',
     'Recibes la narración por beats numerados. Elige los MOMENTOS más potentes',
@@ -690,7 +699,7 @@ function buildEditingPrompt(
         // formato se mide en segundos, y varios momentos caben en un beat:
         // cada uno se ancla a SU palabra, no al principio del beat.
         'para superponer un efecto que enganche. Es una pieza VERTICAL de menos de un minuto: elige un momento cada 2-3 SEGUNDOS de narración. Varios momentos pueden caer en el MISMO beat, cada uno con su propia keyword.'
-      : 'para superponer un efecto que enganche, sin recargar (máximo ~1 cada 2-3 beats).',
+      : 'para superponer un efecto que enganche. Los beats que te paso son los que están VACÍOS: propón uno para cada uno que se preste, sin forzar los que no dan.',
     'Tipos:',
     '- "kinetic": tipografía cinética a pantalla completa, una frase MUY corta de 2-4 palabras (text) que es el golpe del gancho. Úsalo SOLO en el arranque.',
     '- "callout": una etiqueta de 2-5 palabras que refuerza la idea clave del beat.',
@@ -725,7 +734,9 @@ function buildEditingPrompt(
     `- OBLIGATORIO: un "kinetic" en el beat ${params.beats[0]?.idx ?? 0} con la frase-golpe del gancho, y un "callout" en el beat ${lastIdx} con el PAYOFF/conclusión.`,
     vertical
       ? `Textos en ${langName}, muy cortos, sin comillas. Máximo 8 momentos; como mucho 1 "kinetic", 3 "annotation" y 2 de cada forma ("versus", "pasos", "tendencia").`
-      : `Textos en ${langName}, muy cortos, sin comillas. Máximo 6 momentos; como mucho 1 "kinetic", 1 "device" y 2 "annotation".`,
+      : // El tope era 6 fijo, o sea seis gráficos en ocho minutos. Ahora sale
+        // de los beats que se le pasan, que son los que no ha cubierto nadie.
+        `Textos en ${langName}, muy cortos, sin comillas. Máximo ${maxMomentos} momentos; como mucho 1 "kinetic", 1 "device" y ${Math.max(2, Math.round(maxMomentos / 4))} "annotation".`,
     vertical
       ? 'Devuelve JSON: { "moments": [ { "beat_idx", "type", "keyword", "text"?, "value"?, "label"?, "items"?, "direccion"? } ] }.'
       : 'Devuelve JSON: { "moments": [ { "beat_idx", "type", "keyword", "text"?, "value"?, "label"? } ] }.',
@@ -982,6 +993,21 @@ export function spreadByWindows<T>(
     reject?: (t: T) => boolean;
     /** suelo del ancho de ventana; ver la nota sobre la rejilla del informe */
     minWindowMs?: number;
+    /**
+     * Segunda pasada: gastar el presupuesto que la rejilla dejó sin usar.
+     *
+     * La rejilla elige UNO por ventana, así que cuando los candidatos se
+     * agrupan —y se agrupan, porque el guion declara por escena— hay ventanas
+     * con tres y ventanas con cero, y las de cero no se recuperan. Medido en un
+     * vídeo real: 27 candidatos de overlay, 30 ventanas de presupuesto, 16
+     * colocados. Los 11 que faltaban no sobraban por densos: sobraban por la
+     * rejilla.
+     *
+     * El relleno recorre lo descartado en orden temporal y admite lo que
+     * respete la separación mínima contra TODO lo ya elegido. La separación es
+     * la que impide el amontonamiento; la rejilla solo repartía.
+     */
+    rellenar?: boolean;
   },
 ): { kept: T[]; dropped: T[] } {
   if (opts.budget <= 0 || items.length === 0) return { kept: [], dropped: [...items] };
@@ -1006,6 +1032,23 @@ export function spreadByWindows<T>(
     kept.push(elegido);
     keptSet.add(elegido);
     ultimo = opts.at(elegido);
+  }
+  if (opts.rellenar === true && kept.length < opts.budget) {
+    const sobrantes = items
+      .filter((t) => !keptSet.has(t))
+      .filter((t) => opts.reject === undefined || !opts.reject(t))
+      .sort((a, b) => opts.at(a) - opts.at(b) || opts.score(b) - opts.score(a));
+    const tiempos = kept.map((t) => opts.at(t)).sort((a, b) => a - b);
+    for (const t of sobrantes) {
+      if (kept.length >= opts.budget) break;
+      const at = opts.at(t);
+      if (tiempos.some((x) => Math.abs(x - at) < opts.sepMs)) continue;
+      kept.push(t);
+      keptSet.add(t);
+      tiempos.push(at);
+      tiempos.sort((a, b) => a - b);
+    }
+    kept.sort((a, b) => opts.at(a) - opts.at(b));
   }
   return { kept, dropped: items.filter((t) => !keptSet.has(t)) };
 }
@@ -1048,6 +1091,7 @@ export function presupuestoLargo(durationMs: number): PresupuestoFx {
     sepTarjetaMs: FX_CARD_SEP_MS,
     sepMicroMs: FX_MICRO_SEP_MS,
     sepKeywordMs: FX_KEYWORD_SEP_MS,
+    granoMs: FX_FRANJA_MS,
   };
 }
 
@@ -1126,6 +1170,7 @@ export function dedupeAndCap(
     at: (e) => e.from_ms,
     // lo DECLARADO por el guion gana a lo inferido por reglas o por la IA
     score: puntua,
+    rellenar: true,
     // NO se fuerza aquí una ventana de un minuto. Se probó, con la idea de
     // alinear la rejilla del reparto (duración/presupuesto, 51 s) con la del
     // informe (minutos de reloj). Medido sobre un vídeo real: costó una tarjeta
@@ -1205,6 +1250,7 @@ export function dedupeAndCap(
     at: (e) => e.from_ms,
     score: (e) => (declared.has(e) ? 10 : 0),
     reject: pisaTarjeta,
+    rellenar: true,
   }).kept;
   // El subrayado de subtítulo antes NO tenía tope: partía todos los tags de SEO
   // y encendía la palabra allá donde cayera, decenas de veces por vídeo.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Cue, Edit } from '@fabrica/shared';
+import { FX_CARDS_PER_MIN, type Cue, type Edit } from '@fabrica/shared';
 import {
   dedupeAndCap,
   presupuestoLargo,
@@ -483,9 +483,13 @@ describe('hacenFaltaMasTarjetas', () => {
   });
 
   it('no pide IA cuando lo colocado llena el presupuesto Y cubre todas las ventanas', () => {
-    // 7 min × 1,2 tarjetas/min ≈ 8 → ventanas de 52,5 s; una tarjeta en cada una
-    const puestas = Array.from({ length: 8 }, (_, i) => tarjeta(i * 52_500 + 1_000));
-    expect(hacenFaltaMasTarjetas(puestas, 7 * 60_000)).toBe(false);
+    // El presupuesto sale de la constante, no de un 8 cableado: cuando subió de
+    // 1,2 a 4 tarjetas/min este test se cayó por escribir el número dos veces.
+    const durMs = 7 * 60_000;
+    const n = Math.max(1, Math.round((durMs / 60_000) * FX_CARDS_PER_MIN));
+    const ventana = durMs / n;
+    const puestas = Array.from({ length: n }, (_, i) => tarjeta(Math.round(i * ventana) + 1_000));
+    expect(hacenFaltaMasTarjetas(puestas, durMs)).toBe(false);
   });
 
   it('pide IA cuando el guion declaró poco', () => {

@@ -214,7 +214,25 @@ export const SENTENCE_MAX_WORDS = 25;
 // y darían 72 micro-fx en diez minutos. Lo que se conserva es la RAREZA
 // relativa: 0,9/min da ~7 en ocho minutos, el mismo número que el hermano pero
 // para la pieza entera.
-export const FX_CARDS_PER_MIN = 1.2;
+/**
+ * 1,2 hasta que se midió la COBERTURA GRÁFICA (`cobertura` en calidad.ts) de
+ * los tres vídeos entregados: 4,5 %, 7,9 % y 5,7 % del metraje con algo
+ * dibujado en pantalla, y huecos seguidos de 69, 76 y 98 segundos. Minuto y
+ * medio de b-roll con subtítulos y nada más.
+ *
+ * Medido con la herramienta de A/B (`scripts/ab-edicion.ts`, que ahora imprime
+ * la cobertura) sobre el mismo vídeo de 7,6 min: 7,9 % → 13,9 %, hueco máximo
+ * de 76 s → 30,7 s y reparto por minuto de [5,3,3,2,3,4,2,4] a [7,5,5,5,4,5,5,5].
+ *
+ * Se queda por debajo del ~20 % que se buscaba, y el motivo está medido: el
+ * GUION declara 15 intenciones de overlay para 7,6 minutos, así que a partir de
+ * ahí todo sale de la capa que rellena huecos. Subir el presupuesto más no
+ * añade nada — no hay candidatos que colocar. Eso se arregla en el guion.
+ *
+ * No se sube al ~35 % del short a propósito: en ocho minutos un efecto
+ * frecuente se gasta antes, que es lo que ya avisa micro-fx.ts.
+ */
+export const FX_CARDS_PER_MIN = 4;
 /**
  * Insertos de referencia por minuto (imagen real de una entidad nombrada).
  * Van en su PROPIO carril, no compitiendo con las tarjetas: un inserto es la
@@ -227,14 +245,24 @@ export const FX_CARDS_PER_MIN = 1.2;
  * que el prompt del guion pide declarar.
  */
 export const FX_INSERTOS_PER_MIN = 0.35;
-export const FX_MICRO_PER_MIN = 0.9;
+export const FX_MICRO_PER_MIN = 1.8;
 export const FX_KEYWORDS_PER_MIN = 2.5;
 /** Fusible, no objetivo: si muerde es que algo va mal. */
 export const FX_SFX_PER_MIN = 6;
 
-export const FX_CARD_SEP_MS = 20_000;
-/** ~2 beats: dos acentos dentro del mismo beat se leen como un tic. */
-export const FX_MICRO_SEP_MS = 25_000;
+// 20 s topaba el presupuesto en 3/min por sí sola: la separación era el cuello
+// de botella y subir el presupuesto no se habría notado.
+export const FX_CARD_SEP_MS = 7_000;
+/**
+ * Franja de un solo overlay visual en el vídeo largo. Era el BEAT, que dura
+ * 8-15 s: un beat largo con dos ideas solo podía enseñar una. Medirla en tiempo
+ * desacopla la densidad gráfica de la longitud del beat, que la fija el audio y
+ * no tiene por qué decidir cuántos gráficos caben. Quien impide el
+ * amontonamiento es FX_CARD_SEP_MS, no esto.
+ */
+export const FX_FRANJA_MS = 5_000;
+/** ~1 beat: dos acentos dentro del mismo beat se leen como un tic. */
+export const FX_MICRO_SEP_MS = 14_000;
 export const FX_KEYWORD_SEP_MS = 12_000;
 export const FX_ZOOM_SEP_MS = 12_000;
 /** Lo que tarda el ojo en acabar de leer la entrada de una tarjeta. */

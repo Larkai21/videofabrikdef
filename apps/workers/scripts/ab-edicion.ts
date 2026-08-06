@@ -10,7 +10,7 @@
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import postgres from 'postgres';
-import type { Edit, MasterVideoJson } from '@fabrica/shared';
+import { cobertura, type Edit, type MasterVideoJson } from '@fabrica/shared';
 import { createWorkerContext } from '../src/lib/context.js';
 import {
   directEdits,
@@ -37,9 +37,13 @@ function resumen(edits: Edit[], durationMs: number): string {
   const porMinuto = Array.from({ length: minutos }, (_, m) =>
     visuales.filter((e) => e.from_ms >= m * 60_000 && e.from_ms < (m + 1) * 60_000).length,
   );
+  const cob = cobertura(edits, durationMs);
   return [
     `  total ${edits.length}  (${visuales.length} visuales · ${edits.length - visuales.length} sonidos)`,
     `  visuales por minuto: [${porMinuto.join(', ')}]`,
+    // el número que dice si la pieza «se ve vacía»: cuánto metraje tiene algo
+    // DIBUJADO, y cuál es el tramo seguido más largo que no tiene nada
+    `  cobertura gráfica: ${(cob.ratio * 100).toFixed(1)} %  ·  hueco máximo ${(cob.hueco_max_ms / 1000).toFixed(1)} s`,
     ...[...porTipo.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .map(([k, n]) => `    ${k.padEnd(20)} ${n}`),
