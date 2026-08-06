@@ -120,14 +120,14 @@ describe('lectura tolerante de las intenciones del LLM', () => {
       section: 'hook',
       text: 'Nvidia levantó 300 millones y el mercado cambió de golpe esta semana.',
       visual_query: 'chips',
-      edit_intents: [
-        { effect: 'kinetic', trigger_word: 'Nvidia', card_text: 'Nvidia' },
-        { effect: 'kinetic', trigger_word: 'mercado', card_text: 'Mercado' },
-        { effect: 'kinetic', trigger_word: 'semana', card_text: 'Semana' },
-      ],
+      // una más de las que caben, derivada de la constante: escribir el número
+      // a mano hizo que este test se cayera al subir el tope de 2 a 3
+      edit_intents: ['Nvidia', 'mercado', 'semana', 'golpe']
+        .slice(0, MAX_INTENTS_PER_SCENE + 1)
+        .map((w) => ({ effect: 'kinetic' as const, trigger_word: w, card_text: w })),
     };
-    // el esquema de lectura NO rechaza las tres…
-    expect(escena.edit_intents).toHaveLength(3);
+    // el esquema de lectura NO rechaza el exceso…
+    expect(escena.edit_intents).toHaveLength(MAX_INTENTS_PER_SCENE + 1);
     // …y el barrido deja como mucho MAX_INTENTS_PER_SCENE, con motivo
     const barrido = sweepIntents([escena], []);
     expect(barrido.scenes[0]!.edit_intents?.length ?? 0).toBeLessThanOrEqual(MAX_INTENTS_PER_SCENE);

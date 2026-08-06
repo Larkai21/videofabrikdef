@@ -130,7 +130,13 @@ export const INTENT_EFFECTS = [
 export const intentEffectSchema = z.enum(INTENT_EFFECTS);
 export type IntentEffect = z.infer<typeof intentEffectSchema>;
 
-export const MAX_INTENTS_PER_SCENE = 2;
+/**
+ * 2 mientras el presupuesto del montador fue de 1,2 tarjetas/min. Con 4/min el
+ * guion tiene que declarar ~30 en ~16 escenas, y con dos por escena eso obliga
+ * a que TODAS lleven el máximo: no queda margen para la escena que da para tres
+ * ni para la que no da para ninguna.
+ */
+export const MAX_INTENTS_PER_SCENE = 3;
 export const MAX_CARD_WORDS = 4;
 
 /**
@@ -162,6 +168,32 @@ export const editIntentSchema = z.object({
   items: z.array(z.string().min(1).max(40)).max(4).optional(),
 });
 export type EditIntent = z.infer<typeof editIntentSchema>;
+
+/**
+ * Lectura TOLERANTE de la lista de intenciones de una escena.
+ *
+ * El comentario de `editIntentSchema` ya decía que un `refine` cruzado tumbaría
+ * la generación entera del guion por una intención mal escrita. Faltaba blindar
+ * lo mismo contra el propio esquema: `z.array(editIntentSchema)` aborta el
+ * guion COMPLETO si el modelo se inventa un `effect` o se deja un
+ * `trigger_word`. Con nueve intenciones por guion casi no pasaba; al subir el
+ * presupuesto a treinta, 3 de 6 guiones del banco murieron así.
+ *
+ * Cada intención se lee por separado y la que no cuadra se cae sola. Es el
+ * mismo patrón que `editsFieldSchema` para los efectos del maestro: un dato
+ * malformado descarta ESE dato, nunca la pieza entera.
+ *
+ * No se recorta a MAX_INTENTS_PER_SCENE aquí: eso lo hace `sweepIntents`, que
+ * además deja constancia del motivo (`exceso`).
+ */
+export const editIntentsFieldSchema = z
+  .array(z.unknown())
+  .transform((arr) =>
+    arr.flatMap((x) => {
+      const leida = editIntentSchema.safeParse(x);
+      return leida.success ? [leida.data] : [];
+    }),
+  );
 
 export type IntentDropReason =
   | 'trigger_ausente'

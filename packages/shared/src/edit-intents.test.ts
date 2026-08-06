@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   deviceTextValido,
+  MAX_INTENTS_PER_SCENE,
   figureBackedBy,
   normalizeWord,
   numericTokens,
@@ -137,14 +138,22 @@ describe('validateSceneIntents', () => {
 
   it('corta en el tope por escena', () => {
     const r = validateSceneIntents(
-      escena('uno dos tres', [
-        { effect: 'callout', trigger_word: 'uno', card_text: 'a b' },
-        { effect: 'quote', trigger_word: 'dos', card_text: 'c d' },
-        { effect: 'annotation', trigger_word: 'tres' },
-      ]),
+      // una más de las que caben, derivada de la constante: con el número
+      // escrito a mano este test se cayó al subir el tope de 2 a 3
+      escena(
+        'uno dos tres cuatro',
+        (
+          [
+            { effect: 'callout', trigger_word: 'uno', card_text: 'a b' },
+            { effect: 'quote', trigger_word: 'dos', card_text: 'c d' },
+            { effect: 'annotation', trigger_word: 'tres' },
+            { effect: 'annotation', trigger_word: 'cuatro' },
+          ] satisfies EditIntent[]
+        ).slice(0, MAX_INTENTS_PER_SCENE + 1),
+      ),
       CLAIMS,
     );
-    expect(r.kept).toHaveLength(2);
+    expect(r.kept).toHaveLength(MAX_INTENTS_PER_SCENE);
     expect(r.dropped[0]?.reason).toBe('exceso');
   });
 

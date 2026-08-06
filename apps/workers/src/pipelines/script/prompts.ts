@@ -1,5 +1,6 @@
 import {
   FX_CARDS_PER_MIN,
+  MAX_INTENTS_PER_SCENE,
   WORDS_PER_MIN,
   type ChannelProfile,
   type Research,
@@ -270,7 +271,13 @@ export function scriptSystem(profile: ChannelProfile, targetWords: number): stri
     // cobertura, no puntería. Los minutos mudos del último vídeo no venían de
     // aquí: venían de que el zoom de `emphasis` aplastaba las tarjetas
     // declaradas en `dedupeAndCap`, que es lo que se arregló.
-    `edit_intents: es tu instrucción al montador; sin ella el montaje adivina y se equivoca. Declara ${cardBudget} o más de tipo tarjeta (callout, stat, quote, device o annotation) REPARTIDAS por todo el guion —incluidas la primera y la última escena del cuerpo, que son las que se quedan mudas— nunca dos en escenas seguidas, más las de tipo keyword que merezcan la pena. Máximo 2 por escena.`,
+    `edit_intents: es tu instrucción al montador; sin ella el montaje adivina y se equivoca. Declara ${cardBudget} o más de tipo tarjeta (callout, stat, quote, device o annotation) REPARTIDAS por todo el guion —incluidas la primera y la última escena del cuerpo, que son las que se quedan mudas—, más las de tipo keyword que merezcan la pena. Máximo ${MAX_INTENTS_PER_SCENE} por escena.`,
+    // «Nunca dos en escenas seguidas» estuvo aquí para que las tarjetas no se
+    // amontonasen, y con un presupuesto de 9 tenía sentido. Con 30 hace el
+    // presupuesto inalcanzable por construcción: 16 escenas alternas dan 8
+    // huecos. Y el espaciado no es trabajo del guionista — lo hace el montador,
+    // que separa las tarjetas 7 s y reparte por ventanas.
+    'No te preocupes por el espaciado: el montador separa las tarjetas en el tiempo y descarta lo que sobra. Tu trabajo es declarar la intención donde la escena la pide.',
     'Si en una escena escribes una cifra que sale de los claims, declara un stat sobre ella: es el caso que más se nota en pantalla y el que más se olvida.',
     '- trigger_word: una palabra EXACTA que tú acabas de escribir en el `text` de ESA MISMA escena. No vale una palabra de otra escena, ni una variante, ni una que no se pronuncie. Si no puedes citar una literal, no declares la intención.',
     `- card_text: el copy de la tarjeta, de 2 a 4 palabras, sentence case, sin comillas ni signos. Resume la frase, no añade información nueva ni la contradice. Va EN ${profile.language === 'en' ? 'INGLÉS' : 'ESPAÑOL'}, el idioma del guion: es texto que el espectador lee en pantalla, no una consulta de archivo.`,
@@ -278,10 +285,18 @@ export function scriptSystem(profile: ChannelProfile, targetWords: number): stri
     // Los tres de lista existen para que la VOZ deje de enumerar: si el gráfico
     // dibuja los pasos, la narración no tiene que decir «Primero:», «Segundo:».
     // Ese era el defecto que quedaba tras arreglar los rótulos del blueprint.
-    '- Y tres más para cuando la escena ENUMERA, que es justo cuando el texto se llena de «Primero:», «Segundo:» y deja de sonar a alguien hablando. Si declaras uno de estos, escribe la escena en prosa normal y deja que el gráfico haga la lista:',
-    '  · comparacion — dos cosas enfrentadas. `items` con EXACTAMENTE dos rótulos de 2 a 4 palabras («Pesos abiertos» / «API cerrada»).',
-    '  · pasos — un proceso de 2 a 4 estaciones. `items` con un rótulo corto por paso, en orden.',
+    // Estaban condicionados a «cuando la escena ENUMERA», y las reglas de
+    // oficio piden justo lo contrario: que la prosa no enumere. Con ese
+    // encuadre nunca se daba la condición — medido sobre 6 guiones del banco,
+    // 2 formas declaradas en total. Ahora la condición es la RELACIÓN, que la
+    // hay en casi todas las escenas de análisis.
+    '- Y tres formas que DIBUJAN una relación en vez de escribirla. Declara al menos 3 por guion, y prefiérelas a un callout siempre que la frase exprese una relación: un rótulo que repite lo que ya se está diciendo no añade nada. La prosa se escribe normal, sin «Primero:» ni «Segundo:» — de la lista se encarga el gráfico:',
+    '  · comparacion — dos cosas enfrentadas, aunque la frase no las liste: «X frente a Y», «antes y ahora», «lo que promete y lo que hace». `items` con EXACTAMENTE dos rótulos de 2 a 4 palabras («Pesos abiertos» / «API cerrada»).',
+    '  · pasos — un proceso, un recorrido o una cadena de causas, de 2 a 4 estaciones. También el CUELLO DE BOTELLA: pon la etapa que estrangula como última estación. `items` con un rótulo corto por paso, en orden.',
     '  · tendencia — una cifra que se dispara o se hunde. `value` con la cifra (de los claims), `style` con «sube» o «baja», y `card_text` como etiqueta.',
+    // Un callout que repite lo que ya dice el subtítulo no aporta nada, y es lo
+    // que salía por defecto: medido en un short, la voz decía «los tres pasos»
+    // y en pantalla ponía «los tres pasos».
     // El archivo de stock no tiene el sujeto del que hablamos. Comprobado:
     // buscar «hugging face model page» devuelve gente abrazándose y «llama open
     // source model» devuelve llamas en los Andes. Si el nombre no se pone en

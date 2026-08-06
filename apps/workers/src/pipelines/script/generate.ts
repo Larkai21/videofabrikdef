@@ -4,7 +4,7 @@ import { channels, ideas, markIncident, videos } from '@fabrica/db';
 import {
   channelSettingsSchema,
   suficienciaResearch,
-  editIntentSchema,
+  editIntentsFieldSchema,
   JOBS,
   QUEUES,
   researchSchema,
@@ -49,7 +49,9 @@ const genSceneSchema = z.object({
   // que pasan de MAX_INTENTS_PER_SCENE con motivo `exceso`, y el esquema del
   // maestro (`master-json.ts`) lo exige en lo que se persiste. Aquí se lee con
   // tolerancia, como ya se hace con `edits` y con `scene_notes`.
-  edit_intents: z.array(editIntentSchema).optional(),
+  // Tolerante: una intención mal escrita se cae sola. Estricta, tumbaba el
+  // guion ENTERO — 3 de 6 del banco al subir el presupuesto a 30 intenciones.
+  edit_intents: editIntentsFieldSchema.optional(),
 });
 
 // exportado: packaging_first genera SOLO esta parte (packaging.ts)

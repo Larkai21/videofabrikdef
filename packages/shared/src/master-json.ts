@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { designTokensSchema } from './design.js';
-import { editIntentSchema, MAX_INTENTS_PER_SCENE } from './edit-intents.js';
+import { editIntentsFieldSchema } from './edit-intents.js';
 import { scriptReviewSchema } from './script-review.js';
 import { beatStatusSchema } from './states.js';
 
@@ -35,7 +35,10 @@ export const sceneSchema = z.object({
   // palabra que él mismo puso en `text`, así que el anclaje por cues no puede
   // fallar. Opcional: los maestros anteriores no la traen y el director de
   // edición cae a su comportamiento de siempre.
-  edit_intents: z.array(editIntentSchema).max(MAX_INTENTS_PER_SCENE).optional(),
+  // Tolerante a propósito: una intención mal escrita se cae sola en vez de
+  // tumbar el guion entero (ver editIntentsFieldSchema). El recorte al tope por
+  // escena lo hace sweepIntents, que además registra el motivo.
+  edit_intents: editIntentsFieldSchema.optional(),
 });
 
 export const scriptSchema = z.object({
