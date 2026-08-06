@@ -311,6 +311,12 @@ export function scriptSystem(profile: ChannelProfile, targetWords: number): stri
     // contaminar el contenido. La prosa ya tiene few-shot; las intenciones no
     // tenían ninguno, solo prohibiciones, y por eso salían tan pocas.
     'Ejemplo de intenciones bien declaradas, para una escena que dijera «el puerto movió 4200 contenedores en una semana y aun así perdió dinero»: [{"effect":"stat","trigger_word":"4200","value":"4200","label":"contenedores","claim_idx":2},{"effect":"callout","trigger_word":"perdió","card_text":"y aun así pierde"}].',
+    // Las formas tenían mínimo («al menos 3») pero ningún ejemplo, y el mínimo
+    // solo se cumplía a veces: medido sobre 6 guiones del banco, cuatro
+    // declararon entre 6 y 11 formas y DOS declararon cero. Es el mismo remedio
+    // que funcionó con las intenciones en general —tenían prohibiciones y
+    // ningún ejemplo, y por eso salían tan pocas—, así que aquí van los tres.
+    'Ejemplo de las tres formas, para escenas de otro tema: «el almacén tarda seis horas en cerrar un pedido, y casi todo ese tiempo se va en la revisión manual» → [{"effect":"pasos","trigger_word":"revisión","items":["Recepción","Empaquetado","Revisión manual"]}]. «el equipo pequeño entrega en días; el grande, en trimestres» → [{"effect":"comparacion","trigger_word":"trimestres","items":["Equipo pequeño","Equipo grande"]}]. «las devoluciones se dispararon un 40% tras el cambio» → [{"effect":"tendencia","trigger_word":"dispararon","value":"40%","style":"sube","card_text":"devoluciones","claim_idx":1}].',
     'Salida JSON: { script: { scenes: [{id, section: hook|body|cta, text, visual_query, emphasis?, edit_intents?}], hook_notes }, seo: { titles, description, tags, thumbnails } }.',
     'hook_notes: qué promesa abre el vídeo y cómo se paga al final.',
     // Los patrones son EJEMPLOS DE VOZ, no plantillas que rellenar. Pedir «cada
