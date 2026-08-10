@@ -15,7 +15,7 @@
  * La medida es «acierto@1»: con qué frecuencia el candidato que la regla pone
  * primero es el que eligió el humano. La línea base (coseno tal cual) es 13/24.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pino from 'pino';
@@ -37,6 +37,10 @@ interface Fila {
   elegido: string | null;
   /** los que un espectador NO rechazaría, no «el mejor». Ver README del banco. */
   aceptables?: string[];
+  /** solo filas de producción: refs que el humano descartó explícitamente */
+  vetados?: string[];
+  /** fila exportada de producción: `aceptables` desconocidos más allá de `elegido` */
+  parcial?: boolean;
   candidatos: Candidato[];
 }
 
@@ -48,6 +52,23 @@ function cargar(): Fila[] {
     .split('\n')
     .filter((l) => l.trim() !== '')
     .map((l) => JSON.parse(l) as Fila);
+}
+
+/**
+ * Filas exportadas de la curación real (scripts/exportar-etiquetas.ts).
+ * Van en fichero aparte y se miden aparte: son PARCIALES (solo se sabe el
+ * elegido y, en los descartes, un disparate conocido), así que «sin disparate»
+ * no aplica — mezclarlas con las filas a mano convertiría esa métrica en
+ * acierto@1 sin que nadie lo note. El `beat` se reindexa a un entero único
+ * porque aquí conviven varios vídeos y el banco indexa vectores por beat.
+ */
+function cargarProduccion(): Fila[] {
+  const ruta = path.join(raiz, 'calibracion/planos-produccion.jsonl');
+  if (!existsSync(ruta)) return [];
+  return readFileSync(ruta, 'utf8')
+    .split('\n')
+    .filter((l) => l.trim() !== '')
+    .map((l, i) => ({ ...(JSON.parse(l) as Fila), beat: i }));
 }
 
 /** Regla: dado un beat y los vectores, devuelve el ref que pondría primero. */
@@ -290,4 +311,68 @@ async function main(): Promise<void> {
   }
 }
 
+/**
+ * Sección de producción: mismas reglas sobre las filas parciales. Dos números
+ * por regla — acierto@1 sobre las que tienen elegido, y cuántas veces la regla
+ * pone PRIMERO un plano que el humano descartó (disparate conocido).
+ * `todasLasQueries` se agrupa por vídeo: penalizar lo genérico contra las
+ * consultas de OTRO vídeo no mide nada.
+ */
+async function seccionProduccion(embeddings: ReturnType<typeof createEmbeddings>): Promise<void> {
+  const filasP = cargarProduccion();
+  if (filasP.length === 0) return;
+
+  const queryVec = new Map<number, number[]>();
+  const capVec = new Map<string, number[]>();
+  const refs = [...new Set(filasP.flatMap((f) => f.candidatos.map((c) => c.ref)))];
+  const captions = new Map(filasP.flatMap((f) => f.candidatos.map((c) => [c.ref, c.caption])));
+  // secuencial, por el mismo motivo que arriba
+  const qv = await embeddings.embed(filasP.map((f) => f.query));
+  const nv = await embeddings.embed(filasP.map((f) => f.narracion));
+  const cv = await embeddings.embed(refs.map((r) => captions.get(r) ?? ''));
+  filasP.forEach((f, i) => {
+    if (qv[i]) queryVec.set(f.beat, qv[i]!);
+    if (nv[i]) queryVec.set(-f.beat - 1, nv[i]!);
+  });
+  refs.forEach((r, i) => {
+    if (cv[i]) capVec.set(r, cv[i]!);
+  });
+  const porVideo = new Map<string, Fila[]>();
+  for (const f of filasP) {
+    porVideo.set(f.video, [...(porVideo.get(f.video) ?? []), f]);
+  }
+
+  const conElegido = filasP.filter((f) => f.elegido !== null);
+  const conVetados = filasP.filter((f) => (f.vetados ?? []).length > 0);
+  console.log(
+    `\n--- producción (${filasP.length} filas de ${porVideo.size} vídeos; etiquetas PARCIALES: sin disparate no aplica) ---`,
+  );
+  console.log('regla                 acierto@1   pone un vetado 1º');
+  for (const [nombre, regla] of Object.entries(REGLAS)) {
+    let aciertos = 0;
+    let vetadosPuestos = 0;
+    for (const grupo of porVideo.values()) {
+      const ctx: Ctx = {
+        queryVec,
+        capVec,
+        todasLasQueries: grupo
+          .map((f) => queryVec.get(f.beat))
+          .filter((v): v is number[] => !!v),
+      };
+      for (const f of grupo) {
+        const puesto = regla(f, ctx);
+        if (f.elegido !== null && puesto === f.elegido) aciertos += 1;
+        if ((f.vetados ?? []).includes(puesto)) vetadosPuestos += 1;
+      }
+    }
+    console.log(
+      `${nombre.padEnd(20)} ${String(aciertos).padStart(2)}/${conElegido.length}        ${String(vetadosPuestos).padStart(2)}/${conVetados.length}`,
+    );
+  }
+}
+
 await main();
+await (async () => {
+  const embeddings = createEmbeddings(pino({ level: 'warn' }));
+  await seccionProduccion(embeddings);
+})();
