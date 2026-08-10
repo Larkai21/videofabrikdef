@@ -67,6 +67,18 @@ async function writeCache(
 
 async function fetchJson(url: string, headers: Record<string, string>): Promise<unknown> {
   const res = await fetch(url, { headers, signal: AbortSignal.timeout(20_000) });
+  // Un 429 se reintenta UNA vez respetando Retry-After. Antes se trataba como
+  // cualquier error: se tragaba con un warn y la fuente moría para ese beat en
+  // silencio. Con 2 requests por consulta y ~40 consultas por vídeo, el límite
+  // de 200/h de Pexels se roza en cuanto se producen dos vídeos seguidos.
+  if (res.status === 429) {
+    const retryAfter = Number(res.headers.get('retry-after') ?? '2');
+    const esperaMs = Math.min(30_000, Math.max(1_000, retryAfter * 1_000));
+    await new Promise((r) => setTimeout(r, esperaMs));
+    const otra = await fetch(url, { headers, signal: AbortSignal.timeout(20_000) });
+    if (!otra.ok) throw new Error(`HTTP ${otra.status} en ${new URL(url).host} (tras 429)`);
+    return otra.json();
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status} en ${new URL(url).host}`);
   return res.json();
 }
@@ -202,10 +214,15 @@ export async function searchPexels(
   });
   try {
     const headers = { Authorization: key };
+    // 80 es el máximo de Pexels y SPEC.md ya lo contemplaba; estaba en 15.
+    // Mismo número de requests, solo respuestas más anchas — y cacheadas 24 h.
+    // El pool ancho es el insumo del juez de planos, que es la única señal con
+    // precisión medida (24/25): darle 6 candidatos de 15 resultados era
+    // estrecharle la vista dos veces.
     const params = new URLSearchParams({
       query: queryNorm,
       orientation: 'landscape',
-      per_page: '15',
+      per_page: '80',
     });
     const [videosJson, photosJson] = await Promise.all([
       fetchJson(`https://api.pexels.com/videos/search?${params.toString()}&size=medium`, headers),
@@ -247,7 +264,10 @@ async function searchPixabay(
     // el recorte aquí es la última red, para que ninguna consulta larga tumbe
     // la fuente entera desde otro punto de entrada
     const q = queryNorm.slice(0, MAX_QUERY_CHARS);
-    const params = new URLSearchParams({ key, q, per_page: '15' });
+    // 50: Pixabay admite hasta 200, pero sus resultados degradan más rápido
+    // que los de Pexels pasada la primera página. safesearch iba en el cliente
+    // de la API y aquí no: mismo proveedor, mismos filtros.
+    const params = new URLSearchParams({ key, q, per_page: '50', safesearch: 'true' });
     const json = await fetchJson(`https://pixabay.com/api/videos/?${params.toString()}`, {});
     const results = parsePixabay(json);
     await closeCost(db, handle, { units: 1, unitCost: 0 });

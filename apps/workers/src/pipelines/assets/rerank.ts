@@ -1,3 +1,4 @@
+import { STOCK_FINALISTS } from './pool.js';
 import { z } from 'zod';
 import type { BeatCandidate } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
@@ -78,8 +79,9 @@ export function claveDe(p: { beatIdx: number; vIdx: number }): string {
   return `${p.beatIdx}:${p.vIdx}`;
 }
 
-/** Cuántos finalistas se le enseñan al juez. Más allá el prompt crece sin dar. */
-const MAX_CANDIDATOS = 6;
+// El juez lee TODO el pool de finalistas: el número es el mismo que decide
+// cuántos entran a puntuar (pool.ts), para que no vuelvan a divergir.
+const MAX_CANDIDATOS = STOCK_FINALISTS;
 
 function pieDeFoto(c: BeatCandidate): string {
   const meta = (c.meta ?? {}) as Record<string, unknown>;

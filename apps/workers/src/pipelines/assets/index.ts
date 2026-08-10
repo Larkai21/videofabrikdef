@@ -48,6 +48,7 @@ import {
   type StockResult,
 } from '../../providers/stock.js';
 import { directBroll } from './broll-director.js';
+import { STOCK_FINALISTS } from './pool.js';
 import { directChapters } from './chapter-director.js';
 import { downloadWithCap } from './download.js';
 import { directEdits } from './editing-director.js';
@@ -67,14 +68,21 @@ import { extractCaptionJpeg } from '../library/media.js';
 // timeline (ingest). No hay tier de generación de imagen: el cuerpo del vídeo
 // no lleva imágenes hechas por IA.
 
-const LIB_CANDIDATES = 6;
-// Cuántos resultados de stock entran a puntuar. Bajarlo estrecha la elección;
-// lo que de verdad ahorra es CAPTION_TOP_K, que no la estrecha.
-const STOCK_FINALISTS = 6;
-// Cuántos de esos finalistas se describen con el modelo de visión. El resto se
-// puntúa con el título del proveedor: siguen compitiendo, solo que con un texto
-// peor. Es donde estaba el 77 % del coste de un vídeo.
-const CAPTION_TOP_K = 4;
+const LIB_CANDIDATES = 8;
+/**
+ * Cuántos de esos finalistas se describen con el modelo de visión: TODOS.
+ *
+ * El presupuesto de 4 era reliquia de cuando el caption era el 77 % del coste
+ * del vídeo; el gasto histórico total del canal es 3,22 $ y el caption vale
+ * 0,0005 $. Lo que costaba de verdad era la ceguera: el juez de planos —la
+ * única señal con precisión medida, 24/25— decide LEYENDO pies de foto, y a
+ * 2 de cada 6 finalistas les llegaba con el título del proveedor, que en los
+ * vídeos de Pexels es el slug de la URL (~2 palabras). Peor aún: la
+ * preselección de a quién pagar caption (`topByTitleCosine`) ordenaba por esos
+ * mismos slugs, o sea casi al azar. Techo nuevo: ~45 planos × 10 × 0,0005 $ ≈
+ * 0,22 $/vídeo en primera pasada, que caption_cache hunde en régimen.
+ */
+const CAPTION_TOP_K = 10;
 
 /**
  * Los `k` candidatos que más se parecen a la query según su TÍTULO, para
@@ -135,7 +143,7 @@ async function presupuestarCaptions(
   return [...top(clips, plazas.clips), ...top(imagenes, plazas.imagenes)];
 }
 
-const ALTERNATES = 4;
+const ALTERNATES = 6;
 // coseno de contenido por encima del cual dos clips se consideran "el mismo
 // plano" y no deben caer en beats contiguos aunque sean refs distintos
 const ADJACENT_DEDUPE_COS = 0.9;
