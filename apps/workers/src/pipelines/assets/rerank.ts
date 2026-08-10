@@ -67,6 +67,12 @@ export interface RerankResult {
   /** sub-planos en los que el juez dice que NINGÚN candidato pega */
   sinPlano: Set<string>;
   /**
+   * Sub-planos donde el juez AFIRMÓ un candidato (elegido válido ≥1, incluido
+   * «dejar el primero»). Es la señal positiva que permite dar el verde con
+   * lectura en vez de con el umbral ciego; un índice inventado no confirma.
+   */
+  confirmados: Set<string>;
+  /**
    * false si la llamada LLM falló o no había nada que juzgar: «el juez no
    * vetó nada» y «el juez no llegó a mirar» son cosas distintas — el b-roll
    * sigue con su orden en ambos casos, pero un inserto SIN juez no debe
@@ -135,6 +141,7 @@ export function aplicarVeredicto(
 ): RerankResult {
   const orden = new Map<string, BeatCandidate[]>();
   const sinPlano = new Set<string>();
+  const confirmados = new Set<string>();
   for (const v of veredicto) {
     const plano = planos[v.idx];
     if (!plano || plano.candidates.length === 0) continue;
@@ -146,10 +153,11 @@ export function aplicarVeredicto(
     const elegido = plano.candidates[v.elegido - 1];
     // fuera de rango: el juez se inventó un número. No se toca ese plano.
     if (!elegido) continue;
+    confirmados.add(clave);
     if (elegido === plano.candidates[0]) continue; // ya estaba primero
     orden.set(clave, [elegido, ...plano.candidates.filter((c) => c !== elegido)]);
   }
-  return { orden, sinPlano, juzgado: true };
+  return { orden, sinPlano, confirmados, juzgado: true };
 }
 
 /**
@@ -171,7 +179,12 @@ export async function rerankBeats(
     minCandidatos?: number;
   },
 ): Promise<RerankResult> {
-  const vacio: RerankResult = { orden: new Map(), sinPlano: new Set(), juzgado: false };
+  const vacio: RerankResult = {
+    orden: new Map(),
+    sinPlano: new Set(),
+    confirmados: new Set(),
+    juzgado: false,
+  };
   const conCandidatos = params.planos.filter(
     (p) => p.candidates.length >= (params.minCandidatos ?? 2),
   );

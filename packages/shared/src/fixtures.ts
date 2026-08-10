@@ -33,6 +33,7 @@ export const demoProfile: ChannelProfile = {
     stock_query_lang: 'en',
     banned: ['clickbait vacío', 'AGI mañana'],
     broll_imagenes_max_pct: RATIO_IMAGENES_MAX,
+    broll_juez_aprueba: false,
   },
   voice: { provider: 'edge', voice_id: 'es-ES-AlvaroNeural', rate: '-8%' },
   title_patterns: [

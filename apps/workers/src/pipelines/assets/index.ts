@@ -991,11 +991,19 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
           candidates: v.candidates,
         })),
       );
-    const { orden, sinPlano } = await rerankBeats(ctx, {
+    const { orden, sinPlano, confirmados } = await rerankBeats(ctx, {
       videoId,
       channelId: video.channelId,
       planos,
     });
+    // El visto bueno del juez puede dar el verde (flag por canal). T_AUTO está
+    // descalibrado y no se corrige moviendo el número (constants.ts): con la
+    // fuga cerrada, ~6/35 beats salen auto_ok y el humano revisa casi todo. El
+    // juez LEE con precisión medida (24/25), así que su confirmación —con el
+    // suelo de T_REV sobre el coseno crudo, para que un caption convincente de
+    // un plano lejanísimo no cuele— es mejor puerta que el umbral ciego. Si el
+    // juez no llegó a mirar (juzgado=false, confirmados vacío), nada cambia.
+    const juezAprueba = channel?.profile?.style.broll_juez_aprueba === true;
     for (const b of frescos) {
       if (!b.visuals || b.visuals.length === 0) continue;
       let tocado = false;
@@ -1003,7 +1011,16 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
         const clave = `${b.idx}:${vIdx}`;
         const nuevo = orden.get(clave);
         const rechazado = sinPlano.has(clave);
-        if (!nuevo && !rechazado) return v;
+        // verde por lectura: el juez afirmó un candidato y su coseno crudo no
+        // está por debajo del suelo de viabilidad
+        const primero = (nuevo ?? v.candidates)[0];
+        const aprueba =
+          juezAprueba &&
+          confirmados.has(clave) &&
+          v.status === 'review' &&
+          primero !== undefined &&
+          primero.score >= T_REV;
+        if (!nuevo && !rechazado && !aprueba) return v;
         tocado = true;
         return {
           ...v,
@@ -1021,6 +1038,7 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
           // hay plan B y un hueco vacío no se renderiza. Lo que hace es
           // quitarle el verde, para que ese plano lo mire el humano sí o sí.
           ...(rechazado ? { status: 'review' as const } : {}),
+          ...(aprueba && !rechazado ? { status: 'auto_ok' as const } : {}),
         };
       });
       if (!tocado) continue;
@@ -1037,7 +1055,9 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
           chosenOrigin: principal.chosen_origin,
           chosenScore: principal.chosen_score,
           assetId: principal.asset_id,
-          ...(algunoEnRevision ? { status: 'review' as const } : {}),
+          // el estado del beat sigue a sus sub-planos en las dos direcciones:
+          // si el juez los dejó todos en verde, el beat también
+          ...(algunoEnRevision ? { status: 'review' as const } : { status: 'auto_ok' as const }),
           ...(sinPlano.has(`${b.idx}:0`)
             ? { discardReason: 'ningún plano ilustra lo que se dice' }
             : {}),

@@ -54,6 +54,16 @@ export const channelProfileV1 = z.object({
      * se quedaría literalmente sin plano.
      */
     broll_imagenes_max_pct: z.number().min(0).max(1).default(RATIO_IMAGENES_MAX),
+    /**
+     * Si el visto bueno del juez de planos da el verde (auto_ok) al sub-plano.
+     *
+     * T_AUTO está descalibrado y documentado como no-corregible moviendo el
+     * número (constants.ts): hoy ~6/35 beats salen en verde y el humano revisa
+     * casi todo. El juez lee los pies de foto con precisión medida (24/25 sin
+     * disparate), así que su confirmación es mejor puerta que un umbral ciego.
+     * Off por defecto: se enciende por canal cuando sus números lo respalden.
+     */
+    broll_juez_aprueba: z.boolean().default(false),
   }),
   voice: z.object({
     provider: z.enum(['edge', 'elevenlabs']),

@@ -88,3 +88,23 @@ describe('buildRerankPrompt', () => {
     expect(buildRerankPrompt([PLANO]).user).toContain('Reglamento Europeo de IA');
   });
 });
+
+describe('confirmados', () => {
+  // La señal positiva de la fase 2: con broll_juez_aprueba, un plano
+  // CONFIRMADO por el juez (y con coseno ≥ T_REV) pasa a verde. Confirmar es
+  // afirmar un candidato válido — incluido «dejar el primero»; un índice
+  // inventado o un veto no confirman nada.
+  it('afirmar un candidato confirma, incluido dejar el primero', () => {
+    expect(aplicarVeredicto([PLANO], [{ idx: 0, elegido: 1 }]).confirmados.has('1:0')).toBe(true);
+    expect(aplicarVeredicto([PLANO], [{ idx: 0, elegido: 3 }]).confirmados.has('1:0')).toBe(true);
+  });
+
+  it('ni el veto ni un índice inventado confirman', () => {
+    expect(aplicarVeredicto([PLANO], [{ idx: 0, elegido: 0 }]).confirmados.size).toBe(0);
+    expect(aplicarVeredicto([PLANO], [{ idx: 0, elegido: 9 }]).confirmados.size).toBe(0);
+  });
+
+  it('un plano no mencionado no queda confirmado', () => {
+    expect(aplicarVeredicto([PLANO], [{ idx: 7, elegido: 1 }]).confirmados.size).toBe(0);
+  });
+});
