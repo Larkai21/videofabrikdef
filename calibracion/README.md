@@ -45,3 +45,21 @@ Porque hasta el 31-jul-2026 la puerta de curación no funcionaba: el humano
 elegía, la API respondía `ok` y la ingesta descargaba igualmente el candidato de
 la máquina. De 181 beats «curados» en producción no salió ni un descarte. Estas
 25 etiquetas son las primeras que existen.
+
+## Estado 7-ago-2026 (arranque del plan de matching)
+
+Línea base tomada antes de medir las fases en producción:
+
+- Banco de reglas: pipeline 13/24 · 17/25 sin disparate (sin cambios tras
+  ensanchar el pool: la fase 1 no toca la señal de ordenación).
+- Juez con el PROMPT REAL del pipeline (el banco usaba una copia): 21-24/25
+  según corrida — la varianza entre corridas de gpt-5-mini cubre ese rango, así
+  que diferencias de ±3 no se leen como señal.
+- Curva de pares: AUC 0,531 con 12 etiquetas (8 s / 4 n). `pares.jsonl`
+  reampliado a 182 pares (34 consultas); las 12 etiquetas sobreviven.
+  La variante `curva --pasaje` (asimetría e5) da hoy el mismo AUC: con 12
+  muestras no distingue nada — se relee tras la sesión de etiquetado.
+- Producción: `planos-produccion.jsonl` aún vacío; se llena con
+  `exportar-etiquetas.ts` sobre vídeos curados CON OJOS (nunca aprobados en
+  bloque) cuando la pila esté levantada.
+

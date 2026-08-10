@@ -175,11 +175,17 @@ async function curva(): Promise<void> {
     .filter((e) => e.etiqueta !== 'd');
 
   const embeddings = createEmbeddings(console as never);
+  // --pasaje: experimento A del plan de matching — captions con prefijo
+  // 'passage: ' (asimetría e5) en vez del 'query: ' uniforme de producción.
+  // Solo cambia cómo se MIDE aquí; adoptarlo exigiría re-embeber la biblioteca.
+  const pasaje = process.argv.includes('--pasaje');
+  if (pasaje) console.log('(variante: captions con prefijo passage:)');
   const muestras: Array<{ cos: number; bueno: boolean }> = [];
   for (const e of etiquetas) {
     const p = pares.get(e.par_id);
     if (!p) continue;
-    const [q, c] = await embeddings.embed([p.query, p.caption]);
+    const [q] = await embeddings.embed([p.query]);
+    const [c] = await embeddings.embed([p.caption], pasaje ? 'passage' : 'query');
     if (!q || !c) continue;
     let dot = 0;
     for (let i = 0; i < q.length; i += 1) dot += (q[i] ?? 0) * (c[i] ?? 0);

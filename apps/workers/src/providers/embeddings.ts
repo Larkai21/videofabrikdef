@@ -31,7 +31,14 @@ import { REPO_ROOT } from '../lib/env.js';
 export interface EmbeddingsProvider {
   // clave del proveedor tal y como se configura en EMBEDDINGS_PROVIDER
   readonly name: 'fastembed' | 'hash';
-  embed(texts: string[]): Promise<number[][]>;
+  /**
+   * `prefijo` es EXPERIMENTAL: solo lo usa el banco de calibración (curva
+   * --pasaje) para medir si la asimetría query:/passage: de e5 separa mejor
+   * que el uniforme. Producción entera embebe con el defecto ('query'), que es
+   * lo que la model card recomienda para tareas simétricas. NO usar 'passage'
+   * en producción sin re-embeber la biblioteca entera: mezclaría dos espacios.
+   */
+  embed(texts: string[], prefijo?: 'query' | 'passage'): Promise<number[][]>;
   // backend efectivo (tras la primera carga) para logs y verificación
   describe(): { backend: 'e5-transformers' | 'hash'; model: string; dims: number };
 }
@@ -93,11 +100,12 @@ export interface BatchedEmbedderOptions {
 // un vector unitario es inocuo y protege frente a backends que no lo hagan).
 export function createBatchedEmbedder(
   opts: BatchedEmbedderOptions,
-): (texts: string[]) => Promise<number[][]> {
+): (texts: string[], prefijoOverride?: string) => Promise<number[][]> {
   const { embedBatch, batchSize, dims, prefix } = opts;
-  return async (texts: string[]): Promise<number[][]> => {
+  return async (texts: string[], prefijoOverride?: string): Promise<number[][]> => {
     if (texts.length === 0) return [];
-    const prefixed = prefix ? texts.map((t) => `${prefix}${t}`) : texts;
+    const efectivo = prefijoOverride ?? prefix;
+    const prefixed = efectivo ? texts.map((t) => `${efectivo}${t}`) : texts;
     const out: number[][] = [];
     for (const batch of chunk(prefixed, batchSize)) {
       const vectors = await embedBatch(batch);
@@ -129,7 +137,8 @@ class HashEmbeddings implements EmbeddingsProvider {
     return { backend: 'hash', model: HASH_MODEL_ID, dims: EMBEDDING_DIMS };
   }
 
-  async embed(texts: string[]): Promise<number[][]> {
+  // el hash ignora el prefijo: no hay dos espacios que distinguir
+  async embed(texts: string[], _prefijo: 'query' | 'passage' = 'query'): Promise<number[][]> {
     return texts.map((text) => {
       const vec = new Array<number>(EMBEDDING_DIMS).fill(0);
       const tokens = text
@@ -183,7 +192,9 @@ function embeddingsCacheDir(): string {
 // con el .env existente, backend transformers.js + multilingual-e5-small.
 class MultilingualE5Embeddings implements EmbeddingsProvider {
   readonly name = 'fastembed' as const;
-  private loadPromise: Promise<((texts: string[]) => Promise<number[][]>) | null> | null = null;
+  private loadPromise: Promise<
+    ((texts: string[], prefijoOverride?: string) => Promise<number[][]>) | null
+  > | null = null;
   private readonly hash = new HashEmbeddings();
   private degraded = false;
   private warned = false;
@@ -196,7 +207,9 @@ class MultilingualE5Embeddings implements EmbeddingsProvider {
       : { backend: 'e5-transformers', model: E5_MODEL_ID, dims: EMBEDDING_DIMS };
   }
 
-  private async load(): Promise<((texts: string[]) => Promise<number[][]>) | null> {
+  private async load(): Promise<
+    ((texts: string[], prefijoOverride?: string) => Promise<number[][]>) | null
+  > {
     this.loadPromise ??= (async () => {
       for (const spec of TRANSFORMERS_MODULES) {
         let mod: TransformersModule;
@@ -245,7 +258,7 @@ class MultilingualE5Embeddings implements EmbeddingsProvider {
     return loaded;
   }
 
-  async embed(texts: string[]): Promise<number[][]> {
+  async embed(texts: string[], prefijo: 'query' | 'passage' = 'query'): Promise<number[][]> {
     if (texts.length === 0) return [];
     const embedder = await this.load();
     if (!embedder) {
@@ -268,7 +281,7 @@ class MultilingualE5Embeddings implements EmbeddingsProvider {
       }
       return this.hash.embed(texts);
     }
-    return embedder(texts);
+    return embedder(texts, prefijo === 'passage' ? E5_PASSAGE_PREFIX : E5_QUERY_PREFIX);
   }
 }
 
