@@ -3,6 +3,8 @@ import { nanoid } from 'nanoid';
 import type pino from 'pino';
 import { captionCache, stockCache, type Db } from '@fabrica/db';
 import { MAX_QUERY_CHARS, STOCK_CACHE_TTL_H, stockRef } from '@fabrica/shared';
+import { STOCK_FINALISTS } from '../pipelines/assets/pool.js';
+import { searchWikimedia, SIN_ATRIBUCION } from './wikimedia.js';
 import { closeCost, failCost, openCost } from '../lib/ledger.js';
 
 // Búsqueda de stock (docs/assets-y-biblioteca.md §3): Pexels (vídeos y fotos)
@@ -21,7 +23,9 @@ export interface StockMeta {
 
 export interface StockResult {
   ref: string;
-  provider: 'pexels' | 'pixabay';
+  // 'wikimedia' solo aparece cuando el stock comercial se queda corto: imágenes
+  // PD/CC0 de Commons como red, nunca como fuente principal (ver searchStock)
+  provider: 'pexels' | 'pixabay' | 'wikimedia';
   thumb_url: string;
   meta: StockMeta;
 }
@@ -293,7 +297,26 @@ export async function searchStock(
     searchPexels(db, logger, query, ids),
     searchPixabay(db, logger, query, ids),
   ]);
-  return [...pexels, ...pixabay];
+  const comercial = [...pexels, ...pixabay];
+  // Wikimedia Commons como RED, no como fuente principal: solo cuando el stock
+  // comercial no llena el pool de finalistas — consultas de nicho (hardware
+  // concreto, hechos históricos, diagramas) donde Pexels devuelve genérico o
+  // nada. Solo PD/CC0: `assets` no guarda crédito y llevar la atribución de un
+  // b-roll hasta description.txt es plomería que no compensa (mismo criterio
+  // por el que se descartó Coverr, cuya licencia gratuita exige crédito). Los
+  // insertos siguen usando el rango completo de licencias: su crédito se pinta
+  // en el propio recuadro.
+  if (comercial.length >= STOCK_FINALISTS) return comercial;
+  try {
+    const commons = await searchWikimedia(db, logger, query);
+    const sinAtribucion = commons.filter(
+      (c) => SIN_ATRIBUCION.test(c.meta.license) || c.meta.credit === '',
+    );
+    return [...comercial, ...sinAtribucion];
+  } catch (err) {
+    logger.warn({ err, query }, 'Commons como red de b-roll falló; se sigue sin él');
+    return comercial;
+  }
 }
 
 /**

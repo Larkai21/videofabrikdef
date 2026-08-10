@@ -172,6 +172,7 @@ function originLabel(cand: BeatCandidate): string {
   // legado: ya no se generan imágenes, pero hay beats y maestros antiguos que
   // guardan candidatos con este proveedor y hay que saber etiquetarlos
   if (cand.provider === 'flux') return 'Generado · Flux';
+  if (cand.provider === 'wikimedia') return `Commons · imagen ${cand.ref.split(':')[2] ?? ''}`;
   const id = cand.ref.split(':')[2] ?? cand.ref;
   const isPhoto = cand.ref.includes(':photo:');
   const label = cand.provider === 'pexels' ? 'Pexels' : 'Pixabay';

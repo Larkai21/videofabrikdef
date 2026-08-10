@@ -103,6 +103,20 @@ la fila en memoria tiene los candidatos vacíos.
 - El fit se guarda en el maestro y el render lo ejecuta tal cual. La ingesta lo
   recalcula SIEMPRE con la duración real del archivo descargado.
 
+### Commons como red del b-roll
+
+Cuando Pexels+Pixabay no llenan el pool de finalistas (consultas de nicho:
+hardware concreto, hechos históricos, diagramas), `searchStock` añade imágenes
+de Wikimedia Commons **solo PD/CC0**: `assets` no guarda crédito y llevar la
+atribución de un b-roll hasta description.txt es plomería que no compensa. Los
+insertos siguen con el rango completo de licencias porque su crédito se pinta
+en el propio recuadro.
+
+Con el mismo criterio se evaluó y descartó **Coverr** (ago-2026): API real y
+bien documentada (api.coverr.co, 2.000 req/h en producción), pero su licencia
+gratuita exige atribución — la misma plomería. Si algún día se paga Coverr+,
+la integración es calcar `searchPixabay`.
+
 ## 5b. Insertos de referencia (Wikimedia Commons)
 
 Fuera de la cascada de b-roll vive el INSERTO: la intención `inserto` del guion

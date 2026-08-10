@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parsePage } from './wikimedia.js';
+import { parsePage, SIN_ATRIBUCION } from './wikimedia.js';
 
 function page(over: {
   license?: string;
@@ -63,5 +63,23 @@ describe('parsePage — el filtro de licencias que protege al canal', () => {
   it('limpia el HTML de la descripción y la corta', () => {
     const r = parsePage(page({ description: '<b>Die shot</b> of the <i>chip</i>' }));
     expect(r!.meta.caption).toBe('Die shot of the chip');
+  });
+});
+
+describe('SIN_ATRIBUCION', () => {
+  // La red de b-roll de searchStock solo admite licencias sin crédito exigible:
+  // assets no guarda atribución y llevarla a description.txt es plomería que no
+  // compensa (mismo criterio por el que se descartó Coverr). Los insertos
+  // siguen con el rango completo: su crédito se pinta en el propio recuadro.
+  it('deja pasar PD y CC0', () => {
+    for (const l of ['Public domain', 'PD', 'CC0', 'CC0 1.0']) {
+      expect(SIN_ATRIBUCION.test(l), l).toBe(true);
+    }
+  });
+
+  it('frena todo CC BY: exige crédito', () => {
+    for (const l of ['CC BY 4.0', 'CC BY-SA 4.0', 'CC BY-SA 3.0']) {
+      expect(SIN_ATRIBUCION.test(l), l).toBe(false);
+    }
   });
 });

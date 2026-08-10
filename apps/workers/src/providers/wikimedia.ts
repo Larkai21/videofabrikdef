@@ -43,7 +43,7 @@ const API = 'https://commons.wikimedia.org/w/api.php';
 
 // nombres cortos tal como llegan en extmetadata.LicenseShortName
 const LICENSE_OK = /^(public domain|pd|cc0|cc[ -]by(?:[ -]sa)?[ -]?\d(?:\.\d)?)/i;
-const SIN_ATRIBUCION = /^(public domain|pd|cc0)/i;
+export const SIN_ATRIBUCION = /^(public domain|pd|cc0)/i;
 
 function stripHtml(s: string): string {
   return (

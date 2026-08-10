@@ -259,7 +259,7 @@ export const assets = pgTable(
     channelId: text('channel_id').references(() => channels.id),
     kind: text('kind').notNull(), // clip|image|music|screenshot|upload
     path: text('path').notNull(),
-    source: text('source').notNull(), // pexels|pixabay|flux|playwright|upload
+    source: text('source').notNull(), // pexels|pixabay|wikimedia|flux|playwright|upload
     sourceRef: text('source_ref'),
     license: text('license').notNull(),
     durationMs: integer('duration_ms'),
