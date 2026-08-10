@@ -54,7 +54,7 @@ import { downloadWithCap } from './download.js';
 import { directEdits } from './editing-director.js';
 import { resolverInsertos } from './insertos.js';
 import { pickFinalists, repartirPlazas } from './finalists.js';
-import { rerankBeats } from './rerank.js';
+import { claveDe, proponerReconsultas, rerankBeats, type RerankPlano } from './rerank.js';
 import { computeFit, kenburnsEffect } from './fit.js';
 import { trocearCongelado } from './trocear.js';
 import { cosEfectivo, identityRefs, selectPick, type PoolEntry } from './pick.js';
@@ -1069,6 +1069,159 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
         { videoId, reordenados: orden.size, sinPlano: sinPlano.size, planos: planos.length },
         'El juez de planos reordenó finalistas',
       );
+    }
+
+    // Re-consulta dirigida por el veto: UN reintento para los planos en los
+    // que el juez dijo «ninguno pega». El veto casi siempre significa que la
+    // CONSULTA falló, no el archivo, y quien acaba de leer los candidatos
+    // malos es quien mejor sabe qué pedir. La propuesta va en una llamada
+    // APARTE del veredicto (ver proponerReconsultas: así el prompt del
+    // veredicto queda byte-idéntico al del banco). Sin esto, el veto termina en «este plano
+    // míralo tú», que está bien — pero rescatar 1-2 planos por vídeo con una
+    // búsqueda cacheada y ≤10 captions es más barato que un minuto de curación.
+    const vetadosParaReconsulta = planos.filter((p) => sinPlano.has(claveDe(p)));
+    const reconsultas = await proponerReconsultas(ctx, {
+      videoId,
+      channelId: video.channelId,
+      planos: vetadosParaReconsulta,
+    });
+    if (reconsultas.size > 0) {
+      const rescatados: RerankPlano[] = [];
+      for (const b of frescos) {
+        if (b.status === 'locked' || !b.visuals || b.visuals.length === 0) continue;
+        let tocado = false;
+        const visuals = [...b.visuals];
+        for (let vIdx = 0; vIdx < visuals.length; vIdx += 1) {
+          const clave = `${b.idx}:${vIdx}`;
+          const alt = reconsultas.get(clave);
+          if (alt === undefined) continue;
+          const v = visuals[vIdx]!;
+          try {
+            const r = await resolveOneVisual(deps, {
+              beatIdx: b.idx,
+              vIdx,
+              query: alt,
+              spanMs: v.to_ms - v.from_ms,
+              // lo que el juez acaba de rechazar no puede volver a proponerse
+              vetoedRefs: new Set(v.candidates.map((c) => c.ref)),
+              refsEsteBeat: new Set(
+                visuals.flatMap((otro, k) =>
+                  k === vIdx ? [] : (otro.candidates[0]?.ref ? [otro.candidates[0].ref] : []),
+                ),
+              ),
+            });
+            visuals[vIdx] = {
+              ...v,
+              visual_query: alt,
+              status: r.status,
+              candidates: r.candidates,
+              fit: r.fit,
+              chosen_origin: originLabel(r.candidates[0]!),
+              chosen_score: r.candidates[0]!.score,
+              asset_id: r.libAssetId,
+            };
+            tocado = true;
+            rescatados.push({
+              beatIdx: b.idx,
+              vIdx,
+              text: b.text,
+              query: alt,
+              candidates: r.candidates,
+            });
+          } catch (err) {
+            // sin candidatos ni con la consulta nueva: se queda en review con
+            // su discardReason, exactamente como si no hubiera reintento
+            logger.warn({ err, videoId, beat: b.idx, vIdx, alt }, 'La re-consulta no rescató');
+          }
+        }
+        if (!tocado) continue;
+        const principal = visuals[0]!;
+        b.visuals = visuals;
+        await db
+          .update(beatsTable)
+          .set({
+            visuals,
+            candidates: principal.candidates,
+            chosenOrigin: principal.chosen_origin,
+            chosenScore: principal.chosen_score,
+            assetId: principal.asset_id,
+            // el plano principal rescatado limpia el motivo de descarte; el
+            // segundo juez decidirá si el rescate se sostiene
+            ...(reconsultas.has(`${b.idx}:0`) ? { discardReason: null } : {}),
+          })
+          .where(and(eq(beatsTable.id, b.id), ne(beatsTable.status, 'locked')));
+      }
+
+      // Segundo juez, SOLO sobre los rescatados: si el rescate tampoco pega,
+      // vuelve a review con su motivo. Un único round a propósito — un bucle
+      // de re-consultas es un job que no termina.
+      if (rescatados.length > 0) {
+        const segundo = await rerankBeats(ctx, {
+          videoId,
+          channelId: video.channelId,
+          planos: rescatados,
+        });
+        for (const b of frescos) {
+          if (b.status === 'locked' || !b.visuals || b.visuals.length === 0) continue;
+          let tocado = false;
+          const visuals = b.visuals.map((v, vIdx) => {
+            const clave = `${b.idx}:${vIdx}`;
+            if (!rescatados.some((r) => r.beatIdx === b.idx && r.vIdx === vIdx)) return v;
+            const nuevo = segundo.orden.get(clave);
+            const rechazado = segundo.sinPlano.has(clave);
+            const primero = (nuevo ?? v.candidates)[0];
+            const aprueba =
+              juezAprueba &&
+              segundo.confirmados.has(clave) &&
+              primero !== undefined &&
+              primero.score >= T_REV;
+            if (!nuevo && !rechazado && !aprueba) return v;
+            tocado = true;
+            return {
+              ...v,
+              ...(nuevo
+                ? {
+                    candidates: nuevo,
+                    chosen_origin: originLabel(nuevo[0]!),
+                    chosen_score: nuevo[0]!.score,
+                    asset_id: libIdDe(nuevo[0]!),
+                  }
+                : {}),
+              ...(rechazado ? { status: 'review' as const } : {}),
+              ...(aprueba && !rechazado ? { status: 'auto_ok' as const } : {}),
+            };
+          });
+          if (!tocado) continue;
+          const principal = visuals[0]!;
+          const algunoEnRevision = visuals.some((v) => v.status !== 'auto_ok');
+          b.visuals = visuals;
+          await db
+            .update(beatsTable)
+            .set({
+              visuals,
+              candidates: principal.candidates,
+              chosenOrigin: principal.chosen_origin,
+              chosenScore: principal.chosen_score,
+              assetId: principal.asset_id,
+              ...(algunoEnRevision
+                ? { status: 'review' as const }
+                : { status: 'auto_ok' as const }),
+              ...(segundo.sinPlano.has(`${b.idx}:0`)
+                ? { discardReason: 'ningún plano ilustra lo que se dice' }
+                : {}),
+            })
+            .where(and(eq(beatsTable.id, b.id), ne(beatsTable.status, 'locked')));
+        }
+        logger.info(
+          {
+            videoId,
+            reconsultas: reconsultas.size,
+            rescatados: rescatados.length,
+            vetadosDeNuevo: segundo.sinPlano.size,
+          },
+          'Re-consulta dirigida por el veto',
+        );
+      }
     }
   }
 

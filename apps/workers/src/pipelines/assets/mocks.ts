@@ -131,6 +131,12 @@ export function buildMockRerank(mockContext: Record<string, unknown>): {
 export function registerAssetsMocks(): void {
   registerMockOp('broll_director', ({ mockContext }) => buildMockBroll(mockContext));
   registerMockOp('broll_rerank', ({ mockContext }) => buildMockRerank(mockContext));
+  // determinista: propone una variación de la consulta vetada, que es lo único
+  // que el contrato exige (distinta de la original y no vacía)
+  registerMockOp('broll_requery', ({ mockContext }) => {
+    const planos = (mockContext.planos as { idx: number; query: string }[] | undefined) ?? [];
+    return { reconsultas: planos.map((p, i) => ({ idx: i, query: `${p.query} alternativa` })) };
+  });
   registerMockOp('chapter_director', ({ mockContext }) => buildMockChapters(mockContext));
   registerMockOp('editing_director', ({ mockContext }) => buildMockEditing(mockContext));
 }

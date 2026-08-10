@@ -165,6 +165,99 @@ export function aplicarVeredicto(
  * fallo devuelve un resultado vacío: el pipeline sigue con su orden, que es
  * peor pero funciona. Este paso mejora el b-roll; no puede impedirlo.
  */
+/**
+ * Para los planos VETADOS: qué buscaría el juez en su lugar. Llamada SEPARADA
+ * del veredicto a propósito, y no un campo más de su respuesta.
+ *
+ * Se probó la versión a caballo («cuando respondas 0, añade query_alternativa»)
+ * y dio 21/25 con 3 «ninguno» frente a 24/25 con 1 — pero repetir la corrida
+ * SIN la instrucción también dio 21/25: la varianza entre corridas del modelo
+ * cubre ese rango, así que la regresión no quedó demostrada. La separación se
+ * elige por principio, no por esa medida: con llamada aparte el prompt del
+ * veredicto queda byte-idéntico al del banco, y proponer no puede sesgar el
+ * veto porque el veto ya está decidido. Solo se llama cuando hay vetos: 0-3
+ * planos por vídeo, una llamada pequeña.
+ */
+export const requerySchema = z.object({
+  reconsultas: z.array(
+    z.object({
+      idx: z.number().int().nonnegative(),
+      query: z.string(),
+    }),
+  ),
+});
+
+export function buildRequeryPrompt(planos: RerankPlano[]): { system: string; user: string } {
+  const system = [
+    'Eres montador de un canal de YouTube. Para cada plano YA está decidido que',
+    'ninguno de los candidatos de archivo sirve: los tienes como referencia de',
+    'lo que la búsqueda anterior devolvió.',
+    'Propón para cada uno la búsqueda de archivo (3-6 palabras, en el mismo',
+    'idioma que «se buscaba») que TÚ harías para ilustrar esa frase. Pide otra',
+    'cosa, no la misma consulta con sinónimos: ya has visto que no funciona.',
+    'Responde SOLO JSON: {"reconsultas":[{"idx":number,"query":string}]}, con',
+    'idx el número de PLANO tal cual te lo doy.',
+  ].join('\n');
+  const user = planos
+    .map((p, i) => {
+      const vistos = p.candidates
+        .slice(0, MAX_CANDIDATOS)
+        .map((c) => `    - ${pieDeFoto(c)}`)
+        .join('\n');
+      return [
+        `PLANO ${i}`,
+        `  se oye: ${p.text.replace(/\s+/g, ' ').slice(0, 220)}`,
+        `  se buscaba: ${p.query}`,
+        `  lo que devolvió (nada de esto sirve):\n${vistos}`,
+      ].join('\n');
+    })
+    .join('\n\n');
+  return { system, user };
+}
+
+/** Pura, para poder probarla: respuesta del LLM → mapa clave→consulta nueva. */
+export function mapearReconsultas(
+  planos: RerankPlano[],
+  respuesta: { idx: number; query: string }[],
+): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const r of respuesta) {
+    const plano = planos[r.idx];
+    if (!plano) continue;
+    const q = r.query.trim();
+    // una «alternativa» igual a la consulta que ya falló no es alternativa
+    if (q === '' || q.toLowerCase() === plano.query.toLowerCase()) continue;
+    out.set(claveDe(plano), q);
+  }
+  return out;
+}
+
+export async function proponerReconsultas(
+  ctx: WorkerContext,
+  params: { videoId: string; channelId: string; planos: RerankPlano[] },
+): Promise<Map<string, string>> {
+  if (params.planos.length === 0) return new Map();
+  const { system, user } = buildRequeryPrompt(params.planos);
+  try {
+    const data = await ledgeredLlmJson(ctx, {
+      videoId: params.videoId,
+      channelId: params.channelId,
+      op: 'broll_requery',
+      system,
+      user,
+      schema: requerySchema,
+      mockContext: { planos: params.planos.map((p) => ({ idx: p.beatIdx, query: p.query })) },
+    });
+    return mapearReconsultas(params.planos, data.reconsultas);
+  } catch (err) {
+    ctx.logger.warn(
+      { err, videoId: params.videoId },
+      'La propuesta de re-consulta falló; los vetados quedan en revisión',
+    );
+    return new Map();
+  }
+}
+
 export async function rerankBeats(
   ctx: WorkerContext,
   params: {

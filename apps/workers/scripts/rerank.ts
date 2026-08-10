@@ -167,23 +167,23 @@ const LAMBDA = Number(process.env.LAMBDA ?? '0.7');
 async function juezLee(filas: Fila[]): Promise<Map<number, string | null>> {
   const key = process.env.OPENROUTER_API_KEY ?? '';
   if (key === '') throw new Error('Falta OPENROUTER_API_KEY');
-  const bloques = filas.map((f) => {
-    const opciones = f.candidatos
-      .map((c, i) => `    ${i + 1}. [${c.kind}] ${c.caption}`)
-      .join('\n');
-    return `BEAT ${f.beat}\n  se oye: ${f.narracion.replace(/\s+/g, ' ').slice(0, 220)}\n  candidatos:\n${opciones}`;
-  });
-  const system = [
-    'Eres montador de un canal de YouTube. Para cada beat te doy lo que se OYE',
-    'y los pies de foto de los planos de archivo disponibles.',
-    'Elige el plano que un espectador aceptaría como ilustración de esa frase.',
-    'Criterio: que el plano muestre el SUJETO del que se habla, o una escena en',
-    'la que eso ocurriría. No vale que comparta el tema general.',
-    'Si ninguno lo cumple, responde 0. Vale la pena responder 0: un plano que no',
-    'pega se nota más que un plano repetido.',
-    'Responde SOLO JSON: {"beats":[{"idx":number,"elegido":number}]}, con elegido',
-    'entre 1 y el número de candidatos, o 0 si ninguno sirve.',
-  ].join('\n');
+  // El PROMPT REAL del pipeline, no una copia. La copia que hubo aquí midió
+  // 24/25 con un texto parecido-pero-distinto: cada vez que el prompt de
+  // producción cambiara, el banco seguiría midiendo el antiguo sin avisar.
+  const { buildRerankPrompt } = await import('../src/pipelines/assets/rerank.js');
+  const planos = filas.map((f) => ({
+    beatIdx: f.beat,
+    vIdx: 0,
+    text: f.narracion,
+    query: f.query,
+    candidates: f.candidatos.map((c) => ({
+      ref: c.ref,
+      provider: c.provider as 'library' | 'pexels' | 'pixabay' | 'flux' | 'wikimedia',
+      score: c.cos,
+      meta: { kind: c.kind, caption: c.caption },
+    })),
+  }));
+  const { system, user } = buildRerankPrompt(planos);
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
@@ -191,7 +191,7 @@ async function juezLee(filas: Fila[]): Promise<Map<number, string | null>> {
       model: process.env.RERANK_MODEL ?? 'openai/gpt-5-mini',
       messages: [
         { role: 'system', content: system },
-        { role: 'user', content: bloques.join('\n\n') },
+        { role: 'user', content: user },
       ],
       response_format: { type: 'json_object' },
     }),
@@ -203,14 +203,15 @@ async function juezLee(filas: Fila[]): Promise<Map<number, string | null>> {
   };
   if (json.error) throw new Error(json.error.message ?? 'error del proveedor');
   const parsed = JSON.parse(json.choices?.[0]?.message?.content ?? '{}') as {
-    beats?: { idx: number; elegido: number }[];
+    planos?: { idx: number; elegido: number }[];
   };
   console.log(`   (juez: ${json.usage?.total_tokens ?? '?'} tokens)`);
   const out = new Map<number, string | null>();
-  for (const b of parsed.beats ?? []) {
-    const fila = filas.find((f) => f.beat === b.idx);
+  // idx es la POSICIÓN en la lista enviada, como en producción
+  for (const b of parsed.planos ?? []) {
+    const fila = filas[b.idx];
     if (!fila) continue;
-    out.set(b.idx, b.elegido >= 1 ? (fila.candidatos[b.elegido - 1]?.ref ?? null) : null);
+    out.set(fila.beat, b.elegido >= 1 ? (fila.candidatos[b.elegido - 1]?.ref ?? null) : null);
   }
   return out;
 }

@@ -1,6 +1,6 @@
 import type { BeatCandidate } from '@fabrica/shared';
 import { describe, expect, it } from 'vitest';
-import { aplicarVeredicto, buildRerankPrompt, type RerankPlano } from './rerank.js';
+import { aplicarVeredicto, buildRerankPrompt, mapearReconsultas, type RerankPlano } from './rerank.js';
 
 function cand(ref: string, caption: string): BeatCandidate {
   return { ref, provider: 'pexels', score: 0.82, meta: { kind: 'clip', caption } };
@@ -106,5 +106,25 @@ describe('confirmados', () => {
 
   it('un plano no mencionado no queda confirmado', () => {
     expect(aplicarVeredicto([PLANO], [{ idx: 7, elegido: 1 }]).confirmados.size).toBe(0);
+  });
+});
+
+describe('mapearReconsultas', () => {
+  // La propuesta va en llamada SEPARADA del veredicto: así el prompt del
+  // veredicto queda byte-idéntico al medido en el banco, y proponer no puede
+  // volver el 0 más atractivo — cuando se pregunta, el veto ya está decidido.
+  it('mapea la propuesta a la clave del plano', () => {
+    const out = mapearReconsultas([PLANO], [{ idx: 0, query: 'courtroom gavel closeup' }]);
+    expect(out.get('1:0')).toBe('courtroom gavel closeup');
+  });
+
+  it('una «alternativa» igual a la consulta que ya falló no cuenta', () => {
+    const out = mapearReconsultas([PLANO], [{ idx: 0, query: 'Open Legal Report on Desk' }]);
+    expect(out.size).toBe(0);
+  });
+
+  it('un idx inventado o una consulta vacía se ignoran', () => {
+    expect(mapearReconsultas([PLANO], [{ idx: 7, query: 'da igual' }]).size).toBe(0);
+    expect(mapearReconsultas([PLANO], [{ idx: 0, query: '   ' }]).size).toBe(0);
   });
 });

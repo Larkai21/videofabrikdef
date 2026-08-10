@@ -31,6 +31,9 @@ export const COST_OPERATIONS = [
   // relectura de los finalistas por un modelo que LEE los pies de foto: el
   // coseno mete los seis candidatos de un beat en 0,037 y no los separa
   'broll_rerank',
+  // qué buscar en lugar de una consulta cuyo pool entero vetó el juez; llamada
+  // aparte del veredicto para no volverlo veto-feliz (medido en el banco)
+  'broll_requery',
   'chapter_director',
   'editing_director',
   // elige qué fragmentos del vídeo largo funcionan solos como short vertical
