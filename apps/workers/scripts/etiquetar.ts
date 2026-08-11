@@ -107,6 +107,17 @@ function yaEtiquetados(): Set<string> {
 }
 
 async function etiquetar(): Promise<void> {
+  // El prompt del harness de agentes ejecuta comandos SIN stdin interactivo:
+  // la primera pregunta quedaba colgada y Node moría con «unsettled top-level
+  // await». Mejor decirlo que morir raro.
+  if (!stdin.isTTY) {
+    console.error(
+      'Esta sesión no es interactiva. Abre una terminal normal y corre:
+' +
+        '  cd apps/workers && npx tsx scripts/etiquetar.ts',
+    );
+    process.exit(1);
+  }
   if (!existsSync(PARES)) {
     console.error('No hay pares. Ejecuta primero: etiquetar.ts preparar');
     process.exit(1);
