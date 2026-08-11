@@ -125,7 +125,8 @@ async function backfillAsset(
   const tags = caption === null ? asset.tags : mergeTags(asset.tags, caption);
   // texto canónico compartido con ingesta y reembed (lib/embed-text.ts)
   const embedText = buildAssetEmbedText(caption, asset.originQuery);
-  const [embedding] = embedText === '' ? [null] : await ctx.embeddings.embed([embedText]);
+  const [embedding] =
+    embedText === '' ? [null] : await ctx.embeddings.embed([embedText], 'passage');
 
   const newKind = reclassifyKind(asset.kind, visual);
   const updated = await db

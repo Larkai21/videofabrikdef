@@ -125,6 +125,7 @@ async function reembedRawItems(rt: PhaseRuntime, startAfterId: string | null): P
       .orderBy(asc(rawItems.id))
       .limit(REEMBED_BATCH_SIZE);
     if (rows.length === 0) break;
+    // dominio simétrico (fuente↔idea): 'query' a ambos lados, como la model card
     const vectors = await ctx.embeddings.embed(rows.map(rawItemEmbeddingText));
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
@@ -187,6 +188,7 @@ async function reembedIdeas(rt: PhaseRuntime, startAfterId: string | null): Prom
       }
     }
     if (fallbackTexts.length > 0) {
+      // dominio simétrico (idea↔pilar): 'query' a ambos lados
       const embedded = await ctx.embeddings.embed(fallbackTexts);
       for (let j = 0; j < fallbackIdx.length; j++) {
         const idx = fallbackIdx[j];
@@ -232,7 +234,7 @@ async function reembedAssets(rt: PhaseRuntime, startAfterId: string | null): Pro
       else skipped += 1; // sin caption, query ni tags: no hay nada que embeber
     }
     if (withText.length > 0) {
-      const vectors = await ctx.embeddings.embed(withText.map((w) => w.text));
+      const vectors = await ctx.embeddings.embed(withText.map((w) => w.text), 'passage');
       for (let i = 0; i < withText.length; i++) {
         const entry = withText[i];
         const vec = vectors[i];

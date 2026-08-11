@@ -235,7 +235,8 @@ async function main(): Promise<void> {
   // banco no puede ser el sitio donde se descubra.
   const qv = await embeddings.embed(queries);
   const nv = await embeddings.embed(narraciones);
-  const cv = await embeddings.embed(refs.map((r) => captions.get(r) ?? ''));
+  // captions con 'passage', como producción tras adoptar la asimetría e5
+  const cv = await embeddings.embed(refs.map((r) => captions.get(r) ?? ''), 'passage');
   filas.forEach((f, i) => {
     if (qv[i]) queryVec.set(f.beat, qv[i]!);
     if (nv[i]) queryVec.set(-f.beat - 1, nv[i]!);
@@ -330,7 +331,7 @@ async function seccionProduccion(embeddings: ReturnType<typeof createEmbeddings>
   // secuencial, por el mismo motivo que arriba
   const qv = await embeddings.embed(filasP.map((f) => f.query));
   const nv = await embeddings.embed(filasP.map((f) => f.narracion));
-  const cv = await embeddings.embed(refs.map((r) => captions.get(r) ?? ''));
+  const cv = await embeddings.embed(refs.map((r) => captions.get(r) ?? ''), 'passage');
   filasP.forEach((f, i) => {
     if (qv[i]) queryVec.set(f.beat, qv[i]!);
     if (nv[i]) queryVec.set(-f.beat - 1, nv[i]!);

@@ -394,6 +394,7 @@ async function resolveOneVisual(
     if (vetadosStock.length > 0) {
       const vecs = await ctx.embeddings.embed(
         vetadosStock.map((r) => String(r.meta.caption ?? r.meta.title ?? '')),
+        'passage',
       );
       vetadosStock.forEach((r, i) => {
         const vec = vecs[i];
@@ -427,7 +428,7 @@ async function resolveOneVisual(
       // ya movió el ratio del 83 % al 42 % cuando se arregló el título del clip.
       const sinDescribir = finalists.filter((f) => !f.meta.caption && f.thumb_url);
       const toCaption = await presupuestarCaptions(sinDescribir, qVec, (textos) =>
-        ctx.embeddings.embed(textos),
+        ctx.embeddings.embed(textos, 'passage'),
       );
 
       const handle = await openCost(db, {
@@ -480,7 +481,7 @@ async function resolveOneVisual(
       // el coseno mide caption↔query: incluir la query en el texto embebido
       // inflaría la similitud con sus propios términos
       const texts = finalists.map((f) => String(f.meta.caption ?? f.meta.title ?? ''));
-      const vectors = await ctx.embeddings.embed(texts);
+      const vectors = await ctx.embeddings.embed(texts, 'passage');
       finalists.forEach((finalist, i) => {
         const vec = vectors[i];
         const cosine = vec && texts[i] !== '' ? cosineSimilarity(qVec, vec) : 0;
@@ -1537,9 +1538,10 @@ async function insertIngestedAsset(
   const caption = (meta.caption as string | undefined) ?? String(meta.title ?? '');
   const tags = buildTags(caption);
   // texto canónico compartido con backfill y reembed (lib/embed-text.ts)
-  const [embedding] = await ctx.embeddings.embed([
-    buildAssetEmbedText(caption, target.visualQuery),
-  ]);
+  const [embedding] = await ctx.embeddings.embed(
+    [buildAssetEmbedText(caption, target.visualQuery)],
+    'passage',
+  );
 
   const assetId = nanoid();
   await db.insert(assetsTable).values({

@@ -32,11 +32,18 @@ export interface EmbeddingsProvider {
   // clave del proveedor tal y como se configura en EMBEDDINGS_PROVIDER
   readonly name: 'fastembed' | 'hash';
   /**
-   * `prefijo` es EXPERIMENTAL: solo lo usa el banco de calibración (curva
-   * --pasaje) para medir si la asimetría query:/passage: de e5 separa mejor
-   * que el uniforme. Producción entera embebe con el defecto ('query'), que es
-   * lo que la model card recomienda para tareas simétricas. NO usar 'passage'
-   * en producción sin re-embeber la biblioteca entera: mezclaría dos espacios.
+   * Asimetría e5 ADOPTADA para el dominio de assets (11-ago-2026): las
+   * consultas van con 'query' (defecto) y los captions/títulos de los assets
+   * con 'passage'. Medido en el banco con 182 pares etiquetados: AUC 0,669
+   * uniforme → 0,707 asimétrico, cruzando el 0,70 que la curva fija como «la
+   * señal separa». El margen es fino y NINGÚN umbral da precisión útil ni aun
+   * así (100 % de precisión solo con 5 % de cobertura): el coseno RECUPERA y
+   * ordena; decidir sigue siendo del juez de planos.
+   *
+   * Los dominios simétricos (ideas↔pilares, fuentes, beats) siguen con
+   * 'query' a ambos lados, que es lo que la model card recomienda para ellos.
+   * Tras cambiar el prefijo de un lado hay que re-embeber lo almacenado de ese
+   * dominio (job reembed): mezclar prefijos es mezclar espacios.
    */
   embed(texts: string[], prefijo?: 'query' | 'passage'): Promise<number[][]>;
   // backend efectivo (tras la primera carga) para logs y verificación

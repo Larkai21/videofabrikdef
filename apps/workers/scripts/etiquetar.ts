@@ -185,11 +185,11 @@ async function curva(): Promise<void> {
     .filter((e) => e.etiqueta !== 'd');
 
   const embeddings = createEmbeddings(console as never);
-  // --pasaje: experimento A del plan de matching — captions con prefijo
-  // 'passage: ' (asimetría e5) en vez del 'query: ' uniforme de producción.
-  // Solo cambia cómo se MIDE aquí; adoptarlo exigiría re-embeber la biblioteca.
-  const pasaje = process.argv.includes('--pasaje');
-  if (pasaje) console.log('(variante: captions con prefijo passage:)');
+  // Producción embebe captions con 'passage' desde el 11-ago-2026 (AUC 0,669 →
+  // 0,707 sobre 182 pares). El defecto de la curva mide lo que hace
+  // producción; --uniforme conserva la medida antigua para comparar.
+  const pasaje = !process.argv.includes('--uniforme');
+  if (!pasaje) console.log('(variante: prefijo query: uniforme, lo de antes)');
   const muestras: Array<{ cos: number; bueno: boolean }> = [];
   for (const e of etiquetas) {
     const p = pares.get(e.par_id);

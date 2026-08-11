@@ -63,3 +63,22 @@ Línea base tomada antes de medir las fases en producción:
   `exportar-etiquetas.ts` sobre vídeos curados CON OJOS (nunca aprobados en
   bloque) cuando la pila esté levantada.
 
+## 11-ago-2026 — asimetría e5 adoptada (Exp A del plan)
+
+Sesión de etiquetado completada: **182/182 pares** (12 iniciales + 17 del
+usuario + 153 del agente mirando el fotograma, `quien:
+"agente-fable-mirando-fotograma"` — etiquetados sobre la imagen real, no sobre
+el caption, en hojas de contacto de 9).
+
+- AUC uniforme (`curva --uniforme`): **0,669** — bajo la puerta de 0,70.
+- AUC asimétrico (captions con `passage:`): **0,707** — cruza la puerta.
+- Pero NINGÚN umbral da precisión útil ni aun así: 100 % de precisión solo con
+  5 % de cobertura (t=0,85). Lectura: el coseno RECUPERA y ordena; decidir
+  sigue siendo del juez. T_AUTO/T_REV/T_STOCK siguen descalibrados y ahora
+  además viven en un espacio desplazado (~0,02-0,03 hacia abajo).
+- Banco de reglas bajo el prefijo nuevo: IDÉNTICO (pipeline 13/24 · 17/25) —
+  la asimetría casi no reordena dentro de un beat.
+- Adoptado solo en el dominio de ASSETS (consultas `query:`, captions/títulos
+  `passage:`); ideas/fuentes/beats siguen simétricos. Los 575 assets de la
+  biblioteca, re-embebidos el mismo día.
+
