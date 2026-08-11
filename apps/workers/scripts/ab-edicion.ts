@@ -19,8 +19,8 @@ import {
   type EditingParams,
 } from '../src/pipelines/assets/editing-director.js';
 
-const videoId = process.argv[2];
-if (videoId === undefined) {
+const videoId = process.argv[2] ?? '';
+if (videoId === '') {
   console.error('uso: tsx scripts/ab-edicion.ts <videoId>');
   process.exit(1);
 }

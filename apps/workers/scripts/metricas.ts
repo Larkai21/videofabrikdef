@@ -66,7 +66,10 @@ function parseCsv(text: string): string[][] {
 
 // cabeceras del export en español y en inglés (YouTube las localiza), ya en
 // forma NORMALIZADA (norm() quita tildes y signos antes de comparar)
-const COLS: Record<string, string[]> = {
+// `satisfies` y no `Record<string, …>`: con la anotación ancha, keyof era
+// `string` y noUncheckedIndexedAccess volvía `idx.title` posiblemente
+// undefined — error latente que salió al incluir scripts/ en el typecheck
+const COLS = {
   // la primera columna del export de la pestaña Contenido es el id de 11
   // caracteres. Casar por ahí deja de ser heurístico, pero solo funciona con
   // los vídeos cuyo youtube_id conocemos (los subidos por la API o marcados a
@@ -80,7 +83,7 @@ const COLS: Record<string, string[]> = {
   avg_pct: ['porcentaje medio reproducido', 'average percentage viewed'],
   watch_hours: ['tiempo de visualizacion horas', 'watch time hours'],
   subs: ['suscriptores', 'subscribers'],
-};
+} satisfies Record<string, string[]>;
 
 function findCol(headers: string[], keys: string[]): number {
   return headers.findIndex((h) => keys.includes(norm(h).replace(/\s+/g, ' ')));

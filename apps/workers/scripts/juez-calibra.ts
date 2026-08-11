@@ -193,6 +193,7 @@ for (const f of FIXTURES) {
     }),
   };
   const { data: result } = await llm.completeJson({
+    op: 'judge',
     system,
     user,
     schema: scriptReviewOutputSchema,

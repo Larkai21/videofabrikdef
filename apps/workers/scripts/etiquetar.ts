@@ -112,8 +112,7 @@ async function etiquetar(): Promise<void> {
   // await». Mejor decirlo que morir raro.
   if (!stdin.isTTY) {
     console.error(
-      'Esta sesión no es interactiva. Abre una terminal normal y corre:
-' +
+      'Esta sesión no es interactiva. Abre una terminal normal y corre:\n' +
         '  cd apps/workers && npx tsx scripts/etiquetar.ts',
     );
     process.exit(1);

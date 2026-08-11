@@ -204,6 +204,7 @@ async function preparar(): Promise<void> {
       // el research se rehace CON EL FETCHER ARREGLADO y se congela
       const docs = await downloadSources(logger, idea.sourceRefs ?? [], false);
       const { data: research } = await llm.completeJson({
+        op: 'research',
         system: researchSystem(),
         user: researchUser({ title: idea.title, angle: idea.angle, summary: idea.summary }, docs),
         schema: researchSchema,
