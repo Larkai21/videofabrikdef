@@ -17,6 +17,8 @@ library/assets/
 # previews del brand kit: mp4/png regenerables con `pnpm previews:kit`, y se
 # rehacen con cada cambio de marca. Son datos, no código.
 library/builtin-previews/
+# episodios externos del clipping: media AJENO de GB, jamás al historial
+library/episodes/
 outputs/
 !outputs/.gitkeep
 !library/assets/.gitkeep
