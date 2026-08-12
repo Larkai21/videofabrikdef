@@ -305,11 +305,54 @@ export async function handleTranscribe(
   }
 }
 
+export interface TramoEncuadre {
+  from_ms: number;
+  to_ms: number;
+  x: number | null;
+}
+
 /**
- * Pre-corta el segmento del episodio con el encuadre elegido: ffmpeg como
- * utilidad de ingesta (precedente reducirA1080). El clip queda YA en
- * 1080×1920: el player previsualiza exactamente lo que se renderiza y
- * OffthreadVideo nunca toca el mp4 grande del episodio.
+ * Plan de encuadre por PLANO: cambios de plano (scene detection) + cara más
+ * grande de cada uno (Vision de macOS, sidecar encuadre-clip.py). Se degrada
+ * a un único tramo sin cara —el foco global del humano— si el sidecar falla:
+ * el clip sale igual, solo peor encuadrado, y el plan lo delata.
+ */
+async function planDeEncuadre(
+  mediaPath: string,
+  fromMs: number,
+  toMs: number,
+  log: { warn: (o: unknown, m: string) => void },
+): Promise<TramoEncuadre[]> {
+  const python = process.env.STT_MLX_PYTHON ?? 'python3.12';
+  const script = new URL('../../../scripts/encuadre-clip.py', import.meta.url).pathname;
+  try {
+    const r = await ejec(
+      python,
+      [
+        script,
+        '--input',
+        mediaPath,
+        '--from',
+        (fromMs / 1000).toFixed(3),
+        '--to',
+        (toMs / 1000).toFixed(3),
+      ],
+      { maxBuffer: 16 * 1024 * 1024 },
+    );
+    const plan = (JSON.parse(r.stdout) as { tramos: TramoEncuadre[] }).tramos;
+    if (plan.length > 0) return plan;
+  } catch (err) {
+    log.warn({ err }, 'El plan de encuadre por plano falló; foco global');
+  }
+  return [{ from_ms: 0, to_ms: toMs - fromMs, x: null }];
+}
+
+/**
+ * Pre-corta el segmento del episodio: ffmpeg como utilidad de ingesta
+ * (precedente reducirA1080). El clip queda YA en 1080×1920 con el encuadre
+ * POR PLANO horneado — un foco fijo encuadraba al único que no hablaba
+ * (medido en el primer clip real); el salto de x cae exactamente en el corte
+ * de realización, así que no se ve como movimiento sino como cambio de plano.
  */
 async function precortarClip(params: {
   mediaPath: string;
@@ -319,41 +362,73 @@ async function precortarClip(params: {
   width: number;
   height: number;
   destDir: string;
+  plan: TramoEncuadre[];
 }): Promise<{ clipVideoPath: string; clipAudioPath: string; lufs: number }> {
-  const { mediaPath, fromMs, toMs, focusX, width, height, destDir } = params;
+  const { mediaPath, fromMs, toMs, focusX, width, height, destDir, plan } = params;
   fs.mkdirSync(destDir, { recursive: true });
   const durS = ((toMs - fromMs) / 1000).toFixed(3);
   const desdeS = (fromMs / 1000).toFixed(3);
   const cropW = Math.round((height * 9) / 16);
-  const x = Math.min(width - cropW, Math.max(0, Math.round(width * focusX - cropW / 2)));
+  const xPx = (fx: number): number =>
+    Math.min(width - cropW, Math.max(0, Math.round(width * fx - cropW / 2)));
 
+  // cada tramo con su x (histéresis de 0,08: un salto que no se aprecia no
+  // merece re-encuadre) y concat sin re-codificar — mismos parámetros
+  const partes: string[] = [];
+  let xPrev = focusX;
+  for (const [i, t] of plan.entries()) {
+    let fx = t.x ?? xPrev;
+    if (Math.abs(fx - xPrev) < 0.08) fx = xPrev;
+    xPrev = fx;
+    const parte = path.join(destDir, `.parte-${i}.mp4`);
+    await ejec('ffmpeg', [
+      '-nostdin',
+      '-loglevel',
+      'error',
+      '-ss',
+      ((fromMs + t.from_ms) / 1000).toFixed(3),
+      '-i',
+      mediaPath,
+      '-t',
+      ((t.to_ms - t.from_ms) / 1000).toFixed(3),
+      '-vf',
+      `crop=${cropW}:${height}:${xPx(fx)}:0,scale=1080:1920,fps=30`,
+      '-c:v',
+      'libx264',
+      '-crf',
+      '18',
+      '-preset',
+      'veryfast',
+      '-pix_fmt',
+      'yuv420p',
+      '-an',
+      '-y',
+      parte,
+    ]);
+    partes.push(parte);
+  }
+  const lista = path.join(destDir, '.partes.txt');
+  fs.writeFileSync(lista, partes.map((p) => `file '${p}'`).join('\n'));
   const clipVideoPath = path.join(destDir, 'clip.mp4');
   await ejec('ffmpeg', [
     '-nostdin',
     '-loglevel',
     'error',
-    '-ss',
-    desdeS,
+    '-f',
+    'concat',
+    '-safe',
+    '0',
     '-i',
-    mediaPath,
-    '-t',
-    durS,
-    '-vf',
-    `crop=${cropW}:${height}:${x}:0,scale=1080:1920,fps=30`,
-    '-c:v',
-    'libx264',
-    '-crf',
-    '18',
-    '-preset',
-    'veryfast',
-    '-pix_fmt',
-    'yuv420p',
+    lista,
+    '-c',
+    'copy',
     '-movflags',
     '+faststart',
-    '-an',
     '-y',
     clipVideoPath,
   ]);
+  for (const p of partes) fs.rmSync(p, { force: true });
+  fs.rmSync(lista, { force: true });
   // la voz del clip, normalizada a la referencia del repo (−16 LUFS) como la
   // del TTS; la entrega sube a −14 en el render, igual que siempre
   const crudo = path.join(destDir, '.voz-cruda.wav');
@@ -457,6 +532,11 @@ export async function handleProposeHighlights(
   for (const c of candidatos) {
     const id = nanoid(12);
     const destDir = path.join(episodeDir(ctx, episodeId), 'clips', id);
+    const plan = await planDeEncuadre(ep.mediaPath!, c.from_ms, c.to_ms, log);
+    log.info(
+      { tramos: plan.length, conCara: plan.filter((t) => t.x !== null).length },
+      'Plan de encuadre por plano',
+    );
     const corte = await precortarClip({
       mediaPath: ep.mediaPath!,
       fromMs: c.from_ms,
@@ -465,6 +545,7 @@ export async function handleProposeHighlights(
       width: ep.width ?? 1920,
       height: ep.height ?? 1080,
       destDir,
+      plan,
     });
     const master = montarMaestroClip({
       shortId: id,
@@ -481,6 +562,7 @@ export async function handleProposeHighlights(
       clipVideoPath: corte.clipVideoPath,
       clipAudioPath: corte.clipAudioPath,
       lufs: corte.lufs,
+      encuadrePlan: plan,
       brand: {
         ...(canal?.name !== undefined ? { channel_name: canal.name } : {}),
         ...(canal?.profile?.brand_design !== undefined

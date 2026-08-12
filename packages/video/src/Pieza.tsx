@@ -22,6 +22,7 @@ import {
 import { useLienzo } from './lienzo';
 import { perfilDe } from './perfil';
 import { AnclaMarca } from './short/AnclaMarca';
+import { ClipLayout } from './short/ClipLayout';
 import {
   CARTELA_ATERRIZA_FRAME,
   CARTELA_FRAMES,
@@ -249,10 +250,18 @@ export const Pieza: React.FC<PiezaMaster> = (master) => {
     [layout, esShort],
   );
 
-  // El short comparte el WAV del vídeo largo y lo desplaza con trimBefore, en
-  // vez de arrastrar una copia recortada por cada pieza.
+  // El short de FÁBRICA comparte el WAV del vídeo largo y lo desplaza con
+  // trimBefore. El clip de EPISODIO trae su segmento YA cortado (offset 0):
+  // aplicarle el trim del reloj del episodio buscaba el segundo ~300 en un
+  // wav de 59 y el clip salía MUDO — encontrado oyendo el primer clip real.
+  const esClipDeEpisodio =
+    master.video !== undefined &&
+    'episode_id' in master.video &&
+    master.video.episode_id !== undefined;
   const trimFrames =
-    master.short !== undefined ? Math.round((master.short.source_from_ms / 1000) * fps) : 0;
+    master.short !== undefined && !esClipDeEpisodio
+      ? Math.round((master.short.source_from_ms / 1000) * fps)
+      : 0;
   const audioEl =
     audio && isRenderableSrc(audio.path) ? (
       <Audio src={toSrc(audio.path)} {...(trimFrames > 0 ? { trimBefore: trimFrames } : {})} />
@@ -265,6 +274,7 @@ export const Pieza: React.FC<PiezaMaster> = (master) => {
       highlightKeywords={highlightKeywords}
     />
   );
+
 
   // pista de b-roll con transiciones: solape compensado para que el corte
   // quede centrado y el total siga siendo baseFrames (audio/subtítulos intactos)
@@ -283,6 +293,20 @@ export const Pieza: React.FC<PiezaMaster> = (master) => {
       }),
     [beats, fps, layout.baseFrames, segmentStartIdxs, master.video.id, perfil.transiciones],
   );
+
+
+  // El clip de EPISODIO no usa el cuerpo estándar (b-roll por beats + cartela
+  // + subtítulos del tema): usa el layout del formato de clips —tarjeta
+  // redondeada, cabecera de canal, titular a color, subtítulo con contorno—
+  // calcado del canal de referencia. Va tras los hooks a propósito.
+  if (esClipDeEpisodio && master.short !== undefined) {
+    return (
+      <AbsoluteFill>
+        {audioEl}
+        <ClipLayout master={master} design={design} avatarSrc={avatar} />
+      </AbsoluteFill>
+    );
+  }
 
   return (
     <AbsoluteFill style={{ backgroundColor: design.background, fontFamily: FONT_FAMILY }}>

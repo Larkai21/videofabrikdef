@@ -1,0 +1,23 @@
+{
+  "titulo": "audio.wav",
+  "fuente": "/private/tmp/claude-501/-Users-quantum-Documents-GitHub-videofabric/ee4a19e3-d959-44c4-8efe-9ba8951426cd/scratchpad/muestra/audio.wav",
+  "proveedor": "mlx",
+  "modelo": "turbo",
+  "fecha": "2026-08-12T16:25:13.201Z",
+  "duracion_min": 55.8,
+  "stt_segundos": 195,
+  "velocidad_x_tiempo_real": 17.1,
+  "palabras": 5539,
+  "silencios": 1445,
+  "turnos": 183,
+  "gate": {
+    "frases_asr": 246,
+    "confirmadas": 120,
+    "forzadas": 424,
+    "pct_confirmadas": 48.78048780487805,
+    "fuertes_por_min": 9.758197603501472
+  },
+  "deriva_ultimo_token_s": 0.66,
+  "coste_usd": 0,
+  "veredicto": "GO"
+}

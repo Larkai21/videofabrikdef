@@ -41,6 +41,8 @@ export function montarMaestroClip(params: {
   clipAudioPath: string;
   lufs: number;
   brand: BrandParaClip;
+  /** plan de encuadre horneado en el fichero; viaja como auditoría */
+  encuadrePlan?: { from_ms: number; to_ms: number; x: number | null }[];
 }): ShortMasterJson {
   const { shortId, episodio, cand, tokens, clipVideoPath, clipAudioPath, lufs, brand } = params;
   const off = cand.from_ms;
@@ -108,6 +110,7 @@ export function montarMaestroClip(params: {
         source_title: episodio.sourceTitle ?? episodio.sourceUrl,
         source_channel_name: episodio.sourceChannelName ?? '',
       },
+      ...(params.encuadrePlan !== undefined ? { encuadre_plan: params.encuadrePlan } : {}),
     },
   } as ShortMasterJson;
 }

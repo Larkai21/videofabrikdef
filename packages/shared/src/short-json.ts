@@ -84,6 +84,22 @@ export const shortCutSchema = z.object({
       source_channel_name: z.string(),
     })
     .optional(),
+  /**
+   * Solo clips de episodio: el plan de encuadre POR PLANO que el pre-corte
+   * horneó en el fichero (cambios de plano por scene detection + cara más
+   * grande vía Vision de macOS, congelado al proponer — principio 6). Es
+   * auditoría: el render no lo lee, el clip ya viene recortado.
+   */
+  encuadre_plan: z
+    .array(
+      z.object({
+        from_ms: z.number().int().nonnegative(),
+        to_ms: z.number().int().positive(),
+        /** x aplicada; null = sin cara en ese plano (se usó la global) */
+        x: z.number().nullable(),
+      }),
+    )
+    .optional(),
 });
 export type ShortCut = z.infer<typeof shortCutSchema>;
 
