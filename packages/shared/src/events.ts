@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { episodeStateSchema } from './episode-states.js';
 import { shortStateSchema } from './short-states.js';
 import { videoStateSchema } from './states.js';
 
@@ -39,8 +40,15 @@ export const fabricaEventSchema = z.discriminatedUnion('type', [
     state: shortStateSchema,
   }),
   z.object({
+    type: z.literal('episode_state'),
+    episode_id: z.string(),
+    state: episodeStateSchema,
+  }),
+  z.object({
     type: z.literal('incident'),
     video_id: z.string().optional(),
+    // incidencia de un episodio externo (clipping); excluyente con video_id
+    episode_id: z.string().optional(),
     queue: z.string(),
     message: z.string(),
     suggested_action: z.enum(['reintentar', 'regenerar', 'descartar']).optional(),

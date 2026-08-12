@@ -119,6 +119,10 @@ export function EventsProvider({ children }: { children: ReactNode }) {
           void queryClient.invalidateQueries({ queryKey: ['short', event.short_id] });
           break;
         }
+        case 'episode_state': {
+          void queryClient.invalidateQueries({ queryKey: ['episodios'] });
+          break;
+        }
         case 'incident': {
           push(event.message, 'danger');
           void queryClient.invalidateQueries({ queryKey: ['inbox'] });

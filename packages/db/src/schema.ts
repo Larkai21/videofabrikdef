@@ -312,11 +312,91 @@ export const components = pgTable(
   (t) => [uniqueIndex('components_name_version_idx').on(t.channelId, t.name, t.version)],
 );
 
+// Episodios EXTERNOS del pipeline de clipping (podcasts/directos de terceros
+// de los que se recortan shorts). Tabla propia y no un vídeo con idea
+// sintética: un episodio no nace del radar, no tiene guion ni SEO, y meterlo
+// por videos rompería el radar, el ledger y el informe de calidad. Su material
+// tampoco entra en assets — la cascada y su semántica de licencia son para
+// material licenciado reutilizable, y un clip ajeno no lo es (vive en
+// library/episodes/<id>/).
+export const episodes = pgTable(
+  'episodes',
+  {
+    id: text('id').primaryKey(),
+    // el canal de CLIPS destino (channel_profile ya es multi-canal)
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => channels.id),
+    state: text('state').notNull().default('nuevo'),
+    stateBeforeIncident: text('state_before_incident'),
+    incident: jsonb('incident').$type<{
+      message: string;
+      suggested_action: 'reintentar' | 'regenerar' | 'descartar' | null;
+      queue?: string;
+      job?: { queue: string; name: string; data?: Record<string, unknown> };
+    }>(),
+    // ---- fuente y derechos (día 1: es el registro de defensa) ----
+    sourceUrl: text('source_url').notNull(),
+    sourcePlatform: text('source_platform').notNull().$type<'youtube' | 'twitch'>(),
+    sourceVideoId: text('source_video_id'),
+    sourceTitle: text('source_title'),
+    sourceChannelName: text('source_channel_name'),
+    sourceChannelUrl: text('source_channel_url'),
+    sourcePublishedAt: timestamp('source_published_at', { withTimezone: true }),
+    licenseStatus: text('license_status').notNull().default('ajeno_sin_acuerdo'),
+    // [{date, kind: content_id|manual|peticion_creador, short_id?, action, note?}]
+    claims: jsonb('claims')
+      .$type<
+        {
+          date: string;
+          kind: 'content_id' | 'manual' | 'peticion_creador';
+          short_id?: string;
+          action: string;
+          note?: string;
+        }[]
+      >()
+      .notNull()
+      .default([]),
+    // ---- media y análisis ----
+    durationMs: integer('duration_ms'),
+    width: integer('width'),
+    height: integer('height'),
+    mediaPath: text('media_path'),
+    audioPath: text('audio_path'),
+    // el transcript (tokens con tiempos y sentenceEnd) va a DISCO
+    // (library/episodes/<id>/transcript.json): son megas, como el WAV del TTS
+    transcriptPath: text('transcript_path'),
+    // encuadre elegido por el humano entre 3 fotogramas reales: {x: 0..1}
+    focus: jsonb('focus').$type<{ x: number }>(),
+    // ComputedBeat[] (~600 × 200 B en un episodio de 2 h: cabe de sobra)
+    beats: jsonb('beats').$type<
+      { idx: number; from_ms: number; to_ms: number; text: string }[]
+    >(),
+    // {provider, model, chunks, gate: {...}, cost} — el gate de probar:stt
+    // reproducido dentro del pipeline, estampado para poder auditarlo
+    sttMeta: jsonb('stt_meta').$type<Record<string, unknown>>(),
+    downloadedAt: timestamp('downloaded_at', { withTimezone: true }),
+    transcribedAt: timestamp('transcribed_at', { withTimezone: true }),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // el mismo episodio no se ingiere dos veces
+    uniqueIndex('episodes_source_idx').on(t.sourcePlatform, t.sourceVideoId),
+    index('episodes_state_idx').on(t.state),
+    index('episodes_channel_idx').on(t.channelId),
+  ],
+);
+
 export const costLedger = pgTable(
   'cost_ledger',
   {
     id: text('id').primaryKey(),
     videoId: text('video_id').references(() => videos.id),
+    // los episodios externos (clipping) no tienen fila en videos; su gasto
+    // (download, stt, highlights) cuelga de aquí y del canal
+    episodeId: text('episode_id').references(() => episodes.id),
     channelId: text('channel_id').references(() => channels.id),
     provider: text('provider').notNull(),
     operation: text('operation').notNull(),

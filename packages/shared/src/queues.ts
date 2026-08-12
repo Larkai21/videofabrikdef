@@ -14,6 +14,10 @@ export const QUEUES = {
   library: 'library',
   publish: 'publish',
   shorts: 'shorts',
+  // episodios externos (clipping): descarga y transcripción. Cola propia con
+  // concurrency 1 — una descarga de GB y una transcripción por bloques no
+  // deben competir entre sí ni con el resto
+  media: 'media',
 } as const;
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
@@ -35,7 +39,20 @@ export const JOBS = {
   library: { backfill: 'backfill', purgeScan: 'purge-scan', reembed: 'reembed' },
   publish: { upload: 'upload' },
   shorts: { propose: 'propose' },
+  media: { download: 'download', transcribe: 'transcribe' },
 } as const;
+
+// Descarga del episodio externo (yt-dlp → mp4 + wav). Idempotente contra
+// disco: si el fichero existe y el probe da bien, no se re-descarga.
+export interface MediaDownloadJob {
+  episodeId: string;
+}
+
+// Transcripción con word timestamps (whisper) + beats. Idempotente contra
+// transcript.json en disco.
+export interface MediaTranscribeJob {
+  episodeId: string;
+}
 
 export interface SourcePollJob {
   sourceId: string;

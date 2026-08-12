@@ -16,6 +16,8 @@ export async function openCost(
   db: Db,
   params: {
     videoId?: string | null;
+    /** episodio externo (clipping): su gasto no tiene fila en videos */
+    episodeId?: string | null;
     channelId?: string | null;
     provider: CostProvider;
     operation: CostOperation;
@@ -26,6 +28,7 @@ export async function openCost(
   await db.insert(costLedger).values({
     id,
     videoId: params.videoId ?? null,
+    episodeId: params.episodeId ?? null,
     channelId: params.channelId ?? null,
     provider: params.provider,
     operation: params.operation,

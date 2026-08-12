@@ -22,6 +22,7 @@ import { registerLibraryRoutes } from './routes/library.js';
 import { registerLibraryBrowseRoutes } from './routes/library-browse.js';
 import { registerSettingsRoutes } from './routes/settings.js';
 import { registerShortRoutes } from './routes/shorts.js';
+import { registerEpisodeRoutes } from './routes/episodios.js';
 import { registerSourceRoutes } from './routes/sources.js';
 import { registerStockRoutes } from './routes/stock.js';
 import { registerTimelineRoutes } from './routes/timeline.js';
@@ -138,6 +139,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   registerInboxRoutes(app, ctx);
   registerVideoRoutes(app, ctx);
   registerShortRoutes(app, ctx);
+  registerEpisodeRoutes(app, ctx);
   registerTimelineRoutes(app, ctx);
   registerStockRoutes(app, ctx);
   registerLibraryRoutes(app, ctx);

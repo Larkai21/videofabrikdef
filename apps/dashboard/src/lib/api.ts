@@ -631,3 +631,32 @@ export async function markShortPublished(shortId: string, urlOrId?: string): Pro
 export function shortDownloadUrl(shortId: string): string {
   return `${API_URL}/shorts/${encodeURIComponent(shortId)}/download`;
 }
+
+// ---- episodios externos (clipping) ----
+// import local a la sección, como el resto
+import { episodeDtoSchema, episodesListDtoSchema, type EpisodeDto } from '@fabrica/shared';
+
+export async function getEpisodes(): Promise<EpisodeDto[]> {
+  const data = await request('/episodios');
+  return episodesListDtoSchema.parse(data).episodes;
+}
+
+export async function getEpisode(id: string): Promise<EpisodeDto> {
+  return episodeDtoSchema.parse(await request(`/episodios/${encodeURIComponent(id)}`));
+}
+
+export async function createEpisode(
+  channelId: string,
+  url: string,
+): Promise<{ episode_id: string; ya_existia: boolean }> {
+  const data = await post('/episodios', { channel_id: channelId, url });
+  const raw = (data ?? {}) as Record<string, unknown>;
+  if (typeof raw.episode_id !== 'string') {
+    throw new ApiError(500, 'Respuesta inesperada de /episodios');
+  }
+  return { episode_id: raw.episode_id, ya_existia: raw.ya_existia === true };
+}
+
+export async function retryEpisode(id: string): Promise<void> {
+  await post(`/episodios/${encodeURIComponent(id)}/retry`);
+}

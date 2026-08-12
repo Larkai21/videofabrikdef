@@ -12,6 +12,9 @@ export const COST_PROVIDERS = [
   'pixabay',
   'fal',
   'youtube',
+  // binario del sistema para descargar episodios externos (clipping); coste 0,
+  // se apunta para vigilar bytes/disco igual que tts vigila caracteres
+  'yt-dlp',
 ] as const;
 
 export const costProviderSchema = z.enum(COST_PROVIDERS);
@@ -45,6 +48,15 @@ export const COST_OPERATIONS = [
   'search',
   'flux_schnell',
   'api',
+  // ---- clipping (episodios externos) ----
+  // descarga del episodio: unidades = MB, coste 0 (vigila disco y red)
+  'download',
+  // transcripción con word timestamps: unidades = minutos de audio
+  'stt',
+  // re-puntuación LLM por bloques, SOLO si el gate de probar:stt falla
+  'punctuate',
+  // map-reduce que elige qué ventanas del episodio funcionan como clip
+  'highlights_director',
 ] as const;
 
 export const costOperationSchema = z.enum(COST_OPERATIONS);
@@ -57,6 +69,8 @@ export const PRICES = {
     input_per_token: 0.25 / 1_000_000,
     output_per_token: 2 / 1_000_000,
     vlm_caption_per_image: 0.0005,
+    // whisper-1, USD por minuto de audio (verificado ago-2026)
+    stt_per_minute: 0.006,
   },
   fal: {
     flux_schnell_per_megapixel: 0.003,

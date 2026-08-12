@@ -1,5 +1,11 @@
 import { z } from 'zod';
 import { channelProfileV1 } from './channel-profile.js';
+import {
+  episodeClaimSchema,
+  episodeLicenseSchema,
+  episodePlatformSchema,
+  episodeStateSchema,
+} from './episode-states.js';
 import { beatSchema, candidateSchema, editSchema, masterVideoJsonV1 } from './master-json.js';
 import { videoMetricsSchema } from './metrics.js';
 import { shortMasterV1 } from './short-json.js';
@@ -106,6 +112,49 @@ export const manualPublicationRequestSchema = z.object({
   url_or_id: z.string().trim().min(1),
 });
 export type ManualPublicationRequest = z.infer<typeof manualPublicationRequestSchema>;
+
+// ---- episodios externos (clipping) ----
+
+export const episodeCreateRequestSchema = z.object({
+  url: z.string().trim().url(),
+  channel_id: z.string().min(1),
+});
+export type EpisodeCreateRequest = z.infer<typeof episodeCreateRequestSchema>;
+
+export const episodeDtoSchema = z.object({
+  id: z.string(),
+  channel_id: z.string(),
+  state: episodeStateSchema,
+  source_url: z.string(),
+  source_platform: episodePlatformSchema,
+  source_title: z.string().nullable(),
+  source_channel_name: z.string().nullable(),
+  license_status: episodeLicenseSchema,
+  duration_ms: z.number().int().nullable(),
+  /** reclamaciones registradas a mano; el historial de defensa */
+  claims: z.array(episodeClaimSchema),
+  incident: z
+    .object({
+      message: z.string(),
+      suggested_action: z.enum(['reintentar', 'regenerar', 'descartar']).nullable(),
+    })
+    .nullable(),
+  downloaded_at: z.string().nullable(),
+  transcribed_at: z.string().nullable(),
+  created_at: z.string(),
+});
+export type EpisodeDto = z.infer<typeof episodeDtoSchema>;
+
+export const episodesListDtoSchema = z.object({ episodes: z.array(episodeDtoSchema) });
+export type EpisodesListDto = z.infer<typeof episodesListDtoSchema>;
+
+/** Registro manual de una reclamación sobre un episodio. */
+export const episodeClaimRequestSchema = z.object({
+  kind: z.enum(['content_id', 'manual', 'peticion_creador']),
+  action: z.string().trim().min(1),
+  note: z.string().trim().optional(),
+});
+export type EpisodeClaimRequest = z.infer<typeof episodeClaimRequestSchema>;
 
 // ---- shorts verticales ----
 
