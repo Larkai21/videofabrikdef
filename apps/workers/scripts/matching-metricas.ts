@@ -75,7 +75,11 @@ async function main(): Promise<void> {
         else if (p.status === 'locked') c.locked += 1;
         const ganador = p.candidates[0];
         if (ganador) {
-          const caption = ganador.meta?.caption;
+          // biblioteca lleva su caption VLM en meta.title (assets.caption, 576/576
+          // cubiertos); el juez lee caption ?? title, así que cuenta como real
+          const caption =
+            ganador.meta?.caption ??
+            (ganador.provider === 'library' ? ganador.meta?.title : undefined);
           if (typeof caption === 'string' && caption !== '') c.conCaption += 1;
           c.porProveedor.set(ganador.provider, (c.porProveedor.get(ganador.provider) ?? 0) + 1);
         }
