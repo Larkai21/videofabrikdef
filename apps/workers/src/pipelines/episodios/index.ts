@@ -153,7 +153,12 @@ async function handleDownload(ctx: WorkerContext, job: Job<MediaDownloadJob>): P
   }
 }
 
-async function handleTranscribe(ctx: WorkerContext, job: Job<MediaTranscribeJob>): Promise<void> {
+// exportado como costura: los runners de validación lo llaman directo con un
+// Job stub, sin competir con el worker vivo por la cola
+export async function handleTranscribe(
+  ctx: WorkerContext,
+  job: Job<MediaTranscribeJob>,
+): Promise<void> {
   const { episodeId } = job.data;
   const log = ctx.logger.child({ episodeId, queue: QUEUES.media });
 
