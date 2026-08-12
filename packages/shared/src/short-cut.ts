@@ -83,11 +83,22 @@ function sinAcentos(s: string): string {
 /** Cuántas palabras del pie se consideran «el sujeto». */
 const PALABRAS_DE_SUJETO = 5;
 
+/**
+ * Si el pie EMPIEZA por una persona o sus manos, la pantalla que mencione
+ * después es atrezo, no sujeto. Medido en el banco de encuadres (12-ago-2026):
+ * «Manos tecleando código…» y «Persona de pie escribiendo diagramas…» caían a
+ * `entero` por 'codigo'/'diagrama' dentro de las cinco primeras palabras, y
+ * son recortes de manual — el sujeto gramatical manda. Con esta guarda el
+ * banco pasa de 24/26 a 26/26 sin perder ningún `entero` verdadero (esos pies
+ * empiezan por «Pantalla…»/«Monitor…»).
+ */
+const EMPIEZA_POR_PERSONA =
+  /^(mano|manos|persona|personas|hombre|mujer|trabajador|trabajadora|presentador|presentadora|gente|equipo|chico|chica)\b/;
+
 function esPantalla(info: AssetInfo): boolean {
-  const sujeto = sinAcentos(info.caption ?? '')
-    .split(/\s+/)
-    .slice(0, PALABRAS_DE_SUJETO)
-    .join(' ');
+  const pie = sinAcentos(info.caption ?? '');
+  if (EMPIEZA_POR_PERSONA.test(pie)) return false;
+  const sujeto = pie.split(/\s+/).slice(0, PALABRAS_DE_SUJETO).join(' ');
   if (PALABRAS_DE_PANTALLA.some((p) => sujeto.includes(p))) return true;
   // las tags no llevan posición, así que solo valen las inequívocas: nadie
   // etiqueta «screenshot» un plano donde la captura es atrezo

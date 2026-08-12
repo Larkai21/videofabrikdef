@@ -1,10 +1,11 @@
 import React from 'react';
-import { AbsoluteFill, useVideoConfig } from 'remotion';
+import { AbsoluteFill } from 'remotion';
 import type { Cue, DesignTokens, Word } from '@fabrica/shared';
 import { defaultDesign, hexToRgba } from '@fabrica/shared';
 import { scrim } from '../effects';
 import { clamp, Ease, span } from '../effects/motion';
 import { displayText, FONT_FAMILY } from '../fonts';
+import { anchoLibreCentrado, scrimDeSubtitulos, useLienzo } from '../lienzo';
 import { agruparPalabras, cuerpoDeGrupo, type Grupo } from './agrupar';
 import type { SubtitleThemeProps } from './SubtitlesBasicos';
 
@@ -107,7 +108,7 @@ export const SubtitulosCineticos: React.FC<SubtitleThemeProps> = ({
   highlightKeywords,
   safeArea,
 }) => {
-  const { width: anchoLienzo } = useVideoConfig();
+  const lienzo = useLienzo();
   const d = design ?? defaultDesign();
   const highlightSet = new Set((highlightKeywords ?? []).map((k) => normalizeWord(k)));
   const typedCues = cues as Cue[];
@@ -128,23 +129,25 @@ export const SubtitulosCineticos: React.FC<SubtitleThemeProps> = ({
   const finMs = siguiente !== undefined ? siguiente.from_ms : grupo.to_ms + COLA_MS;
 
   const texto = grupo.words.map((w) => w.w).join(' ');
-  // el ancho del lienzo no viaja por props —el contrato del brand kit no lo
-  // lleva— pero el tema se monta DENTRO de la composición, así que lo tiene
-  const cuerpo = cuerpoDeGrupo(texto, anchoLienzo - safeArea.left - safeArea.right);
+  // el ancho de medida respeta la columna de acciones de la plataforma: los
+  // márgenes tipográficos llegaban a x=984 con la columna empezando en x=950
+  const cuerpo = cuerpoDeGrupo(texto, anchoLibreCentrado(lienzo));
   const gesto = gestoDe(grupo, idx, currentMs, finMs);
+  const rectScrim = scrimDeSubtitulos(safeArea);
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
       {/* el fondo es el scrim del canal, con su máscara lateral: una banda
           recta detrás del texto se ve como un rectángulo pegado, no como una
-          sombra */}
+          sombra. Anclado a la banda de la plataforma (antes se metía 110 px
+          en la franja que la interfaz tapa). */}
       <div
         style={{
           position: 'absolute',
           left: 0,
           right: 0,
-          bottom: safeArea.bottom - 110,
-          height: 520,
+          bottom: rectScrim.bottom,
+          height: rectScrim.height,
           ...scrim(d, { fuerza: 0.62 }),
         }}
       />

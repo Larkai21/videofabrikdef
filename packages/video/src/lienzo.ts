@@ -202,6 +202,35 @@ export function lienzoDe(ancho: number, alto: number): Lienzo {
   };
 }
 
+/** Alto del scrim que respalda los subtítulos del formato vertical. */
+export const SCRIM_SUBTITULOS_ALTO = 520;
+
+/**
+ * Rectángulo del scrim de subtítulos, ANCLADO a la banda de la plataforma.
+ *
+ * Existe porque el scrim se dibujaba en `bottom: safe.bottom − 110`: 110 px
+ * del degradado dentro de la franja que la interfaz tapa. Es la primera pieza
+ * que respeta la banda por construcción y tiene test de no-intersección.
+ */
+export function scrimDeSubtitulos(safe: SafeArea): { bottom: number; height: number } {
+  return { bottom: safe.bottom, height: SCRIM_SUBTITULOS_ALTO };
+}
+
+/**
+ * Ancho máximo de un elemento CENTRADO que no toca la columna de acciones.
+ *
+ * `columnaAcciones` estaba modelada y testeada pero ningún componente la leía:
+ * los subtítulos medían contra los márgenes tipográficos (hasta x=984) con la
+ * columna empezando en x=950. Simétrico a propósito: recortar solo el lado
+ * derecho descentraría el texto, que es la trampa documentada arriba en
+ * VERTICAL_MARGEN_LATERAL.
+ */
+export function anchoLibreCentrado(lienzo: Lienzo): number {
+  const util = lienzo.ancho - lienzo.safe.left - lienzo.safe.right;
+  if (lienzo.columnaAcciones === null) return util;
+  return Math.min(util, 2 * (lienzo.columnaAcciones.x - lienzo.ancho / 2));
+}
+
 /** El lienzo de la composición que se está pintando. */
 export function useLienzo(): Lienzo {
   const { width, height } = useVideoConfig();
