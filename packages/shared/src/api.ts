@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { channelProfileV1 } from './channel-profile.js';
 import { beatSchema, candidateSchema, editSchema, masterVideoJsonV1 } from './master-json.js';
+import { videoMetricsSchema } from './metrics.js';
 import { shortMasterV1 } from './short-json.js';
 import { shortStateSchema } from './short-states.js';
 import { beatStatusSchema, ideaStatusSchema, videoStateSchema } from './states.js';
@@ -108,6 +109,14 @@ export type ManualPublicationRequest = z.infer<typeof manualPublicationRequestSc
 
 // ---- shorts verticales ----
 
+// Marcado manual del short, espejo del largo pero con el id OPCIONAL: marcar
+// publicado sin id sigue valiendo (queda el casado por título), y con id el
+// casado del CSV de Studio pasa a ser exacto.
+export const shortPublicadoRequestSchema = z.object({
+  url_or_id: z.string().trim().min(1).optional(),
+});
+export type ShortPublicadoRequest = z.infer<typeof shortPublicadoRequestSchema>;
+
 export const shortDtoSchema = z.object({
   id: z.string(),
   video_id: z.string(),
@@ -125,6 +134,9 @@ export const shortDtoSchema = z.object({
   video_url: z.string().nullable(),
   thumbnail_url: z.string().nullable(),
   published_at: z.string().nullable(),
+  youtube_id: z.string().nullable(),
+  /** telemetría importada del CSV de Studio (pnpm metricas); null sin datos */
+  metrics: videoMetricsSchema.nullable(),
   incident: z
     .object({
       message: z.string(),
@@ -232,6 +244,9 @@ export const videoDetailDtoSchema = z.object({
   // si existe, si no la auto-generada (thumb_a.jpg), o null si aún no hay
   thumbnail_url: z.string().nullable(),
   youtube: youtubePublicationSchema.nullable(),
+  /** telemetría importada del CSV de Studio (pnpm metricas); hasta ahora se
+   * guardaba y NINGUNA pantalla la enseñaba — el bucle moría en la BD */
+  metrics: videoMetricsSchema.nullable(),
   incident: z
     .object({
       message: z.string(),

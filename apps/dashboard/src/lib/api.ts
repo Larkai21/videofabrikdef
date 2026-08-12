@@ -621,8 +621,11 @@ export async function retryShort(shortId: string): Promise<void> {
   await post(`/shorts/${encodeURIComponent(shortId)}/retry`);
 }
 
-export async function markShortPublished(shortId: string): Promise<void> {
-  await post(`/shorts/${encodeURIComponent(shortId)}/publicado`);
+export async function markShortPublished(shortId: string, urlOrId?: string): Promise<void> {
+  await post(
+    `/shorts/${encodeURIComponent(shortId)}/publicado`,
+    urlOrId !== undefined ? { url_or_id: urlOrId } : undefined,
+  );
 }
 
 export function shortDownloadUrl(shortId: string): string {

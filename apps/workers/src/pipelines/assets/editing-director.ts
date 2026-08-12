@@ -1321,6 +1321,9 @@ export async function directEdits(
     ) => Promise<Map<number, { imagePath: string; credit?: string }>>;
     /** topes y separaciones del formato; sin él, los del vídeo largo */
     presupuesto?: PresupuestoFx;
+    /** claves extra para cost_ledger.meta (el short pasa aquí su short_id:
+     * factura contra el largo y sin esto su coste marginal es invisible) */
+    ledgerMeta?: Record<string, unknown>;
     /**
      * Efectos que la pieza ya trae puestos y hay que respetar. Los usa el
      * short: hereda del maestro largo los que caen en su ventana, y esos SÍ
@@ -1465,6 +1468,7 @@ export async function directEdits(
         user,
         schema: editingResultSchema,
         mockContext: { beats: huecos },
+        ...(opts?.ledgerMeta !== undefined ? { meta: opts.ledgerMeta } : {}),
       });
       aiEdits = momentsToEdits(data.moments, params.beats, params.cues, params.claims ?? []);
     } catch (err) {

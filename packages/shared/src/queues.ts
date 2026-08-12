@@ -151,11 +151,13 @@ export interface PublishUploadJob {
 }
 
 // Propuesta de shorts a partir de un vídeo ya entregado. Una sola llamada al
-// director por ejecución; `excluir` son las ventanas que el humano ya descartó,
-// para que «proponer otros» no devuelva lo mismo.
+// director por ejecución; `excluir` son las ventanas que no deben volver: las
+// que el humano descartó (con su motivo, que es la única señal humana que el
+// director puede aprender) Y las vivas — sin estas últimas, «proponer otros»
+// podía re-proponer una ventana ya propuesta o aprobada.
 export interface ShortsProposeJob {
   videoId: string;
-  excluir?: { from_ms: number; to_ms: number }[];
+  excluir?: { from_ms: number; to_ms: number; reason?: string }[];
   // vuelve a proponer aunque ya haya candidatos vivos
   force?: boolean;
 }

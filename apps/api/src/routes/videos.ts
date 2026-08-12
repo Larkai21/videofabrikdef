@@ -143,6 +143,7 @@ export function registerVideoRoutes(app: FastifyInstance, ctx: ApiContext): void
       costs_total: video.costsTotal,
       thumbnail_url: await officialThumbnailUrl(ctx.outputsDir, id),
       youtube: video.youtube ?? null,
+      metrics: video.metrics ?? null,
       incident: video.incident
         ? { message: video.incident.message, suggested_action: video.incident.suggested_action }
         : null,

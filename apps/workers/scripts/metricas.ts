@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { eq } from 'drizzle-orm';
-import { createDb, videos } from '@fabrica/db';
+import { createDb, shorts, videos } from '@fabrica/db';
 import { videoMetricsSchema, type VideoMetrics } from '@fabrica/shared';
 
 // Importa a mano el CSV de YouTube Studio (pestaña Contenido → Exportar) y
@@ -174,6 +174,23 @@ async function main(): Promise<void> {
     if (ytId != null && ytId !== '') porYoutubeId.set(ytId, v.id);
   }
 
+  // Los shorts entregados, con la misma mecánica: una fila del export de
+  // Studio que sea un Short no puede casar con `videos` (su título es el de
+  // la cartela) y caía para siempre en «sin casar». El id lo escribe
+  // POST /shorts/:id/publicado; el título sale del sistema, como en el largo.
+  const hechos = await db
+    .select({ id: shorts.id, title: shorts.title, youtubeId: shorts.youtubeId })
+    .from(shorts)
+    .where(eq(shorts.state, 'hecho'));
+  const porTituloShort = new Map<string, string>();
+  const porYoutubeIdShort = new Map<string, string>();
+  const tituloDeShort = new Map<string, string>();
+  for (const s of hechos) {
+    porTituloShort.set(norm(s.title), s.id);
+    tituloDeShort.set(s.id, norm(s.title));
+    if (s.youtubeId != null && s.youtubeId !== '') porYoutubeIdShort.set(s.youtubeId, s.id);
+  }
+
   let importadas = 0;
   const sinVideo: string[] = [];
   for (const row of rows.slice(1)) {
@@ -183,7 +200,12 @@ async function main(): Promise<void> {
     const ytId = idx.id >= 0 ? (row[idx.id] ?? '').trim() : '';
     const videoId =
       (ytId !== '' ? porYoutubeId.get(ytId) : undefined) ?? porTitulo.get(norm(titulo));
-    if (videoId === undefined) {
+    const shortId =
+      videoId !== undefined
+        ? undefined
+        : ((ytId !== '' ? porYoutubeIdShort.get(ytId) : undefined) ??
+          porTituloShort.get(norm(titulo)));
+    if (videoId === undefined && shortId === undefined) {
       sinVideo.push(titulo);
       continue;
     }
@@ -198,17 +220,28 @@ async function main(): Promise<void> {
       ...(idx.watch_hours >= 0 ? { watch_hours: num(row[idx.watch_hours]) } : {}),
       ...(idx.subs >= 0 ? { subscribers_gained: num(row[idx.subs]) } : {}),
     });
-    await db.update(videos).set({ metrics }).where(eq(videos.id, videoId));
-    // se borra de los DOS mapas: el informe de «vídeos hechos sin fila» sale de
-    // porTitulo, y el título de la fila puede no ser el que tenemos guardado
-    porTitulo.delete(norm(titulo));
-    const tituloGuardado = tituloDe.get(videoId);
-    if (tituloGuardado !== undefined) porTitulo.delete(tituloGuardado);
-    if (ytId !== '') porYoutubeId.delete(ytId);
+    if (videoId !== undefined) {
+      await db.update(videos).set({ metrics }).where(eq(videos.id, videoId));
+      // se borra de los DOS mapas: el informe de «vídeos hechos sin fila» sale
+      // de porTitulo, y el título de la fila puede no ser el que tenemos
+      porTitulo.delete(norm(titulo));
+      const tituloGuardado = tituloDe.get(videoId);
+      if (tituloGuardado !== undefined) porTitulo.delete(tituloGuardado);
+      if (ytId !== '') porYoutubeId.delete(ytId);
+      console.log(
+        `✓ ${titulo} → ${videoId}  (${metrics.views ?? '—'} visualizaciones, CTR ${metrics.ctr_pct ?? '—'} %)`,
+      );
+    } else if (shortId !== undefined) {
+      await db.update(shorts).set({ metrics, updatedAt: new Date() }).where(eq(shorts.id, shortId));
+      porTituloShort.delete(norm(titulo));
+      const tituloGuardado = tituloDeShort.get(shortId);
+      if (tituloGuardado !== undefined) porTituloShort.delete(tituloGuardado);
+      if (ytId !== '') porYoutubeIdShort.delete(ytId);
+      console.log(
+        `✓ [short] ${titulo} → ${shortId}  (${metrics.views ?? '—'} visualizaciones)`,
+      );
+    }
     importadas++;
-    console.log(
-      `✓ ${titulo} → ${videoId}  (${metrics.views ?? '—'} visualizaciones, CTR ${metrics.ctr_pct ?? '—'} %)`,
-    );
   }
   if (sinVideo.length > 0) {
     console.log(`\nFilas sin vídeo casado (${sinVideo.length}):`);
@@ -219,7 +252,12 @@ async function main(): Promise<void> {
     console.log(`\nVídeos hechos sin fila en el CSV (${sinFila.length}):`);
     for (const t of sinFila) console.log(`  · ${t}`);
   }
-  console.log(`\n${importadas} vídeo(s) con métricas importadas.`);
+  const shortsSinFila = [...porTituloShort.keys()];
+  if (shortsSinFila.length > 0) {
+    console.log(`\nShorts hechos sin fila en el CSV (${shortsSinFila.length}):`);
+    for (const t of shortsSinFila) console.log(`  · ${t}`);
+  }
+  console.log(`\n${importadas} fila(s) con métricas importadas.`);
   process.exit(0);
 }
 

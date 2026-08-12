@@ -207,6 +207,13 @@ export const shorts = pgTable(
     outputDir: text('output_dir'),
     // publicación a mano, fuera de la máquina de estados igual que en videos
     publishedAt: timestamp('published_at', { withTimezone: true }),
+    // id del Short en YouTube, capturado al marcarlo publicado: es lo que
+    // convierte el casado del CSV de Studio en exacto (el largo ya lo tenía
+    // y la tabla de shorts no — sus filas caían para siempre en «sin casar»)
+    youtubeId: text('youtube_id'),
+    // telemetría de rendimiento importada a mano del CSV de Studio, como en
+    // videos.metrics; mismas cinco cifras, así que se reutiliza el tipo
+    metrics: jsonb('metrics').$type<VideoMetrics>(),
     discardReason: text('discard_reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

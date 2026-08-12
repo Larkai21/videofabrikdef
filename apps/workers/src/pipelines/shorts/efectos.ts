@@ -59,7 +59,13 @@ export async function efectosDelShort(
       // dato que proponga la IA se cae por no estar respaldada.
       ...(largo.research ? { claims: largo.research.claims } : {}),
     },
-    { presupuesto: PRESUPUESTO_VERTICAL, heredados },
+    {
+      presupuesto: PRESUPUESTO_VERTICAL,
+      heredados,
+      // la fila del ledger apunta al vídeo largo; el short_id en meta es lo
+      // que permite sumar el coste marginal de la línea de shorts
+      ledgerMeta: { short_id: master.video.id },
+    },
   );
 
   return {

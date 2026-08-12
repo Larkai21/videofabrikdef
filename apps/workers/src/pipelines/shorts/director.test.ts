@@ -52,6 +52,22 @@ describe('buildShortPrompt', () => {
     });
     expect(user).toContain('0-30 s');
   });
+
+  it('enseña el motivo humano del descarte: la única señal de la que aprender', () => {
+    const { user } = buildShortPrompt({
+      videoId: 'v1',
+      channelId: 'c1',
+      videoTitle: 'T',
+      beats: BEATS,
+      fronteras: [],
+      excluir: [
+        { from_ms: 0, to_ms: 30_000, reason: 'El gancho no engancha' },
+        { from_ms: 30_000, to_ms: 55_000, reason: 'ya propuesta o aprobada' },
+      ],
+    });
+    expect(user).toContain('0-30 s (El gancho no engancha)');
+    expect(user).toContain('30-55 s (ya propuesta o aprobada)');
+  });
 });
 
 describe('toCandidatos', () => {

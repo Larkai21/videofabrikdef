@@ -90,11 +90,14 @@ y un short y un largo renderizando a la vez repartirían las vCPU entre dos
 Chromium. El bundle es el mismo para los dos formatos; solo cambia el id que
 selecciona la composición.
 
-Salida en `outputs/<videoId>/shorts/<shortId>/`: `video.mp4` (a −14 LUFS como el
-largo), `thumb.jpg` —un fotograma real al 10 % de la pieza, que es donde la
-cartela sigue en pantalla—, `title.txt`, `description.txt` con el gancho más
-hashtags, `subtitles.srt`/`.vtt` **con offset 0** (el short no antepone intro) y
-el `master.json` congelado.
+Salida en `outputs/<videoId>/shorts/<shortId>/` — **ocho** entregables:
+`video.mp4` (a −14 LUFS como el largo), `thumb.jpg` —un fotograma real al 10 %
+de la pieza, acotado a la permanencia de la cartela (la regla del 10 % a secas
+perdía el titular por encima de ~32 s)—, `title.txt`, `description.txt` con el
+gancho más hashtags, `tags.txt`, `subtitles.srt`/`.vtt` **con offset 0** (el
+short no antepone intro) y el `master.json` congelado. Tras escribirlos corre
+la puerta de calidad (`analizarShort`, umbrales del formato): avisa en el log
+de la entrega, no bloquea.
 
 ## Verificación
 

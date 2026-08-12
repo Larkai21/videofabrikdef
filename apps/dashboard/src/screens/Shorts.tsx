@@ -1,5 +1,5 @@
 import { Player } from '@remotion/player';
-import { FPS, SHORT_HEIGHT, SHORT_WIDTH, type ShortDto } from '@fabrica/shared';
+import { extractYoutubeId, FPS, SHORT_HEIGHT, SHORT_WIDTH, type ShortDto } from '@fabrica/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -22,7 +22,15 @@ import { fmtClock } from '../lib/format';
 import { loadShortForm } from '../lib/shortform';
 import { PlayerBoundary } from '../lib/longform';
 import { useToasts } from '../lib/toasts';
-import { Button, Chip, EmptyState, ProgressBar, ReasonModal, SkeletonRows } from '../components/ui';
+import {
+  Button,
+  Chip,
+  EmptyState,
+  InputModal,
+  ProgressBar,
+  ReasonModal,
+  SkeletonRows,
+} from '../components/ui';
 
 // Aprobación de shorts. El humano ELIGE entre los candidatos que propuso el
 // director y descarta los que no le valen; no mueve la ventana (principio 1:
@@ -123,13 +131,23 @@ export function Shorts() {
     },
     onError: alFallar('No se pudo reintentar'),
   });
+  // el enlace de YouTube se pide en un modal (patrón de Entrega): con el id el
+  // casado del CSV de Studio es exacto en vez de por título
+  const [publicando, setPublicando] = useState<string | null>(null);
+  const [publicarError, setPublicarError] = useState<string | undefined>(undefined);
   const publicadoMut = useMutation({
-    mutationFn: (shortId: string) => markShortPublished(shortId),
+    mutationFn: ({ shortId, urlOrId }: { shortId: string; urlOrId: string }) =>
+      markShortPublished(shortId, urlOrId),
     onSuccess: () => {
       push('Short marcado como publicado');
+      setPublicando(null);
+      setPublicarError(undefined);
       invalidar();
     },
-    onError: alFallar('No se pudo marcar'),
+    onError: (err) =>
+      setPublicarError(
+        err instanceof ApiError && err.detail !== undefined ? err.detail : 'No se pudo marcar',
+      ),
   });
   const renombrarMut = useMutation({
     mutationFn: ({ shortId, title }: { shortId: string; title: string }) =>
@@ -239,6 +257,18 @@ export function Shorts() {
                     <div className="banner banner-danger fs-sm">{s.incident.message}</div>
                   ) : null}
 
+                  {s.metrics !== null ? (
+                    <span className="mono fs-sm muted">
+                      {s.metrics.views ?? '—'} visualizaciones
+                      {s.metrics.avg_pct_viewed !== undefined
+                        ? ` · ${s.metrics.avg_pct_viewed} % visto de media`
+                        : ''}
+                      {s.metrics.avg_view_duration_s !== undefined
+                        ? ` · ${Math.round(s.metrics.avg_view_duration_s)} s de media`
+                        : ''}
+                    </span>
+                  ) : null}
+
                   {s.state === 'render' || s.state === 'aprobado' ? (
                     <>
                       <ProgressBar value={progreso ?? 2} />
@@ -286,7 +316,7 @@ export function Shorts() {
                         </a>
                         <Button
                           disabled={s.published_at !== null}
-                          onClick={() => publicadoMut.mutate(s.id)}
+                          onClick={() => setPublicando(s.id)}
                         >
                           {s.published_at !== null ? 'Publicado' : 'Marcar publicado'}
                         </Button>
@@ -363,6 +393,26 @@ export function Shorts() {
           if (descartando !== null) descartarMut.mutate({ shortId: descartando, reason });
         }}
         onClose={() => setDescartando(null)}
+      />
+
+      <InputModal
+        open={publicando !== null}
+        title="Marcar como publicado"
+        desc="Registra el short que ya subiste tú. Con el enlace, las métricas del CSV de Studio casan por id exacto."
+        label="Enlace o id del short en YouTube"
+        placeholder="https://www.youtube.com/shorts/…"
+        ayuda="Pega la URL del short o su id de 11 caracteres"
+        cta="Marcar como publicado"
+        error={publicarError}
+        pending={publicadoMut.isPending}
+        validate={(v) => (extractYoutubeId(v) === null ? 'No reconozco ese enlace ni ese id' : null)}
+        onConfirm={(v) => {
+          if (publicando !== null) publicadoMut.mutate({ shortId: publicando, urlOrId: v });
+        }}
+        onClose={() => {
+          setPublicando(null);
+          setPublicarError(undefined);
+        }}
       />
     </div>
   );

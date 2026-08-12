@@ -4,16 +4,18 @@ import { asc, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { shorts, transitionShort, videos } from '@fabrica/db';
 import {
+  extractYoutubeId,
   JOBS,
   QUEUES,
   shortDiscardRequestSchema,
+  shortPublicadoRequestSchema,
   shortTitleRequestSchema,
   type ShortDetailDto,
   type ShortDto,
   type ShortsListDto,
 } from '@fabrica/shared';
 import type { ApiContext } from '../lib/context.js';
-import { conflict, notFound } from '../lib/errors.js';
+import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { masterWithFileUrls } from '../lib/master.js';
 
 // Shorts verticales recortados de un vídeo ya entregado.
@@ -55,6 +57,8 @@ function toDto(row: ShortRow): ShortDto {
     video_url: rendido ? `/files/${rel}/video.mp4` : null,
     thumbnail_url: thumb,
     published_at: row.publishedAt?.toISOString() ?? null,
+    youtube_id: row.youtubeId,
+    metrics: row.metrics,
     incident: row.incident
       ? { message: row.incident.message, suggested_action: row.incident.suggested_action }
       : null,
@@ -72,15 +76,30 @@ export function registerShortRoutes(app: FastifyInstance, ctx: ApiContext): void
     if (video.state !== 'hecho') {
       throw conflict(`Los shorts se recortan de un vídeo terminado (estado actual: ${video.state})`);
     }
-    // «proponer otros»: las ventanas ya descartadas no vuelven a salir
-    const descartados = await ctx.db
-      .select({ fromMs: shorts.fromMs, toMs: shorts.toMs, state: shorts.state })
+    // «proponer otros»: no vuelven ni las descartadas (con su motivo, la única
+    // señal humana que el director puede aprender) ni las VIVAS — sin estas el
+    // director podía re-proponer una ventana ya propuesta o aprobada, porque
+    // force salta la guarda de idempotencia y toCandidatos solo desolapa
+    // dentro de la misma tanda
+    const previos = await ctx.db
+      .select({
+        fromMs: shorts.fromMs,
+        toMs: shorts.toMs,
+        state: shorts.state,
+        discardReason: shorts.discardReason,
+      })
       .from(shorts)
       .where(eq(shorts.videoId, id));
-    const excluir = descartados
-      .filter((s) => s.state === 'descartado')
-      .map((s) => ({ from_ms: s.fromMs, to_ms: s.toMs }));
-    const vivos = descartados.filter((s) => s.state !== 'descartado').length;
+    const excluir = previos.map((s) =>
+      s.state === 'descartado'
+        ? {
+            from_ms: s.fromMs,
+            to_ms: s.toMs,
+            ...(s.discardReason !== null ? { reason: s.discardReason } : {}),
+          }
+        : { from_ms: s.fromMs, to_ms: s.toMs, reason: 'ya propuesta o aprobada' },
+    );
+    const vivos = previos.filter((s) => s.state !== 'descartado').length;
 
     const res = await ctx.enqueuer.enqueue(
       QUEUES.shorts,
@@ -202,15 +221,32 @@ export function registerShortRoutes(app: FastifyInstance, ctx: ApiContext): void
   });
 
   // Marcado manual, igual que en el vídeo largo: no toca la máquina de estados.
+  // Con `url_or_id` además captura el id de YouTube, que es lo que convierte el
+  // casado del CSV de Studio (pnpm metricas) en exacto en vez de por título.
   app.post('/shorts/:id/publicado', async (req) => {
     const { id } = req.params as { id: string };
+    const body = shortPublicadoRequestSchema.parse(req.body ?? {});
     const row = await loadShort(ctx, id);
     if (row.state !== 'hecho') {
       throw conflict('Solo se marca como publicado un short terminado');
     }
+    let youtubeId: string | null = null;
+    if (body.url_or_id !== undefined) {
+      youtubeId = extractYoutubeId(body.url_or_id);
+      if (youtubeId === null) {
+        throw badRequest('No parece un id ni una URL de YouTube');
+      }
+    }
     const publishedAt = row.publishedAt ?? new Date();
-    await ctx.db.update(shorts).set({ publishedAt }).where(eq(shorts.id, id));
-    return { ok: true as const, published_at: publishedAt.toISOString() };
+    await ctx.db
+      .update(shorts)
+      .set({ publishedAt, ...(youtubeId !== null ? { youtubeId } : {}), updatedAt: new Date() })
+      .where(eq(shorts.id, id));
+    return {
+      ok: true as const,
+      published_at: publishedAt.toISOString(),
+      ...(youtubeId !== null ? { youtube_id: youtubeId } : {}),
+    };
   });
 
   app.get('/shorts/:id/download', async (req, reply) => {

@@ -66,8 +66,13 @@ export interface ShortParams {
   beats: ShortDirectorBeat[];
   /** instantes donde se puede cortar sin partir una frase */
   fronteras: number[];
-  /** ventanas ya descartadas por el humano: «proponer otros» no las repite */
-  excluir?: Ventana[];
+  /**
+   * Ventanas que no deben volver: las descartadas por el humano CON SU MOTIVO
+   * (la única señal humana disponible; se guardaba en discard_reason y nadie
+   * la leía) y las ya vivas. El prompt las enseña con el motivo para que el
+   * director aprenda del descarte, no solo lo evite.
+   */
+  excluir?: (Ventana & { reason?: string })[];
   cuantos?: number;
 }
 
@@ -95,7 +100,9 @@ export function buildShortPrompt(params: ShortParams): { system: string; user: s
   ].join('\n');
 
   const excluidas = (params.excluir ?? []).map(
-    (v) => `${Math.round(v.from_ms / 1000)}-${Math.round(v.to_ms / 1000)} s`,
+    (v) =>
+      `${Math.round(v.from_ms / 1000)}-${Math.round(v.to_ms / 1000)} s` +
+      (v.reason !== undefined && v.reason !== '' ? ` (${v.reason})` : ''),
   );
 
   const user = [
@@ -104,7 +111,11 @@ export function buildShortPrompt(params: ShortParams): { system: string; user: s
       ? [`Promesa del gancho: ${params.hookNotes}`]
       : []),
     ...(excluidas.length > 0
-      ? [`Ya descartados (no los propongas otra vez): ${excluidas.join(', ')}`]
+      ? [
+          'Ventanas que NO debes proponer otra vez, con el motivo entre paréntesis',
+          '(si el motivo señala un defecto, evita proponer otras con el mismo):',
+          ...excluidas.map((e) => `- ${e}`),
+        ]
       : []),
     '',
     'Beats (idx · duración · efectos · narración):',

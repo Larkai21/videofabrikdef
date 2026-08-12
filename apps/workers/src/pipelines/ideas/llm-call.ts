@@ -28,6 +28,9 @@ export async function ledgeredLlmJson<S extends z.ZodType>(
     user: string;
     schema: S;
     mockContext?: Record<string, unknown>;
+    /** claves extra para cost_ledger.meta (p. ej. short_id: la facturación va
+     * contra el vídeo largo y sin esto el coste por short es invisible) */
+    meta?: Record<string, unknown>;
   },
 ): Promise<z.infer<S>> {
   const handle = await openCost(ctx.db, {
@@ -35,7 +38,7 @@ export async function ledgeredLlmJson<S extends z.ZodType>(
     channelId: params.channelId ?? null,
     provider: ctx.llm.ledgerProvider,
     operation: params.op,
-    meta: { model: ctx.llm.model },
+    meta: { model: ctx.llm.model, ...(params.meta ?? {}) },
   });
   try {
     const { data, usage } = await ctx.llm.completeJson({

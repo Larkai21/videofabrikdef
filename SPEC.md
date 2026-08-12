@@ -22,8 +22,13 @@ zips validados · biblioteca local etiquetada · render Remotion SSR · salida M
 metadatos + 2 miniaturas para subida manual.
 
 Fuera (sprints futuros): subida por YouTube API (tras auditoría) · multicanal · servidor
-MCP · niveles de autonomía A2/A3 · analytics y bucle de feedback · Shorts derivados ·
+MCP · niveles de autonomía A2/A3 · analytics y bucle de feedback ·
 scheduler · MinIO · notificaciones push.
+
+Construido DESPUÉS de este documento (agosto 2026): **shorts derivados** — pipeline
+completo de propuesta, curación y render vertical (ver `docs/shorts.md` y
+`docs/motion-graphics-vertical.md`; tabla `shorts`, máquina de estados propia,
+informe de calidad con umbrales del formato y bucle de métricas por CSV).
 
 ## 3. Módulos: motivo y funcionalidad
 

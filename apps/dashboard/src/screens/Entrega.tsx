@@ -609,6 +609,42 @@ export function Entrega() {
             </Button>
           </div>
 
+          {/* la telemetría importada con pnpm metricas: hasta ahora se
+              guardaba en la BD y ninguna pantalla la enseñaba */}
+          {video.metrics !== null ? (
+            <div className="card" style={{ padding: 'var(--pad)' }}>
+              <div className="head" style={{ fontSize: 16, marginBottom: 10 }}>
+                Rendimiento en YouTube
+              </div>
+              <div className="mono fs-sm" style={{ display: 'grid', gap: 4 }}>
+                {video.metrics.views !== undefined ? (
+                  <span>{video.metrics.views} visualizaciones</span>
+                ) : null}
+                {video.metrics.impressions !== undefined ? (
+                  <span>
+                    {video.metrics.impressions} impresiones
+                    {video.metrics.ctr_pct !== undefined ? ` · CTR ${video.metrics.ctr_pct} %` : ''}
+                  </span>
+                ) : null}
+                {video.metrics.avg_view_duration_s !== undefined ? (
+                  <span>
+                    {Math.round(video.metrics.avg_view_duration_s)} s de media
+                    {video.metrics.avg_pct_viewed !== undefined
+                      ? ` (${video.metrics.avg_pct_viewed} % de la pieza)`
+                      : ''}
+                  </span>
+                ) : null}
+                {video.metrics.subscribers_gained !== undefined ? (
+                  <span>{video.metrics.subscribers_gained} suscriptores</span>
+                ) : null}
+              </div>
+              <p className="muted fs-sm" style={{ margin: '10px 0 0' }}>
+                Importado el {new Date(video.metrics.imported_at).toLocaleDateString('es-ES')} con
+                pnpm metricas
+              </p>
+            </div>
+          ) : null}
+
           <div className="card" style={{ padding: 'var(--pad)' }}>
             <div className="head" style={{ fontSize: 16, marginBottom: 10 }}>
               Checklist de subida manual
