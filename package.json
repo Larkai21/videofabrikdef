@@ -26,6 +26,7 @@
     "encuadre": "pnpm --filter @fabrica/workers encuadre",
     "previews:kit": "pnpm --filter @fabrica/workers previews:kit",
     "probar:voz": "pnpm --filter @fabrica/workers probar:voz",
+    "probar:stt": "pnpm --filter @fabrica/workers probar:stt",
     "metricas": "pnpm --filter @fabrica/workers metricas"
   },
   "devDependencies": {

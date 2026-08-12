@@ -15,6 +15,7 @@
     "encuadre": "tsx scripts/encuadre.ts",
     "previews:kit": "tsx scripts/previews-kit.ts",
     "probar:voz": "tsx scripts/probar-voz.ts",
+    "probar:stt": "tsx scripts/probar-stt.ts",
     "metricas": "tsx scripts/metricas.ts"
   },
   "dependencies": {

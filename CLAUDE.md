@@ -70,6 +70,10 @@ diseñar módulos nuevos o tomar decisiones de arquitectura.
   no toca la YouTube API)
 - `pnpm guion …` — banco de guiones (iterar el prompt sin cola); ver docs/calidad.md
 - `pnpm probar:voz <videoId> --voz <id>` — mide wpm real y alineación de una voz TTS
+- `pnpm probar:stt <url|fichero> [--max-min 20]` — banco de STT del clipping:
+  descarga el audio (yt-dlp), transcribe con whisper-1 y mide si la puntuación
+  marca fronteras de frase reales (gate ≥80 % confirmadas por pausa); informe
+  en banco/stt/. Necesita OPENAI_API_KEY con crédito
 - `pnpm reescala:biblioteca [--dry]` — normaliza a 1080p los clips grandes ya ingeridos
 - `pnpm sfx` — regenera los 14 .wav sintetizados
 - `pnpm --filter @fabrica/video preview:marca --vertical [--video]` — fotogramas
