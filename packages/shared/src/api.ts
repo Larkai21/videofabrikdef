@@ -131,6 +131,8 @@ export const episodeDtoSchema = z.object({
   source_channel_name: z.string().nullable(),
   license_status: episodeLicenseSchema,
   duration_ms: z.number().int().nullable(),
+  /** x (0..1) del encuadre elegido por el humano; null si aún no eligió */
+  focus_x: z.number().nullable(),
   /** reclamaciones registradas a mano; el historial de defensa */
   claims: z.array(episodeClaimSchema),
   incident: z
@@ -155,6 +157,23 @@ export const episodeClaimRequestSchema = z.object({
   note: z.string().trim().optional(),
 });
 export type EpisodeClaimRequest = z.infer<typeof episodeClaimRequestSchema>;
+
+/**
+ * Elección humana del encuadre 9:16 del episodio: la x (0..1) del centro del
+ * recorte. Elegir entre candidatos, no un asa de arrastre — y en multicámara
+ * un foco fijo elige el MENOS MALO; el foco por plano es v2.
+ */
+export const episodeFocusRequestSchema = z.object({ x: z.number().min(0).max(1) });
+export type EpisodeFocusRequest = z.infer<typeof episodeFocusRequestSchema>;
+
+export const episodeEncuadresDtoSchema = z.object({
+  /** tres tiras (misma x en tres instantes) servidas por /files */
+  opciones: z.array(
+    z.object({ id: z.enum(['izq', 'centro', 'dcha']), x: z.number(), url: z.string() }),
+  ),
+  elegido_x: z.number().nullable(),
+});
+export type EpisodeEncuadresDto = z.infer<typeof episodeEncuadresDtoSchema>;
 
 // ---- shorts verticales ----
 

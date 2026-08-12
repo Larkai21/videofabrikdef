@@ -660,3 +660,16 @@ export async function createEpisode(
 export async function retryEpisode(id: string): Promise<void> {
   await post(`/episodios/${encodeURIComponent(id)}/retry`);
 }
+
+// encuadre 9:16 del episodio: tres tiras candidatas + elección
+import { episodeEncuadresDtoSchema, type EpisodeEncuadresDto } from '@fabrica/shared';
+
+export async function getEpisodeEncuadres(id: string): Promise<EpisodeEncuadresDto> {
+  return episodeEncuadresDtoSchema.parse(
+    await request(`/episodios/${encodeURIComponent(id)}/encuadres`),
+  );
+}
+
+export async function chooseEpisodeFocus(id: string, x: number): Promise<void> {
+  await post(`/episodios/${encodeURIComponent(id)}/focus`, { x });
+}

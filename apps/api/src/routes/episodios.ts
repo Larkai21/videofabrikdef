@@ -1,3 +1,7 @@
+import { execFile } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { promisify } from 'node:util';
 import { desc, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { nanoid } from 'nanoid';
@@ -5,13 +9,24 @@ import { episodes, transitionEpisode } from '@fabrica/db';
 import {
   episodeClaimRequestSchema,
   episodeCreateRequestSchema,
+  episodeFocusRequestSchema,
   JOBS,
   QUEUES,
   type EpisodeDto,
+  type EpisodeEncuadresDto,
   type EpisodesListDto,
 } from '@fabrica/shared';
 import type { ApiContext } from '../lib/context.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
+
+const ejec = promisify(execFile);
+
+/** Las tres x candidatas del encuadre; el humano elige entre ellas. */
+const ENCUADRES: { id: 'izq' | 'centro' | 'dcha'; x: number }[] = [
+  { id: 'izq', x: 0.25 },
+  { id: 'centro', x: 0.5 },
+  { id: 'dcha', x: 0.75 },
+];
 
 // Episodios externos (clipping): pegar una URL, ver el progreso de descarga y
 // transcripción, y desde `listo` proponer clips. El material es ajeno: la
@@ -44,6 +59,7 @@ function toDto(row: EpisodeRow): EpisodeDto {
     source_channel_name: row.sourceChannelName,
     license_status: row.licenseStatus as EpisodeDto['license_status'],
     duration_ms: row.durationMs,
+    focus_x: row.focus?.x ?? null,
     claims: row.claims,
     incident: row.incident
       ? { message: row.incident.message, suggested_action: row.incident.suggested_action }
@@ -121,6 +137,93 @@ export function registerEpisodeRoutes(app: FastifyInstance, ctx: ApiContext): vo
       { dedupeId: `episode-retry-${id}-${Date.now()}` },
     );
     return { ok: true as const };
+  });
+
+  // Los tres encuadres candidatos: cada uno es una TIRA con la misma x en tres
+  // instantes (10/50/90 %), porque un episodio multicámara cambia de plano y
+  // el foco fijo tiene que elegirse viendo varias tomas, no una. Se generan a
+  // demanda con ffmpeg (utilidad, no cuerpo) y se sirven por /files/library.
+  app.get('/episodios/:id/encuadres', async (req): Promise<EpisodeEncuadresDto> => {
+    const { id } = req.params as { id: string };
+    const [row] = await ctx.db.select().from(episodes).where(eq(episodes.id, id)).limit(1);
+    if (!row) throw notFound(`Episodio ${id} no existe`);
+    if (row.mediaPath === null || !fs.existsSync(row.mediaPath)) {
+      throw conflict('El episodio aún no tiene vídeo descargado');
+    }
+    const durMs = row.durationMs ?? 0;
+    const dir = path.join(path.dirname(row.mediaPath), 'encuadres');
+    fs.mkdirSync(dir, { recursive: true });
+
+    const W = row.width ?? 1920;
+    const H = row.height ?? 1080;
+    const cropW = Math.round((H * 9) / 16);
+    const instantes = [0.1, 0.5, 0.9].map((f) => Math.max(1, Math.round((durMs * f) / 1000)));
+
+    for (const e of ENCUADRES) {
+      const destino = path.join(dir, `${e.id}.jpg`);
+      if (fs.existsSync(destino)) continue;
+      const x = Math.min(W - cropW, Math.max(0, Math.round(W * e.x - cropW / 2)));
+      const trozos: string[] = [];
+      for (const [i, t] of instantes.entries()) {
+        const frame = path.join(dir, `.${e.id}-${i}.jpg`);
+        await ejec('ffmpeg', [
+          '-nostdin',
+          '-loglevel',
+          'error',
+          '-ss',
+          String(t),
+          '-i',
+          row.mediaPath,
+          '-frames:v',
+          '1',
+          '-vf',
+          `crop=${cropW}:${H}:${x}:0,scale=304:540`,
+          '-q:v',
+          '4',
+          '-y',
+          frame,
+        ]);
+        trozos.push(frame);
+      }
+      await ejec('ffmpeg', [
+        '-nostdin',
+        '-loglevel',
+        'error',
+        ...trozos.flatMap((f) => ['-i', f]),
+        '-filter_complex',
+        '[0][1][2]hstack=3',
+        '-q:v',
+        '4',
+        '-y',
+        destino,
+      ]);
+      for (const f of trozos) fs.rmSync(f, { force: true });
+    }
+
+    // la ruta relativa a libraryDir es lo que /files/library sirve
+    const rel = path.relative(ctx.libraryDir, dir);
+    return {
+      opciones: ENCUADRES.map((e) => ({
+        id: e.id,
+        x: e.x,
+        url: `/files/library/${rel}/${e.id}.jpg`,
+      })),
+      elegido_x: row.focus?.x ?? null,
+    };
+  });
+
+  // La elección: entre candidatos, no un asa. Se puede re-elegir mientras no
+  // haya clips propuestos (los clips congelan su encuadre al proponerse).
+  app.post('/episodios/:id/focus', async (req) => {
+    const { id } = req.params as { id: string };
+    const body = episodeFocusRequestSchema.parse(req.body);
+    const [row] = await ctx.db.select().from(episodes).where(eq(episodes.id, id)).limit(1);
+    if (!row) throw notFound(`Episodio ${id} no existe`);
+    await ctx.db
+      .update(episodes)
+      .set({ focus: { x: body.x }, updatedAt: new Date() })
+      .where(eq(episodes.id, id));
+    return { ok: true as const, x: body.x };
   });
 
   // Registro manual de una reclamación: el historial de defensa del episodio.

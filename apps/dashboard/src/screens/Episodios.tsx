@@ -1,9 +1,79 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { EpisodeDto } from '@fabrica/shared';
-import { ApiError, createEpisode, getChannels, getEpisodes, retryEpisode } from '../lib/api';
+import {
+  ApiError,
+  chooseEpisodeFocus,
+  createEpisode,
+  fileUrl,
+  getChannels,
+  getEpisodeEncuadres,
+  getEpisodes,
+  retryEpisode,
+} from '../lib/api';
 import { useToasts } from '../lib/toasts';
 import { Button, Chip, EmptyState, SkeletonRows } from '../components/ui';
+
+const ENCUADRE_LABEL: Record<string, string> = {
+  izq: 'Izquierda',
+  centro: 'Centro',
+  dcha: 'Derecha',
+};
+
+/**
+ * Selector de encuadre 9:16: tres tiras reales (misma x en tres instantes) y
+ * el humano ELIGE — no hay asa de arrastre. En multicámara el foco fijo es el
+ * menos malo; por eso cada opción enseña tres tomas, no una.
+ */
+function EncuadreSelector({ episodeId, onElegido }: { episodeId: string; onElegido: () => void }) {
+  const { push } = useToasts();
+  const encuadresQ = useQuery({
+    queryKey: ['episodio-encuadres', episodeId],
+    queryFn: () => getEpisodeEncuadres(episodeId),
+    staleTime: Infinity,
+  });
+  const elegirMut = useMutation({
+    mutationFn: (x: number) => chooseEpisodeFocus(episodeId, x),
+    onSuccess: () => {
+      push('Encuadre elegido');
+      onElegido();
+    },
+    onError: (err) =>
+      push(err instanceof ApiError ? err.message : 'No se pudo guardar', 'danger'),
+  });
+
+  if (encuadresQ.isLoading) {
+    return <span className="muted fs-sm">Preparando los encuadres…</span>;
+  }
+  const data = encuadresQ.data;
+  if (data === undefined) return null;
+  return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      <span className="muted fs-sm">
+        Elige el encuadre vertical: cada tira enseña la misma ventana en tres momentos del
+        episodio.
+      </span>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {data.opciones.map((o) => (
+          <figure key={o.id} style={{ margin: 0, display: 'grid', gap: 6, justifyItems: 'center' }}>
+            <img
+              src={fileUrl(o.url)}
+              alt={`Encuadre ${ENCUADRE_LABEL[o.id] ?? o.id}`}
+              style={{ width: 280, borderRadius: 'var(--r-sm)', border: '1px solid var(--line)' }}
+            />
+            <Button
+              variant={data.elegido_x === o.x ? 'primary' : 'secondary'}
+              disabled={elegirMut.isPending}
+              onClick={() => elegirMut.mutate(o.x)}
+            >
+              {data.elegido_x === o.x ? 'Elegido' : (ENCUADRE_LABEL[o.id] ?? o.id)}
+            </Button>
+          </figure>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // Episodios externos (clipping): pegar la URL de un podcast o VOD, seguir la
 // descarga y la transcripción, y desde «listo» proponer clips. El material es
@@ -152,6 +222,14 @@ export function Episodios() {
                       Reintentar
                     </Button>
                   </div>
+                ) : null}
+                {ep.state === 'listo' && ep.focus_x === null ? (
+                  <EncuadreSelector episodeId={ep.id} onElegido={invalidar} />
+                ) : null}
+                {ep.focus_x !== null ? (
+                  <span className="muted fs-sm">
+                    Encuadre: {ep.focus_x === 0.25 ? 'izquierda' : ep.focus_x === 0.5 ? 'centro' : ep.focus_x === 0.75 ? 'derecha' : `x=${ep.focus_x}`}
+                  </span>
                 ) : null}
               </div>
             );
