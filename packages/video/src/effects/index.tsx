@@ -868,6 +868,184 @@ export const MicroFx: React.FC<{ shape?: string; design?: DesignTokens }> = ({ s
   );
 };
 
+// Las tres piezas de GRAMÁTICA VERTICAL portadas del catálogo hermano
+// (stamp-banned, notification-pop, text-stack-offset). No son marcas SVG sobre
+// el b-roll sino texto en escena: la palabra disparadora es la pieza. Se
+// descartaron en 16:9 porque a 46 px se pierden; a 1080 de ancho ocupan media
+// pantalla, que es su hábitat. Solo las produce el catálogo con soloVertical.
+const VERTICAL_WORD_STYLES = ['sello', 'aviso', 'apilado'] as const;
+
+const PalabraVertical: React.FC<{
+  estilo: (typeof VERTICAL_WORD_STYLES)[number];
+  palabra: string;
+  design: DesignTokens;
+}> = ({ estilo, palabra, design: d }) => {
+  const frame = useCurrentFrame();
+  const { durationInFrames, fps } = useVideoConfig();
+  const { opacity } = useInOut({ exitFrames: 8 });
+  const lienzo = useLienzo();
+  const { cx, cy } = lienzo.anclajes.microFx;
+  const anchoUtil = lienzo.ancho - lienzo.safe.left - lienzo.safe.right;
+  const texto = palabra.trim().toUpperCase();
+  const chars = Math.max(3, texto.length);
+
+  if (estilo === 'sello') {
+    // Cae de golpe y rebota: un sello que baja suave parece una tarjeta
+    // apareciendo; lo que lo hace un SELLO es llegar antes de que el ojo lo
+    // siga y asentarse (coreografía del hermano, exp-amortiguada = determinista
+    // sobre el frame). Rojo semántico, no el acento: es un rechazo.
+    const golpeFrames = Math.max(4, Math.round(fps * 0.26));
+    const c = span(frame, 0, golpeFrames, Ease.outCubic);
+    const t = Math.max(0, (frame - golpeFrames) / fps);
+    const rebote = frame > golpeFrames ? Math.exp(-9 * t) * Math.sin(26 * t) * 0.05 : 0;
+    const escala = 1.9 - 0.9 * c + rebote;
+    const cuerpo = Math.min(Math.round(lienzo.ancho * 0.1), Math.floor(anchoUtil / (0.62 * chars)));
+    return (
+      <AbsoluteFill style={{ pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: cy,
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'center',
+            opacity: Math.min(1, c * 2.4) * opacity,
+            transform: `rotate(-9deg) scale(${escala.toFixed(3)}) translateY(${((1 - c) * -40).toFixed(1)}px)`,
+          }}
+        >
+          <span
+            style={{
+              ...displayText(800),
+              fontSize: cuerpo,
+              letterSpacing: '0.06em',
+              color: '#ff6b6b',
+              border: `${Math.max(4, Math.round(cuerpo * 0.09))}px solid #ff6b6b`,
+              borderRadius: Math.round(cuerpo * 0.12),
+              padding: `${Math.round(cuerpo * 0.16)}px ${Math.round(cuerpo * 0.34)}px`,
+              textShadow: `0 2px 14px ${hexToRgba('#000000', 0.55)}`,
+            }}
+          >
+            {texto}
+          </span>
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (estilo === 'aviso') {
+    // Notificación de sistema: entra y sale por ARRIBA (salir por abajo la
+    // haría parecer una tarjeta que se cae, no un aviso que se retira).
+    const entradaFrames = Math.max(6, Math.round(fps * 0.42));
+    const salidaFrames = Math.max(5, Math.round(fps * 0.34));
+    const e = clamp(span(frame, 0, entradaFrames, Ease.outBack6), 0, 1.06);
+    const s = span(frame, durationInFrames - salidaFrames, salidaFrames, Ease.inOutCubic);
+    const dy = (1 - e) * -140 - s * 140;
+    const [ventanaIni] = lienzo.zonas.ventana;
+    return (
+      <AbsoluteFill style={{ pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: ventanaIni + 24,
+            left: lienzo.safe.left,
+            right: lienzo.safe.right,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 18,
+            padding: '20px 26px',
+            background: hexToRgba('#0b0f13', 0.82),
+            border: `1px solid ${hexToRgba(d.foreground, 0.22)}`,
+            borderRadius: 26,
+            boxShadow: `0 24px 56px -18px ${hexToRgba('#000000', 0.7)}`,
+            opacity: clamp(e, 0, 1) * (1 - s) * opacity,
+            transform: `translateY(${dy.toFixed(1)}px)`,
+          }}
+        >
+          <div
+            style={{
+              flex: 'none',
+              width: 62,
+              height: 62,
+              borderRadius: 15,
+              display: 'grid',
+              placeItems: 'center',
+              background: d.accent,
+              color: d.accent_fg,
+              ...displayText(800),
+              fontSize: 34,
+            }}
+          >
+            ↑
+          </div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div
+              style={{
+                fontSize: 22,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: hexToRgba(d.foreground, 0.55),
+              }}
+            >
+              Resultado
+            </div>
+            <div style={{ ...displayText(700), fontSize: 40, color: d.foreground, marginTop: 2 }}>
+              {texto.charAt(0) + texto.slice(1).toLowerCase()}
+            </div>
+          </div>
+          <div style={{ flex: 'none', fontSize: 22, color: hexToRgba(d.foreground, 0.45) }}>
+            ahora
+          </div>
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  // apilado: la palabra tres veces con offset alternado y peso creciente, cada
+  // línea entra desde su lado con retardo — el eje vertical es el que este
+  // formato tiene, y la repetición ES el énfasis
+  const cuerpo = Math.min(Math.round(lienzo.ancho * 0.089), Math.floor(anchoUtil / (0.6 * chars)));
+  const lineas = [
+    { dx: -0.06, peso: 400 as const, color: hexToRgba(d.foreground, 0.55) },
+    { dx: 0.04, peso: 700 as const, color: d.foreground },
+    { dx: -0.02, peso: 800 as const, color: d.accent },
+  ];
+  return (
+    <AbsoluteFill style={{ pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+      <div
+        style={{
+          position: 'absolute',
+          top: cy - cuerpo * 1.6,
+          width: '100%',
+          display: 'grid',
+          justifyItems: 'center',
+          opacity,
+        }}
+      >
+        {lineas.map((l, i) => {
+          const e = clamp(span(frame, i * 4, 10, Ease.outExpo), 0, 1);
+          const desde = (i % 2 === 0 ? -1 : 1) * 120;
+          return (
+            <span
+              key={i}
+              style={{
+                ...displayText(l.peso),
+                fontSize: cuerpo,
+                lineHeight: 1.04,
+                color: l.color,
+                opacity: e,
+                transform: `translateX(${(l.dx * lienzo.ancho + (1 - e) * desde).toFixed(1)}px)`,
+                textShadow: `0 2px 12px ${hexToRgba('#000000', 0.5)}`,
+              }}
+            >
+              {texto}
+            </span>
+          );
+        })}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 export const Annotation: React.FC<{
   shape?: string;
   text?: string;
@@ -882,6 +1060,16 @@ export const Annotation: React.FC<{
   const drawFrames = Math.max(6, Math.round(durationInFrames * 0.45));
   const draw = span(frame, 0, drawFrames, Ease.outExpo);
   const lienzo = useLienzo();
+  // las piezas de palabra vertical no son marcas SVG: componente propio
+  if ((VERTICAL_WORD_STYLES as readonly string[]).includes(shape ?? '')) {
+    return (
+      <PalabraVertical
+        estilo={shape as (typeof VERTICAL_WORD_STYLES)[number]}
+        palabra={text ?? ''}
+        design={d}
+      />
+    );
+  }
   const kind: AnnotationShape = (ANNOTATION_SHAPES as readonly string[]).includes(shape ?? '')
     ? (shape as AnnotationShape)
     : ANNOTATION_SHAPES[seed % ANNOTATION_SHAPES.length]!;

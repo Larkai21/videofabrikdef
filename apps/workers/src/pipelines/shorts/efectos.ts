@@ -62,6 +62,7 @@ export async function efectosDelShort(
     {
       presupuesto: PRESUPUESTO_VERTICAL,
       heredados,
+      vertical: true,
       // la fila del ledger apunta al vídeo largo; el short_id en meta es lo
       // que permite sumar el coste marginal de la línea de shorts
       ledgerMeta: { short_id: master.video.id },

@@ -14,9 +14,6 @@ import type { EditType, SfxName } from './master-json.js';
 // puede casar dentro de «nota» porque se compara el token entero.
 //
 // Qué NO se porta del hermano, y por qué:
-// - `notification-pop`, `stamp-banned`, `text-stack-offset`: gramática de
-//   vertical. El sello y el apilado con offset leen a 1080×1920, donde el texto
-//   ocupa media pantalla; a 46 px sobre 1920×1080 se pierden.
 // - `head-explode`: registro de reacción, presupone un creador EN CÁMARA al que
 //   le explota la cabeza. Rompe el tono de una pieza de ocho minutos.
 // - `neural-node-pulse`: dispararía con «ia», «modelo», «agente»… es decir unas
@@ -35,6 +32,12 @@ export const MICRO_FX_IDS = [
   'caida',
   'candado',
   'cronometro',
+  // los tres de gramática VERTICAL, portados el 12-ago-2026 (antes descartados
+  // porque a 46 px sobre 1920×1080 se pierden; a 1080×1920 el texto ocupa
+  // media pantalla, que es su hábitat). Solo entran con `soloVertical`.
+  'sello',
+  'aviso',
+  'apilado',
 ] as const;
 export const microFxIdSchema = z.enum(MICRO_FX_IDS);
 export type MicroFxId = z.infer<typeof microFxIdSchema>;
@@ -49,6 +52,10 @@ export interface MicroFxDef {
   readonly style: string;
   readonly sfx: SfxName;
   readonly durationMs: number;
+  /** Solo en 9:16: el motivo del descarte original sigue vigente en 16:9. */
+  readonly soloVertical?: true;
+  /** La palabra disparadora se pinta en escena (viaja en annotation.text). */
+  readonly conPalabra?: true;
 }
 
 // Podas deliberadas frente al hermano. Una pieza de 50 s tolera disparadores
@@ -124,6 +131,42 @@ export const MICRO_FX: readonly MicroFxDef[] = [
     style: 'timer',
     sfx: 'tic',
     durationMs: 1400,
+  },
+  // ---- gramática vertical (coreografías de stamp-banned, notification-pop y
+  // text-stack-offset del catálogo hermano; el porqué de cada gesto vive en el
+  // componente que las pinta) ----
+  {
+    id: 'sello',
+    label: 'Sello de rechazo',
+    triggers: ['prohibido', 'prohibida', 'ilegal', 'ilegales', 'bloqueado', 'bloqueada', 'censura', 'censurado', 'vetado', 'vetada'],
+    edit: 'annotation',
+    style: 'sello',
+    sfx: 'subgrave',
+    durationMs: 1400,
+    soloVertical: true,
+    conPalabra: true,
+  },
+  {
+    id: 'aviso',
+    label: 'Notificación de logro',
+    triggers: ['ventas', 'ingresos', 'beneficios', 'clientes', 'suscriptores', 'seguidores', 'descargas', 'record'],
+    edit: 'annotation',
+    style: 'aviso',
+    sfx: 'notificacion',
+    durationMs: 1600,
+    soloVertical: true,
+    conPalabra: true,
+  },
+  {
+    id: 'apilado',
+    label: 'Palabra apilada',
+    triggers: ['importante', 'fundamental', 'clave', 'atencion', 'critico', 'critica', 'esencial'],
+    edit: 'annotation',
+    style: 'apilado',
+    sfx: 'aparicion',
+    durationMs: 1300,
+    soloVertical: true,
+    conPalabra: true,
   },
 ];
 

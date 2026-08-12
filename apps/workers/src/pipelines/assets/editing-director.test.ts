@@ -423,6 +423,16 @@ describe('microFxEdits', () => {
   it('una palabra corriente no dispara nada', () => {
     expect(microFxEdits(params({ cues: [cue('modelo', 1_000)] }))).toEqual([]);
   });
+
+  it('la gramática vertical solo entra en 9:16 y estampa la palabra', () => {
+    // en apaisado el motivo del descarte original sigue vigente: no dispara
+    expect(microFxEdits(params({ cues: [cue('prohibido', 1_000)] }))).toEqual([]);
+    const edits = microFxEdits(params({ cues: [cue('prohibido', 1_000)] }), { vertical: true });
+    const sello = edits.find((e) => e.type === 'annotation');
+    expect(sello?.style).toBe('sello');
+    expect(sello !== undefined && 'text' in sello ? sello.text : undefined).toBe('prohibido');
+    expect(edits.some((e) => e.type === 'sfx' && e.sfx === 'subgrave')).toBe(true);
+  });
 });
 
 describe('spreadByWindows', () => {

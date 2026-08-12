@@ -246,6 +246,28 @@ async function main(): Promise<void> {
       },
       { type: 'annotation', from_ms: VENTANA_FX[0], to_ms: VENTANA_FX[1], style: 'circulo' },
       { type: 'micro_fx', from_ms: VENTANA_FX[0], to_ms: VENTANA_FX[1], style: 'tachado' },
+      // las tres piezas de palabra vertical (solo existen en 9:16)
+      {
+        type: 'annotation',
+        from_ms: VENTANA_FX[0],
+        to_ms: VENTANA_FX[1],
+        style: 'sello',
+        text: 'prohibido',
+      },
+      {
+        type: 'annotation',
+        from_ms: VENTANA_FX[0],
+        to_ms: VENTANA_FX[1],
+        style: 'aviso',
+        text: 'suscriptores',
+      },
+      {
+        type: 'annotation',
+        from_ms: VENTANA_FX[0],
+        to_ms: VENTANA_FX[1],
+        style: 'apilado',
+        text: 'importante',
+      },
     ];
     // OJO: renderStill usa las props RESUELTAS por selectComposition, no las
     // que se le pasen a él — cada variante necesita su propia selección (se
@@ -254,15 +276,20 @@ async function main(): Promise<void> {
     for (const edit of FX_BANCO) {
       const conFx = { ...short, edits: [edit] };
       const comp = await selectComposition({ serveUrl, id: 'ShortForm', inputProps: conFx });
+      // el estilo distingue las variantes del mismo tipo (annotation ×4)
+      const nombre =
+        'style' in edit && typeof edit.style === 'string'
+          ? `${edit.type}-${edit.style}`
+          : edit.type;
       await renderStill({
         composition: comp,
         serveUrl,
-        output: path.join(outDir, `short-fx-${edit.type}.png`),
+        output: path.join(outDir, `short-fx-${nombre}.png`),
         frame: Math.min(frameFx, comp.durationInFrames - 1),
         inputProps: conFx,
         overwrite: true,
       });
-      console.log(`  short-fx-${edit.type} (frame ${frameFx})`);
+      console.log(`  short-fx-${nombre} (frame ${frameFx})`);
     }
     // y la cartela al máximo del contrato (60 caracteres): el auto-ajuste debe
     // bajar el cuerpo y contenerla en dos líneas dentro de su banda

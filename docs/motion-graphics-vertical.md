@@ -116,9 +116,18 @@ y esos no la tocan.
 
 ## Qué queda por portar
 
-Los tres micro-FX que `micro-fx.ts` descartó por ser _gramática de vertical_
-—`notification-pop`, `stamp-banned`, `text-stack-offset`— siguen sin portar;
-aquí sí tendrían sitio. Igual que el freeze-cut del gancho.
+Los tres micro-FX de _gramática de vertical_ **ya están portados**
+(12-ago-2026): `stamp-banned` → `sello` (la palabra estampada que cae de golpe
+y rebota), `notification-pop` → `aviso` (notificación de sistema que entra y
+sale por arriba) y `text-stack-offset` → `apilado` (la palabra tres veces con
+offset alternado y peso creciente). Viven en el catálogo de `micro-fx.ts` con
+`soloVertical` —el motivo del descarte original sigue vigente en 16:9— y
+`conPalabra`: la palabra disparadora viaja en `annotation.text` y ES la pieza.
+Sus stills están en el banco de legibilidad (`preview:marca --vertical`).
+
+Queda el freeze-cut del gancho, ahora con instrumento que lo juzgue
+(`analizarShort` + banco de legibilidad): candidato natural del sprint
+siguiente.
 
 `SplitVersus`, `PasosFlow` y `Tendencia` **ya viajan**: se maquetan en columna
 cuando el lienzo es vertical, que es el eje que este formato sí tiene. Son las

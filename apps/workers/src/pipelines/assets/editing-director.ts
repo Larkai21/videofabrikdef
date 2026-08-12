@@ -379,13 +379,16 @@ export function intentEdits(params: EditingParams): IntentPlacement {
  * UNA sola vez en todo el vídeo, así que el techo estructural es el tamaño del
  * catálogo por muy largo que sea el vídeo.
  */
-export function microFxEdits(params: EditingParams): Edit[] {
+export function microFxEdits(params: EditingParams, opts?: { vertical?: boolean }): Edit[] {
   const edits: Edit[] = [];
   const usados = new Set<string>();
   for (const cue of params.cues) {
     for (const word of cue.words) {
       const def = microFxFor(word.w);
       if (def === null || usados.has(def.id)) continue;
+      // las piezas de gramática vertical no entran en 16:9: el motivo del
+      // descarte original (a 46 px se pierden) sigue vigente en apaisado
+      if (def.soloVertical === true && opts?.vertical !== true) continue;
       usados.add(def.id);
       // annotation y micro_fx son miembros distintos de la unión: se construyen
       // por separado para que el compilador verifique cada uno
@@ -396,6 +399,9 @@ export function microFxEdits(params: EditingParams): Edit[] {
               from_ms: word.from_ms,
               to_ms: word.from_ms + def.durationMs,
               style: def.style,
+              // la palabra disparadora EN escena es la gramática de estas
+              // piezas (el sello estampa «PROHIBIDO», no un trazo)
+              ...(def.conPalabra === true ? { text: word.w } : {}),
             }
           : {
               type: 'micro_fx',
@@ -1321,6 +1327,8 @@ export async function directEdits(
     ) => Promise<Map<number, { imagePath: string; credit?: string }>>;
     /** topes y separaciones del formato; sin él, los del vídeo largo */
     presupuesto?: PresupuestoFx;
+    /** lienzo 9:16: habilita los micro-FX de gramática vertical (soloVertical) */
+    vertical?: boolean;
     /** claves extra para cost_ledger.meta (el short pasa aquí su short_id:
      * factura contra el largo y sin esto su coste marginal es invisible) */
     ledgerMeta?: Record<string, unknown>;
@@ -1428,7 +1436,7 @@ export async function directEdits(
   const rules = ruleEdits({ ...params, covered: intents.covered });
 
   // 3) micro-FX disparados por palabra
-  const micro = microFxEdits(params);
+  const micro = microFxEdits(params, { vertical: opts?.vertical === true });
 
   // 4) la IA solo rellena lo que falta para llenar el PRESUPUESTO de tarjetas.
   //

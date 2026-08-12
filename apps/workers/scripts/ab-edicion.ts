@@ -111,7 +111,7 @@ async function mainShort(): Promise<void> {
       hookNotes: master.short.hook,
       ...(largo.research ? { claims: largo.research.claims } : {}),
     },
-    { presupuesto: PRESUPUESTO_VERTICAL, heredados },
+    { presupuesto: PRESUPUESTO_VERTICAL, heredados, vertical: true },
   );
   await ctx.dbClient.end();
   ctx.connection.disconnect();
