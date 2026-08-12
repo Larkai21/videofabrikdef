@@ -31,6 +31,9 @@ const ejec = promisify(execFile);
 /** Bloques de ~10 min: el endpoint de whisper admite 25 MB por fichero. */
 const BLOQUE_S = 600;
 
+/** Aspecto de la tarjeta del layout de clips (90 % × 53,3 % de 1080×1920). */
+const CLIP_TARJETA_AR = (0.9 * 1080) / (0.533 * 1920);
+
 // Worker de episodios externos (clipping). Fase B1: solo la descarga; la
 // transcripción (B2) registra su job pero de momento avisa y no hace nada,
 // para que un encolado accidental no muera en «job desconocido».
@@ -366,7 +369,12 @@ async function precortarClip(params: {
 }): Promise<{ clipVideoPath: string; clipAudioPath: string; lufs: number; durMs: number }> {
   const { mediaPath, piezas, focusX, width, height, destDir } = params;
   fs.mkdirSync(destDir, { recursive: true });
-  const cropW = Math.round((height * 9) / 16);
+  // El recorte va al ASPECTO DE LA TARJETA (~0,95:1), no a 9:16: la tarjeta
+  // del layout es casi cuadrada y un pre-corte más alto la obligaba a
+  // recortar por el centro — las cabezas, que en el plano original viven
+  // arriba, salían decapitadas. Con el aspecto igualado se ve TODO el alto
+  // del plano y la cara queda a su altura natural.
+  const cropW = Math.round(height * CLIP_TARJETA_AR);
   const xPx = (fx: number): number =>
     Math.min(width - cropW, Math.max(0, Math.round(width * fx - cropW / 2)));
 
