@@ -21,7 +21,13 @@ import {
 } from './brand-kit';
 import { useLienzo } from './lienzo';
 import { perfilDe } from './perfil';
-import { CARTELA_FRAMES, CartelaGancho } from './short/CartelaGancho';
+import { AnclaMarca } from './short/AnclaMarca';
+import {
+  CARTELA_ATERRIZA_FRAME,
+  CARTELA_FRAMES,
+  CARTELA_SALE_FRAME,
+  CartelaGancho,
+} from './short/CartelaGancho';
 import { SECTION_TRANSITIONS, whip } from './effects/transitions';
 import {
   Ambience,
@@ -231,8 +237,17 @@ export const Pieza: React.FC<PiezaMaster> = (master) => {
   const microCues = effects.filter((e) => e.type === 'micro_fx');
   const sfxCues = effects.filter((e) => e.type === 'sfx' && e.sfx);
 
-  // sonido de las piezas del kit (pura, en brand-kit.ts)
-  const kitSfx = React.useMemo(() => kitSfxCues(layout), [layout]);
+  // sonido de las piezas del kit (pura, en brand-kit.ts); en vertical la
+  // cartela hace de intro sonora — sin esto el short arrancaba en seco
+  const esShort = perfil.cartela && master.short !== undefined;
+  const kitSfx = React.useMemo(
+    () =>
+      kitSfxCues(
+        layout,
+        esShort ? { aterriza: CARTELA_ATERRIZA_FRAME, sale: CARTELA_SALE_FRAME } : null,
+      ),
+    [layout, esShort],
+  );
 
   // El short comparte el WAV del vídeo largo y lo desplaza con trimBefore, en
   // vez de arrastrar una copia recortada por cada pieza.
@@ -324,6 +339,7 @@ export const Pieza: React.FC<PiezaMaster> = (master) => {
                       videoId={master.video.id}
                       durationInFrames={seq.durationInFrames}
                       punchFromFrame={punchByBeat.get(beat.idx)}
+                      design={design}
                     />
                   </TransitionSeries.Sequence>
                 </React.Fragment>
@@ -349,6 +365,18 @@ export const Pieza: React.FC<PiezaMaster> = (master) => {
       {perfil.cartela && master.short !== undefined ? (
         <Sequence from={0} durationInFrames={CARTELA_FRAMES} name="Cartela">
           <CartelaGancho title={master.short.title} design={design} />
+        </Sequence>
+      ) : null}
+      {/* cuando la cartela se retira, la marca se queda: sin esto un short
+          compartido fuera de la plataforma no dice de quién es en 30 de sus
+          33 s */}
+      {perfil.cartela && master.short !== undefined ? (
+        <Sequence from={CARTELA_FRAMES} name="Ancla de marca">
+          <AnclaMarca
+            nombre={master.brand?.channel_name}
+            avatarSrc={avatar}
+            design={design}
+          />
         </Sequence>
       ) : null}
       {layout.titleCard !== null ? (

@@ -17,7 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bundle } from '@remotion/bundler';
 import { ensureBrowser, renderMedia, renderStill, selectComposition } from '@remotion/renderer';
-import { makeDemoMaster, makeDemoShort, type MasterVideoJson } from '@fabrica/shared';
+import { makeDemoMaster, makeDemoShort, type Edit, type MasterVideoJson } from '@fabrica/shared';
 import { webpackOverride } from '../src/bundling';
 
 const pkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -191,6 +191,102 @@ async function main(): Promise<void> {
       });
       console.log('  short.mp4 (frames 0-150)');
     }
+
+    // Banco de legibilidad a 1080 de ancho: un still de CADA forma del
+    // catálogo permitida en vertical, cada una sola en su pieza para que no se
+    // pisen. Existe desde que el callout «Qué es real» salió a 26 px efectivos
+    // en el primer short renderizado (commit 3efcb57): aquel commit verificó a
+    // 1080 solo las piezas que tocó, y las demás nunca tuvieron hoja. Quedan
+    // fuera sfx (no dibuja), zoom_punch (mueve la cámara, no pone texto) y
+    // keyword_highlight (tiñe una palabra del subtítulo, cuyo cuerpo ya
+    // gobierna cuerpoDeGrupo con sus propios tests).
+    const VENTANA_FX: [number, number] = [2_000, 5_000];
+    const FX_BANCO: Edit[] = [
+      { type: 'text_callout', from_ms: VENTANA_FX[0], to_ms: VENTANA_FX[1], text: 'Qué es real' },
+      {
+        type: 'quote_card',
+        from_ms: VENTANA_FX[0],
+        to_ms: VENTANA_FX[1],
+        text: 'La cita entera que alguien dijo y que hay que poder leer',
+      },
+      { type: 'kinetic_text', from_ms: VENTANA_FX[0], to_ms: VENTANA_FX[1], text: 'Sin trucos' },
+      {
+        type: 'stat_card',
+        from_ms: VENTANA_FX[0],
+        to_ms: VENTANA_FX[1],
+        value: '1.000.000',
+        label: 'tokens por dólar',
+      },
+      {
+        type: 'stat_odometer',
+        from_ms: VENTANA_FX[0],
+        to_ms: VENTANA_FX[1],
+        value: '42.500',
+        label: 'GPU en el clúster',
+      },
+      {
+        type: 'split_versus',
+        from_ms: VENTANA_FX[0],
+        to_ms: VENTANA_FX[1],
+        items: ['Entrenar', 'Inferir'],
+      },
+      {
+        type: 'pasos_flow',
+        from_ms: VENTANA_FX[0],
+        to_ms: VENTANA_FX[1],
+        items: ['Datos', 'Modelo', 'Despliegue'],
+      },
+      {
+        type: 'tendencia',
+        from_ms: VENTANA_FX[0],
+        to_ms: VENTANA_FX[1],
+        value: '−72 %',
+        style: 'baja',
+        label: 'coste por token',
+      },
+      { type: 'annotation', from_ms: VENTANA_FX[0], to_ms: VENTANA_FX[1], style: 'circulo' },
+      { type: 'micro_fx', from_ms: VENTANA_FX[0], to_ms: VENTANA_FX[1], style: 'tachado' },
+    ];
+    // OJO: renderStill usa las props RESUELTAS por selectComposition, no las
+    // que se le pasen a él — cada variante necesita su propia selección (se
+    // descubrió mirando la hoja: todos los stills salían sin su efecto)
+    const frameFx = Math.round(((VENTANA_FX[0] + VENTANA_FX[1]) / 2 / 1000) * shortComposition.fps);
+    for (const edit of FX_BANCO) {
+      const conFx = { ...short, edits: [edit] };
+      const comp = await selectComposition({ serveUrl, id: 'ShortForm', inputProps: conFx });
+      await renderStill({
+        composition: comp,
+        serveUrl,
+        output: path.join(outDir, `short-fx-${edit.type}.png`),
+        frame: Math.min(frameFx, comp.durationInFrames - 1),
+        inputProps: conFx,
+        overwrite: true,
+      });
+      console.log(`  short-fx-${edit.type} (frame ${frameFx})`);
+    }
+    // y la cartela al máximo del contrato (60 caracteres): el auto-ajuste debe
+    // bajar el cuerpo y contenerla en dos líneas dentro de su banda
+    const conTituloLargo = {
+      ...short,
+      short: {
+        ...short.short,
+        title: 'La cifra que nadie esperaba y que cambia el precio de todo',
+      },
+    };
+    const compTitulo = await selectComposition({
+      serveUrl,
+      id: 'ShortForm',
+      inputProps: conTituloLargo,
+    });
+    await renderStill({
+      composition: compTitulo,
+      serveUrl,
+      output: path.join(outDir, 'short-cartela-60.png'),
+      frame: 45,
+      inputProps: conTituloLargo,
+      overwrite: true,
+    });
+    console.log('  short-cartela-60 (frame 45)');
   }
 
   console.log(`Marca en ${outDir}`);

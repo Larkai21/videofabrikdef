@@ -8,7 +8,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
-import type { Beat } from '@fabrica/shared';
+import type { Beat, DesignTokens } from '@fabrica/shared';
 import {
   defaultDesign,
   LOOP_CROSSFADE_MS,
@@ -29,6 +29,10 @@ type BeatVisualProps = {
   durationInFrames: number;
   // frame LOCAL donde el director de edición marcó un zoom punch-in (opcional)
   punchFromFrame?: number;
+  // tokens del canal para vestir la Losa del encuadre `entero`; sin ellos, la
+  // marca por defecto (que era lo único que había: un canal con paleta propia
+  // veía el hueco vestido de otra marca)
+  design?: DesignTokens;
 };
 
 // Envuelve el visual del beat con el zoom punch-in si el director lo marcó.
@@ -219,7 +223,8 @@ const AssetVisual: React.FC<{
   seed: number;
   durationInFrames: number;
   fps: number;
-}> = ({ asset, seed, durationInFrames, fps }) => {
+  design?: DesignTokens | undefined;
+}> = ({ asset, seed, durationInFrames, fps, design }) => {
   const src = toSrc(asset.path!);
   const lienzo = useLienzo();
   const { estilo, conLosa } = planDeEncuadre(asset.encuadre, lienzo);
@@ -229,7 +234,7 @@ const AssetVisual: React.FC<{
   // dejarlo negro o rellenarlo de papilla desenfocada
   const vestir = (contenido: React.ReactNode): React.ReactElement => (
     <AbsoluteFill>
-      {conLosa ? <Losa design={defaultDesign()} luz={0.6} /> : null}
+      {conLosa ? <Losa design={design ?? defaultDesign()} luz={0.6} /> : null}
       {contenido}
     </AbsoluteFill>
   );
@@ -284,6 +289,7 @@ export const BeatVisual: React.FC<BeatVisualProps> = ({
   videoId,
   durationInFrames,
   punchFromFrame,
+  design,
 }) => {
   const { fps } = useVideoConfig();
 
@@ -324,7 +330,13 @@ export const BeatVisual: React.FC<BeatVisualProps> = ({
             return (
               <Sequence key={vIdx} from={from} durationInFrames={dur} name={`Plano ${vIdx + 1}`}>
                 <FadeIn fadeFrames={fadeEntrada}>
-                  <AssetVisual asset={sv.asset} seed={seed} durationInFrames={dur} fps={fps} />
+                  <AssetVisual
+                    asset={sv.asset}
+                    seed={seed}
+                    durationInFrames={dur}
+                    fps={fps}
+                    design={design}
+                  />
                 </FadeIn>
               </Sequence>
             );
@@ -342,6 +354,7 @@ export const BeatVisual: React.FC<BeatVisualProps> = ({
         seed={hashSeed(`${videoId}:${beat.idx}`)}
         durationInFrames={durationInFrames}
         fps={fps}
+        design={design}
       />
     </PunchWrap>
   );

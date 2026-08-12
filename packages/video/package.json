@@ -9,7 +9,8 @@
     "./chapters": "./src/chapters.ts",
     "./seed": "./src/seed.ts",
     "./bundling": "./src/bundling.ts",
-    "./registry-meta": "./src/registry.meta.generated.ts"
+    "./registry-meta": "./src/registry.meta.generated.ts",
+    "./cartela": "./src/short/cuerpo.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

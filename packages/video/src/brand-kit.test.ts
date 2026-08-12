@@ -441,4 +441,20 @@ describe('kitSfxCues', () => {
     const corta = kitSfxCues({ intro: null, outro: { from: 100, durationInFrames: 20 } });
     expect(corta.every((c) => c.from + c.durationInFrames <= 120)).toBe(true);
   });
+
+  // El short no tiene intro por construcción (short-json.ts) y arrancaba en el
+  // mismo silencio digital que este módulo existe para arreglar.
+  it('en vertical la cartela hace de intro sonora: golpe al aterrizar, destello al salir', () => {
+    const cues = kitSfxCues({ intro: null, outro: null }, { aterriza: 12, sale: 87 });
+    expect(cues.find((c) => c.sfx === 'impacto')?.from).toBe(12);
+    expect(cues.find((c) => c.sfx === 'destello')?.from).toBe(87);
+    // sin riser: no hay pantalla que dibujar, la voz ya suena en el frame 0
+    expect(cues.some((c) => c.sfx === 'riser')).toBe(false);
+  });
+
+  it('con intro presente la cartela no añade sonidos: son excluyentes', () => {
+    const cues = kitSfxCues({ intro, outro: null }, { aterriza: 12, sale: 87 });
+    expect(cues.filter((c) => c.sfx === 'impacto')).toHaveLength(1);
+    expect(cues.find((c) => c.sfx === 'impacto')?.from).toBe(27);
+  });
 });

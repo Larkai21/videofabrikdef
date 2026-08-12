@@ -435,11 +435,27 @@ export function beatWindow(
  * cuenta. La composición sabe dónde empieza y acaba cada pieza; ellas no saben
  * que existe una banda de sonido.
  */
-export function kitSfxCues(layout: {
-  intro: { from: number; durationInFrames: number } | null;
-  outro: { from: number; durationInFrames: number } | null;
-}): { from: number; durationInFrames: number; sfx: SfxName }[] {
+export function kitSfxCues(
+  layout: {
+    intro: { from: number; durationInFrames: number } | null;
+    outro: { from: number; durationInFrames: number } | null;
+  },
+  /**
+   * El arranque del SHORT: la cartela hace de «intro» sonora. Sin esto el
+   * vertical empezaba en el mismo silencio digital que este módulo existe para
+   * arreglar — los SFX estaban atados a la intro del kit, que en vertical está
+   * apagada por construcción (short-json.ts). Sin riser: no hay pantalla que
+   * dibujar, la voz ya está sonando en el frame 0.
+   */
+  cartela?: { aterriza: number; sale: number } | null,
+): { from: number; durationInFrames: number; sfx: SfxName }[] {
   const cues: { from: number; durationInFrames: number; sfx: SfxName }[] = [];
+  if (layout.intro === null && cartela != null) {
+    // el golpe cae donde ATERRIZA el titular, igual que en la intro del largo
+    cues.push({ from: cartela.aterriza, durationInFrames: 18, sfx: 'impacto' });
+    // y el destello tapa su retirada
+    cues.push({ from: cartela.sale, durationInFrames: 14, sfx: 'destello' });
+  }
   if (layout.intro !== null) {
     const n = layout.intro.durationInFrames;
     // el riser sube durante todo el dibujado y entrega en el logotipo

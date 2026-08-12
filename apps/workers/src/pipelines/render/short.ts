@@ -12,6 +12,7 @@ import {
   type RenderableShort,
   type RenderShortJob,
 } from '@fabrica/shared';
+import { CARTELA_SALE_FRAME } from '@fabrica/video/cartela';
 import { renderMedia, renderStill, selectComposition, ensureBrowser } from '@remotion/renderer';
 import type { WorkerContext } from '../../lib/context.js';
 import { env } from '../../lib/env.js';
@@ -156,13 +157,19 @@ export async function handleRenderShort(
     await ajustarLoudnessEntrega(path.join(outDir, 'video.mp4'), log);
 
     // Portada: un fotograma REAL del short, sin componente aparte. Al 10 % de
-    // la pieza: con el 15 % caía TRES frames después de que la cartela se
-    // retirara (se va en el 97 y el frame salía el 100), así que la portada se
-    // quedaba sin titular.
+    // la pieza, ACOTADO a la permanencia de la cartela: la regla del 10 % solo
+    // funcionaba por debajo de ~32 s (10 % de 35 s ya es el frame 105 y la
+    // cartela empieza a irse en el 87) — el short gsPbe8cYcSWE (33,85 s) salió
+    // con la portada sin titular. El tope deja 10 frames de margen antes de
+    // que arranque la salida.
+    const framePortada = Math.min(
+      Math.round(composition.durationInFrames * 0.1),
+      Math.max(0, CARTELA_SALE_FRAME - 10),
+    );
     await renderStill({
       composition,
       serveUrl,
-      frame: Math.round(composition.durationInFrames * 0.1),
+      frame: framePortada,
       output: path.join(outDir, 'thumb.jpg'),
       imageFormat: 'jpeg',
       jpegQuality: 90,
