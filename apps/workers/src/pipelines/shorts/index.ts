@@ -95,7 +95,7 @@ async function handleProposeShorts(ctx: WorkerContext, job: Job<ShortsProposeJob
   const master = parsed.data;
 
   const beats = efectosPorBeat(master.beats, master.edits ?? []);
-  const candidatos = await directShorts(ctx, {
+  const { candidatos, source } = await directShorts(ctx, {
     videoId,
     channelId: video.channelId,
     videoTitle:
@@ -171,6 +171,20 @@ async function handleProposeShorts(ctx: WorkerContext, job: Job<ShortsProposeJob
       lang,
     });
     log.info({ short: id, heredados: antes, colocados: despues }, 'Efectos del short');
+    // la telemetría se CONGELA en el maestro (patrón broll_telemetry): hasta
+    // ahora se logueaba y se tiraba, y sobre un short guardado no se podía
+    // reconstruir ni si el ritmo hizo algo ni si eligió el LLM o el fallback
+    const conTelemetria = {
+      ...conEfectos,
+      short_telemetry: {
+        planos_antes: resumen.planosAntes,
+        planos_despues: resumen.planosDespues,
+        segundos_por_plano: Number(resumen.segundosPorPlano.toFixed(2)),
+        efectos_heredados: antes,
+        efectos_colocados: despues,
+        director: source,
+      },
+    };
     creados.push({
       id,
       videoId,
@@ -183,7 +197,7 @@ async function handleProposeShorts(ctx: WorkerContext, job: Job<ShortsProposeJob
       hook: c.hook,
       reason: c.reason,
       score: c.score,
-      master: conEfectos,
+      master: conTelemetria,
     });
   }
 

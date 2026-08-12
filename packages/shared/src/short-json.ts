@@ -64,6 +64,23 @@ export type ShortCut = z.infer<typeof shortCutSchema>;
 // EDIT_RENDER_KIND.
 export const shortBrandSchema = brandSchema.omit({ components: true });
 
+/**
+ * Telemetría del PROCESO que produjo el short, congelada en el maestro como
+ * `broll_telemetry` en el largo. Sin esto, sobre un short guardado no se puede
+ * reconstruir si la pasada de ritmo hizo algo ni si el director de verdad
+ * eligió o entró el fallback en silencio (que hoy no deja rastro).
+ */
+export const shortTelemetrySchema = z.object({
+  planos_antes: z.number().int().nonnegative(),
+  planos_despues: z.number().int().nonnegative(),
+  segundos_por_plano: z.number().nonnegative(),
+  efectos_heredados: z.number().int().nonnegative(),
+  efectos_colocados: z.number().int().nonnegative(),
+  /** quién eligió la ventana: el LLM o la propuesta de reserva */
+  director: z.enum(['llm', 'fallback']),
+});
+export type ShortTelemetry = z.infer<typeof shortTelemetrySchema>;
+
 export const shortMasterV1 = masterVideoJsonV1
   .omit({
     video: true,
@@ -82,6 +99,8 @@ export const shortMasterV1 = masterVideoJsonV1
     video: shortVideoMetaSchema,
     brand: shortBrandSchema,
     short: shortCutSchema,
+    // opcional: los maestros congelados antes del 12-ago-2026 no la traen
+    short_telemetry: shortTelemetrySchema.optional(),
   });
 
 export type ShortMasterJson = z.infer<typeof shortMasterV1>;

@@ -348,3 +348,25 @@ export const SHORT_TROCEO_MAX_PARTES = 8;
 export const SHORT_TROCEO_PARTE_MIN_MS = 1_200;
 /** Planos por beat en vertical. El del largo es 3. */
 export const SHORT_MAX_VISUALS_PER_BEAT = 8;
+
+/**
+ * Cadencia sana del SHORT en planos por minuto. Derivada del ritmo objetivo
+ * del formato (un plano cada 2-3 s, SHORT_PLANO_MAX_MS): 60/3=20 y 60/2=30.
+ * La banda del largo (6-16) auditaría el vertical como estroboscopio siempre.
+ */
+export const SHORT_CADENCIA_MIN = 20;
+export const SHORT_CADENCIA_MAX = 30;
+/**
+ * Tramo seguido sin nada dibujado a partir del cual un SHORT avisa. El techo
+ * del largo (60 s) es matemáticamente inalcanzable en una pieza de ≤59 s: la
+ * métrica que se creó para «se ve vacía» moría justo en el formato del
+ * diagnóstico.
+ *
+ * Calibrado contra los 11 shorts reales del corpus (12-ago-2026): huecos de
+ * 6,7 · 9,0 · 9,6 · 15,4 · 18,9 · 20,0 ×2 · 20,1 · 20,6 · 25,5 · 26,2 s.
+ * Disparan 10 de 11 — y NO es el umbral: es el diagnóstico conocido («se ve
+ * vacía»). El que pasa (6,7 s, 14 efectos) demuestra que el techo es
+ * alcanzable por el pipeline actual cuando la pasada de efectos hace su
+ * trabajo.
+ */
+export const SHORT_HUECO_GRAFICO_MAX_MS = 8_000;

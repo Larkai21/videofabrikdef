@@ -4,10 +4,15 @@ import {
   FX_CARD_GUARD_MS,
   IMAGE_MAX_S,
   RATIO_IMAGENES_MAX,
+  SHORT_CADENCIA_MAX,
+  SHORT_CADENCIA_MIN,
+  SHORT_HUECO_GRAFICO_MAX_MS,
+  SHORT_PLANO_MAX_MS,
   TROCEO_PARTE_MIN_MS,
 } from './constants.js';
 import { MAX_CARD_WORDS, normalizeWord, wordInText } from './edit-intents.js';
 import { EDIT_RENDER_KIND, type Edit, type MasterVideoJson } from './master-json.js';
+import type { ShortMasterJson } from './short-json.js';
 
 // Métricas de calidad de un vídeo terminado, calculadas SOLO con lo que ya
 // existe en el maestro. Sin esto, juzgar un cambio exige ver el MP4 entero y
@@ -249,7 +254,7 @@ function mediana(xs: number[]): number {
 
 /** ¿Se pronuncia esta palabra dentro de este tramo? Usa los cues reales. */
 function palabraEnTramo(
-  master: MasterVideoJson,
+  master: Pick<MasterVideoJson, 'cues'>,
   palabra: string,
   from: number,
   to: number,
@@ -425,72 +430,9 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
     });
   }
 
-  // ---- higiene de lo que se lee en pantalla
-  for (const e of edits) {
-    const at = e.from_ms;
-    if (e.type === 'keyword_highlight' && !palabraResaltable(e.keyword)) {
-      avisos.push({
-        gravedad: 'media',
-        codigo: 'palabra_vacia',
-        detalle: `se resalta «${e.keyword}», que no aporta significado`,
-        at_ms: at,
-      });
-    }
-    const copy = textoDeEdit(e);
-    if (copy !== undefined && copy.trim().split(/\s+/).length > MAX_CARD_WORDS) {
-      avisos.push({
-        gravedad: 'media',
-        codigo: 'copy_largo',
-        detalle: `la tarjeta dice «${copy}»: es un titular, no una transcripción`,
-        at_ms: at,
-      });
-    }
-    // se audita el DISPLAY, no el value crudo: los dos componentes de stat
-    // pintan a través del formateador compartido, así que el aviso solo salta
-    // si lo que va a verse en pantalla de verdad carece de separador
-    if (
-      (e.type === 'stat_card' || e.type === 'stat_odometer') &&
-      cifraSinSeparador(displayCifra(e.value))
-    ) {
-      avisos.push({
-        gravedad: 'media',
-        codigo: 'cifra_sin_separador',
-        detalle: `la cifra ${e.value} sale sin separador de millares`,
-        at_ms: at,
-      });
-    }
-    // un efecto anclado a una palabra tiene que entrar cuando esa palabra suena
-    const ancla = e.type === 'keyword_highlight' ? e.keyword : undefined;
-    if (ancla !== undefined && !palabraEnTramo(master, ancla, e.from_ms, e.to_ms)) {
-      avisos.push({
-        gravedad: 'alta',
-        codigo: 'ancla_perdida',
-        detalle: `«${ancla}» se resalta en un tramo donde no se pronuncia`,
-        at_ms: at,
-      });
-    }
-  }
-
-  // Dos tarjetas a la vez compiten por el centro de la pantalla.
-  //
-  // Se probó relajarlo a «solo si comparten banda», con el argumento de que el
-  // montador deja convivir la banda superior con el centro. Es falso: medido
-  // sobre el fotograma, el recuadro del inserto es lo bastante alto como para
-  // llegar al centro y TAPA la tarjeta de cita. El informe tenía razón y el
-  // montaje no; se arregló allí (los centrados que pisan un inserto se caen).
-  const orden = [...visuales].sort((a, b) => a.from_ms - b.from_ms);
-  for (let i = 1; i < orden.length; i += 1) {
-    const prev = orden[i - 1]!;
-    const cur = orden[i]!;
-    if (cur.from_ms < prev.to_ms + FX_CARD_GUARD_MS) {
-      avisos.push({
-        gravedad: 'alta',
-        codigo: 'solape',
-        detalle: `${prev.type} y ${cur.type} se pisan en el centro de la pantalla`,
-        at_ms: cur.from_ms,
-      });
-    }
-  }
+  // ---- higiene de lo que se lee en pantalla (compartida con el short)
+  avisos.push(...avisosDeHigiene(edits, master));
+  avisos.push(...avisosDeSolape(visuales));
 
   const cob = cobertura(edits, durMs);
   // Un minuto entero sin nada dibujado es un tramo en el que la pantalla solo
@@ -537,4 +479,222 @@ function textoDeEdit(e: Edit): string | undefined {
   if ('text' in e && typeof e.text === 'string') return e.text;
   if ('label' in e && typeof e.label === 'string') return e.label;
   return undefined;
+}
+
+/**
+ * Higiene de lo que se LEE en pantalla, por efecto. Compartida entre el largo
+ * y el short porque ninguna de estas reglas depende del formato: una palabra
+ * vacía resaltada o una cifra sin separador leen igual de mal a 1080×1920.
+ */
+function avisosDeHigiene(
+  edits: readonly Edit[],
+  conCues: Pick<MasterVideoJson, 'cues'>,
+): Aviso[] {
+  const avisos: Aviso[] = [];
+  for (const e of edits) {
+    const at = e.from_ms;
+    if (e.type === 'keyword_highlight' && !palabraResaltable(e.keyword)) {
+      avisos.push({
+        gravedad: 'media',
+        codigo: 'palabra_vacia',
+        detalle: `se resalta «${e.keyword}», que no aporta significado`,
+        at_ms: at,
+      });
+    }
+    const copy = textoDeEdit(e);
+    if (copy !== undefined && copy.trim().split(/\s+/).length > MAX_CARD_WORDS) {
+      avisos.push({
+        gravedad: 'media',
+        codigo: 'copy_largo',
+        detalle: `la tarjeta dice «${copy}»: es un titular, no una transcripción`,
+        at_ms: at,
+      });
+    }
+    // se audita el DISPLAY, no el value crudo: los dos componentes de stat
+    // pintan a través del formateador compartido, así que el aviso solo salta
+    // si lo que va a verse en pantalla de verdad carece de separador
+    if (
+      (e.type === 'stat_card' || e.type === 'stat_odometer') &&
+      cifraSinSeparador(displayCifra(e.value))
+    ) {
+      avisos.push({
+        gravedad: 'media',
+        codigo: 'cifra_sin_separador',
+        detalle: `la cifra ${e.value} sale sin separador de millares`,
+        at_ms: at,
+      });
+    }
+    // un efecto anclado a una palabra tiene que entrar cuando esa palabra suena
+    const ancla = e.type === 'keyword_highlight' ? e.keyword : undefined;
+    if (ancla !== undefined && !palabraEnTramo(conCues, ancla, e.from_ms, e.to_ms)) {
+      avisos.push({
+        gravedad: 'alta',
+        codigo: 'ancla_perdida',
+        detalle: `«${ancla}» se resalta en un tramo donde no se pronuncia`,
+        at_ms: at,
+      });
+    }
+  }
+  return avisos;
+}
+
+/**
+ * Dos tarjetas a la vez compiten por el centro de la pantalla.
+ *
+ * Se probó relajarlo a «solo si comparten banda», con el argumento de que el
+ * montador deja convivir la banda superior con el centro. Es falso: medido
+ * sobre el fotograma, el recuadro del inserto es lo bastante alto como para
+ * llegar al centro y TAPA la tarjeta de cita. El informe tenía razón y el
+ * montaje no; se arregló allí (los centrados que pisan un inserto se caen).
+ *
+ * La guarda es FX_CARD_GUARD_MS en los dos formatos a propósito: constants.ts
+ * la declara sin variante corta porque es del ojo, no del formato.
+ */
+function avisosDeSolape(visuales: readonly Edit[]): Aviso[] {
+  const avisos: Aviso[] = [];
+  const orden = [...visuales].sort((a, b) => a.from_ms - b.from_ms);
+  for (let i = 1; i < orden.length; i += 1) {
+    const prev = orden[i - 1]!;
+    const cur = orden[i]!;
+    if (cur.from_ms < prev.to_ms + FX_CARD_GUARD_MS) {
+      avisos.push({
+        gravedad: 'alta',
+        codigo: 'solape',
+        detalle: `${prev.type} y ${cur.type} se pisan en el centro de la pantalla`,
+        at_ms: cur.from_ms,
+      });
+    }
+  }
+  return avisos;
+}
+
+// ---------------------------------------------------------------------------
+// Shorts. Mismo espíritu que `analizarMaster` con los umbrales del FORMATO:
+// la banda de cadencia del largo (6-16/min) marcaría como estroboscopio el
+// ritmo objetivo del vertical (un plano cada 2-3 s), y el techo de hueco
+// gráfico del largo (60 s) es inalcanzable en una pieza de ≤59 s. Se audita
+// contra lo que la producción vertical YA usa (SHORT_PLANO_MAX_MS y compañía),
+// no contra números inventados para el informe.
+
+export interface MetricasShort {
+  duracion_s: number;
+  beats: number;
+  planos: number;
+  cadencia_planos_min: number;
+  segundos_por_plano: number;
+  imagenes: number;
+  ratio_imagenes: number;
+  efectos: number;
+  efectos_visuales: number;
+  cobertura_grafica: number;
+  hueco_grafico_s: number;
+  titulo_palabras: number;
+  /** quién eligió la ventana, si el maestro trae telemetría (12-ago-2026+) */
+  director: 'llm' | 'fallback' | null;
+  avisos: Aviso[];
+}
+
+/** Palabras que el prompt del director permite en la cartela. */
+export const SHORT_TITULO_MAX_PALABRAS = 6;
+
+export function analizarShort(short: ShortMasterJson): MetricasShort {
+  const beats = short.beats ?? [];
+  const edits = short.edits ?? [];
+  const durMs = short.short.duration_ms;
+  const durMin = durMs / 60_000;
+  const avisos: Aviso[] = [];
+
+  // ---- planos (sub-planos cuando existen, como en el largo)
+  const tramos = beats.flatMap((b) => {
+    const vs = b.visuals ?? [];
+    return vs.length > 0
+      ? vs.map((v) => ({ asset: v.asset, ms: v.to_ms - v.from_ms, at: v.from_ms }))
+      : [{ asset: b.asset, ms: b.to_ms - b.from_ms, at: b.from_ms }];
+  });
+  const presentes = tramos.filter((t) => t.asset != null);
+
+  const cadencia = durMin > 0 ? presentes.length / durMin : 0;
+  if (durMin > 0 && (cadencia < SHORT_CADENCIA_MIN || cadencia > SHORT_CADENCIA_MAX)) {
+    avisos.push({
+      gravedad: 'media',
+      codigo: 'cadencia',
+      detalle: `${cadencia.toFixed(1)} planos por minuto, fuera de la banda ${SHORT_CADENCIA_MIN}–${SHORT_CADENCIA_MAX} del formato`,
+    });
+  }
+
+  // el tope por plano es el del RITMO vertical, con la misma tolerancia de
+  // redondeo que usa el largo con los suyos
+  const planosLargos = presentes.filter((t) => t.ms > SHORT_PLANO_MAX_MS + 500);
+  for (const t of planosLargos.slice(0, 5)) {
+    avisos.push({
+      gravedad: 'media',
+      codigo: 'plano_largo',
+      detalle: `un plano aguanta ${(t.ms / 1000).toFixed(1)} s sin corte; el ritmo del formato es un plano cada ${SHORT_PLANO_MAX_MS / 1000} s`,
+      at_ms: t.at,
+    });
+  }
+
+  // imágenes fijas por tiempo en pantalla. El short no hereda broll_telemetry
+  // (y está bien omitido: el techo del largo no es el del formato), así que se
+  // audita contra el techo general.
+  const imagenes = presentes.filter(
+    (t) => (t.asset as { kind?: string } | null)?.kind === 'image',
+  ).length;
+  const msImagenes = presentes.reduce(
+    (acc, t) => acc + ((t.asset as { kind?: string } | null)?.kind === 'image' ? t.ms : 0),
+    0,
+  );
+  const msTotal = presentes.reduce((acc, t) => acc + t.ms, 0);
+  const ratioImagenes = msTotal > 0 ? msImagenes / msTotal : 0;
+  if (presentes.length > 0 && ratioImagenes > RATIO_IMAGENES_MAX) {
+    avisos.push({
+      gravedad: ratioImagenes > 0.5 ? 'alta' : 'media',
+      codigo: 'demasiada_imagen',
+      detalle: `las imágenes fijas ocupan el ${Math.round(ratioImagenes * 100)} % del tiempo en pantalla (${imagenes} de ${presentes.length} planos)`,
+    });
+  }
+
+  // ---- efectos: cobertura y hueco, con el techo del formato
+  const visuales = edits.filter((e) => VISUALES.has(e.type));
+  const cob = cobertura(edits, durMs);
+  if (cob.hueco_max_ms > SHORT_HUECO_GRAFICO_MAX_MS) {
+    const peor = cob.huecos.reduce((a, b) => (b[1] - b[0] > a[1] - a[0] ? b : a), [0, 0]);
+    avisos.push({
+      gravedad: 'media',
+      codigo: 'hueco_grafico',
+      detalle: `${Math.round(cob.hueco_max_ms / 1000)} s seguidos sin nada dibujado: en una pieza de ${Math.round(durMs / 1000)} s es un tercio en blanco`,
+      at_ms: peor[0],
+    });
+  }
+
+  // ---- el texto más grande de la pieza, hasta ahora el único exento
+  const tituloPalabras = short.short.title.trim().split(/\s+/).length;
+  if (tituloPalabras > SHORT_TITULO_MAX_PALABRAS) {
+    avisos.push({
+      gravedad: 'media',
+      codigo: 'titulo_largo',
+      detalle: `la cartela dice «${short.short.title}» (${tituloPalabras} palabras); el director promete ${SHORT_TITULO_MAX_PALABRAS} como mucho`,
+    });
+  }
+
+  // ---- higiene compartida con el largo
+  avisos.push(...avisosDeHigiene(edits, short));
+  avisos.push(...avisosDeSolape(visuales));
+
+  return {
+    duracion_s: durMs / 1000,
+    beats: beats.length,
+    planos: presentes.length,
+    cadencia_planos_min: cadencia,
+    segundos_por_plano: presentes.length > 0 ? durMs / 1000 / presentes.length : durMs / 1000,
+    imagenes,
+    ratio_imagenes: ratioImagenes,
+    efectos: edits.length,
+    efectos_visuales: visuales.length,
+    cobertura_grafica: cob.ratio,
+    hueco_grafico_s: cob.hueco_max_ms / 1000,
+    titulo_palabras: tituloPalabras,
+    director: short.short_telemetry?.director ?? null,
+    avisos: avisos.sort((a, b) => (a.gravedad === b.gravedad ? 0 : a.gravedad === 'alta' ? -1 : 1)),
+  };
 }

@@ -4,6 +4,7 @@ import type { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { markIncidentShort, shorts, transitionShort, videos } from '@fabrica/db';
 import {
+  analizarShort,
   cuesToSrt,
   cuesToVtt,
   QUEUES,
@@ -195,6 +196,22 @@ export async function handleRenderShort(
       state: 'hecho',
     });
     await ctx.publishEvent({ type: 'inbox_changed' });
+    // Puerta de calidad: espejo de la del largo (render/index.ts), con los
+    // umbrales del formato. Avisa en el log de la entrega, no bloquea: el
+    // short está entregado y el humano decide si el aviso pesa.
+    try {
+      const m = analizarShort(master);
+      if (m.avisos.length > 0) {
+        log.warn(
+          { avisos: m.avisos.map((a) => `${a.gravedad}: ${a.detalle}`) },
+          `Calidad: ${m.avisos.length} aviso(s) sobre el short terminado`,
+        );
+      } else {
+        log.info({ planos: m.planos, cadencia: m.cadencia_planos_min }, 'Calidad: sin avisos');
+      }
+    } catch (err) {
+      log.warn({ err }, 'No se pudo calcular el informe de calidad; el short está entregado');
+    }
     log.info({ outDir }, 'Short renderizado');
   } catch (err) {
     const message = `Fallo en el render del short: ${errorMessage(err)}`;

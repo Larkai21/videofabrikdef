@@ -277,8 +277,22 @@ export function efectosPorBeat(
   }));
 }
 
-export async function directShorts(ctx: WorkerContext, params: ShortParams): Promise<Candidato[]> {
-  if (params.beats.length === 0) return [];
+export interface ResultadoDirector {
+  candidatos: Candidato[];
+  /**
+   * Quién eligió de verdad. El fallback entraba en silencio por dos rutas
+   * (fallo del LLM y normalización que no deja nada) y no había forma de saber
+   * qué fracción de los shorts entregados eran la propuesta de reserva; ahora
+   * se congela en `short_telemetry` del maestro.
+   */
+  source: 'llm' | 'fallback';
+}
+
+export async function directShorts(
+  ctx: WorkerContext,
+  params: ShortParams,
+): Promise<ResultadoDirector> {
+  if (params.beats.length === 0) return { candidatos: [], source: 'fallback' };
   const { system, user } = buildShortPrompt(params);
   try {
     const data = await ledgeredLlmJson(ctx, {
@@ -296,12 +310,14 @@ export async function directShorts(ctx: WorkerContext, params: ShortParams): Pro
       ...(params.cuantos !== undefined ? { cuantos: params.cuantos } : {}),
     });
     // el modelo respondió pero nada sobrevivió a la normalización
-    return candidatos.length > 0 ? candidatos : fallbackShorts(params.beats, params.videoTitle);
+    return candidatos.length > 0
+      ? { candidatos, source: 'llm' }
+      : { candidatos: fallbackShorts(params.beats, params.videoTitle), source: 'fallback' };
   } catch (err) {
     ctx.logger.warn(
       { err, videoId: params.videoId },
       'Director de shorts falló; se propone el arranque del vídeo',
     );
-    return fallbackShorts(params.beats, params.videoTitle);
+    return { candidatos: fallbackShorts(params.beats, params.videoTitle), source: 'fallback' };
   }
 }
