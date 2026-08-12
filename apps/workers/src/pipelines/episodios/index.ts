@@ -3,12 +3,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { Worker, type Job } from 'bullmq';
-import { eq } from 'drizzle-orm';
-import { episodes, markIncidentEpisode, transitionEpisode } from '@fabrica/db';
+import { and, eq, ne } from 'drizzle-orm';
+import { nanoid } from 'nanoid';
+import { channels, episodes, markIncidentEpisode, shorts, transitionEpisode } from '@fabrica/db';
 import {
   JOBS,
   PRICES,
   QUEUES,
+  type HighlightsProposeJob,
   type MediaDownloadJob,
   type MediaTranscribeJob,
 } from '@fabrica/shared';
@@ -16,8 +18,10 @@ import type { WorkerContext } from '../../lib/context.js';
 import { closeCost, failCost, openCost } from '../../lib/ledger.js';
 import { createMedia, EPISODE_MAX_S } from '../../providers/media.js';
 import { createStt } from '../../providers/stt.js';
-import { probeDurationMs } from '../tts/audio.js';
+import { loudnormToWav, measureLufs, probeDurationMs } from '../tts/audio.js';
 import { computeBeats, type BeatToken } from '../tts/beats.js';
+import { montarMaestroClip } from './clip.js';
+import { directHighlights } from './highlights.js';
 import { detectarSilencios } from './silencios.js';
 import { aTokens, cruzarConPausas, spansDePausas } from './tokens.js';
 
@@ -301,6 +305,235 @@ export async function handleTranscribe(
   }
 }
 
+/**
+ * Pre-corta el segmento del episodio con el encuadre elegido: ffmpeg como
+ * utilidad de ingesta (precedente reducirA1080). El clip queda YA en
+ * 1080×1920: el player previsualiza exactamente lo que se renderiza y
+ * OffthreadVideo nunca toca el mp4 grande del episodio.
+ */
+async function precortarClip(params: {
+  mediaPath: string;
+  fromMs: number;
+  toMs: number;
+  focusX: number;
+  width: number;
+  height: number;
+  destDir: string;
+}): Promise<{ clipVideoPath: string; clipAudioPath: string; lufs: number }> {
+  const { mediaPath, fromMs, toMs, focusX, width, height, destDir } = params;
+  fs.mkdirSync(destDir, { recursive: true });
+  const durS = ((toMs - fromMs) / 1000).toFixed(3);
+  const desdeS = (fromMs / 1000).toFixed(3);
+  const cropW = Math.round((height * 9) / 16);
+  const x = Math.min(width - cropW, Math.max(0, Math.round(width * focusX - cropW / 2)));
+
+  const clipVideoPath = path.join(destDir, 'clip.mp4');
+  await ejec('ffmpeg', [
+    '-nostdin',
+    '-loglevel',
+    'error',
+    '-ss',
+    desdeS,
+    '-i',
+    mediaPath,
+    '-t',
+    durS,
+    '-vf',
+    `crop=${cropW}:${height}:${x}:0,scale=1080:1920,fps=30`,
+    '-c:v',
+    'libx264',
+    '-crf',
+    '18',
+    '-preset',
+    'veryfast',
+    '-pix_fmt',
+    'yuv420p',
+    '-movflags',
+    '+faststart',
+    '-an',
+    '-y',
+    clipVideoPath,
+  ]);
+  // la voz del clip, normalizada a la referencia del repo (−16 LUFS) como la
+  // del TTS; la entrega sube a −14 en el render, igual que siempre
+  const crudo = path.join(destDir, '.voz-cruda.wav');
+  await ejec('ffmpeg', [
+    '-nostdin',
+    '-loglevel',
+    'error',
+    '-ss',
+    desdeS,
+    '-i',
+    mediaPath,
+    '-t',
+    durS,
+    '-vn',
+    '-ac',
+    '1',
+    '-ar',
+    '44100',
+    '-y',
+    crudo,
+  ]);
+  const clipAudioPath = path.join(destDir, 'voz.wav');
+  await loudnormToWav(crudo, clipAudioPath);
+  fs.rmSync(crudo, { force: true });
+  const lufs = (await measureLufs(clipAudioPath)) ?? -16;
+  return { clipVideoPath, clipAudioPath, lufs };
+}
+
+export async function handleProposeHighlights(
+  ctx: WorkerContext,
+  job: Job<HighlightsProposeJob>,
+): Promise<void> {
+  const { episodeId, excluir, force } = job.data;
+  const log = ctx.logger.child({ episodeId, queue: QUEUES.highlights });
+
+  const [ep] = await ctx.db.select().from(episodes).where(eq(episodes.id, episodeId)).limit(1);
+  if (!ep) throw new Error(`Episodio no encontrado: ${episodeId}`);
+  if (ep.state !== 'listo') {
+    log.info({ state: ep.state }, 'Los clips salen de un episodio listo; job ignorado');
+    return;
+  }
+  if (ep.focus === null) {
+    // sin encuadre elegido el pre-corte no sabe qué recortar: incidencia con
+    // el arreglo dicho, no un fallo mudo
+    await ctx.publishEvent({
+      type: 'incident',
+      episode_id: episodeId,
+      queue: QUEUES.highlights,
+      message: 'Elige el encuadre del episodio antes de proponer clips',
+      suggested_action: 'reintentar',
+    });
+    return;
+  }
+  if (ep.beats === null || ep.transcriptPath === null || !fs.existsSync(ep.transcriptPath)) {
+    throw new Error('Faltan los beats o el transcript; reintenta la transcripción');
+  }
+
+  // idempotencia: con propuestas vivas no se re-propone salvo force
+  if (force !== true) {
+    const vivos = await ctx.db
+      .select({ id: shorts.id })
+      .from(shorts)
+      .where(and(eq(shorts.episodeId, episodeId), ne(shorts.state, 'descartado')));
+    if (vivos.length > 0) {
+      log.info({ vivos: vivos.length }, 'El episodio ya tiene clips propuestos; job ignorado');
+      return;
+    }
+  }
+
+  const { tokens } = JSON.parse(fs.readFileSync(ep.transcriptPath, 'utf8')) as {
+    tokens: BeatToken[];
+  };
+  const beatsDirector = ep.beats.map((b) => ({ ...b, edits: 0 }));
+  const { candidatos, source } = await directHighlights(ctx, {
+    episodeId,
+    channelId: ep.channelId,
+    titulo: ep.sourceTitle ?? ep.sourceUrl,
+    canal: ep.sourceChannelName ?? '—',
+    beats: beatsDirector,
+    ...(excluir !== undefined ? { excluir } : {}),
+  });
+  if (candidatos.length === 0) {
+    log.warn('El director no encontró ningún clip; 0 propuestas');
+    await ctx.publishEvent({ type: 'inbox_changed' });
+    return;
+  }
+
+  const [canal] = await ctx.db
+    .select({ name: channels.name, profile: channels.profile, avatarPath: channels.avatarPath })
+    .from(channels)
+    .where(eq(channels.id, ep.channelId))
+    .limit(1);
+
+  const previos = await ctx.db
+    .select({ idx: shorts.idx })
+    .from(shorts)
+    .where(eq(shorts.episodeId, episodeId));
+  let siguienteIdx = previos.reduce((max, s) => Math.max(max, s.idx + 1), 0);
+
+  const creados = [];
+  for (const c of candidatos) {
+    const id = nanoid(12);
+    const destDir = path.join(episodeDir(ctx, episodeId), 'clips', id);
+    const corte = await precortarClip({
+      mediaPath: ep.mediaPath!,
+      fromMs: c.from_ms,
+      toMs: c.to_ms,
+      focusX: ep.focus.x,
+      width: ep.width ?? 1920,
+      height: ep.height ?? 1080,
+      destDir,
+    });
+    const master = montarMaestroClip({
+      shortId: id,
+      episodio: {
+        id: episodeId,
+        channelId: ep.channelId,
+        sourceUrl: ep.sourceUrl,
+        sourceTitle: ep.sourceTitle,
+        sourceChannelName: ep.sourceChannelName,
+        beats: ep.beats,
+      },
+      cand: c,
+      tokens,
+      clipVideoPath: corte.clipVideoPath,
+      clipAudioPath: corte.clipAudioPath,
+      lufs: corte.lufs,
+      brand: {
+        ...(canal?.name !== undefined ? { channel_name: canal.name } : {}),
+        ...(canal?.profile?.brand_design !== undefined
+          ? { design: canal.profile.brand_design }
+          : {}),
+        ...(canal?.avatarPath !== null && canal?.avatarPath !== undefined
+          ? { avatar_path: canal.avatarPath }
+          : {}),
+      },
+    });
+    // la telemetría mínima del clip: quién eligió (patrón short_telemetry)
+    const conTelemetria = {
+      ...master,
+      short_telemetry: {
+        planos_antes: master.beats?.length ?? 0,
+        planos_despues: master.beats?.length ?? 0,
+        segundos_por_plano: Number(((c.to_ms - c.from_ms) / 1000 / (master.beats?.length ?? 1)).toFixed(2)),
+        efectos_heredados: 0,
+        efectos_colocados: 0,
+        director: source,
+      },
+    };
+    creados.push({
+      id,
+      videoId: null,
+      episodeId,
+      channelId: ep.channelId,
+      idx: siguienteIdx++,
+      state: 'propuesto',
+      fromMs: c.from_ms,
+      toMs: c.to_ms,
+      title: c.title,
+      hook: c.hook,
+      reason: c.reason,
+      score: c.score,
+      master: conTelemetria,
+    });
+    log.info({ clip: id, s: Math.round((c.to_ms - c.from_ms) / 1000) }, 'Clip pre-cortado');
+  }
+
+  await ctx.db.insert(shorts).values(creados);
+  for (const s of creados) {
+    await ctx.publishEvent({
+      type: 'short_state',
+      short_id: s.id,
+      episode_id: episodeId,
+      state: 'propuesto',
+    });
+  }
+  await ctx.publishEvent({ type: 'inbox_changed' });
+  log.info({ propuestos: creados.length, source }, 'Clips propuestos');
+}
+
 export async function registerMediaWorkers(ctx: WorkerContext): Promise<Worker[]> {
   const worker = new Worker(
     QUEUES.media,
@@ -318,5 +551,16 @@ export async function registerMediaWorkers(ctx: WorkerContext): Promise<Worker[]
     // concurrency 1: una descarga de GB no debe competir consigo misma
     { connection: ctx.connection, concurrency: 1 },
   );
-  return [worker];
+  const highlightsWorker = new Worker(
+    QUEUES.highlights,
+    async (job) => {
+      if (job.name === JOBS.highlights.propose) {
+        await handleProposeHighlights(ctx, job as Job<HighlightsProposeJob>);
+        return;
+      }
+      ctx.logger.warn({ job: job.name }, 'Job desconocido en la cola de highlights');
+    },
+    { connection: ctx.connection, concurrency: 1 },
+  );
+  return [worker, highlightsWorker];
 }

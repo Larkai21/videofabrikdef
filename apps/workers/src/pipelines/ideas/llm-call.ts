@@ -22,6 +22,8 @@ export async function ledgeredLlmJson<S extends z.ZodType>(
   ctx: WorkerContext,
   params: {
     videoId?: string | null;
+    /** episodio externo (clipping): su gasto no tiene fila en videos */
+    episodeId?: string | null;
     channelId?: string | null;
     op: CostOperation;
     system: string;
@@ -35,6 +37,7 @@ export async function ledgeredLlmJson<S extends z.ZodType>(
 ): Promise<z.infer<S>> {
   const handle = await openCost(ctx.db, {
     videoId: params.videoId ?? null,
+    episodeId: params.episodeId ?? null,
     channelId: params.channelId ?? null,
     provider: ctx.llm.ledgerProvider,
     operation: params.op,

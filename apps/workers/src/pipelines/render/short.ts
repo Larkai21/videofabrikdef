@@ -38,7 +38,14 @@ function descripcionDe(short: RenderableShort, tituloLargo: string): string {
     .map((t) => `#${t.replace(/[^\p{L}\p{N}]/gu, '')}`)
     .filter((t) => t.length > 1)
     .join(' ');
-  return [short.short.hook, hashtags, `Vídeo completo: ${tituloLargo}`]
+  // clip de EPISODIO externo: la atribución es OBLIGATORIA y sale del bloque
+  // fuente congelado en el maestro — es política del canal de clips, no adorno
+  const fuente = short.short.fuente;
+  const origen =
+    fuente !== undefined
+      ? `Clip del episodio «${fuente.source_title}»${fuente.source_channel_name !== '' ? ` de ${fuente.source_channel_name}` : ''}\nEpisodio completo: ${fuente.source_url}`
+      : `Vídeo completo: ${tituloLargo}`;
+  return [short.short.hook, hashtags, origen]
     .filter((p) => p !== undefined && p !== '')
     .join('\n\n');
 }
@@ -79,12 +86,14 @@ export async function handleRenderShort(
     await ctx.publishEvent({
       type: 'short_state',
       short_id: shortId,
-      video_id: short.videoId,
+      ...(short.videoId !== null ? { video_id: short.videoId } : {}),
+      ...(short.episodeId !== null ? { episode_id: short.episodeId } : {}),
       state: 'incidencia',
     });
     await ctx.publishEvent({
       type: 'incident',
-      video_id: short.videoId,
+      ...(short.videoId !== null ? { video_id: short.videoId } : {}),
+      ...(short.episodeId !== null ? { episode_id: short.episodeId } : {}),
       queue: QUEUES.render,
       message,
       suggested_action: 'regenerar',
@@ -99,7 +108,8 @@ export async function handleRenderShort(
     await ctx.publishEvent({
       type: 'short_state',
       short_id: shortId,
-      video_id: short.videoId,
+      ...(short.videoId !== null ? { video_id: short.videoId } : {}),
+      ...(short.episodeId !== null ? { episode_id: short.episodeId } : {}),
       state: 'render',
     });
   } else if (short.state === 'hecho') {
@@ -122,7 +132,10 @@ export async function handleRenderShort(
     });
 
     const composition = await selectComposition({ serveUrl, id: 'ShortForm', inputProps });
-    const outDir = path.join(ctx.outputsDir, short.videoId, 'shorts', shortId);
+    const outDir =
+      short.episodeId !== null
+        ? path.join(ctx.outputsDir, 'episodios', short.episodeId, 'shorts', shortId)
+        : path.join(ctx.outputsDir, short.videoId!, 'shorts', shortId);
     await fsp.mkdir(outDir, { recursive: true });
 
     let lastProgressAt = 0;
@@ -144,7 +157,7 @@ export async function handleRenderShort(
         lastProgressAt = now;
         void ctx.publishEvent({
           type: 'render_progress',
-          video_id: short.videoId,
+          ...(short.videoId !== null ? { video_id: short.videoId } : {}),
           // con el id aparte, la bandeja no enciende la barra del vídeo largo
           short_id: shortId,
           progress: Math.round(progress * 100),
@@ -176,12 +189,18 @@ export async function handleRenderShort(
       inputProps,
     });
 
-    const [videoRow] = await ctx.db
-      .select({ titleChosen: videos.titleChosen })
-      .from(videos)
-      .where(eq(videos.id, short.videoId))
-      .limit(1);
-    await writeShortOutputs(outDir, master, videoRow?.titleChosen ?? short.title);
+    // el clip de episodio no tiene vídeo padre: su «de dónde sale» es la
+    // atribución del bloque fuente, que descripcionDe ya prefiere
+    let tituloLargo = short.title;
+    if (short.videoId !== null) {
+      const [videoRow] = await ctx.db
+        .select({ titleChosen: videos.titleChosen })
+        .from(videos)
+        .where(eq(videos.id, short.videoId))
+        .limit(1);
+      tituloLargo = videoRow?.titleChosen ?? short.title;
+    }
+    await writeShortOutputs(outDir, master, tituloLargo);
 
     await ctx.db
       .update(shorts)
@@ -190,7 +209,7 @@ export async function handleRenderShort(
     await transitionShort(ctx.db, shortId, 'hecho', { expectFrom: 'render' });
     await ctx.publishEvent({
       type: 'render_progress',
-      video_id: short.videoId,
+      ...(short.videoId !== null ? { video_id: short.videoId } : {}),
       short_id: shortId,
       progress: 100,
       rendered_frames: composition.durationInFrames,
@@ -199,7 +218,8 @@ export async function handleRenderShort(
     await ctx.publishEvent({
       type: 'short_state',
       short_id: shortId,
-      video_id: short.videoId,
+      ...(short.videoId !== null ? { video_id: short.videoId } : {}),
+      ...(short.episodeId !== null ? { episode_id: short.episodeId } : {}),
       state: 'hecho',
     });
     await ctx.publishEvent({ type: 'inbox_changed' });
@@ -233,12 +253,14 @@ export async function handleRenderShort(
       await ctx.publishEvent({
         type: 'short_state',
         short_id: shortId,
-        video_id: short.videoId,
+        ...(short.videoId !== null ? { video_id: short.videoId } : {}),
+        ...(short.episodeId !== null ? { episode_id: short.episodeId } : {}),
         state: 'incidencia',
       });
       await ctx.publishEvent({
         type: 'incident',
-        video_id: short.videoId,
+        ...(short.videoId !== null ? { video_id: short.videoId } : {}),
+        ...(short.episodeId !== null ? { episode_id: short.episodeId } : {}),
         queue: QUEUES.render,
         message: message.slice(0, 500),
         suggested_action: 'reintentar',

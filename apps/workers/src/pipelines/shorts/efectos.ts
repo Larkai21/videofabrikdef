@@ -26,6 +26,12 @@ export async function efectosDelShort(
   ctx: WorkerContext,
   { master, largo, lang }: EntradaEfectos,
 ): Promise<{ master: RenderableShort; antes: number; despues: number }> {
+  // solo shorts de la FÁBRICA pasan por aquí: los clips de episodio no llevan
+  // pasada de efectos (sin claims no hay cifras admisibles en pantalla)
+  const videoIdLargo = master.video.video_id;
+  if (videoIdLargo === undefined) {
+    throw new Error('efectosDelShort es solo para shorts con vídeo padre');
+  }
   const heredados: readonly Edit[] = (master.edits ?? []).filter(
     (e) => SHORT_EDIT_ALLOWED[e.type],
   );
@@ -35,7 +41,7 @@ export async function efectosDelShort(
     {
       // el ledger de costes anota la llamada contra el vídeo LARGO: el short no
       // tiene fila propia en cost_ledger y su gasto es del vídeo que lo produjo
-      videoId: master.video.video_id,
+      videoId: videoIdLargo,
       channelId: master.video.channel_id,
       lang,
       beats: master.beats.map((b) => ({

@@ -187,7 +187,8 @@ export type ShortPublicadoRequest = z.infer<typeof shortPublicadoRequestSchema>;
 
 export const shortDtoSchema = z.object({
   id: z.string(),
-  video_id: z.string(),
+  video_id: z.string().nullable(),
+  episode_id: z.string().nullable(),
   idx: z.number().int(),
   state: shortStateSchema,
   from_ms: z.number().int(),

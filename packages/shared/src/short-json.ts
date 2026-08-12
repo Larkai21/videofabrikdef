@@ -11,17 +11,37 @@ import { brandSchema, masterVideoJsonV1, type EditType } from './master-json.js'
 // tener (`video_id`, la ventana de corte). Con omit/extend, todo campo que se
 // añada al contrato largo lo hereda el short gratis.
 
-export const shortVideoMetaSchema = z.object({
-  /** id del SHORT, no del vídeo largo */
-  id: z.string(),
-  /** el largo del que se recortó */
-  video_id: z.string(),
-  channel_id: z.string(),
-  idea_id: z.string(),
-  fps: z.literal(30),
-  width: z.literal(1080),
-  height: z.literal(1920),
-});
+export const shortVideoMetaSchema = z
+  .object({
+    /** id del SHORT, no de su origen */
+    id: z.string(),
+    /** el vídeo largo del que se recortó (origen fábrica) */
+    video_id: z.string().optional(),
+    /** el episodio externo del que se recortó (origen clipping) */
+    episode_id: z.string().optional(),
+    channel_id: z.string(),
+    idea_id: z.string().optional(),
+    fps: z.literal(30),
+    width: z.literal(1080),
+    height: z.literal(1920),
+  })
+  .superRefine((v, ctx) => {
+    // exactamente un origen: un short sin padre no se puede auditar y uno con
+    // dos padres no se puede facturar
+    const origenes = [v.video_id, v.episode_id].filter((x) => x !== undefined).length;
+    if (origenes !== 1) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'El short necesita exactamente un origen: video_id o episode_id',
+      });
+    }
+    if (v.video_id !== undefined && v.idea_id === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Un short de vídeo de la fábrica lleva idea_id',
+      });
+    }
+  });
 
 /**
  * Cómo se encuadra un plano apaisado en el lienzo vertical. Se estampa en el
@@ -39,19 +59,31 @@ export const shortFramingSchema = z.enum(SHORT_FRAMINGS);
 export type ShortFraming = z.infer<typeof shortFramingSchema>;
 
 export const shortCutSchema = z.object({
-  /** inicio de la ventana en el reloj del vídeo largo; también el trim del audio */
+  /** inicio de la ventana en el reloj del origen; también el trim del audio */
   source_from_ms: z.number().int().nonnegative(),
   source_to_ms: z.number().int().positive(),
   duration_ms: z.number().int().positive(),
-  /** los idx que tenían los beats en el largo, para poder rastrear el origen */
+  /** los idx que tenían los beats en el origen, para poder rastrear */
   source_beat_idxs: z.array(z.number().int().nonnegative()).min(1),
-  /** rótulo de la cartela superior, no el título del vídeo largo */
+  /** rótulo de la cartela superior, no el título del origen */
   title: z.string().min(1).max(60),
   /** por qué alguien dejaría de deslizar */
   hook: z.string().min(1),
   /** para el humano que aprueba */
   reason: z.string(),
   score: z.number(),
+  /**
+   * Solo clips de EPISODIO externo: la fuente CONGELADA en el maestro. Es el
+   * registro de defensa ante reclamaciones (sobrevive a purgar el episodio) y
+   * la materia prima de la atribución automática en description.txt.
+   */
+  fuente: z
+    .object({
+      source_url: z.string(),
+      source_title: z.string(),
+      source_channel_name: z.string(),
+    })
+    .optional(),
 });
 export type ShortCut = z.infer<typeof shortCutSchema>;
 

@@ -34,9 +34,16 @@ async function loadShort(ctx: ApiContext, id: string): Promise<ShortRow> {
   return row;
 }
 
+export function shortToDto(row: ShortRow): ShortDto {
+  return toDto(row);
+}
+
 function toDto(row: ShortRow): ShortDto {
   const rendido = row.outputDir !== null && row.state === 'hecho';
-  const rel = `outputs/${row.videoId}/shorts/${row.id}`;
+  const rel =
+    row.episodeId !== null
+      ? `outputs/episodios/${row.episodeId}/shorts/${row.id}`
+      : `outputs/${row.videoId}/shorts/${row.id}`;
   const thumb =
     rendido && row.outputDir !== null && fs.existsSync(path.join(row.outputDir, 'thumb.jpg'))
       ? `/files/${rel}/thumb.jpg`
@@ -44,6 +51,7 @@ function toDto(row: ShortRow): ShortDto {
   return {
     id: row.id,
     video_id: row.videoId,
+    episode_id: row.episodeId,
     idx: row.idx,
     state: row.state as ShortDto['state'],
     from_ms: row.fromMs,
@@ -181,7 +189,8 @@ export function registerShortRoutes(app: FastifyInstance, ctx: ApiContext): void
     await ctx.events.publish({
       type: 'short_state',
       short_id: id,
-      video_id: row.videoId,
+      ...(row.videoId !== null ? { video_id: row.videoId } : {}),
+      ...(row.episodeId !== null ? { episode_id: row.episodeId } : {}),
       state: 'aprobado',
     });
     return { ok: true as const };
@@ -198,7 +207,8 @@ export function registerShortRoutes(app: FastifyInstance, ctx: ApiContext): void
     await ctx.events.publish({
       type: 'short_state',
       short_id: id,
-      video_id: row.videoId,
+      ...(row.videoId !== null ? { video_id: row.videoId } : {}),
+      ...(row.episodeId !== null ? { episode_id: row.episodeId } : {}),
       state: 'descartado',
     });
     return { ok: true as const };

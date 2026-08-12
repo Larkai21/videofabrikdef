@@ -170,9 +170,11 @@ export const shorts = pgTable(
   'shorts',
   {
     id: text('id').primaryKey(),
-    videoId: text('video_id')
-      .notNull()
-      .references(() => videos.id),
+    // el ORIGEN: exactamente uno de los dos (lo valida el contrato del
+    // maestro y el código de propuesta; un short sin padre no se audita)
+    videoId: text('video_id').references(() => videos.id),
+    // episodio externo del pipeline de clipping
+    episodeId: text('episode_id').references(() => episodes.id),
     // desnormalizado a propósito: la bandeja y el ledger filtran por canal sin
     // tener que unir con videos
     channelId: text('channel_id')
@@ -220,6 +222,7 @@ export const shorts = pgTable(
   },
   (t) => [
     uniqueIndex('shorts_video_idx_idx').on(t.videoId, t.idx),
+    uniqueIndex('shorts_episode_idx_idx').on(t.episodeId, t.idx),
     index('shorts_state_idx').on(t.state),
     index('shorts_channel_idx').on(t.channelId),
   ],

@@ -390,7 +390,8 @@ async function reportStalledShortFailure(
     await ctx.publishEvent({
       type: 'short_state',
       short_id: shortId,
-      video_id: short.videoId,
+      ...(short.videoId !== null ? { video_id: short.videoId } : {}),
+      ...(short.episodeId !== null ? { episode_id: short.episodeId } : {}),
       state: 'incidencia',
     });
   } catch (incErr) {

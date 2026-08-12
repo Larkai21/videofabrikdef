@@ -18,6 +18,8 @@ export const QUEUES = {
   // concurrency 1 — una descarga de GB y una transcripción por bloques no
   // deben competir entre sí ni con el resto
   media: 'media',
+  // propuesta de clips desde un episodio listo (director + pre-corte)
+  highlights: 'highlights',
 } as const;
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
@@ -40,7 +42,16 @@ export const JOBS = {
   publish: { upload: 'upload' },
   shorts: { propose: 'propose' },
   media: { download: 'download', transcribe: 'transcribe' },
+  highlights: { propose: 'propose' },
 } as const;
+
+// Propuesta de clips de un episodio LISTO. `excluir` funciona como en shorts:
+// ventanas descartadas (con motivo) y vivas que no deben volver.
+export interface HighlightsProposeJob {
+  episodeId: string;
+  excluir?: { from_ms: number; to_ms: number; reason?: string }[];
+  force?: boolean;
+}
 
 // Descarga del episodio externo (yt-dlp → mp4 + wav). Idempotente contra
 // disco: si el fichero existe y el probe da bien, no se re-descarga.

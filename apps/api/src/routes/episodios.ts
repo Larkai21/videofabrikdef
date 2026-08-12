@@ -2,10 +2,10 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { desc, eq } from 'drizzle-orm';
+import { asc, desc, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { nanoid } from 'nanoid';
-import { episodes, transitionEpisode } from '@fabrica/db';
+import { episodes, shorts, transitionEpisode } from '@fabrica/db';
 import {
   episodeClaimRequestSchema,
   episodeCreateRequestSchema,
@@ -18,6 +18,7 @@ import {
 } from '@fabrica/shared';
 import type { ApiContext } from '../lib/context.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
+import { shortToDto } from './shorts.js';
 
 const ejec = promisify(execFile);
 
@@ -224,6 +225,60 @@ export function registerEpisodeRoutes(app: FastifyInstance, ctx: ApiContext): vo
       .set({ focus: { x: body.x }, updatedAt: new Date() })
       .where(eq(episodes.id, id));
     return { ok: true as const, x: body.x };
+  });
+
+  // Propuesta de clips: mismo contrato que los shorts de vídeo («proponer
+  // otros» excluye descartadas con motivo Y vivas).
+  app.post('/episodios/:id/clips', async (req) => {
+    const { id } = req.params as { id: string };
+    const [row] = await ctx.db.select().from(episodes).where(eq(episodes.id, id)).limit(1);
+    if (!row) throw notFound(`Episodio ${id} no existe`);
+    if (row.state !== 'listo') {
+      throw conflict(`Los clips salen de un episodio listo (estado actual: ${row.state})`);
+    }
+    if (row.focus === null) {
+      throw conflict('Elige el encuadre del episodio antes de proponer clips');
+    }
+    const previos = await ctx.db
+      .select({
+        fromMs: shorts.fromMs,
+        toMs: shorts.toMs,
+        state: shorts.state,
+        discardReason: shorts.discardReason,
+      })
+      .from(shorts)
+      .where(eq(shorts.episodeId, id));
+    const excluir = previos.map((s) =>
+      s.state === 'descartado'
+        ? {
+            from_ms: s.fromMs,
+            to_ms: s.toMs,
+            ...(s.discardReason !== null ? { reason: s.discardReason } : {}),
+          }
+        : { from_ms: s.fromMs, to_ms: s.toMs, reason: 'ya propuesta o aprobada' },
+    );
+    const vivos = previos.filter((s) => s.state !== 'descartado').length;
+    const res = await ctx.enqueuer.enqueue(
+      QUEUES.highlights,
+      JOBS.highlights.propose,
+      {
+        episodeId: id,
+        ...(excluir.length > 0 ? { excluir } : {}),
+        ...(vivos === 0 ? {} : { force: true }),
+      },
+      { dedupeId: `highlights-${id}` },
+    );
+    return { ok: true as const, ya_en_curso: !res.enqueued };
+  });
+
+  app.get('/episodios/:id/clips', async (req) => {
+    const { id } = req.params as { id: string };
+    const rows = await ctx.db
+      .select()
+      .from(shorts)
+      .where(eq(shorts.episodeId, id))
+      .orderBy(asc(shorts.idx));
+    return { shorts: rows.map(shortToDto) };
   });
 
   // Registro manual de una reclamación: el historial de defensa del episodio.

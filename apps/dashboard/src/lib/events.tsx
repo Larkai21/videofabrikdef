@@ -108,10 +108,13 @@ export function EventsProvider({ children }: { children: ReactNode }) {
             }));
             break;
           }
-          setLive((prev) => ({
-            ...prev,
-            renderProgress: { ...prev.renderProgress, [event.video_id]: event.progress },
-          }));
+          if (event.video_id !== undefined) {
+            const videoId = event.video_id;
+            setLive((prev) => ({
+              ...prev,
+              renderProgress: { ...prev.renderProgress, [videoId]: event.progress },
+            }));
+          }
           break;
         }
         case 'short_state': {

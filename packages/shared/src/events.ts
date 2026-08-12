@@ -22,7 +22,8 @@ export const fabricaEventSchema = z.discriminatedUnion('type', [
   }),
   z.object({
     type: z.literal('render_progress'),
-    video_id: z.string(),
+    // ausente cuando lo que se renderiza es un clip de EPISODIO (no hay vídeo)
+    video_id: z.string().optional(),
     // Presente solo si lo que se renderiza es un SHORT. El dashboard indexa el
     // progreso por video_id y pinta esa barra en la tarjeta del vídeo largo:
     // reutilizar video_id para un short encendería la barra de un vídeo ya
@@ -36,7 +37,9 @@ export const fabricaEventSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('short_state'),
     short_id: z.string(),
-    video_id: z.string(),
+    // el origen: vídeo de la fábrica O episodio externo (clips)
+    video_id: z.string().optional(),
+    episode_id: z.string().optional(),
     state: shortStateSchema,
   }),
   z.object({
