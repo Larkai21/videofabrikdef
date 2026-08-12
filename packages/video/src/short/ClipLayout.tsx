@@ -5,6 +5,7 @@ import type { PiezaMaster } from '../brand-kit';
 import { defaultDesign, hexToRgba } from '@fabrica/shared';
 import { clamp, Ease, span } from '../effects/motion';
 import { displayText, FONT_FAMILY } from '../fonts';
+import { anchoLibreCentrado, useLienzo } from '../lienzo';
 import { isRenderableSrc, toSrc } from '../media-src';
 
 // Layout de CLIP de episodio, calcado del formato de referencia (canal de
@@ -118,28 +119,32 @@ const Titular: React.FC<{ titulo: string; ancho: number }> = ({ titulo, ancho })
 };
 
 /**
- * Subtítulo del formato: SLAM palabra a palabra, portado del catálogo hermano
- * (caption-kinetic-slam): mayúsculas, entra a escala 0,55→1 con sobrepaso,
- * rotación sembrada de ±2° y color alterno amarillo/blanco. El contorno negro
- * y la posición (tercio bajo de la tarjeta) son los del canal de referencia.
+ * Subtítulos del formato: tres coreografías del catálogo hermano rotando por
+ * frase, como alterna el editor del tutorial —
+ *   slam         (caption-kinetic-slam): mayúsculas, escala con sobrepaso,
+ *                rotación sembrada, amarillo/blanco alternos
+ *   weight-shift (caption-weight-shift): el par entero visible; la palabra
+ *                ACTIVA engorda y brilla, la otra adelgaza y se apaga
+ *   highlight    (caption-highlight): caja amarilla barriendo detrás de la
+ *                palabra activa, texto negro encima
+ * Todo dentro del área segura DE VERDAD: ancho de anchoLibreCentrado (la
+ * columna de acciones manda) y borde inferior por encima de la banda de la
+ * interfaz — antes iba a porcentajes a ojo y se metía en la banda.
  */
 const SubtituloClip: React.FC<{ cues: readonly Cue[]; ancho: number }> = ({ cues, ancho }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const lienzo = useLienzo();
   const currentMs = (frame / fps) * 1000;
-  const activo = cues.find((c) => currentMs >= c.from_ms && currentMs < c.to_ms);
-  if (!activo || activo.words.length === 0) return null;
-  // pares de ≤2 palabras (la referencia nunca enseña más), pero cada palabra
-  // del par SLAMEA por su cuenta cuando le toca sonar
+  const cueIdx = cues.findIndex((c) => currentMs >= c.from_ms && currentMs < c.to_ms);
+  const activo = cueIdx >= 0 ? cues[cueIdx] : undefined;
+  if (activo === undefined || activo.words.length === 0) return null;
+
   const pares: { from_ms: number; to_ms: number; words: typeof activo.words }[] = [];
   for (let i = 0; i < activo.words.length; i += 2) {
     const a = activo.words[i]!;
     const b = activo.words[i + 1];
-    pares.push({
-      from_ms: a.from_ms,
-      to_ms: (b ?? a).to_ms,
-      words: b !== undefined ? [a, b] : [a],
-    });
+    pares.push({ from_ms: a.from_ms, to_ms: (b ?? a).to_ms, words: b !== undefined ? [a, b] : [a] });
   }
   const idx = pares.findIndex((g, i) => {
     const sig = pares[i + 1];
@@ -149,21 +154,32 @@ const SubtituloClip: React.FC<{ cues: readonly Cue[]; ancho: number }> = ({ cues
   if (idx === -1) return null;
   const grupo = pares[idx]!;
   const texto = grupo.words.map((w) => w.w).join(' ');
+
+  // geometría del área segura: ancho libre real y suelo sobre la banda
+  const anchoLibre = anchoLibreCentrado(lienzo);
   const cuerpo = Math.min(
-    Math.round(ancho * 0.085),
-    Math.floor((ancho * 0.88) / (0.56 * Math.max(5, texto.length))),
+    Math.round(ancho * 0.08),
+    Math.floor(anchoLibre / (0.58 * Math.max(5, texto.length))),
   );
   const borde = Math.max(3, Math.round(cuerpo * 0.09));
-  // rotación sembrada por el instante del par: determinista y alterna
-  const giro = (idx % 2 === 0 ? 1 : -1) * (1.2 + (grupo.from_ms % 5) * 0.16);
+  const sueloPx = lienzo.safe.bottom + Math.round(ancho * 0.015);
+
+  // la coreografía rota POR FRASE (cue), sembrada por su índice: mayoría de
+  // slam con weight-shift y highlight intercalados, como el editor real
+  const estilos = ['slam', 'slam', 'weight', 'slam', 'highlight'] as const;
+  const estilo = estilos[cueIdx % estilos.length]!;
+  const giro = estilo === 'slam' ? (idx % 2 === 0 ? 1 : -1) * (1.2 + (grupo.from_ms % 5) * 0.16) : 0;
+
   return (
     <div
       style={{
         position: 'absolute',
-        top: '68.5%',
-        width: '100%',
+        bottom: sueloPx,
+        left: (ancho - anchoLibre) / 2,
+        width: anchoLibre,
         display: 'flex',
         justifyContent: 'center',
+        alignItems: 'baseline',
         gap: Math.round(cuerpo * 0.28),
         transform: `rotate(${giro.toFixed(2)}deg)`,
         ...displayText(800),
@@ -176,7 +192,56 @@ const SubtituloClip: React.FC<{ cues: readonly Cue[]; ancho: number }> = ({ cues
         const desde = Math.round((w.from_ms / 1000) * fps);
         const e = clamp(span(frame - desde, 0, 5, Ease.outBack6), 0, 1.12);
         const visible = currentMs >= w.from_ms - 40;
-        // alterna amarillo/blanco por posición GLOBAL del par, no dentro de él
+        const activa = currentMs >= w.from_ms && currentMs < (grupo.words[i + 1]?.from_ms ?? grupo.to_ms + 260);
+
+        if (estilo === 'weight') {
+          // la activa engorda y brilla; la otra adelgaza y se apaga
+          return (
+            <span
+              key={i}
+              style={{
+                opacity: visible ? (activa ? 1 : 0.55) : 0,
+                transform: `scale(${activa ? (0.92 + 0.08 * e).toFixed(3) : '0.92'})`,
+                fontWeight: activa ? 800 : 500,
+                color: '#ffffff',
+                WebkitTextStroke: `${borde}px #000`,
+                paintOrder: 'stroke fill',
+                textShadow: `0 ${Math.round(cuerpo * 0.06)}px 0 #000`,
+              }}
+            >
+              {w.w}
+            </span>
+          );
+        }
+        if (estilo === 'highlight') {
+          // caja amarilla barriendo detrás de la palabra activa, texto negro
+          return (
+            <span key={i} style={{ position: 'relative', display: 'inline-block' }}>
+              <span
+                style={{
+                  position: 'absolute',
+                  inset: `-${Math.round(cuerpo * 0.08)}px -${Math.round(cuerpo * 0.18)}px`,
+                  background: AMARILLO,
+                  borderRadius: Math.round(cuerpo * 0.14),
+                  transform: `scaleX(${activa ? Math.min(1, e).toFixed(3) : '0'})`,
+                  transformOrigin: 'left center',
+                }}
+              />
+              <span
+                style={{
+                  position: 'relative',
+                  opacity: visible ? 1 : 0,
+                  color: activa ? '#111' : '#ffffff',
+                  WebkitTextStroke: activa ? undefined : `${borde}px #000`,
+                  paintOrder: 'stroke fill',
+                }}
+              >
+                {w.w}
+              </span>
+            </span>
+          );
+        }
+        // slam
         const color = (idx + i) % 2 === 0 ? AMARILLO : '#ffffff';
         return (
           <span
