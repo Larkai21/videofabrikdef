@@ -71,9 +71,12 @@ diseñar módulos nuevos o tomar decisiones de arquitectura.
 - `pnpm guion …` — banco de guiones (iterar el prompt sin cola); ver docs/calidad.md
 - `pnpm probar:voz <videoId> --voz <id>` — mide wpm real y alineación de una voz TTS
 - `pnpm probar:stt <url|fichero> [--max-min 20]` — banco de STT del clipping:
-  descarga el audio (yt-dlp), transcribe con whisper-1 y mide si la puntuación
-  marca fronteras de frase reales (gate ≥80 % confirmadas por pausa); informe
-  en banco/stt/. Necesita OPENAI_API_KEY con crédito
+  descarga el audio (yt-dlp) y mide si las fronteras de frase son reales. La
+  métrica operativa es fronteras FUERTES (respaldadas por silencio) por minuto,
+  ≥4/min; el % de puntuación del ASR confirmada por pausa se reporta pero no
+  gobierna (medido: 7 % en un monólogo rápido y aun así 5,2 fuertes/min). STT
+  por STT_PROVIDER: 'mlx' (local, Metal, coste 0, por defecto en esta máquina)
+  o 'whisper' (API, 0,006 $/min)
 - `pnpm reescala:biblioteca [--dry]` — normaliza a 1080p los clips grandes ya ingeridos
 - `pnpm sfx` — regenera los 14 .wav sintetizados
 - `pnpm --filter @fabrica/video preview:marca --vertical [--video]` — fotogramas

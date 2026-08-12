@@ -18,6 +18,7 @@ import { createMedia, EPISODE_MAX_S } from '../../providers/media.js';
 import { createStt } from '../../providers/stt.js';
 import { probeDurationMs } from '../tts/audio.js';
 import { computeBeats, type BeatToken } from '../tts/beats.js';
+import { detectarSilencios } from './silencios.js';
 import { aTokens, cruzarConPausas, spansDePausas } from './tokens.js';
 
 const ejec = promisify(execFile);
@@ -235,10 +236,12 @@ export async function handleTranscribe(
     if (tokens.length === 0) throw new Error('El STT no devolvió ninguna palabra');
 
     const totalMs = Math.round(durS * 1000);
-    // el cruce puntuación×pausa es la señal del principio 1; el gate se
-    // estampa para poder auditarlo (mismo cálculo que pnpm probar:stt)
-    const gate = cruzarConPausas(tokens);
-    const spans = spansDePausas(tokens, totalMs);
+    // el cruce puntuación×pausa es la señal del principio 1. Los silencios se
+    // miden en el AUDIO (silencedetect): Whisper alarga la última palabra de
+    // cada frase y por sus tiempos casi no hay huecos (trampa del hermano).
+    const silencios = await detectarSilencios(ep.audioPath);
+    const gate = cruzarConPausas(tokens, { silencios });
+    const spans = spansDePausas(tokens, totalMs, silencios);
     const beats = await computeBeats(tokens, spans, totalMs, (texts) =>
       ctx.embeddings.embed(texts),
     );
@@ -256,9 +259,15 @@ export async function handleTranscribe(
         })),
         sttMeta: {
           provider: stt.name,
-          model: stt.name === 'whisper' ? 'whisper-1' : 'mock',
+          model:
+            stt.name === 'whisper'
+              ? 'whisper-1'
+              : stt.name === 'mlx'
+                ? (process.env.STT_MLX_MODEL ?? 'turbo')
+                : 'mock',
           bloques,
           gate,
+          silencios: silencios.length,
           palabras: tokens.length,
         },
         transcribedAt: new Date(),

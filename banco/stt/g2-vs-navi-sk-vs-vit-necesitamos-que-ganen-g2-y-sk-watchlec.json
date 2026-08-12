@@ -1,0 +1,23 @@
+{
+  "titulo": "G2 vs NAVI | SK vs VIT | NECESITAMOS QUE GANEN G2 y SK | #WatchLEC",
+  "fuente": "https://www.twitch.tv/videos/2842399888",
+  "proveedor": "mlx",
+  "modelo": "turbo",
+  "fecha": "2026-08-12T15:40:54.484Z",
+  "duracion_min": 20,
+  "stt_segundos": 58,
+  "velocidad_x_tiempo_real": 20.7,
+  "palabras": 3231,
+  "silencios": 336,
+  "turnos": 28,
+  "gate": {
+    "frases_asr": 402,
+    "confirmadas": 87,
+    "forzadas": 184,
+    "pct_confirmadas": 21.64179104477612,
+    "fuertes_por_min": 13.561074877816884
+  },
+  "deriva_ultimo_token_s": 0.98,
+  "coste_usd": 0,
+  "veredicto": "GO"
+}

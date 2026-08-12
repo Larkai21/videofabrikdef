@@ -1,0 +1,23 @@
+{
+  "titulo": "La Experta que Frena tu Envejecimiento: “Se puede Eliminar tus Canas y Arrugas con Esta Vitamina!”",
+  "fuente": "https://www.youtube.com/watch?v=M_eCjQKFRj8",
+  "proveedor": "mlx",
+  "modelo": "turbo",
+  "fecha": "2026-08-12T15:35:14.793Z",
+  "duracion_min": 20,
+  "stt_segundos": 60,
+  "velocidad_x_tiempo_real": 20.1,
+  "palabras": 3575,
+  "silencios": 448,
+  "turnos": 2,
+  "gate": {
+    "frases_asr": 214,
+    "confirmadas": 31,
+    "forzadas": 31,
+    "pct_confirmadas": 14.485981308411215,
+    "fuertes_por_min": 3.101085379882959
+  },
+  "deriva_ultimo_token_s": 0.42,
+  "coste_usd": 0,
+  "veredicto": "NO-GO"
+}

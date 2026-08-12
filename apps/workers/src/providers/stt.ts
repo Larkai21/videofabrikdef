@@ -36,7 +36,7 @@ export interface SttBlockResult {
 }
 
 export interface SttProvider {
-  readonly name: 'whisper' | 'mock';
+  readonly name: 'whisper' | 'mlx' | 'mock';
   /** Transcribe UN bloque de audio (≤ ~10 min: el endpoint admite 25 MB). */
   transcribe(wavPath: string, opts: { lang: string; prompt?: string }): Promise<SttBlockResult>;
 }
@@ -122,11 +122,36 @@ class MockSttProvider implements SttProvider {
   }
 }
 
+/**
+ * mlx-whisper local (Apple Silicon, Metal): el sidecar python de
+ * scripts/transcribe-mlx.py, calcado del proyecto hermano editor-youtube.
+ * Coste 0 y nada sale de la máquina; a cambio, minutos de GPU propia.
+ * MLX no publica ruedas para python 3.14: hace falta un 3.12 con mlx-whisper
+ * (STT_MLX_PYTHON apunta a ese python; el error lo dice con el comando).
+ */
+class MlxSttProvider implements SttProvider {
+  readonly name = 'mlx' as const;
+
+  async transcribe(wavPath: string, opts: { lang: string }): Promise<SttBlockResult> {
+    const python = process.env.STT_MLX_PYTHON ?? 'python3.12';
+    const modelo = process.env.STT_MLX_MODEL ?? 'turbo';
+    const script = new URL('../../scripts/transcribe-mlx.py', import.meta.url).pathname;
+    const r = await ejec(python, [script, wavPath, '--model', modelo, '--language', opts.lang], {
+      maxBuffer: 256 * 1024 * 1024,
+    });
+    return JSON.parse(r.stdout) as SttBlockResult;
+  }
+}
+
 export function createStt(logger: pino.Logger): SttProvider {
   const provider = process.env.STT_PROVIDER ?? 'whisper';
   if (provider === 'mock') {
     logger.info('Proveedor de STT en modo mock: no se sale a red');
     return new MockSttProvider();
+  }
+  if (provider === 'mlx') {
+    logger.info('Proveedor de STT local: mlx-whisper sobre Metal, coste 0');
+    return new MlxSttProvider();
   }
   if (process.env.OPENAI_API_KEY === undefined || process.env.OPENAI_API_KEY === '') {
     logger.warn('Falta OPENAI_API_KEY; el STT degrada a mock (transcripción sintética)');

@@ -1,0 +1,23 @@
+{
+  "titulo": "NADIE SABE NADA 13x30 | Cabalgando la risa en el rodeo del humor",
+  "fuente": "https://www.youtube.com/watch?v=JoNXK-lCEAw",
+  "proveedor": "mlx",
+  "modelo": "turbo",
+  "fecha": "2026-08-12T15:33:57.277Z",
+  "duracion_min": 20,
+  "stt_segundos": 54,
+  "velocidad_x_tiempo_real": 22.2,
+  "palabras": 3035,
+  "silencios": 68,
+  "turnos": 23,
+  "gate": {
+    "frases_asr": 350,
+    "confirmadas": 145,
+    "forzadas": 70,
+    "pct_confirmadas": 41.42857142857143,
+    "fuertes_por_min": 10.753046696564027
+  },
+  "deriva_ultimo_token_s": 0.34,
+  "coste_usd": 0,
+  "veredicto": "GO"
+}

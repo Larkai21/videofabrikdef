@@ -19,6 +19,39 @@ export const PAUSA_CONFIRMA_MS = 300;
 export const PAUSA_FUERZA_MS = 800;
 /** Una pausa así de larga separa TURNOS/temas: fronteras de scene spans. */
 export const PAUSA_TURNO_MS = 2_000;
+/** Margen al casar un silencio del audio con el final de una palabra. */
+const MARGEN_SILENCIO_MS = 150;
+
+/**
+ * Pausa REAL tras cada token. Con `silencios` (medidos en el audio con
+ * silencedetect) manda el silencio: Whisper alarga la última palabra de cada
+ * frase hasta el siguiente ataque —trampa documentada en el proyecto hermano—
+ * así que el hueco entre sus words casi siempre es 0 y no vale como señal.
+ * Sin silencios (tests, mock) se cae al hueco entre words.
+ */
+export function pausasTrasToken(
+  tokens: readonly BeatToken[],
+  silencios?: readonly [number, number][],
+): number[] {
+  return tokens.map((t, i) => {
+    const sig = tokens[i + 1];
+    const hueco = sig === undefined ? Number.POSITIVE_INFINITY : sig.from_ms - t.to_ms;
+    if (silencios === undefined || silencios.length === 0) return hueco;
+    // un silencio es la pausa TRAS el token i si DESEMBOCA en su frontera:
+    // e ≈ [fin del token, arranque del siguiente]. Whisper estira la palabra
+    // por encima del silencio, así que el fin del silencio coincide con el fin
+    // (estirado) de la palabra — no con su arranque.
+    const ventanaFin = sig === undefined ? Number.POSITIVE_INFINITY : sig.from_ms + MARGEN_SILENCIO_MS;
+    let mejor = hueco;
+    for (const [s, e] of silencios) {
+      if (s > ventanaFin) break;
+      if (e >= t.to_ms - MARGEN_SILENCIO_MS && e <= ventanaFin) {
+        mejor = Math.max(mejor, e - s);
+      }
+    }
+    return mejor;
+  });
+}
 
 const SENTENCE_END_RE = /[.!?…]["')\]»]*$/;
 const CLAUSE_END_RE = /[,;:]["')\]»]*$/;
@@ -59,28 +92,47 @@ export function aTokens(bloque: SttBlockResult, offsetMs: number): BeatToken[] {
 export interface GatePausas {
   /** fines de frase que puso el ASR (antes de forzar nada) */
   frases_asr: number;
-  /** de esos, cuántos coinciden con pausa ≥ confirma: EL gate (≥80 % = GO) */
+  /** de esos, cuántos coinciden con pausa ≥ confirma */
   confirmadas: number;
   /** fronteras añadidas por silencio ≥ fuerza donde el ASR no puntuó */
   forzadas: number;
   pct_confirmadas: number;
+  /**
+   * Fronteras FUERTES (confirmadas + forzadas) por minuto: la métrica
+   * operativa. computeBeats necesita un corte fuerte cada 8-15 s, o sea ≥4/min
+   * para que ningún beat se estire hasta el fallback de fin de palabra.
+   * Medido en el primer episodio real (monólogo rápido, whisper turbo):
+   * pct_confirmadas 7 % — la ortografía del ASR NO es señal — pero 5,2
+   * fronteras/min respaldadas por silencio, de sobra para el formato.
+   */
+  fuertes_por_min: number;
 }
 
 /**
  * Cruza puntuación y silencio. El GATE se mide PRIMERO y solo sobre la
  * puntuación del ASR — medirlo después de forzar lo inflaría, porque toda
- * frontera forzada por silencio queda confirmada por construcción. Después
- * una pausa ≥ fuerza añade la frontera aunque no haya punto: entre voces
- * habladas el silencio es más honesto que la ortografía.
+ * frontera forzada por silencio queda confirmada por construcción.
+ *
+ * Después el silencio MANDA en las dos direcciones (medido en el primer
+ * episodio real: solo el 7 % de los puntos del ASR coincidían con pausa):
+ *   - pausa ≥ fuerza sin punto → se AÑADE la frontera
+ *   - punto sin pausa ≥ confirma → se DEGRADA a cláusula (frontera débil):
+ *     cortar un clip donde el audio no respira suena roto aunque la
+ *     ortografía diga que ahí acababa la frase
+ * computeBeats ve así fuertes solo las fronteras que se OYEN.
  */
 export function cruzarConPausas(
   tokens: BeatToken[],
-  opts: { confirmaMs?: number; fuerzaMs?: number } = {},
+  opts: {
+    confirmaMs?: number;
+    fuerzaMs?: number;
+    /** silencios [desde,hasta] medidos en el AUDIO (detectarSilencios) */
+    silencios?: readonly [number, number][];
+  } = {},
 ): GatePausas {
   const confirma = opts.confirmaMs ?? PAUSA_CONFIRMA_MS;
   const fuerza = opts.fuerzaMs ?? PAUSA_FUERZA_MS;
-  const gapTras = (i: number): number =>
-    i + 1 < tokens.length ? tokens[i + 1]!.from_ms - tokens[i]!.to_ms : Number.POSITIVE_INFINITY;
+  const pausas = pausasTrasToken(tokens, opts.silencios);
 
   // 1) el gate, sobre lo que el ASR puntuó
   let frasesAsr = 0;
@@ -88,23 +140,34 @@ export function cruzarConPausas(
   for (let i = 0; i < tokens.length; i += 1) {
     if (!tokens[i]!.sentenceEnd) continue;
     frasesAsr += 1;
-    if (gapTras(i) >= confirma) confirmadas += 1;
+    if (pausas[i]! >= confirma) confirmadas += 1;
   }
 
-  // 2) el silencio manda donde la ortografía calló
+  // 2) el silencio manda donde la ortografía calló…
   let forzadas = 0;
   for (let i = 0; i < tokens.length - 1; i += 1) {
-    if (gapTras(i) >= fuerza && !tokens[i]!.sentenceEnd) {
+    if (pausas[i]! >= fuerza && !tokens[i]!.sentenceEnd) {
       tokens[i]!.sentenceEnd = true;
       forzadas += 1;
     }
   }
+  // …y donde puntuó sin que el audio respire
+  for (let i = 0; i < tokens.length - 1; i += 1) {
+    if (tokens[i]!.sentenceEnd && pausas[i]! < confirma) {
+      tokens[i]!.sentenceEnd = false;
+      tokens[i]!.clauseEnd = true;
+    }
+  }
 
+  const fin = tokens[tokens.length - 1];
+  const durMin = fin !== undefined ? fin.to_ms / 60_000 : 0;
+  const fuertes = tokens.filter((t) => t.sentenceEnd).length;
   return {
     frases_asr: frasesAsr,
     confirmadas,
     forzadas,
     pct_confirmadas: frasesAsr > 0 ? (100 * confirmadas) / frasesAsr : 0,
+    fuertes_por_min: durMin > 0 ? fuertes / durMin : 0,
   };
 }
 
@@ -114,15 +177,20 @@ export function cruzarConPausas(
  * distintos; `visual_query` va vacío — en un clip el visual es el hablante.
  * También estampa sceneIdx en cada token.
  */
-export function spansDePausas(tokens: BeatToken[], totalMs: number): BeatSceneSpan[] {
+export function spansDePausas(
+  tokens: BeatToken[],
+  totalMs: number,
+  silencios?: readonly [number, number][],
+): BeatSceneSpan[] {
   if (tokens.length === 0) {
     return [{ idx: 0, visual_query: '', from_ms: 0, to_ms: totalMs }];
   }
+  const pausas = pausasTrasToken(tokens, silencios);
   const spans: BeatSceneSpan[] = [];
   let ini = 0;
   let idx = 0;
   for (let i = 0; i < tokens.length - 1; i += 1) {
-    const gap = tokens[i + 1]!.from_ms - tokens[i]!.to_ms;
+    const gap = pausas[i]!;
     if (gap >= PAUSA_TURNO_MS) {
       spans.push({ idx, visual_query: '', from_ms: ini, to_ms: tokens[i]!.to_ms });
       ini = tokens[i + 1]!.from_ms;

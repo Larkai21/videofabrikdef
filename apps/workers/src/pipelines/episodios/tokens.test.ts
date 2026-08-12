@@ -71,6 +71,23 @@ describe('cruzarConPausas', () => {
     expect(PAUSA_FUERZA_MS).toBeGreaterThan(600);
     expect(gate.forzadas).toBe(0);
   });
+
+  it('los silencios del audio mandan sobre los huecos de whisper', () => {
+    const b = bloque();
+    // la trampa del hermano: whisper alarga «mundo.» hasta el ataque de «Qué»
+    // — hueco entre words ≈ 0 — pero el AUDIO tiene un silencio de 900 ms
+    b.words[1]!.to_ms = 1_450;
+    b.segments[0]!.text = 'Hola mundo';
+    b.segments[1]!.text = 'Qué tal estás';
+    const tokens = aTokens(b, 0);
+    // sin silencios: el hueco de 50 ms no fuerza nada
+    const sinAudio = cruzarConPausas(aTokens(b, 0));
+    expect(sinAudio.forzadas).toBe(0);
+    // con el silencio medido en el audio, la frontera se fuerza
+    const gate = cruzarConPausas(tokens, { silencios: [[550, 1_450]] });
+    expect(gate.forzadas).toBe(1);
+    expect(tokens[1]!.sentenceEnd).toBe(true);
+  });
 });
 
 describe('spansDePausas', () => {
