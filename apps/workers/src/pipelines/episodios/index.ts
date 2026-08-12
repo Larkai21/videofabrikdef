@@ -20,6 +20,7 @@ import { createMedia, EPISODE_MAX_S } from '../../providers/media.js';
 import { createStt } from '../../providers/stt.js';
 import { loudnormToWav, measureLufs, probeDurationMs } from '../tts/audio.js';
 import { computeBeats, type BeatToken } from '../tts/beats.js';
+import { calcularKeeps, remapearTokens } from './apretar.js';
 import { montarMaestroClip } from './clip.js';
 import { directHighlights } from './highlights.js';
 import { detectarSilencios } from './silencios.js';
@@ -356,105 +357,71 @@ async function planDeEncuadre(
  */
 async function precortarClip(params: {
   mediaPath: string;
-  fromMs: number;
-  toMs: number;
+  /** piezas en el reloj de ORIGEN, ya apretadas y con su x de encuadre */
+  piezas: { src_from_ms: number; src_to_ms: number; x: number | null }[];
   focusX: number;
   width: number;
   height: number;
   destDir: string;
-  plan: TramoEncuadre[];
-}): Promise<{ clipVideoPath: string; clipAudioPath: string; lufs: number }> {
-  const { mediaPath, fromMs, toMs, focusX, width, height, destDir, plan } = params;
+}): Promise<{ clipVideoPath: string; clipAudioPath: string; lufs: number; durMs: number }> {
+  const { mediaPath, piezas, focusX, width, height, destDir } = params;
   fs.mkdirSync(destDir, { recursive: true });
-  const durS = ((toMs - fromMs) / 1000).toFixed(3);
-  const desdeS = (fromMs / 1000).toFixed(3);
   const cropW = Math.round((height * 9) / 16);
   const xPx = (fx: number): number =>
     Math.min(width - cropW, Math.max(0, Math.round(width * fx - cropW / 2)));
 
-  // cada tramo con su x (histéresis de 0,08: un salto que no se aprecia no
-  // merece re-encuadre) y concat sin re-codificar — mismos parámetros
-  const partes: string[] = [];
+  // cada pieza con su x (histéresis de 0,08) y VÍDEO+AUDIO cortados por la
+  // MISMA frontera: la concatenación no puede desincronizar lo que comparte
+  // puntos de corte
+  const partesV: string[] = [];
+  const partesA: string[] = [];
   let xPrev = focusX;
-  for (const [i, t] of plan.entries()) {
+  for (const [i, t] of piezas.entries()) {
     let fx = t.x ?? xPrev;
     if (Math.abs(fx - xPrev) < 0.08) fx = xPrev;
     xPrev = fx;
-    const parte = path.join(destDir, `.parte-${i}.mp4`);
+    const desdeS = (t.src_from_ms / 1000).toFixed(3);
+    const durS = ((t.src_to_ms - t.src_from_ms) / 1000).toFixed(3);
+    const parteV = path.join(destDir, `.v-${i}.mp4`);
     await ejec('ffmpeg', [
-      '-nostdin',
-      '-loglevel',
-      'error',
-      '-ss',
-      ((fromMs + t.from_ms) / 1000).toFixed(3),
-      '-i',
-      mediaPath,
-      '-t',
-      ((t.to_ms - t.from_ms) / 1000).toFixed(3),
-      '-vf',
-      `crop=${cropW}:${height}:${xPx(fx)}:0,scale=1080:1920,fps=30`,
-      '-c:v',
-      'libx264',
-      '-crf',
-      '18',
-      '-preset',
-      'veryfast',
-      '-pix_fmt',
-      'yuv420p',
-      '-an',
-      '-y',
-      parte,
+      '-nostdin', '-loglevel', 'error',
+      '-ss', desdeS, '-i', mediaPath, '-t', durS,
+      '-vf', `crop=${cropW}:${height}:${xPx(fx)}:0,scale=1080:1920,fps=30`,
+      '-c:v', 'libx264', '-crf', '18', '-preset', 'veryfast',
+      '-pix_fmt', 'yuv420p', '-an', '-y', parteV,
     ]);
-    partes.push(parte);
+    partesV.push(parteV);
+    const parteA = path.join(destDir, `.a-${i}.wav`);
+    await ejec('ffmpeg', [
+      '-nostdin', '-loglevel', 'error',
+      '-ss', desdeS, '-i', mediaPath, '-t', durS,
+      '-vn', '-ac', '1', '-ar', '44100', '-c:a', 'pcm_s16le', '-y', parteA,
+    ]);
+    partesA.push(parteA);
   }
-  const lista = path.join(destDir, '.partes.txt');
-  fs.writeFileSync(lista, partes.map((p) => `file '${p}'`).join('\n'));
+
+  const listaV = path.join(destDir, '.v.txt');
+  fs.writeFileSync(listaV, partesV.map((f) => `file '${f}'`).join('\n'));
   const clipVideoPath = path.join(destDir, 'clip.mp4');
   await ejec('ffmpeg', [
-    '-nostdin',
-    '-loglevel',
-    'error',
-    '-f',
-    'concat',
-    '-safe',
-    '0',
-    '-i',
-    lista,
-    '-c',
-    'copy',
-    '-movflags',
-    '+faststart',
-    '-y',
-    clipVideoPath,
+    '-nostdin', '-loglevel', 'error', '-f', 'concat', '-safe', '0',
+    '-i', listaV, '-c', 'copy', '-movflags', '+faststart', '-y', clipVideoPath,
   ]);
-  for (const p of partes) fs.rmSync(p, { force: true });
-  fs.rmSync(lista, { force: true });
-  // la voz del clip, normalizada a la referencia del repo (−16 LUFS) como la
-  // del TTS; la entrega sube a −14 en el render, igual que siempre
+
+  const listaA = path.join(destDir, '.a.txt');
+  fs.writeFileSync(listaA, partesA.map((f) => `file '${f}'`).join('\n'));
   const crudo = path.join(destDir, '.voz-cruda.wav');
   await ejec('ffmpeg', [
-    '-nostdin',
-    '-loglevel',
-    'error',
-    '-ss',
-    desdeS,
-    '-i',
-    mediaPath,
-    '-t',
-    durS,
-    '-vn',
-    '-ac',
-    '1',
-    '-ar',
-    '44100',
-    '-y',
-    crudo,
+    '-nostdin', '-loglevel', 'error', '-f', 'concat', '-safe', '0',
+    '-i', listaA, '-c', 'copy', '-y', crudo,
   ]);
   const clipAudioPath = path.join(destDir, 'voz.wav');
   await loudnormToWav(crudo, clipAudioPath);
-  fs.rmSync(crudo, { force: true });
   const lufs = (await measureLufs(clipAudioPath)) ?? -16;
-  return { clipVideoPath, clipAudioPath, lufs };
+
+  for (const f of [...partesV, ...partesA, listaV, listaA, crudo]) fs.rmSync(f, { force: true });
+  const durMs = piezas.reduce((acc, t) => acc + (t.src_to_ms - t.src_from_ms), 0);
+  return { clipVideoPath, clipAudioPath, lufs, durMs };
 }
 
 export async function handleProposeHighlights(
@@ -532,21 +499,56 @@ export async function handleProposeHighlights(
   for (const c of candidatos) {
     const id = nanoid(12);
     const destDir = path.join(episodeDir(ctx, episodeId), 'clips', id);
+    // 1) APRETADO: fuera los silencios muertos de la ventana (keeps con el
+    //    mapa de reloj origen→salida; receta del hermano)
+    const keeps = calcularKeeps(tokens, c.from_ms, c.to_ms);
+    // 2) encuadre por plano Y por hablante sobre la ventana de ORIGEN
     const plan = await planDeEncuadre(ep.mediaPath!, c.from_ms, c.to_ms, log);
+    // 3) piezas = keeps ∩ tramos de encuadre, en el reloj de ORIGEN
+    const piezas: { src_from_ms: number; src_to_ms: number; x: number | null }[] = [];
+    for (const k of keeps) {
+      for (const t of plan) {
+        const tFrom = c.from_ms + t.from_ms;
+        const tTo = c.from_ms + t.to_ms;
+        const from = Math.max(k.src_from_ms, tFrom);
+        const to = Math.min(k.src_to_ms, tTo);
+        if (to - from > 80) piezas.push({ src_from_ms: from, src_to_ms: to, x: t.x });
+      }
+    }
+    if (piezas.length === 0) {
+      piezas.push({ src_from_ms: c.from_ms, src_to_ms: c.to_ms, x: null });
+    }
+    const recortadoMs = c.to_ms - c.from_ms - keeps.reduce((a, k) => a + (k.out_to_ms - k.out_from_ms), 0);
     log.info(
-      { tramos: plan.length, conCara: plan.filter((t) => t.x !== null).length },
-      'Plan de encuadre por plano',
+      {
+        keeps: keeps.length,
+        tramosEncuadre: plan.length,
+        piezas: piezas.length,
+        segundosFuera: Number((recortadoMs / 1000).toFixed(1)),
+      },
+      'Apretado y encuadre del clip',
     );
     const corte = await precortarClip({
       mediaPath: ep.mediaPath!,
-      fromMs: c.from_ms,
-      toMs: c.to_ms,
+      piezas,
       focusX: ep.focus.x,
       width: ep.width ?? 1920,
       height: ep.height ?? 1080,
       destDir,
-      plan,
     });
+    // 4) todo lo que viaja al maestro se traduce al reloj de SALIDA
+    const tokensVentana = tokens.filter((t) => t.from_ms >= c.from_ms && t.to_ms <= c.to_ms);
+    const tokensSalida = remapearTokens(tokensVentana, keeps);
+    const beatsSalida = keeps.map((k, i) => ({
+      idx: i,
+      from_ms: k.out_from_ms,
+      to_ms: k.out_to_ms,
+      text: tokensSalida
+        .filter((t) => t.from_ms >= k.out_from_ms && t.to_ms <= k.out_to_ms)
+        .map((t) => t.raw)
+        .join(' ')
+        .slice(0, 300),
+    }));
     const master = montarMaestroClip({
       shortId: id,
       episodio: {
@@ -555,14 +557,17 @@ export async function handleProposeHighlights(
         sourceUrl: ep.sourceUrl,
         sourceTitle: ep.sourceTitle,
         sourceChannelName: ep.sourceChannelName,
-        beats: ep.beats,
       },
       cand: c,
-      tokens,
+      salida: { dur_ms: corte.durMs, beats: beatsSalida, tokens: tokensSalida },
       clipVideoPath: corte.clipVideoPath,
       clipAudioPath: corte.clipAudioPath,
       lufs: corte.lufs,
-      encuadrePlan: plan,
+      encuadrePlan: piezas.map((pz) => ({
+        from_ms: pz.src_from_ms - c.from_ms,
+        to_ms: pz.src_to_ms - c.from_ms,
+        x: pz.x,
+      })),
       brand: {
         ...(canal?.name !== undefined ? { channel_name: canal.name } : {}),
         ...(canal?.profile?.brand_design !== undefined

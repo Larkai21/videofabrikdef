@@ -117,22 +117,28 @@ const Titular: React.FC<{ titulo: string; ancho: number }> = ({ titulo, ancho })
   );
 };
 
-/** Subtítulo del formato: 1-2 palabras, amarillo, contorno negro. */
+/**
+ * Subtítulo del formato: SLAM palabra a palabra, portado del catálogo hermano
+ * (caption-kinetic-slam): mayúsculas, entra a escala 0,55→1 con sobrepaso,
+ * rotación sembrada de ±2° y color alterno amarillo/blanco. El contorno negro
+ * y la posición (tercio bajo de la tarjeta) son los del canal de referencia.
+ */
 const SubtituloClip: React.FC<{ cues: readonly Cue[]; ancho: number }> = ({ cues, ancho }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const currentMs = (frame / fps) * 1000;
   const activo = cues.find((c) => currentMs >= c.from_ms && currentMs < c.to_ms);
   if (!activo || activo.words.length === 0) return null;
-  // pares de ≤2 palabras: la referencia nunca enseña más de dos a la vez
-  const pares: { from_ms: number; to_ms: number; texto: string }[] = [];
+  // pares de ≤2 palabras (la referencia nunca enseña más), pero cada palabra
+  // del par SLAMEA por su cuenta cuando le toca sonar
+  const pares: { from_ms: number; to_ms: number; words: typeof activo.words }[] = [];
   for (let i = 0; i < activo.words.length; i += 2) {
     const a = activo.words[i]!;
     const b = activo.words[i + 1];
     pares.push({
       from_ms: a.from_ms,
       to_ms: (b ?? a).to_ms,
-      texto: b !== undefined ? `${a.w} ${b.w}` : a.w,
+      words: b !== undefined ? [a, b] : [a],
     });
   }
   const idx = pares.findIndex((g, i) => {
@@ -142,28 +148,52 @@ const SubtituloClip: React.FC<{ cues: readonly Cue[]; ancho: number }> = ({ cues
   });
   if (idx === -1) return null;
   const grupo = pares[idx]!;
-  const texto = grupo.texto;
-  const entra = clamp(span(frame - Math.round((grupo.from_ms / 1000) * fps), 0, 4, Ease.outBack6), 0, 1.08);
-  const cuerpo = Math.min(Math.round(ancho * 0.085), Math.floor((ancho * 0.88) / (0.52 * Math.max(5, texto.length))));
+  const texto = grupo.words.map((w) => w.w).join(' ');
+  const cuerpo = Math.min(
+    Math.round(ancho * 0.085),
+    Math.floor((ancho * 0.88) / (0.56 * Math.max(5, texto.length))),
+  );
   const borde = Math.max(3, Math.round(cuerpo * 0.09));
+  // rotación sembrada por el instante del par: determinista y alterna
+  const giro = (idx % 2 === 0 ? 1 : -1) * (1.2 + (grupo.from_ms % 5) * 0.16);
   return (
     <div
       style={{
         position: 'absolute',
-        top: '69%',
+        top: '68.5%',
         width: '100%',
-        textAlign: 'center',
-        transform: `scale(${entra.toFixed(3)})`,
+        display: 'flex',
+        justifyContent: 'center',
+        gap: Math.round(cuerpo * 0.28),
+        transform: `rotate(${giro.toFixed(2)}deg)`,
         ...displayText(800),
         fontSize: cuerpo,
-        color: AMARILLO,
-        WebkitTextStroke: `${borde}px #000`,
-        paintOrder: 'stroke fill',
-        textShadow: `0 ${Math.round(cuerpo * 0.06)}px 0 #000, 0 6px 18px ${hexToRgba('#000000', 0.6)}`,
-        letterSpacing: '0.01em',
+        textTransform: 'uppercase',
+        letterSpacing: '0.02em',
       }}
     >
-      {texto}
+      {grupo.words.map((w, i) => {
+        const desde = Math.round((w.from_ms / 1000) * fps);
+        const e = clamp(span(frame - desde, 0, 5, Ease.outBack6), 0, 1.12);
+        const visible = currentMs >= w.from_ms - 40;
+        // alterna amarillo/blanco por posición GLOBAL del par, no dentro de él
+        const color = (idx + i) % 2 === 0 ? AMARILLO : '#ffffff';
+        return (
+          <span
+            key={i}
+            style={{
+              opacity: visible ? 1 : 0,
+              transform: `scale(${(0.55 + 0.45 * e).toFixed(3)})`,
+              color,
+              WebkitTextStroke: `${borde}px #000`,
+              paintOrder: 'stroke fill',
+              textShadow: `0 ${Math.round(cuerpo * 0.06)}px 0 #000, 0 6px 18px ${hexToRgba('#000000', 0.6)}`,
+            }}
+          >
+            {w.w}
+          </span>
+        );
+      })}
     </div>
   );
 };

@@ -23,7 +23,15 @@ export interface EpisodioParaClip {
   sourceUrl: string;
   sourceTitle: string | null;
   sourceChannelName: string | null;
+}
+
+/** Lo ya APRETADO y traducido al reloj de salida por el worker. */
+export interface SalidaClip {
+  dur_ms: number;
+  /** un beat por keep: cada uno ES un jump cut del apretado */
   beats: { idx: number; from_ms: number; to_ms: number; text: string }[];
+  /** tokens en el reloj de SALIDA (los cortados ya no están) */
+  tokens: readonly BeatToken[];
 }
 
 export interface BrandParaClip {
@@ -36,7 +44,7 @@ export function montarMaestroClip(params: {
   shortId: string;
   episodio: EpisodioParaClip;
   cand: Candidato;
-  tokens: readonly BeatToken[];
+  salida: SalidaClip;
   clipVideoPath: string;
   clipAudioPath: string;
   lufs: number;
@@ -44,20 +52,19 @@ export function montarMaestroClip(params: {
   /** plan de encuadre horneado en el fichero; viaja como auditoría */
   encuadrePlan?: { from_ms: number; to_ms: number; x: number | null }[];
 }): ShortMasterJson {
-  const { shortId, episodio, cand, tokens, clipVideoPath, clipAudioPath, lufs, brand } = params;
-  const off = cand.from_ms;
-  const durMs = cand.to_ms - cand.from_ms;
+  const { shortId, episodio, cand, salida, clipVideoPath, clipAudioPath, lufs, brand } = params;
+  const durMs = salida.dur_ms;
 
-  // beats del episodio dentro de la ventana, re-basados y CONTIGUOS sobre el
-  // clip pre-cortado (el troceo de ritmo no aplica: es el plano del hablante)
-  const dentro = episodio.beats
-    .filter((b) => b.from_ms >= cand.from_ms && b.to_ms <= cand.to_ms)
-    .sort((a, b) => a.from_ms - b.from_ms);
-  const base = dentro.length > 0 ? dentro : [{ idx: 0, from_ms: cand.from_ms, to_ms: cand.to_ms, text: cand.title }];
+  // un beat por keep del apretado, CONTIGUOS sobre el clip pre-cortado: cada
+  // frontera de beat es un jump cut real del clip
+  const base =
+    salida.beats.length > 0
+      ? salida.beats
+      : [{ idx: 0, from_ms: 0, to_ms: durMs, text: cand.title }];
   const beats = base.map((b, i) => ({
     idx: i,
-    from_ms: b.from_ms - off,
-    to_ms: Math.min(durMs, b.to_ms - off),
+    from_ms: b.from_ms,
+    to_ms: Math.min(durMs, b.to_ms),
     text: b.text,
     visual_query: '',
     status: 'locked' as const,
@@ -66,16 +73,13 @@ export function montarMaestroClip(params: {
       kind: 'clip' as const,
       path: clipVideoPath,
       encuadre: 'cover' as const,
-      fit: { mode: 'trim' as const, offset_ms: b.from_ms - off },
+      fit: { mode: 'trim' as const, offset_ms: b.from_ms },
     },
   }));
   // el último beat cierra exactamente en el final del clip
   beats[beats.length - 1]!.to_ms = durMs;
 
-  const tokensClip = tokens
-    .filter((t) => t.from_ms >= cand.from_ms && t.to_ms <= cand.to_ms)
-    .map((t) => ({ ...t, from_ms: t.from_ms - off, to_ms: t.to_ms - off }));
-  const cues = buildCues(tokensClip, durMs);
+  const cues = buildCues([...salida.tokens], durMs);
 
   return {
     version: '1',

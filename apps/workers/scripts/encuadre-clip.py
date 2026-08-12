@@ -112,25 +112,17 @@ def caras(ruta: str) -> list[dict]:
         return []
 
 
-def hablante_x(video: str, t0_abs: float, t1_abs: float, tmp: str, clave: str) -> float | None:
-    """x del HABLANTE del plano: la cara con más varianza de apertura de boca
-    entre muestras; sin landmarks o con una sola cara, la más grande."""
-    dur = t1_abs - t0_abs
-    instantes = [t0_abs + dur * f for f in (0.3, 0.55, 0.8)]
-    muestras = []  # lista de listas de caras
-    for j, t in enumerate(instantes):
-        # dos fotogramas a 300 ms: la boca del que habla cambia entre ellos
-        par = []
-        for k, dt in enumerate((0.0, 0.3)):
-            frame = os.path.join(tmp, f"{clave}-{j}-{k}.jpg")
-            if extraer_frame(video, min(t + dt, t1_abs - 0.05), frame):
-                par.append(caras(frame))
-        if len(par) == 2:
-            muestras.append(par)
-    if not muestras:
+def ganador_en(video: str, t_abs: float, tope_abs: float, tmp: str, clave: str) -> float | None:
+    """x del hablante en UN instante: par de fotogramas a 300 ms, gana la cara
+    con más variación de apertura de boca; sin señal comparable, la más
+    grande. None si no se ve ninguna cara."""
+    par = []
+    for k, dt in enumerate((0.0, 0.3)):
+        frame = os.path.join(tmp, f"{clave}-{k}.jpg")
+        if extraer_frame(video, min(t_abs + dt, tope_abs - 0.05), frame):
+            par.append(caras(frame))
+    if len(par) != 2:
         return None
-
-    # agrupar caras por posición (cx ± 0.08) y acumular su señal
     grupos: list[dict] = []
 
     def grupo_de(cx: float) -> dict:
@@ -141,24 +133,66 @@ def hablante_x(video: str, t0_abs: float, t1_abs: float, tmp: str, clave: str) -
         grupos.append(g)
         return g
 
-    for par in muestras:
-        for antes, despues in [(a, b) for a in par[0] for b in par[1]
-                               if abs(a["cx"] - b["cx"]) < 0.08]:
-            g = grupo_de(antes["cx"])
-            g["areas"].append(antes["area"])
-            if antes["apertura"] is not None and despues["apertura"] is not None:
-                g["aperturas"].append(abs(antes["apertura"] - despues["apertura"]))
-
+    for antes, despues in [(a, b) for a in par[0] for b in par[1]
+                           if abs(a["cx"] - b["cx"]) < 0.08]:
+        g = grupo_de(antes["cx"])
+        g["areas"].append(antes["area"])
+        if antes["apertura"] is not None and despues["apertura"] is not None:
+            g["aperturas"].append(abs(antes["apertura"] - despues["apertura"]))
     if not grupos:
         return None
     con_boca = [g for g in grupos if g["aperturas"]]
     if len(con_boca) >= 2:
-        # el que habla mueve la boca: máxima variación media de apertura
         mejor = max(con_boca, key=lambda g: sum(g["aperturas"]) / len(g["aperturas"]))
         return round(mejor["cx"], 4)
-    # sin señal de labios comparable: la cara más grande (lo de antes)
     mejor = max(grupos, key=lambda g: max(g["areas"]) if g["areas"] else 0)
     return round(mejor["cx"], 4)
+
+
+PASO_HABLANTE_S = 1.2
+
+def tramos_de_hablante(video: str, t0_abs: float, t1_abs: float,
+                       tmp: str, clave: str) -> list[dict]:
+    """Sub-tramos del plano por CAMBIO DE HABLANTE (reloj relativo al plano).
+
+    En una entrevista a dos, el mismo plano de cámara alterna quién habla: se
+    muestrea el ganador de labios cada ~1,2 s y se abre tramo nuevo cuando el
+    ganador cambia de posición (>0,08) y el siguiente muestreo lo CONFIRMA —
+    sin confirmación, un falso positivo de labios movería el encuadre a mitad
+    de frase.
+    """
+    dur = t1_abs - t0_abs
+    puntos = []  # (t_rel, x|None)
+    t = 0.15
+    j = 0
+    while t < max(0.16, dur - 0.35):
+        puntos.append((t, ganador_en(video, t0_abs + t, t1_abs, tmp, f"{clave}-{j}")))
+        t += PASO_HABLANTE_S
+        j += 1
+    if not puntos:
+        return [{"from_ms": 0, "to_ms": round(dur * 1000), "x": None}]
+
+    tramos = []
+    ini = 0.0
+    x_actual = next((x for _, x in puntos if x is not None), None)
+    i = 0
+    while i < len(puntos):
+        t_rel, x = puntos[i]
+        cambia = x is not None and x_actual is not None and abs(x - x_actual) > 0.08
+        confirmada = False
+        if cambia:
+            sig = puntos[i + 1] if i + 1 < len(puntos) else None
+            confirmada = sig is None or (sig[1] is not None and abs(sig[1] - x) <= 0.08)
+        if cambia and confirmada:
+            tramos.append({"from_ms": round(ini * 1000), "to_ms": round(t_rel * 1000),
+                           "x": x_actual})
+            ini = t_rel
+            x_actual = x
+        elif x is not None and x_actual is None:
+            x_actual = x
+        i += 1
+    tramos.append({"from_ms": round(ini * 1000), "to_ms": round(dur * 1000), "x": x_actual})
+    return [t for t in tramos if t["to_ms"] - t["from_ms"] >= TRAMO_MIN_MS or len(tramos) == 1]
 
 
 def main() -> int:
@@ -180,10 +214,13 @@ def main() -> int:
                 # un plano de <0,7 s no merece salto de encuadre: se funde
                 tramos[-1]["to_ms"] = round(fin * 1000)
                 continue
-            x = hablante_x(args.input, args.desde + ini, args.desde + fin,
-                           tmp, f"p{i}")
-            tramos.append({"from_ms": round(ini * 1000),
-                           "to_ms": round(fin * 1000), "x": x})
+            # dentro del plano, sub-tramos por cambio de HABLANTE (el caso a
+            # dos personas: mismo plano, turnos alternos)
+            for sub in tramos_de_hablante(args.input, args.desde + ini,
+                                          args.desde + fin, tmp, f"p{i}"):
+                tramos.append({"from_ms": round(ini * 1000) + sub["from_ms"],
+                               "to_ms": round(ini * 1000) + sub["to_ms"],
+                               "x": sub["x"]})
 
     json.dump({"tramos": tramos}, sys.stdout)
     return 0
