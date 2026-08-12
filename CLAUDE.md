@@ -70,7 +70,7 @@ diseñar módulos nuevos o tomar decisiones de arquitectura.
   no toca la YouTube API)
 - `pnpm guion …` — banco de guiones (iterar el prompt sin cola); ver docs/calidad.md
 - `pnpm probar:voz <videoId> --voz <id>` — mide wpm real y alineación de una voz TTS
-- `pnpm probar:stt <url|fichero> [--max-min 20]` — banco de STT del clipping:
+- `pnpm probar:stt -- <url|fichero> [--max-min 20]` — banco de STT del clipping:
   descarga el audio (yt-dlp) y mide si las fronteras de frase son reales. La
   métrica operativa es fronteras FUERTES (respaldadas por silencio) por minuto,
   ≥4/min; el % de puntuación del ASR confirmada por pausa se reporta pero no
