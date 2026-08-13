@@ -2,7 +2,7 @@ import type { ChannelDto, ChannelProfile } from '@fabrica/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Chip } from '../components/ui';
+import { Button, Chip, SkeletonRows } from '../components/ui';
 import { YoutubeSection } from '../components/YoutubeSection';
 import { getSettings, putProfile, putSettings } from '../lib/api';
 import { useChannel } from '../lib/channel';
@@ -108,7 +108,7 @@ export function Ajustes() {
   if (isPending) {
     return (
       <div className="wrap-1160" style={{ padding: 'calc(var(--pad) * 2) 26px' }}>
-        <div className="muted fs-sm">Cargando los ajustes</div>
+        <SkeletonRows rows={4} label="Cargando los ajustes" />
       </div>
     );
   }

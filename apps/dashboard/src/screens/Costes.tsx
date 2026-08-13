@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { CostsDto } from '@fabrica/shared';
-import { EmptyState } from '../components/ui';
+import { EmptyState, SkeletonRows } from '../components/ui';
 import { getCosts } from '../lib/api';
 import { useChannel } from '../lib/channel';
 
@@ -119,7 +119,7 @@ export function Costes() {
       {activeChannelId === null ? (
         <EmptyState title="Sin canal">Crea un canal para ver sus costes.</EmptyState>
       ) : costsQ.isPending ? (
-        <div className="muted fs-sm">Cargando costes…</div>
+        <SkeletonRows rows={3} label="Cargando los costes" />
       ) : costsQ.isError ? (
         <div className="banner banner-danger">No se pudieron cargar los costes.</div>
       ) : (

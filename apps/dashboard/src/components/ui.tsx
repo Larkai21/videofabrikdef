@@ -400,6 +400,43 @@ export function InputModal({
   );
 }
 
+/**
+ * Una incidencia para humanos: el resumen sin rutas del sistema (un EPERM con
+ * /Users/... a lo ancho de la tarjeta no le dice a nadie qué hacer) y el
+ * error crudo COMPLETO en un pliegue — está para pegarlo en un ticket, no
+ * para leerlo de pie. La acción sugerida viaja aparte porque el botón que la
+ * ejecuta ya existe en cada pantalla.
+ */
+export function Incidencia({ mensaje }: { mensaje: string }) {
+  const primeraLinea = mensaje.split('\n')[0] ?? mensaje;
+  // las rutas absolutas y URLs largas son detalle técnico, no resumen
+  const resumen = primeraLinea.replace(/\s?['"]?\/[^\s'"]{12,}['"]?/g, ' …').trim();
+  const recortado = resumen.length > 180 ? `${resumen.slice(0, 179).trimEnd()}…` : resumen;
+  const hayDetalle = recortado !== mensaje;
+  return (
+    <div className="banner banner-danger fs-sm" style={{ display: 'grid', gap: 4 }}>
+      <span>{recortado}</span>
+      {hayDetalle ? (
+        <details>
+          <summary className="muted" style={{ cursor: 'pointer' }}>
+            Detalle técnico
+          </summary>
+          <pre
+            style={{
+              margin: '6px 0 0',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+              fontSize: 'var(--fs-sm)',
+            }}
+          >
+            {mensaje}
+          </pre>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div

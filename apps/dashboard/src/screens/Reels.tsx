@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import type { ReelDto } from '@fabrica/shared';
 import { ApiError, createReel, getChannels, getReels, retryReel } from '../lib/api';
 import { useToasts } from '../lib/toasts';
-import { Button, Chip, EmptyState, SkeletonRows } from '../components/ui';
+import { Button, Chip, EmptyState, Incidencia, SkeletonRows } from '../components/ui';
 
 // Reels del módulo editor: A-roll PROPIO + guion de dirección JSON. El humano
 // sube los dos; la máquina transcribe, cruza el guion con lo grabado y deja el
@@ -25,6 +25,7 @@ export function Reels() {
   const { push } = useToasts();
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
+  const [nombreAroll, setNombreAroll] = useState('');
   const [titulo, setTitulo] = useState('');
   const [guion, setGuion] = useState('');
 
@@ -63,6 +64,7 @@ export function Reels() {
       push('Reel en cola: transcripción y plan en marcha');
       setTitulo('');
       setGuion('');
+      setNombreAroll('');
       if (fileRef.current) fileRef.current.value = '';
       invalidar();
     },
@@ -132,14 +134,24 @@ export function Reels() {
               onChange={(e) => setTitulo(e.target.value)}
               style={{ flex: 1, minWidth: 220 }}
             />
+            {/* el input nativo dice «Choose File» en el idioma del navegador:
+                se esconde y un botón nuestro habla español y enseña el nombre */}
             <input
               ref={fileRef}
-              className="control"
               type="file"
               accept="video/*"
               aria-label="A-roll (vídeo bruto)"
-              style={{ flex: 1, minWidth: 220 }}
+              style={{ display: 'none' }}
+              onChange={(e) => setNombreAroll(e.target.files?.[0]?.name ?? '')}
             />
+            <Button variant="secondary" onClick={() => fileRef.current?.click()}>
+              {nombreAroll === '' ? 'Elegir A-roll…' : 'Cambiar A-roll'}
+            </Button>
+            {nombreAroll !== '' ? (
+              <span className="mono fs-sm muted" style={{ alignSelf: 'center' }}>
+                {nombreAroll}
+              </span>
+            ) : null}
           </div>
           <textarea
             className="control"
@@ -159,7 +171,7 @@ export function Reels() {
             <div style={{ flex: 1 }} />
             <Button
               variant="primary"
-              disabled={!guionValido || canalActivo === '' || crearMut.isPending}
+              disabled={!guionValido || nombreAroll === '' || canalActivo === '' || crearMut.isPending}
               onClick={() => crearMut.mutate()}
             >
               Dar de alta
@@ -196,7 +208,7 @@ export function Reels() {
                   ) : null}
                 </div>
                 {reel.incident !== null ? (
-                  <div className="banner banner-danger fs-sm">{reel.incident.message}</div>
+                  <Incidencia mensaje={reel.incident.message} />
                 ) : null}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {reel.state === 'incidencia' ? (

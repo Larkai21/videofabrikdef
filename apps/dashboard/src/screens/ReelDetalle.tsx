@@ -14,7 +14,7 @@ import {
 } from '../lib/api';
 import { useLive } from '../lib/events';
 import { useToasts } from '../lib/toasts';
-import { Button, Chip, EmptyState, ProgressBar, SkeletonRows } from '../components/ui';
+import { Button, Chip, EmptyState, Incidencia, ProgressBar, SkeletonRows } from '../components/ui';
 
 // LA puerta del pipeline de reels: el plan de capas que preparó la máquina
 // espera la firma humana. Se revisa como documento (principio 2: nada de JSON
@@ -226,8 +226,8 @@ export function ReelDetalle() {
       </div>
 
       {reel?.incident != null ? (
-        <div className="banner banner-danger fs-sm" style={{ marginBottom: 'var(--gap)' }}>
-          {reel.incident.message}
+        <div style={{ marginBottom: 'var(--gap)' }}>
+          <Incidencia mensaje={reel.incident.message} />
         </div>
       ) : null}
 

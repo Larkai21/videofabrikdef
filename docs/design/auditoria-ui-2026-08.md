@@ -21,12 +21,14 @@ también se dice: es lo que NO hay que tocar.
 
 ## P1 — rompe uso o principio
 
-1. **Tema claro incoherente** (visto en Bandeja): el fondo de página no
-   cambia con las tarjetas → fichas ámbar y banners de incidencia quedan
-   ilegibles; la cabecera sigue oscura. Además, un valor de atributo no
-   contemplado (p. ej. `data-tema='oscuro'` explícito) deja mezcla rota en
-   vez de degradar al defecto. → S4.2 (cobertura de tokens en TODAS las
-   pantallas + robustez del swap), verificar con el toggle real de Ajustes.
+1. **RETRACTADO tras re-verificar**: el tema claro funciona BIEN (paleta
+   completa, ámbar AA legible, fondo y cabecera cambian) y el oscuro
+   explícito también. Las capturas «rotas» eran un artefacto del método:
+   capturar en el mismo tick del swap de atributo pilla el recálculo de CSS
+   a medias. Lección para la próxima auditoría: tras cambiar data-tema,
+   esperar un frame antes de capturar. Se deja escrito porque una mención
+   equivocada en un informe es exactamente la clase de fallo que este repo
+   persigue.
 2. **Alta de reel enseña JSON crudo** (textarea con placeholder
    `{"pieces": …}`) — viola el principio 2 — y el input de fichero es el
    nativo en inglés («Choose File»). → S5.1 (editor por actos) + S4.2

@@ -26,6 +26,7 @@ import {
   Button,
   Chip,
   EmptyState,
+  Incidencia,
   InputModal,
   ProgressBar,
   ReasonModal,
@@ -282,7 +283,7 @@ export function EpisodioClips() {
                   </p>
 
                   {s.incident !== null ? (
-                    <div className="banner banner-danger fs-sm">{s.incident.message}</div>
+                    <Incidencia mensaje={s.incident.message} />
                   ) : null}
 
                   {s.metrics !== null ? (

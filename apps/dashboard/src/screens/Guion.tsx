@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Chip, CostBadge, Kbd, ReasonModal, type Motivo } from '../components/ui';
+import { Button, Chip, CostBadge, Incidencia, Kbd, ReasonModal, type Motivo } from '../components/ui';
 import {
   approveScript,
   chooseTitle,
@@ -244,12 +244,13 @@ export function Guion() {
         >
           <div style={{ display: 'grid', gap: 'var(--gap)' }}>
             {video.incident !== null ? (
-              <div className="banner banner-danger">
-                {video.incident.message}
-                {video.incident.suggested_action !== null
-                  ? ` · acción sugerida: ${video.incident.suggested_action}`
-                  : ''}
-              </div>
+              <Incidencia
+                mensaje={
+                  video.incident.suggested_action !== null
+                    ? `${video.incident.message} · acción sugerida: ${video.incident.suggested_action}`
+                    : video.incident.message
+                }
+              />
             ) : null}
 
             <div className="card" style={{ padding: 'calc(var(--pad) * 1.4)' }}>
@@ -390,12 +391,13 @@ export function Guion() {
       >
         <div style={{ display: 'grid', gap: 'var(--gap)' }}>
           {video.incident !== null ? (
-            <div className="banner banner-danger">
-              {video.incident.message}
-              {video.incident.suggested_action !== null
-                ? ` · acción sugerida: ${video.incident.suggested_action}`
-                : ''}
-            </div>
+            <Incidencia
+              mensaje={
+                video.incident.suggested_action !== null
+                  ? `${video.incident.message} · acción sugerida: ${video.incident.suggested_action}`
+                  : video.incident.message
+              }
+            />
           ) : null}
           {misaligned && jobNote !== undefined ? (
             <div className="banner">

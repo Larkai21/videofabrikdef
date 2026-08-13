@@ -14,7 +14,7 @@ import {
   retryEpisode,
 } from '../lib/api';
 import { useToasts } from '../lib/toasts';
-import { Button, Chip, EmptyState, SkeletonRows } from '../components/ui';
+import { Button, Chip, EmptyState, Incidencia, SkeletonRows } from '../components/ui';
 
 const ENCUADRE_LABEL: Record<string, string> = {
   izq: 'Izquierda',
@@ -241,7 +241,7 @@ export function Episodios() {
                   ) : null}
                 </div>
                 {ep.incident !== null ? (
-                  <div className="banner banner-danger fs-sm">{ep.incident.message}</div>
+                  <Incidencia mensaje={ep.incident.message} />
                 ) : null}
                 {ep.state === 'incidencia' ? (
                   <div>
