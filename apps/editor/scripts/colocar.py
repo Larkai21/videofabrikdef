@@ -119,10 +119,13 @@ BANDA_SUBS = 300
 # a los lados, así que la fracción vertical de pantalla es la del lienzo (y
 # se pierden ~97 px por cada lado, que es otro aviso pendiente de modelar).
 #
-# TikTok y Shorts CONSERVAN la estimación de Reels y no están medidos.
-# Ponerles cifras propias inventadas para que la tabla pareciera informada
-# sería el error que este comentario existe para evitar; la línea que las
-# mide es la misma, con capturas de esas apps:
+# TikTok y Shorts HEREDAN los números MEDIDOS de Reels (13-ago-2026, decisión
+# del propietario): misma anatomía de UI y la medida real es más estricta que
+# la estimación que tenían. Heredar una medición ajena declarándolo NO es el
+# error que este comentario evita —ese error es inventar cifras propias para
+# que la tabla parezca informada—, pero tampoco es medir: siguen fuera de
+# MEDIDAS y el informe las enseña como heredadas. La línea que las medirá de
+# verdad, con capturas de esas apps, sigue siendo:
 #
 #     python3 scripts/medir_zona_segura.py capturas/*.png --regla /tmp/regla
 #

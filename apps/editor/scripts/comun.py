@@ -73,8 +73,14 @@ PRODUCE = {
 # junto al informe que las enseña.
 PLATAFORMAS = {
     "reels":   (0.12, 0.24, 0.12, 0.52),   # MEDIDO 4-ago-2026, capturas iPhone
-    "tiktok":  (0.12, 0.22, 0.12, 0.52),   # estimado, sin medir
-    "shorts":  (0.12, 0.22, 0.12, 0.52),   # estimado, sin medir
+    # TikTok y Shorts HEREDAN la medición de Reels (decisión del propietario,
+    # 13-ago-2026): las tres UIs son la misma anatomía —barra de sistema y
+    # navegación arriba, usuario+copy+pestañas abajo, columna de iconos a la
+    # derecha— y la medida real de Reels es MÁS estricta abajo (0.24) que la
+    # estimación ciega que tenían (0.22). No es una medición propia: siguen
+    # fuera de MEDIDAS y el informe de colocar.py las declara heredadas.
+    "tiktok":  (0.12, 0.24, 0.12, 0.52),   # heredado de la medición de reels
+    "shorts":  (0.12, 0.24, 0.12, 0.52),   # heredado de la medición de reels
     "ninguna": (0.0, 0.0, 0.0, 1.0),
 }
 MEDIDAS = {"reels"}

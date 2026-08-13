@@ -1014,15 +1014,18 @@ inferior estimada. No es un ajuste fino, es la línea de lectura.
 
 | plataforma | arriba | abajo |
 |---|---|---|
-| `reels` | 12 % | 22 % |
-| `tiktok` | 12 % | 22 % |
-| `shorts` | 12 % | 22 % |
+| `reels` | 12 % | 24 % |
+| `tiktok` | 12 % | 24 % |
+| `shorts` | 12 % | 24 % |
 | `ninguna` | — | — |
 
-**`reels` está MEDIDO; `tiktok` y `shorts`, no.** La diferencia importa y
-el informe de `colocar.py` la dice en voz alta: una banda medida que se
-presenta como estimación acaba descontada por quien la lee, y es justo la
-que no hay que descontar.
+**`reels` está MEDIDO; `tiktok` y `shorts` HEREDAN esa medición** (decisión
+del 13-ago-2026: misma anatomía de UI, y la medida real es más estricta que
+la estimación ciega que tenían). La diferencia importa y el informe de
+`colocar.py` la dice en voz alta: heredado no es medido, y una banda medida
+que se presenta como estimación acaba descontada por quien la lee. (Esta
+tabla decía 22 % abajo para las tres desde antes de la medición: era la
+mención equivocada que `comprobar_docs` no caza.)
 
 La medida de Reels, sobre dos capturas de iPhone (1179x2556) de reels
 DISTINTOS, el 4 de agosto de 2026:
