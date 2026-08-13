@@ -1796,6 +1796,13 @@ export const Ciclo: React.FC<{ items: string[]; design?: DesignTokens }> = ({ it
 
   // estaciones en el reloj, empezando arriba (−90°)
   const angulo = (i: number): number => (i / n) * 2 * Math.PI - Math.PI / 2;
+  // la flecha va ENTRE la última estación y la primera, no encima de la
+  // primera: colocada en −90° la tapaba su propio chip (visto en el still del
+  // banco de legibilidad). Apunta en el sentido de la marcha, tangente al aro.
+  const angFlecha = angulo(-0.5);
+  const flechaX = cx + RADIO * Math.cos(angFlecha);
+  const flechaY = cy + RADIO * Math.sin(angFlecha);
+  const flechaGiro = (Math.atan2(Math.cos(angFlecha), -Math.sin(angFlecha)) * 180) / Math.PI;
 
   return (
     <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
@@ -1816,13 +1823,13 @@ export const Ciclo: React.FC<{ items: string[]; design?: DesignTokens }> = ({ it
             strokeDashoffset={1 - trazo}
             transform={`rotate(-90 ${cx} ${cy})`}
           />
-          {/* la flecha del cierre, tangente al anillo justo antes de la
-              primera estación: el «vuelve a empezar» hecho geometría */}
+          {/* la flecha del cierre, tangente al anillo entre la última estación
+              y la primera: el «vuelve a empezar» hecho geometría */}
           <g
-            transform={`translate(${cx - 14}, ${cy - RADIO}) scale(${Math.min(1, cierre)})`}
+            transform={`translate(${flechaX.toFixed(1)}, ${flechaY.toFixed(1)}) rotate(${flechaGiro.toFixed(1)}) scale(${Math.min(1, cierre)})`}
             opacity={Math.min(1, cierre)}
           >
-            <path d="M 0 -12 L 14 0 L 0 12 Z" fill={d.accent} />
+            <path d="M -12 -11 L 14 0 L -12 11 Z" fill={d.accent} />
           </g>
         </svg>
         {estaciones.map((estacion, i) => {
