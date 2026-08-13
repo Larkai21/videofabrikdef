@@ -590,7 +590,7 @@ export interface MetricasShort {
   hueco_grafico_s: number;
   titulo_palabras: number;
   /** quién eligió la ventana, si el maestro trae telemetría (12-ago-2026+) */
-  director: 'llm' | 'fallback' | null;
+  director: 'llm' | 'fallback' | 'operador' | null;
   avisos: Aviso[];
 }
 

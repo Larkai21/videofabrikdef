@@ -25,7 +25,7 @@ import { loudnormToWav, measureLufs, probeDurationMs } from '../tts/audio.js';
 import { computeBeats, type BeatToken } from '../tts/beats.js';
 import { calcularKeeps, remapearTokens } from './apretar.js';
 import { montarMaestroClip } from './clip.js';
-import { directHighlights } from './highlights.js';
+import { candidatoDeVentana, directHighlights } from './highlights.js';
 import { ajustarVentanaAFrase } from './fronteras.js';
 import { detectarRisas, risaTrasBeat } from './risas.js';
 import { detectarSilencios } from './silencios.js';
@@ -494,7 +494,7 @@ export async function handleProposeHighlights(
   ctx: WorkerContext,
   job: Job<HighlightsProposeJob>,
 ): Promise<void> {
-  const { episodeId, excluir, force } = job.data;
+  const { episodeId, excluir, force, ventana } = job.data;
   const log = ctx.logger.child({ episodeId, queue: QUEUES.highlights });
 
   const [ep] = await ctx.db.select().from(episodes).where(eq(episodes.id, episodeId)).limit(1);
@@ -519,8 +519,9 @@ export async function handleProposeHighlights(
     throw new Error('Faltan los beats o el transcript; reintenta la transcripción');
   }
 
-  // idempotencia: con propuestas vivas no se re-propone salvo force
-  if (force !== true) {
+  // idempotencia: con propuestas vivas no se re-propone salvo force (la
+  // subventana explícita convive con lo vivo: es un encargo, no una ronda)
+  if (force !== true && ventana === undefined) {
     const vivos = await ctx.db
       .select({ id: shorts.id })
       .from(shorts)
@@ -535,14 +536,31 @@ export async function handleProposeHighlights(
     tokens: BeatToken[];
   };
   const beatsDirector = ep.beats.map((b) => ({ ...b, edits: 0 }));
-  const { candidatos, source } = await directHighlights(ctx, {
-    episodeId,
-    channelId: ep.channelId,
-    titulo: ep.sourceTitle ?? ep.sourceUrl,
-    canal: ep.sourceChannelName ?? '—',
-    beats: beatsDirector,
-    ...(excluir !== undefined ? { excluir } : {}),
-  });
+  let candidatos;
+  let source: 'llm' | 'fallback' | 'operador';
+  if (ventana !== undefined) {
+    // subventana del operador: sin LLM y sin exclusiones — una persona ya
+    // eligió; el pipeline solo ajusta a beats y frases y pre-corta
+    const c = candidatoDeVentana(ventana, beatsDirector);
+    if (c === null) {
+      log.warn({ ventana }, 'La subventana no toca ningún beat; 0 propuestas');
+      await ctx.publishEvent({ type: 'inbox_changed' });
+      return;
+    }
+    candidatos = [c];
+    source = 'operador';
+  } else {
+    const res = await directHighlights(ctx, {
+      episodeId,
+      channelId: ep.channelId,
+      titulo: ep.sourceTitle ?? ep.sourceUrl,
+      canal: ep.sourceChannelName ?? '—',
+      beats: beatsDirector,
+      ...(excluir !== undefined ? { excluir } : {}),
+    });
+    candidatos = res.candidatos;
+    source = res.source;
+  }
   if (candidatos.length === 0) {
     log.warn('El director no encontró ningún clip; 0 propuestas');
     await ctx.publishEvent({ type: 'inbox_changed' });
@@ -570,8 +588,15 @@ export async function handleProposeHighlights(
   const creados = [];
   for (const c0 of candidatos) {
     // fronteras dignas: la ventana ni arranca ni muere a mitad de frase —
-    // extiende el final al cierre (o lo retrae) y salta arranques a medias
-    const c = { ...c0, ...ajustarVentanaAFrase({ from_ms: c0.from_ms, to_ms: c0.to_ms }, tokens) };
+    // extiende el final al cierre (o lo retrae) y salta arranques a medias.
+    // Los encargos del operador no se retraen: la ventana la eligió una
+    // persona y en run-ons sin puntuación la retracción se come el remate
+    const c = {
+      ...c0,
+      ...ajustarVentanaAFrase({ from_ms: c0.from_ms, to_ms: c0.to_ms }, tokens, {
+        retraer: source !== 'operador',
+      }),
+    };
     const id = nanoid(12);
     const destDir = path.join(episodeDir(ctx, episodeId), 'clips', id);
     const tokensVentana = tokens.filter((t) => t.from_ms >= c.from_ms && t.to_ms <= c.to_ms);

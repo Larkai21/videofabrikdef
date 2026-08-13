@@ -64,4 +64,14 @@ describe('ajustarVentanaAFrase', () => {
     const v = ajustarVentanaAFrase({ from_ms: 1500, to_ms: 5900 }, t);
     expect(v.from_ms).toBe(1500);
   });
+
+  it('con retraer:false un run-on sin cierre conserva el final del encargo', () => {
+    const largos: BeatToken[] = [
+      { from_ms: 0, to_ms: 400, raw: 'a', sentenceEnd: true, clauseEnd: false, sceneIdx: 0 },
+      { from_ms: 500, to_ms: 900, raw: 'b', sentenceEnd: false, clauseEnd: false, sceneIdx: 0 },
+      { from_ms: 6000, to_ms: 6400, raw: 'c', sentenceEnd: true, clauseEnd: false, sceneIdx: 0 },
+    ];
+    const v = ajustarVentanaAFrase({ from_ms: 0, to_ms: 1000 }, largos, { retraer: false });
+    expect(v.to_ms).toBe(1000);
+  });
 });

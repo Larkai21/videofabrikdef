@@ -52,10 +52,16 @@ export const JOBS = {
 
 // Propuesta de clips de un episodio LISTO. `excluir` funciona como en shorts:
 // ventanas descartadas (con motivo) y vivas que no deben volver.
+// `ventana`: subventana EXPLÍCITA pedida por el operador — salta el LLM y las
+// exclusiones y propone exactamente esa zona (ajustada a beats y frases). Es
+// la vía para los recortes que el director no sabe proponer: subventanas de
+// zonas ya renderizadas o momentos que evita por criterio (certificación
+// 13-ago-2026: la anécdota que el canal de referencia monetizó).
 export interface HighlightsProposeJob {
   episodeId: string;
   excluir?: { from_ms: number; to_ms: number; reason?: string }[];
   force?: boolean;
+  ventana?: { from_ms: number; to_ms: number };
 }
 
 // Descarga del episodio externo (yt-dlp → mp4 + wav). Idempotente contra

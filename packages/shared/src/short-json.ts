@@ -140,7 +140,8 @@ export const shortTelemetrySchema = z.object({
   efectos_heredados: z.number().int().nonnegative(),
   efectos_colocados: z.number().int().nonnegative(),
   /** quién eligió la ventana: el LLM o la propuesta de reserva */
-  director: z.enum(['llm', 'fallback']),
+  // 'operador': subventana explícita pedida por una persona (sin LLM)
+  director: z.enum(['llm', 'fallback', 'operador']),
 });
 export type ShortTelemetry = z.infer<typeof shortTelemetrySchema>;
 

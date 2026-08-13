@@ -439,6 +439,29 @@ export function buildServer(api: FabricaApi = createApi()): McpServer {
   );
 
   server.registerTool(
+    'propose_episode_clip_window',
+    {
+      description:
+        'Propone un clip de una SUBVENTANA explícita del episodio (segundos ' +
+        'del original). Salta al director y sus exclusiones: para re-cortes ' +
+        'de zonas ya renderizadas o momentos que el LLM evita. La ventana se ' +
+        'ajusta a beats y frases; el título provisional se edita en la puerta.',
+      inputSchema: {
+        episode_id: z.string().min(1).describe('Id del episodio'),
+        from_s: z.number().nonnegative().describe('Segundo de inicio en el original'),
+        to_s: z.number().positive().describe('Segundo de fin en el original'),
+      },
+    },
+    async ({ episode_id, from_s, to_s }) =>
+      actionResult(
+        api.request('POST', `/episodios/${encodeURIComponent(episode_id)}/clips`, {
+          ventana: { from_ms: Math.round(from_s * 1000), to_ms: Math.round(to_s * 1000) },
+        }),
+        `Subventana ${from_s}-${to_s} s encolada; mírala con list_episode_clips.`,
+      ),
+  );
+
+  server.registerTool(
     'approve_clip',
     {
       description: 'Aprueba un clip propuesto y lo manda a la cola de render.',

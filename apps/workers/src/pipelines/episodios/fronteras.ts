@@ -22,8 +22,17 @@ export interface Ventana {
  * remate; si la frase no cierra ahí, se RETRAE al último fin de frase dentro
  * de la ventana. El arranque salta hacia delante la frase que venía empezada
  * (hasta ARRANQUE_MAX_MS); si no hay frontera cerca, se queda donde estaba.
+ *
+ * `retraer: false` (subventanas del operador): en transcripciones run-on sin
+ * puntuación la retracción puede comerse 10+ s del encargo — mejor acabar en
+ * frase floja que traicionar la ventana que eligió una persona.
  */
-export function ajustarVentanaAFrase(ventana: Ventana, tokens: readonly BeatToken[]): Ventana {
+export function ajustarVentanaAFrase(
+  ventana: Ventana,
+  tokens: readonly BeatToken[],
+  opts: { retraer?: boolean } = {},
+): Ventana {
+  const retraer = opts.retraer ?? true;
   let { from_ms, to_ms } = ventana;
 
   // — arranque: si el token anterior al primero incluido no cierra frase,
@@ -59,7 +68,7 @@ export function ajustarVentanaAFrase(ventana: Ventana, tokens: readonly BeatToke
         break;
       }
     }
-    if (!extendido) {
+    if (!extendido && retraer) {
       for (let i = iUltimo; i >= 0; i -= 1) {
         const t = tokens[i]!;
         if (t.to_ms <= from_ms) break;

@@ -29,6 +29,7 @@ const EXPECTED_TOOLS = [
   // clips de episodios: la puerta de curación vía agente
   'list_episode_clips',
   'propose_episode_clips',
+  'propose_episode_clip_window',
   'approve_clip',
   'discard_clip',
   // reels (módulo editor): el agente como director antes de la firma

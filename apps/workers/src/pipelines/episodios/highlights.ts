@@ -162,6 +162,45 @@ export function recortarAlRemate(c: Candidato, beats: ShortDirectorBeat[]): Cand
   return c;
 }
 
+/**
+ * Candidato desde una subventana EXPLÍCITA del operador: sin LLM y sin
+ * exclusiones. Se ajusta a beats enteros (los que solapan la ventana) y el
+ * título provisional sale del arranque del texto — en la puerta se edita.
+ * Devuelve null si la ventana no toca ningún beat.
+ */
+export function candidatoDeVentana(
+  ventana: { from_ms: number; to_ms: number },
+  beats: ShortDirectorBeat[],
+): Candidato | null {
+  const dentro = beats
+    .filter((b) => b.to_ms > ventana.from_ms && b.from_ms < ventana.to_ms)
+    .sort((a, b) => a.idx - b.idx);
+  const primero = dentro[0];
+  const ultimo = dentro[dentro.length - 1];
+  if (primero === undefined || ultimo === undefined) return null;
+  const texto = dentro
+    .map((b) => b.text)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return {
+    // la ventana del operador MANDA (recortada al material que existe): el
+    // ajuste a beats enteros inflaba el encargo ±9 s con beats largos. El
+    // ajuste fino a frontera de frase lo hace ajustarVentanaAFrase después;
+    // los idx de beat quedan como contabilidad de qué beats toca
+    from_ms: Math.max(primero.from_ms, ventana.from_ms),
+    to_ms: Math.min(ultimo.to_ms, ventana.to_ms),
+    start_beat_idx: primero.idx,
+    end_beat_idx: ultimo.idx,
+    beat_idxs: dentro.map((b) => b.idx),
+    // provisional y editable en la puerta; al menos no corta a media palabra
+    title: texto.length > 60 ? texto.slice(0, 60).replace(/\s+\S*$/, '') : texto,
+    hook: 'Subventana pedida por el operador',
+    reason: 'Recorte explícito: esta zona la eligió una persona, no el director',
+    score: 100,
+  };
+}
+
 export async function directHighlights(
   ctx: WorkerContext,
   params: HighlightsParams,

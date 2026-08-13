@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { nanoid } from 'nanoid';
+import { z } from 'zod';
 import { episodes, shorts, transitionEpisode } from '@fabrica/db';
 import {
   episodeClaimRequestSchema,
@@ -70,6 +71,18 @@ function toDto(row: EpisodeRow): EpisodeDto {
     created_at: row.createdAt.toISOString(),
   };
 }
+
+const clipsProposeBodySchema = z
+  .object({
+    ventana: z
+      .object({
+        from_ms: z.number().int().nonnegative(),
+        to_ms: z.number().int().positive(),
+      })
+      .refine((v) => v.to_ms > v.from_ms, 'to_ms debe ser mayor que from_ms')
+      .optional(),
+  })
+  .optional();
 
 export function registerEpisodeRoutes(app: FastifyInstance, ctx: ApiContext): void {
   // Alta por URL: crea la fila y encola la descarga. El mismo episodio
@@ -274,6 +287,20 @@ export function registerEpisodeRoutes(app: FastifyInstance, ctx: ApiContext): vo
     }
     if (row.focus === null) {
       throw conflict('Elige el encuadre del episodio antes de proponer clips');
+    }
+    // subventana explícita del operador: salta el LLM y las exclusiones y
+    // propone exactamente esa zona (ajustada a beats y frases en el worker).
+    // La vía para recortes que el director no propone: subventanas de zonas
+    // ya renderizadas o momentos que evita por criterio.
+    const cuerpo = clipsProposeBodySchema.parse(req.body ?? undefined);
+    if (cuerpo?.ventana !== undefined) {
+      const res = await ctx.enqueuer.enqueue(
+        QUEUES.highlights,
+        JOBS.highlights.propose,
+        { episodeId: id, ventana: cuerpo.ventana },
+        { dedupeId: `highlights-${id}-ventana-${cuerpo.ventana.from_ms}` },
+      );
+      return { ok: true as const, ya_en_curso: !res.enqueued };
     }
     const previos = await ctx.db
       .select({
