@@ -471,8 +471,19 @@ export const beatStatusUpdateSchema = z.object({
 export const channelSettingsUpdateSchema = z.object({
   monthly_budget_usd: z.number().positive().optional(),
   target_minutes: z.number().min(0.5).max(20).optional(),
+  // sin esta clave el PUT tiraba el rango en silencio (zod pela lo que no
+  // conoce): Ajustes «guardaba» la duración y la duración no cambiaba
+  duracion: z
+    .object({
+      min: z.number().min(1).max(60),
+      max: z.number().min(1).max(60),
+    })
+    .refine((d) => d.min <= d.max, { message: 'el mínimo no puede pasar del máximo' })
+    .optional(),
   anti_repeat_n: z.number().int().min(0).optional(),
   background_music: z.boolean().optional(),
+  clips_relleno: z.boolean().optional(),
+  clips_broll: z.boolean().optional(),
   brand_components: z.record(z.string(), z.string()).optional(),
   publish_schedule: z
     .object({
