@@ -19,15 +19,18 @@ import {
 } from '../lib/api';
 import { useLive } from '../lib/events';
 import { fmtClock } from '../lib/format';
+import { useHotkeys } from '../lib/hotkeys';
 import { loadShortForm } from '../lib/shortform';
 import { PlayerBoundary } from '../lib/longform';
 import { useToasts } from '../lib/toasts';
+import { BarraCortes } from '../components/BarraCortes';
 import {
   Button,
   Chip,
   EmptyState,
   Incidencia,
   InputModal,
+  Kbd,
   ProgressBar,
   ReasonModal,
   SkeletonRows,
@@ -173,6 +176,49 @@ export function EpisodioClips() {
     onError: alFallar('No se pudo cambiar el título'),
   });
 
+  // Curación con teclado, calcando el espíritu de la timeline: j/k (o ↓/↑)
+  // recorren los candidatos vivos, a aprueba el seleccionado y d abre el
+  // descarte. useHotkeys ya se calla dentro de inputs (el título editable de
+  // cada tarjeta), y con un modal abierto los atajos se apagan porque el
+  // modal gestiona su propio teclado.
+  const actual = vivos.find((v) => v.id === abierto);
+  const mover = (delta: number) => {
+    const idx = vivos.findIndex((v) => v.id === abierto);
+    if (idx < 0) return;
+    const siguiente = vivos[Math.max(0, Math.min(vivos.length - 1, idx + delta))];
+    if (siguiente === undefined || siguiente.id === abierto) return;
+    setSeleccionado(siguiente.id);
+    // la tarjeta recién seleccionada puede quedar fuera del viewport: se trae
+    // al borde más cercano para que el teclado no navegue a ciegas
+    document
+      .getElementById(`clip-${siguiente.id}`)
+      ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  };
+  useHotkeys((e) => {
+    if (descartando !== null || publicando !== null) return;
+    const k = e.key.toLowerCase();
+    if (k === 'j' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      mover(1);
+    } else if (k === 'k' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      mover(-1);
+    } else if (k === 'a') {
+      // sin la guarda de vuelo, pulsar rápido re-aprueba con datos rancios
+      // (la query aún no refleja el cambio de estado)
+      if (actual !== undefined && actual.state === 'propuesto' && !aprobarMut.isPending) {
+        e.preventDefault();
+        aprobarMut.mutate(actual.id);
+      }
+    } else if (k === 'd') {
+      // mismo alcance que el botón: solo lo propuesto o en incidencia se descarta
+      if (actual !== undefined && (actual.state === 'propuesto' || actual.state === 'incidencia')) {
+        e.preventDefault();
+        setDescartando(actual.id);
+      }
+    }
+  });
+
   const episodio = episodioQ.data;
   const detalle = detalleQ.data;
   // proponer exige episodio listo Y encuadre elegido: la API devuelve 409 en
@@ -237,6 +283,8 @@ export function EpisodioClips() {
               return (
                 <div
                   key={s.id}
+                  // ancla del scrollIntoView de la navegación con teclado
+                  id={`clip-${s.id}`}
                   className="card"
                   style={{
                     padding: 'var(--pad)',
@@ -327,6 +375,9 @@ export function EpisodioClips() {
                     {s.state === 'propuesto' ? (
                       <Button
                         variant="primary"
+                        // el atajo solo se anuncia en la tarjeta seleccionada:
+                        // es la única sobre la que actúa
+                        kbd={s.id === abierto ? 'a' : undefined}
                         disabled={aprobarMut.isPending}
                         onClick={() => aprobarMut.mutate(s.id)}
                       >
@@ -352,7 +403,11 @@ export function EpisodioClips() {
                       </>
                     ) : null}
                     {s.state === 'propuesto' || s.state === 'incidencia' ? (
-                      <Button variant="danger-ghost" onClick={() => setDescartando(s.id)}>
+                      <Button
+                        variant="danger-ghost"
+                        kbd={s.id === abierto ? 'd' : undefined}
+                        onClick={() => setDescartando(s.id)}
+                      >
                         Descartar
                       </Button>
                     ) : null}
@@ -404,10 +459,24 @@ export function EpisodioClips() {
                 </div>
               )}
             </div>
+            {/* auditoría visual del apretado: dónde caen los cortes de plano
+                que el pre-corte horneó; sin plan (clips de vídeo propio,
+                maestros antiguos) no se pinta nada */}
+            {detalle !== undefined &&
+            detalle.master.short.encuadre_plan !== undefined &&
+            detalle.master.short.encuadre_plan.length > 0 ? (
+              <BarraCortes
+                plan={detalle.master.short.encuadre_plan}
+                duracionMs={detalle.master.short.duration_ms}
+              />
+            ) : null}
             <p className="muted fs-sm" style={{ marginTop: 8, lineHeight: 1.5 }}>
               Los cortes los fija la transcripción y el encuadre quedó congelado al proponer. La
               descripción de cada clip lleva la atribución al episodio original.
             </p>
+            <div className="mono muted" style={{ fontSize: 11, lineHeight: 1.6 }}>
+              <Kbd>j</Kbd> <Kbd>k</Kbd> moverse · <Kbd>a</Kbd> aprobar · <Kbd>d</Kbd> descartar
+            </div>
           </div>
         </div>
       )}
