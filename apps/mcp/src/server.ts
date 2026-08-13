@@ -9,12 +9,19 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
+import { existsSync } from 'node:fs';
+import { openAsBlob } from 'node:fs';
+import { basename } from 'node:path';
 import {
   ASSET_KINDS,
   IDEA_STATUSES,
   ideaDtoSchema,
   inboxDtoSchema,
   libraryListDtoSchema,
+  REEL_FORMATS,
+  reelDetailDtoSchema,
+  reelPlanLayerSchema,
+  reelsListDtoSchema,
   timelineDtoSchema,
   videoDetailDtoSchema,
 } from '@fabrica/shared';
@@ -24,6 +31,8 @@ import {
   formatInbox,
   formatIdeas,
   formatLibrary,
+  formatReel,
+  formatReels,
   formatTimeline,
   formatVideo,
 } from './format.js';
@@ -88,7 +97,8 @@ export function buildServer(api: FabricaApi = createApi()): McpServer {
   const server = new McpServer(SERVER_INFO, {
     instructions:
       'Herramientas de la fábrica de vídeo: bandeja de entrada, puertas humanas ' +
-      '(ideas, guion, timeline), publicación y biblioteca. Todas hablan con la API ' +
+      '(ideas, guion, timeline), publicación, biblioteca y reels del módulo editor ' +
+      '(alta, revisión y firma del plan de capas). Todas hablan con la API ' +
       `HTTP local (${api.baseUrl}).`,
   });
 
@@ -380,6 +390,161 @@ export function buildServer(api: FabricaApi = createApi()): McpServer {
       if (!costs.ok) return errorResult(costs.message);
       return textResult(costs.value);
     },
+  );
+
+  // ---- reels (módulo editor): el agente como director antes de la firma ----
+
+  server.registerTool(
+    'list_reels',
+    {
+      description:
+        'Lista los reels del módulo editor con su estado. plan_listo = plan esperando ' +
+        'revisión: es el momento de get_reel + update_reel_plan + approve_reel_render.',
+      ...readOnly,
+    },
+    async () =>
+      fetchAndFormat(api.request('GET', '/reels'), reelsListDtoSchema, '/reels', (dto) =>
+        formatReels(dto.reels),
+      ),
+  );
+
+  server.registerTool(
+    'get_reel',
+    {
+      description:
+        'Detalle de un reel: estado, guion congelado y el PLAN COMPLETO de capas ' +
+        '(el mismo array que update_reel_plan espera de vuelta tras editarlo). ' +
+        'Las plantillas y sus configs se documentan en apps/editor/guiones/CATALOGO.json.',
+      inputSchema: { reel_id: z.string().min(1).describe('Id del reel') },
+      ...readOnly,
+    },
+    async ({ reel_id }) =>
+      fetchAndFormat(
+        api.request('GET', `/reels/${encodeURIComponent(reel_id)}`),
+        reelDetailDtoSchema,
+        `/reels/${reel_id}`,
+        formatReel,
+      ),
+  );
+
+  server.registerTool(
+    'create_reel',
+    {
+      description:
+        'Da de alta un reel: sube el A-roll (ruta local de esta máquina) con su guion ' +
+        'de dirección JSON (contrato en apps/editor/guiones/CONTRATO.md). La máquina ' +
+        'transcribe, cruza el guion con lo grabado y deja el plan en plan_listo.',
+      inputSchema: {
+        aroll_path: z.string().min(1).describe('Ruta local del vídeo bruto (A-roll)'),
+        guion_json: z.string().min(2).describe('El guion de dirección, como JSON en texto'),
+        channel_id: z.string().min(1).describe('Canal destino'),
+        title: z.string().optional().describe('Título; si falta, sale del guion'),
+        formato: z.enum(REEL_FORMATS).optional().describe('Lienzo (por defecto 9:16)'),
+      },
+    },
+    async ({ aroll_path, guion_json, channel_id, title, formato }) => {
+      if (!existsSync(aroll_path)) {
+        return errorResult(`No existe el fichero: ${aroll_path}`);
+      }
+      try {
+        const parsed: unknown = JSON.parse(guion_json);
+        if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          return errorResult('El guion debe ser un objeto JSON (no array ni escalar).');
+        }
+      } catch (cause) {
+        return errorResult(
+          `El guion no es JSON válido: ${cause instanceof Error ? cause.message : String(cause)}`,
+        );
+      }
+      const form = new FormData();
+      // openAsBlob: el A-roll puede ser de GB y no debe pasar por memoria
+      form.append('aroll', await openAsBlob(aroll_path), basename(aroll_path));
+      form.append('channel_id', channel_id);
+      form.append('guion', guion_json);
+      if (title !== undefined && title.trim() !== '') form.append('title', title);
+      if (formato !== undefined) form.append('formato', formato);
+      return actionResult(api.upload('/reels', form), (data) => {
+        const reelId =
+          data && typeof data === 'object' && 'reel_id' in data
+            ? String((data as { reel_id: unknown }).reel_id)
+            : 'desconocido';
+        return (
+          `Reel ${reelId} en cola: transcripción y plan en marcha. ` +
+          'Sigue el estado con get_reel; en plan_listo toca revisar y firmar.'
+        );
+      });
+    },
+  );
+
+  server.registerTool(
+    'update_reel_plan',
+    {
+      description:
+        'Reemplaza el plan de capas de un reel (solo en plan_listo). Manda el plan ' +
+        'ENTERO editado, no un parche: capas con capa/template/t/duracion/config. ' +
+        'Lo firmado con approve_reel_render será exactamente lo último guardado aquí.',
+      inputSchema: {
+        reel_id: z.string().min(1).describe('Id del reel'),
+        plan: z
+          .array(reelPlanLayerSchema)
+          .min(1)
+          .describe('El plan completo de capas que sustituye al actual'),
+      },
+    },
+    async ({ reel_id, plan }) =>
+      actionResult(
+        api.request('PATCH', `/reels/${encodeURIComponent(reel_id)}/plan`, { plan }),
+        (data) => {
+          const capas =
+            data && typeof data === 'object' && 'capas' in data
+              ? String((data as { capas: unknown }).capas)
+              : String(plan.length);
+          return `Plan del reel ${reel_id} guardado (${capas} capas).`;
+        },
+      ),
+  );
+
+  server.registerTool(
+    'approve_reel_render',
+    {
+      description:
+        'Firma el plan de un reel en plan_listo y lanza el render (rasterizado ' +
+        'Playwright + composición ffmpeg). Se renderiza exactamente el plan guardado.',
+      inputSchema: { reel_id: z.string().min(1).describe('Id del reel') },
+    },
+    async ({ reel_id }) =>
+      actionResult(
+        api.request('POST', `/reels/${encodeURIComponent(reel_id)}/render`),
+        `Plan firmado; render del reel ${reel_id} en cola. Sigue el estado con get_reel.`,
+      ),
+  );
+
+  server.registerTool(
+    'regenerate_reel_plan',
+    {
+      description:
+        'Vuelve a preparar el plan de un reel en plan_listo releyendo su guion ' +
+        'congelado (útil tras corregir el cruce guion↔grabación). Descarta ediciones.',
+      inputSchema: { reel_id: z.string().min(1).describe('Id del reel') },
+    },
+    async ({ reel_id }) =>
+      actionResult(
+        api.request('POST', `/reels/${encodeURIComponent(reel_id)}/preparar`),
+        `Regenerando el plan del reel ${reel_id} desde su guion.`,
+      ),
+  );
+
+  server.registerTool(
+    'retry_reel',
+    {
+      description: 'Reintenta un reel en incidencia (vuelve al estado previo y re-encola su job).',
+      inputSchema: { reel_id: z.string().min(1).describe('Id del reel') },
+    },
+    async ({ reel_id }) =>
+      actionResult(
+        api.request('POST', `/reels/${encodeURIComponent(reel_id)}/retry`),
+        `Reintento lanzado para el reel ${reel_id}.`,
+      ),
   );
 
   return server;

@@ -35,6 +35,13 @@ Arranque manual (para depurar): `pnpm --filter @fabrica/mcp start`
 | `publish_video` | `video_id` | Aprueba la publicación en YouTube (subida en privado + programación) |
 | `library_search` | `q`, `kind?` | Busca en la biblioteca local de assets |
 | `production_costs` | `month?` | Agregado del ledger del mes en curso (vía `/inbox`) |
+| `list_reels` | — | Reels del módulo editor con su estado |
+| `get_reel` | `reel_id` | Detalle: guion congelado + plan COMPLETO de capas (el payload de `update_reel_plan`) |
+| `create_reel` | `aroll_path`, `guion_json`, `channel_id`, `title?`, `formato?` | Alta con subida del A-roll local (multipart) |
+| `update_reel_plan` | `reel_id`, `plan` | Reemplaza el plan entero (solo en `plan_listo`) |
+| `approve_reel_render` | `reel_id` | Firma el plan y lanza el render del editor |
+| `regenerate_reel_plan` | `reel_id` | Re-prepara el plan desde el guion (descarta ediciones) |
+| `retry_reel` | `reel_id` | Reintenta un reel en incidencia |
 
 Notas:
 - `production_costs` solo cubre el mes en curso; los históricos necesitarán un

@@ -26,6 +26,16 @@ const inboxFixture: InboxDto = {
       meta: '3/9 beats aprobados',
       eta_min: 4,
     },
+    {
+      kind: 'clips_episodio',
+      video_id: null,
+      episode_id: 'ep-1',
+      channel_id: 'ch-1',
+      step_label: 'Clips · aprobar',
+      title: 'Charla sobre agentes',
+      meta: '3 clips propuestos esperan tu firma',
+      eta_min: 3,
+    },
   ],
   running: [
     {
@@ -44,6 +54,7 @@ const inboxFixture: InboxDto = {
       title: 'Copiar ya no es trampa',
       output_dir: '/outputs/vid-3',
       finished_at: '2026-07-20T10:00:00.000Z',
+      created_at: '2026-07-18T09:00:00.000Z',
       thumbnail_url: '/files/outputs/vid-3/thumb_a.jpg',
       youtube: {
         status: 'subido',
@@ -90,16 +101,55 @@ describe('helpers', () => {
 describe('formatInbox', () => {
   it('resume puertas, en curso, entregas y coste del mes', () => {
     const out = formatInbox(inboxFixture) as {
-      puertas_pendientes: unknown[];
+      puertas_pendientes: { episode_id: string | null }[];
       en_curso: { coste_usd: number }[];
       entregas: { youtube: { estado: string } | null }[];
       coste_del_mes: { restante_usd: number; total_usd: number };
     };
-    expect(out.puertas_pendientes).toHaveLength(1);
+    expect(out.puertas_pendientes).toHaveLength(2);
+    // la puerta de vídeo normaliza a null; la de clipping conserva su id
+    expect(out.puertas_pendientes[0]?.episode_id).toBeNull();
+    expect(out.puertas_pendientes[1]?.episode_id).toBe('ep-1');
     expect(out.en_curso[0]?.coste_usd).toBe(0.4123);
     expect(out.entregas[0]?.youtube?.estado).toBe('subido');
     expect(out.coste_del_mes.total_usd).toBe(1.2346);
     expect(out.coste_del_mes.restante_usd).toBe(roundUsd(25 - 1.23456));
+  });
+});
+
+describe('formatReel', () => {
+  it('resume el reel y conserva el plan completo para editarlo', async () => {
+    const { formatReel, formatReels } = await import('./format.js');
+    const reel = {
+      id: 'reel-1',
+      channel_id: 'ch-1',
+      state: 'plan_listo' as const,
+      title: 'Sesgos de la IA',
+      formato: '9:16' as const,
+      duration_ms: null,
+      plan_capas: 2,
+      video_url: null,
+      portada_url: null,
+      incident: null,
+      created_at: '2026-08-13T00:00:00.000Z',
+      plan: [
+        { capa: 'kineticcaptions', template: 'kinetic-captions.html', t: 0, duracion: 30 },
+        { capa: 'headlineclipper', template: 'headline-clipper.html', t: 0.5, duracion: 2.5, config: { titular: 'SESGO' } },
+      ],
+      guion: { pieces: [] },
+    };
+    const out = formatReel(reel) as {
+      plan: unknown[];
+      plan_resumen: { idx: number; entra_s: number | null }[];
+    };
+    // el plan viaja ENTERO (es el payload de update_reel_plan), el resumen aparte
+    expect(out.plan).toHaveLength(2);
+    expect(out.plan[1]).toHaveProperty('config');
+    expect(out.plan_resumen[1]?.entra_s).toBe(0.5);
+
+    const lista = formatReels([reel]) as { total: number; reels: { estado: string }[] };
+    expect(lista.total).toBe(1);
+    expect(lista.reels[0]?.estado).toBe('plan_listo');
   });
 });
 
@@ -158,6 +208,7 @@ describe('formatVideo', () => {
     costs_total: 0.1234567,
     youtube: null,
     thumbnail_url: null,
+    metrics: null,
     incident: null,
     created_at: '2026-07-25T12:00:00.000Z',
     updated_at: '2026-07-25T12:30:00.000Z',

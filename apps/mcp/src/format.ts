@@ -5,6 +5,8 @@ import type {
   IdeaDto,
   InboxDto,
   LibraryListDto,
+  ReelDetailDto,
+  ReelDto,
   TimelineDto,
   VideoDetailDto,
   YoutubePublication,
@@ -57,6 +59,11 @@ export function formatInbox(inbox: InboxDto): Record<string, unknown> {
       detalle: gate.meta,
       canal: gate.channel_id,
       video_id: gate.video_id,
+      // las puertas de clipping (episodio_listo, clips_episodio) y de reels
+      // (reel_plan) no tienen vídeo: sin estos campos llegarían al agente sin
+      // identificador alguno
+      episode_id: gate.episode_id ?? null,
+      reel_id: gate.reel_id ?? null,
       eta_min: gate.eta_min,
     })),
     en_curso: inbox.running.map((run) => ({
@@ -232,5 +239,50 @@ export function formatCosts(
       videos_terminados: inbox.month_videos,
       nota: 'Agregado del ledger de costes del mes en curso (fuente: /inbox).',
     },
+  };
+}
+
+function reelResumen(reel: ReelDto): Record<string, unknown> {
+  return {
+    reel_id: reel.id,
+    titulo: reel.title,
+    estado: reel.state,
+    formato: reel.formato,
+    canal: reel.channel_id,
+    capas_del_plan: reel.plan_capas,
+    video_url: reel.video_url,
+    incidencia: reel.incident
+      ? { mensaje: reel.incident.message, accion_sugerida: reel.incident.suggested_action }
+      : null,
+  };
+}
+
+export function formatReels(reels: ReelDto[]): Record<string, unknown> {
+  return {
+    total: reels.length,
+    reels: reels.map(reelResumen),
+    nota:
+      'Estados: nuevo/preparando (máquina), plan_listo (LA puerta: revisar el plan ' +
+      'con get_reel y firmar con approve_reel_render), render, hecho, incidencia.',
+  };
+}
+
+export function formatReel(reel: ReelDetailDto): Record<string, unknown> {
+  return {
+    ...reelResumen(reel),
+    // el plan COMPLETO a propósito: es el payload que update_reel_plan espera
+    // de vuelta (entero, no un parche) tras editar capas
+    plan: reel.plan,
+    plan_resumen:
+      reel.plan === null
+        ? null
+        : reel.plan.map((capa, idx) => ({
+            idx,
+            capa: capa.capa,
+            template: capa.template ?? null,
+            entra_s: capa.t ?? null,
+            dura_s: capa.duracion ?? null,
+          })),
+    guion: reel.guion,
   };
 }

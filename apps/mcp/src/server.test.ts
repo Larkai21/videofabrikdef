@@ -26,6 +26,14 @@ const EXPECTED_TOOLS = [
   'publish_video',
   'library_search',
   'production_costs',
+  // reels (módulo editor): el agente como director antes de la firma
+  'list_reels',
+  'get_reel',
+  'create_reel',
+  'update_reel_plan',
+  'approve_reel_render',
+  'regenerate_reel_plan',
+  'retry_reel',
 ];
 
 interface ToolText {
@@ -67,7 +75,7 @@ afterAll(async () => {
 });
 
 describe('catálogo de herramientas', () => {
-  it('expone las 16 herramientas de S3', async () => {
+  it('expone las 23 herramientas (16 de S3 + 7 de reels)', async () => {
     const server = buildServer(createApi(baseUrl));
     const client = await connectClient(server);
     closers.push(() => client.close(), () => server.close());
