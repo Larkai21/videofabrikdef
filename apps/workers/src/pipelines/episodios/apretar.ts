@@ -26,6 +26,35 @@ export interface Keep {
 export const APRETAR_SILENCIO_MS = 480;
 /** Colchón a cada lado del corte: ni la respiración ni el ataque de sílaba. */
 export const APRETAR_COLCHON_MS = 120;
+/** Un resto de keep más corto que esto no es un plano, es un parpadeo. */
+const TROZO_MIN_MS = 150;
+
+/**
+ * Resta rangos a los tramos conservados: el corte SEMÁNTICO (frases de
+ * relleno marcadas por el director) entra por aquí como si fuera silencio
+ * sintético — se recorta ANTES de montar el reloj de salida, así remapear()
+ * ve un solo mundo coherente y los tokens de la frase quitada se caen igual
+ * que los de un silencio.
+ */
+function restarRangos(
+  bordes: { from: number; to: number }[],
+  quitar: readonly { from_ms: number; to_ms: number }[],
+): { from: number; to: number }[] {
+  let actual = bordes;
+  for (const q of quitar) {
+    const siguiente: { from: number; to: number }[] = [];
+    for (const b of actual) {
+      if (q.to_ms <= b.from || q.from_ms >= b.to) {
+        siguiente.push(b);
+        continue;
+      }
+      if (q.from_ms - b.from >= TROZO_MIN_MS) siguiente.push({ from: b.from, to: q.from_ms });
+      if (b.to - q.to_ms >= TROZO_MIN_MS) siguiente.push({ from: q.to_ms, to: b.to });
+    }
+    actual = siguiente;
+  }
+  return actual;
+}
 
 /**
  * Tramos que SE QUEDAN dentro de la ventana [fromMs, toMs] del reloj de
@@ -35,7 +64,12 @@ export function calcularKeeps(
   tokens: readonly BeatToken[],
   fromMs: number,
   toMs: number,
-  opts: { silencioMs?: number; colchonMs?: number } = {},
+  opts: {
+    silencioMs?: number;
+    colchonMs?: number;
+    /** rangos a quitar además de los silencios (corte semántico de relleno) */
+    quitar?: readonly { from_ms: number; to_ms: number }[];
+  } = {},
 ): Keep[] {
   const silencio = opts.silencioMs ?? APRETAR_SILENCIO_MS;
   const colchon = opts.colchonMs ?? APRETAR_COLCHON_MS;
@@ -60,8 +94,15 @@ export function calcularKeeps(
   }
   bordes.push({ from: ini, to: Math.min(toMs, dentro[dentro.length - 1]!.to_ms + colchon) });
 
+  const finales = opts.quitar?.length ? restarRangos(bordes, opts.quitar) : bordes;
+  if (finales.length === 0) {
+    // quitar se comió toda la ventana: mejor la ventana entera que un clip
+    // vacío — el corte semántico es un pulido, no puede dejar sin metraje
+    return [{ src_from_ms: fromMs, src_to_ms: toMs, out_from_ms: 0, out_to_ms: toMs - fromMs }];
+  }
+
   let out = 0;
-  return bordes.map((b) => {
+  return finales.map((b) => {
     const keep: Keep = {
       src_from_ms: b.from,
       src_to_ms: b.to,

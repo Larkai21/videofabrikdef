@@ -7,6 +7,7 @@ import { and, eq, ne } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { channels, episodes, markIncidentEpisode, shorts, transitionEpisode } from '@fabrica/db';
 import {
+  channelSettingsSchema,
   JOBS,
   PRICES,
   QUEUES,
@@ -17,6 +18,7 @@ import {
 import type { WorkerContext } from '../../lib/context.js';
 import { closeCost, failCost, openCost } from '../../lib/ledger.js';
 import { exprCropX, suavizarKf, type KeyframeEncuadre } from './encuadre.js';
+import { marcarRelleno } from './relleno.js';
 import { createMedia, EPISODE_MAX_S } from '../../providers/media.js';
 import { createStt } from '../../providers/stt.js';
 import { loudnormToWav, measureLufs, probeDurationMs } from '../tts/audio.js';
@@ -526,10 +528,16 @@ export async function handleProposeHighlights(
   }
 
   const [canal] = await ctx.db
-    .select({ name: channels.name, profile: channels.profile, avatarPath: channels.avatarPath })
+    .select({
+      name: channels.name,
+      profile: channels.profile,
+      avatarPath: channels.avatarPath,
+      settings: channels.settings,
+    })
     .from(channels)
     .where(eq(channels.id, ep.channelId))
     .limit(1);
+  const ajustes = channelSettingsSchema.parse(canal?.settings ?? {});
 
   const previos = await ctx.db
     .select({ idx: shorts.idx })
@@ -541,9 +549,26 @@ export async function handleProposeHighlights(
   for (const c of candidatos) {
     const id = nanoid(12);
     const destDir = path.join(episodeDir(ctx, episodeId), 'clips', id);
-    // 1) APRETADO: fuera los silencios muertos de la ventana (keeps con el
-    //    mapa de reloj origen→salida; receta del hermano)
-    const keeps = calcularKeeps(tokens, c.from_ms, c.to_ms);
+    const tokensVentana = tokens.filter((t) => t.from_ms >= c.from_ms && t.to_ms <= c.to_ms);
+    // 1a) corte SEMÁNTICO opcional (flag por canal): frases de relleno que el
+    //     director marca y el apretado corta como silencio sintético; si el
+    //     LLM falla, [] y el clip sale igual, solo menos apretado
+    const quitar = ajustes.clips_relleno
+      ? await marcarRelleno(ctx, {
+          episodeId,
+          channelId: ep.channelId,
+          shortId: id,
+          tokens: tokensVentana,
+        })
+      : [];
+    // 1b) APRETADO: fuera los silencios muertos de la ventana (keeps con el
+    //     mapa de reloj origen→salida; receta del hermano) + el relleno marcado
+    const keeps = calcularKeeps(
+      tokens,
+      c.from_ms,
+      c.to_ms,
+      quitar.length > 0 ? { quitar } : {},
+    );
     // 2) encuadre por plano Y por hablante sobre la ventana de ORIGEN
     const plan = await planDeEncuadre(ep.mediaPath!, c.from_ms, c.to_ms, log);
     // 3) piezas = keeps ∩ tramos de encuadre, en el reloj de ORIGEN
@@ -582,6 +607,7 @@ export async function handleProposeHighlights(
         tramosEncuadre: plan.length,
         piezas: piezas.length,
         segundosFuera: Number((recortadoMs / 1000).toFixed(1)),
+        rellenoQuitado: quitar.length,
       },
       'Apretado y encuadre del clip',
     );
@@ -594,7 +620,6 @@ export async function handleProposeHighlights(
       destDir,
     });
     // 4) todo lo que viaja al maestro se traduce al reloj de SALIDA
-    const tokensVentana = tokens.filter((t) => t.from_ms >= c.from_ms && t.to_ms <= c.to_ms);
     const tokensSalida = remapearTokens(tokensVentana, keeps);
     const beatsSalida = keeps.map((k, i) => ({
       idx: i,

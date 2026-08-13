@@ -57,6 +57,8 @@ export const COST_OPERATIONS = [
   'punctuate',
   // map-reduce que elige qué ventanas del episodio funcionan como clip
   'highlights_director',
+  // marca frases prescindibles del clip (corte semántico; flag por canal)
+  'clips_relleno',
 ] as const;
 
 export const costOperationSchema = z.enum(COST_OPERATIONS);

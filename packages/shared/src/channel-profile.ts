@@ -114,6 +114,13 @@ export const channelSettingsSchema = z.object({
     }),
   anti_repeat_n: z.number().int().default(8),
   monthly_budget_usd: z.number().default(15),
+  /**
+   * Corte SEMÁNTICO de relleno en los clips de episodio: el LLM marca frases
+   * prescindibles y el apretado las corta como si fueran silencio (el editor
+   * de referencia lo hace a mano). Apagado por defecto: es una llamada más
+   * por clip y quita material — se enciende por canal cuando se confía.
+   */
+  clips_relleno: z.boolean().default(false),
   // duración objetivo de locución en minutos (SPEC: 6–9; corto para pruebas)
   /**
    * Duración objetivo en minutos. Se conserva por compatibilidad con los

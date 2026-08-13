@@ -73,4 +73,10 @@ suelo sobre la banda de la interfaz).
   si el material lo trae).
 - Gráficos puntuales (emojis, logos) que el editor añade a mano; emoji-pop
   del catálogo hermano es el candidato.
-- Corte semántico de relleno por LLM (el apretado actual es solo acústico).
+- ~~Corte semántico de relleno por LLM~~ — hecho tras el flag de canal
+  `clips_relleno` (apagado por defecto): el director marca frases
+  prescindibles POR ÍNDICE (nunca tiempos: una alucinación de ms no puede
+  partir una palabra), guardas deterministas encima (ni gancho ni cierre,
+  techo del 25 % de la ventana) y el apretado las corta como silencio
+  sintético (`relleno.ts` + `quitar` en `calcularKeeps`). Coste al ledger
+  como `clips_relleno`, con `short_id` en meta.
