@@ -145,7 +145,13 @@ class OpenAiLlm implements LlmProvider {
           `El modelo devolvió contenido vacío (finish_reason: ${choice?.finish_reason ?? 'desconocido'})`,
         );
       }
-      const data = opts.schema.parse(JSON.parse(text));
+      // algunos modelos (Claude vía openrouter) envuelven el JSON en una
+      // valla ```json aunque se les pida JSON puro: se pela antes de parsear
+      const pelado = text
+        .trim()
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```$/, '');
+      const data = opts.schema.parse(JSON.parse(pelado));
       return { data, usage };
     };
     try {

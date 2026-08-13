@@ -130,6 +130,38 @@ export function fallbackHighlights(beats: ShortDirectorBeat[], titulo: string): 
   ];
 }
 
+/** Una risa por debajo de esto no es remate: es una sonrisa de cortesía. */
+const RISA_REMATE_MIN_MS = 800;
+
+/**
+ * Guarda determinista del remate: si la ventana del candidato CONTIENE un
+ * beat rematado por carcajada real (señal de risas.ts), el clip se recorta al
+ * PRIMER golpe válido — la referencia corta en el punchline y deja la segunda
+ * mitad para otro clip. Al LLM se le pide en el prompt, pero medido en real
+ * lo ignora: la regla vive aquí, donde no se puede desobedecer.
+ */
+export function recortarAlRemate(c: Candidato, beats: ShortDirectorBeat[]): Candidato {
+  const dentro = beats
+    .filter((b) => b.idx >= c.start_beat_idx && b.idx <= c.end_beat_idx)
+    .sort((a, b) => a.idx - b.idx);
+  const primero = dentro[0];
+  if (primero === undefined) return c;
+  for (const b of dentro) {
+    if ((b.risa_despues_ms ?? 0) < RISA_REMATE_MIN_MS) continue;
+    // el golpe tiene que dejar clip suficiente: si cae antes del mínimo, será
+    // una risa del arranque, no el remate
+    if (b.to_ms - primero.from_ms < SHORT_MIN_S * 1000) continue;
+    if (b.idx === c.end_beat_idx) return c;
+    return {
+      ...c,
+      end_beat_idx: b.idx,
+      to_ms: b.to_ms,
+      beat_idxs: c.beat_idxs.filter((i) => i <= b.idx),
+    };
+  }
+  return c;
+}
+
 export async function directHighlights(
   ctx: WorkerContext,
   params: HighlightsParams,
@@ -173,13 +205,20 @@ export async function directHighlights(
   }
   // reduce determinista: la normalización de shorts ya ordena por score,
   // estira/encoge por beats enteros y desolapa (>50 %) contra excluir y entre sí
-  const candidatos = toCandidatos(crudos, params.beats, {
+  const normalizados = toCandidatos(crudos, params.beats, {
     fronteras: [],
     ...(params.excluir !== undefined ? { excluir: params.excluir } : {}),
     cuantos,
   });
+  // guarda del remate: con carcajada medida dentro, el clip acaba en el golpe
+  const candidatos = normalizados.map((c) => recortarAlRemate(c, params.beats));
   if (candidatos.length === 0) {
     return { candidatos: fallbackHighlights(params.beats, params.titulo), source: 'fallback' };
   }
-  return { candidatos, source: fallo ? 'fallback' : 'llm' };
+  // si hay candidatos, SON del LLM aunque algún bloque fallara: 'fallback'
+  // solo cuando lo devuelto es la propuesta de reserva
+  if (fallo) {
+    ctx.logger.warn({ episodeId: params.episodeId }, 'Bloques del director con fallos parciales');
+  }
+  return { candidatos, source: 'llm' };
 }
