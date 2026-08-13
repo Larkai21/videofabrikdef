@@ -30,6 +30,33 @@ export function hayFiltroDeFecha(f: Pick<FiltroEntregas, 'desde' | 'hasta'>): bo
   return f.desde !== '' || f.hasta !== '';
 }
 
+// El input nativo type="date" habla el locale del NAVEGADOR (mm/dd/yyyy en un
+// Chrome en inglés), no el de la app — el mismo motivo por el que Costes dejó
+// el input month. Los campos pasan a texto dd/mm/aaaa y estas dos funciones
+// son la frontera: el contrato interno sigue en ISO.
+
+/** 'dd/mm/aaaa' (también d/m/aaaa) → 'YYYY-MM-DD'; null si no es una fecha. */
+export function parseFechaEs(text: string): string | null {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(text.trim());
+  if (m === null) return null;
+  const d = Number(m[1]);
+  const mes = Number(m[2]);
+  const a = Number(m[3]);
+  // Date normaliza en silencio (32/01 → 01/02): se valida contra el eco
+  const fecha = new Date(a, mes - 1, d);
+  if (fecha.getFullYear() !== a || fecha.getMonth() !== mes - 1 || fecha.getDate() !== d) {
+    return null;
+  }
+  return `${a}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+/** 'YYYY-MM-DD' → 'dd/mm/aaaa' para pintar el valor guardado; '' pasa tal cual. */
+export function fmtFechaEs(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (m === null) return iso;
+  return `${Number(m[3])}/${Number(m[2])}/${m[1]}`;
+}
+
 export function rangoImposible(f: Pick<FiltroEntregas, 'desde' | 'hasta'>): boolean {
   return f.desde !== '' && f.hasta !== '' && f.desde > f.hasta;
 }

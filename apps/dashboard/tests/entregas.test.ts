@@ -3,13 +3,35 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { InboxDto } from '@fabrica/shared';
-import { FILTRO_VACIO, filtrarEntregas, rangoImposible } from '../src/lib/entregas.js';
+import {
+  FILTRO_VACIO,
+  filtrarEntregas,
+  fmtFechaEs,
+  parseFechaEs,
+  rangoImposible,
+} from '../src/lib/entregas.js';
 
 type Entregada = InboxDto['done'][number];
 
 // `created_at` en hora LOCAL, que es como lo escribe el humano en el <input>
 const iso = (y: number, m: number, d: number, h = 12, min = 0): string =>
   new Date(y, m - 1, d, h, min).toISOString();
+
+test('parseFechaEs: dd/mm/aaaa a ISO, con la trampa de la normalización', () => {
+  assert.equal(parseFechaEs('13/8/2026'), '2026-08-13');
+  assert.equal(parseFechaEs('01/12/2026'), '2026-12-01');
+  assert.equal(parseFechaEs(' 5/1/2027 '), '2027-01-05');
+  assert.equal(parseFechaEs(''), null);
+  assert.equal(parseFechaEs('2026-08-13'), null); // ISO no es lo que teclea el humano
+  assert.equal(parseFechaEs('32/1/2026'), null); // Date lo normalizaría a 1/2 en silencio
+  assert.equal(parseFechaEs('29/2/2026'), null); // 2026 no es bisiesto
+  assert.equal(parseFechaEs('29/2/2028'), '2028-02-29'); // 2028 sí
+});
+
+test('fmtFechaEs pinta el ISO guardado y deja pasar lo demás', () => {
+  assert.equal(fmtFechaEs('2026-08-13'), '13/8/2026');
+  assert.equal(fmtFechaEs(''), '');
+});
 
 function entrega(id: string, created: string, title = `Vídeo ${id}`): Entregada {
   return {
