@@ -100,13 +100,28 @@ export function Costes() {
         <div style={{ flex: 1 }} />
         <label className="muted fs-sm" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           Mes
-          <input
+          {/* select propio en vez de input month nativo: el nativo habla el
+              idioma del navegador («August 2026») y esta UI habla español.
+              Doce meses hacia atrás cubren el histórico del ledger */}
+          <select
             className="control"
-            type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
             style={{ width: 'auto', fontSize: 'var(--fs-sm)' }}
-          />
+          >
+            {Array.from({ length: 12 }, (_, i) => {
+              const d = new Date();
+              d.setDate(1);
+              d.setMonth(d.getMonth() - i);
+              const valor = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+              const etiqueta = d.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+              return (
+                <option key={valor} value={valor}>
+                  {etiqueta}
+                </option>
+              );
+            })}
+          </select>
         </label>
       </div>
 
