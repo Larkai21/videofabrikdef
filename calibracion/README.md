@@ -82,3 +82,23 @@ el caption, en hojas de contacto de 9).
   `passage:`); ideas/fuentes/beats siguen simétricos. Los 575 assets de la
   biblioteca, re-embebidos el mismo día.
 
+---
+
+# Banco de frases del director de formas
+
+`frases-etiquetadas.json` — 39 frases LITERALES de los guiones de los cuatro
+vídeos producidos, cada una con la forma que un editor humano elegiría para
+dibujarla (plan-dibujar-ideas.md, Fase 5). Lo consume
+`apps/workers/src/pipelines/assets/banco-frases.test.ts`, que valida el fichero
+y reporta en el nombre del test el % del banco que el catálogo puede dibujar —
+sin umbral duro a propósito: la lección del 74 % de docs/calidad.md.
+
+Medido el 13-ago-2026, antes de las formas nuevas: **74 % (29/39)**. Frecuencia
+de las seis formas propuestas: cuello 3 (ya expresable: `pasos_flow` con la
+última estación acentuada), **barras 3**, linea_tiempo 2, capas 2, ciclo 2,
+arbol 1. La Fase 2 implementa las tres más frecuentes NO expresables: `barras`
+gana sola; del triple empate a 2 entran `linea_tiempo` y `ciclo` porque `capas`
+tiene una aproximación honesta en el catálogo (fichas apiladas de `pasos_flow`
+en columna) y las otras dos no tienen ninguna. `capas` y `arbol` quedan como
+deuda declarada del plan.
+

@@ -275,6 +275,15 @@ function imprimir(videoId: string, m: MetricasVideo): void {
   console.log(
     `  ${t(m.minutos_mudos === 0)} efectos     ${m.efectos_visuales_por_min.toFixed(1)} visuales/min · reparto [${m.reparto_por_minuto.join(' ')}]`,
   );
+  // EL número del sprint de formas (plan-dibujar-ideas.md, Fase 5): cuántos
+  // segundos de voz no tienen nada dibujado más allá del b-roll y el subtítulo.
+  // Se calculaba en analizarMaster desde 3833796 pero solo se imprimía en los
+  // shorts, así que el largo no tenía dónde leerse.
+  const durS = m.duracion_min * 60;
+  const mudosS = (1 - m.cobertura_grafica) * durS;
+  console.log(
+    `  · mudos       ${Math.round((1 - m.cobertura_grafica) * 100)} % sin gráfico (${Math.round(mudosS)} s de ${Math.round(durS)} s) · hueco máx ${m.hueco_grafico_s.toFixed(1)} s`,
+  );
   if (m.intents_declaradas !== null) {
     console.log(`  · intenciones ${m.intents_declaradas} declaradas → ${m.intents_vivas} vivas`);
   }
