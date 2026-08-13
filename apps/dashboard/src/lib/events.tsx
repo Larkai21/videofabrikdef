@@ -120,15 +120,40 @@ export function EventsProvider({ children }: { children: ReactNode }) {
         case 'short_state': {
           void queryClient.invalidateQueries({ queryKey: ['shorts', event.video_id] });
           void queryClient.invalidateQueries({ queryKey: ['short', event.short_id] });
+          // un clip de episodio no trae video_id: su lista cuelga de otra key
+          if (event.episode_id !== undefined) {
+            void queryClient.invalidateQueries({ queryKey: ['episodio-clips', event.episode_id] });
+          }
+          // el % de un render muerto no sobrevive al estado: sin esto, tras
+          // Reintentar la tarjeta pintaría el progreso del intento fallido
+          // mientras el job sigue en cola detrás de un vídeo largo
+          if (event.state === 'incidencia' || event.state === 'aprobado') {
+            setLive((prev) => {
+              if (!(event.short_id in prev.shortProgress)) return prev;
+              const shortProgress = { ...prev.shortProgress };
+              delete shortProgress[event.short_id];
+              return { ...prev, shortProgress };
+            });
+          }
           break;
         }
         case 'episode_state': {
           void queryClient.invalidateQueries({ queryKey: ['episodios'] });
           break;
         }
+        case 'reel_state': {
+          // prefijo: cubre la lista ['reels'] y el detalle ['reels', id]
+          void queryClient.invalidateQueries({ queryKey: ['reels'] });
+          break;
+        }
         case 'incident': {
           push(event.message, 'danger');
           void queryClient.invalidateQueries({ queryKey: ['inbox'] });
+          // una incidencia de episodio (p. ej. proponer sin encuadre) no emite
+          // episode_state: la lista de /episodios se refresca desde aquí
+          if (event.episode_id !== undefined) {
+            void queryClient.invalidateQueries({ queryKey: ['episodios'] });
+          }
           break;
         }
         case 'ideas_updated': {

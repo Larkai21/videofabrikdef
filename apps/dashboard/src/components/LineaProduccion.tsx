@@ -86,7 +86,18 @@ export function esperandoFirma(videos: EnVuelo[]): { video_id: string; href: str
   );
 }
 
-export function LineaProduccion({ videos }: { videos: EnVuelo[] }) {
+export function LineaProduccion({
+  videos,
+  esperasFuera = 0,
+  minutosFuera = 0,
+}: {
+  videos: EnVuelo[];
+  /** puertas humanas que viven FUERA del raíl (clipping): la cabecera es la
+      única voz que resume si la máquina te necesita, así que no puede decir
+      «la línea está parada» con trabajo ámbar esperando justo debajo */
+  esperasFuera?: number;
+  minutosFuera?: number;
+}) {
   const situados = situar(videos);
   const esperando = situados.filter((v) => v.espera);
   const trabajando = situados.filter((v) => !v.espera);
@@ -96,7 +107,9 @@ export function LineaProduccion({ videos }: { videos: EnVuelo[] }) {
       .slice(0, 3)
       .map((a, i) => [a.video_id, i + 1]),
   );
-  const minutos = esperando.reduce((acc, v) => acc + (v.eta_min ?? 0), 0);
+  const minutos =
+    esperando.reduce((acc, v) => acc + (v.eta_min ?? 0), 0) +
+    (esperando.length > 0 || esperasFuera > 0 ? minutosFuera : 0);
 
   return (
     <section className="linea" aria-label="Línea de producción">
@@ -106,16 +119,20 @@ export function LineaProduccion({ videos }: { videos: EnVuelo[] }) {
             ? esperando.length === 1
               ? 'Un vídeo espera tu firma'
               : `${esperando.length} vídeos esperan tu firma`
-            : trabajando.length > 0
-              ? 'La máquina trabaja sola'
-              : 'La línea está parada'}
+            : esperasFuera > 0
+              ? 'Hay piezas esperando tu firma'
+              : trabajando.length > 0
+                ? 'La máquina trabaja sola'
+                : 'La línea está parada'}
         </h2>
         <span className="linea-resumen mono">
-          {esperando.length > 0 && minutos > 0
+          {(esperando.length > 0 || esperasFuera > 0) && minutos > 0
             ? `unos ${minutos} min de trabajo tuyo`
             : trabajando.length > 0
               ? `${trabajando.length} ${trabajando.length === 1 ? 'vídeo' : 'vídeos'} en proceso`
-              : 'lanza una idea para empezar'}
+              : esperasFuera > 0
+                ? 'las puertas están más abajo'
+                : 'lanza una idea para empezar'}
         </span>
       </div>
 

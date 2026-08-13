@@ -2,17 +2,17 @@ import { Player } from '@remotion/player';
 import { extractYoutubeId, FPS, SHORT_HEIGHT, SHORT_WIDTH, type ShortDto } from '@fabrica/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ApiError,
   approveShort,
   discardShort,
   fileUrl,
+  getEpisode,
+  getEpisodeClips,
   getShort,
-  getShorts,
-  getVideo,
   markShortPublished,
-  proposeShorts,
+  proposeEpisodeClips,
   renameShort,
   retryShort,
   shortDownloadUrl,
@@ -32,15 +32,16 @@ import {
   SkeletonRows,
 } from '../components/ui';
 
-// Aprobación de shorts. El humano ELIGE entre los candidatos que propuso el
-// director y descarta los que no le valen; no mueve la ventana (principio 1:
-// sin asas de recorte). Si ninguno convence, se piden otros.
+// Aprobación de clips de un episodio externo. Es el espejo de la pantalla de
+// shorts —mismas filas, mismo DTO, mismas acciones por id— pero el padre es un
+// episodio: el CTA de proponer pide encuadre elegido, y cada clip renderizado
+// sale con la atribución de la fuente ya escrita en su descripción.
 
 const MOTIVOS_DESCARTE = [
-  { id: 'no-solo', label: 'No se entiende sin el contexto del vídeo' },
+  { id: 'no-solo', label: 'No se entiende sin el contexto del episodio' },
   { id: 'flojo', label: 'El gancho no engancha' },
   { id: 'repetido', label: 'Dice lo mismo que otro candidato' },
-  { id: 'planos', label: 'Los planos no acompañan' },
+  { id: 'corte', label: 'El corte entra o sale a mitad de idea' },
 ];
 
 const ESTADOS: Record<
@@ -55,7 +56,7 @@ const ESTADOS: Record<
   incidencia: { label: 'Incidencia', kind: 'danger' },
 };
 
-export function Shorts() {
+export function EpisodioClips() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { push } = useToasts();
@@ -64,29 +65,32 @@ export function Shorts() {
   const [seleccionado, setSeleccionado] = useState<string | null>(null);
   const [descartando, setDescartando] = useState<string | null>(null);
 
-  const videoQ = useQuery({
-    queryKey: ['video', id],
-    queryFn: () => getVideo(id),
+  // cuelga del prefijo ['episodios'] a propósito: el evento episode_state
+  // invalida esa key global y este detalle se refresca gratis
+  const episodioQ = useQuery({
+    queryKey: ['episodios', id],
+    queryFn: () => getEpisode(id),
     enabled: id !== '',
   });
-  const shortsQ = useQuery({
-    queryKey: ['shorts', id],
-    queryFn: () => getShorts(id),
+  const clipsQ = useQuery({
+    queryKey: ['episodio-clips', id],
+    queryFn: () => getEpisodeClips(id),
     enabled: id !== '',
     // mientras algo renderiza, el detalle del progreso llega por SSE, pero la
     // lista se refresca por si acaso el evento se pierde
     refetchInterval: (query) => {
-      const lista = query.state.data ?? [];
-      if (lista.some((s) => s.state === 'render' || s.state === 'aprobado')) return 5_000;
+      const clips = query.state.data ?? [];
+      if (clips.some((s) => s.state === 'render' || s.state === 'aprobado')) return 5_000;
       // sin candidatos vivos puede haber una propuesta en vuelo cuyo
       // short_state se pierda si el SSE se cae al reconectar: respaldo lento
-      // como en Bandeja (every() sobre lista vacía es true)
-      return lista.every((s) => s.state === 'descartado') ? 30_000 : false;
+      // como en Bandeja (every() sobre lista vacía es true: cubre «aún sin
+      // clips» y «todos descartados tras Proponer otros»)
+      return clips.every((s) => s.state === 'descartado') ? 30_000 : false;
     },
   });
 
-  const vivos = (shortsQ.data ?? []).filter((s) => s.state !== 'descartado');
-  // seleccionado se valida contra vivos: un short descartado desde otra
+  const vivos = (clipsQ.data ?? []).filter((s) => s.state !== 'descartado');
+  // seleccionado se valida contra vivos: un clip descartado desde otra
   // pestaña no debe quedarse abierto en la previsualización
   const abierto = vivos.some((v) => v.id === seleccionado)
     ? seleccionado
@@ -98,24 +102,28 @@ export function Shorts() {
   });
 
   const invalidar = () => {
-    void queryClient.invalidateQueries({ queryKey: ['shorts', id] });
+    void queryClient.invalidateQueries({ queryKey: ['episodio-clips', id] });
     if (abierto !== null) void queryClient.invalidateQueries({ queryKey: ['short', abierto] });
   };
   const alFallar = (fallback: string) => (err: unknown) =>
     push(err instanceof ApiError && err.detail !== undefined ? err.detail : fallback, 'danger');
 
   const proponerMut = useMutation({
-    mutationFn: () => proposeShorts(id),
+    mutationFn: () => proposeEpisodeClips(id),
     onSuccess: (r) => {
-      push(r.ya_en_curso ? 'Ya se están buscando fragmentos' : 'Buscando fragmentos para el short');
+      push(
+        r.ya_en_curso
+          ? 'Ya se están buscando momentos en este episodio'
+          : 'Buscando los momentos con más gancho del episodio',
+      );
       invalidar();
     },
-    onError: alFallar('No se pudieron pedir shorts'),
+    onError: alFallar('No se pudieron pedir clips'),
   });
   const aprobarMut = useMutation({
     mutationFn: (shortId: string) => approveShort(shortId),
     onSuccess: () => {
-      push('Short aprobado; entra en la cola de render');
+      push('Clip aprobado; entra en la cola de render');
       invalidar();
     },
     onError: alFallar('No se pudo aprobar'),
@@ -147,7 +155,7 @@ export function Shorts() {
     mutationFn: ({ shortId, urlOrId }: { shortId: string; urlOrId: string }) =>
       markShortPublished(shortId, urlOrId),
     onSuccess: () => {
-      push('Short marcado como publicado');
+      push('Clip marcado como publicado');
       setPublicando(null);
       setPublicarError(undefined);
       invalidar();
@@ -164,8 +172,11 @@ export function Shorts() {
     onError: alFallar('No se pudo cambiar el título'),
   });
 
-  const video = videoQ.data;
+  const episodio = episodioQ.data;
   const detalle = detalleQ.data;
+  // proponer exige episodio listo Y encuadre elegido: la API devuelve 409 en
+  // ambos casos, pero el botón no debe invitar a chocar contra ella
+  const puedeProponer = episodio?.state === 'listo' && episodio.focus_x !== null;
 
   return (
     <div className="wrap-1160" style={{ padding: 'calc(var(--pad) * 2) 26px 72px' }}>
@@ -178,28 +189,37 @@ export function Shorts() {
           marginBottom: 'var(--gap)',
         }}
       >
-        <Button variant="ghost" onClick={() => void navigate(`/videos/${id}/entrega`)}>
-          ← Entrega
+        <Button variant="ghost" onClick={() => void navigate('/episodios')}>
+          ← Episodios
         </Button>
         <h1 className="head" style={{ fontSize: 18, margin: 0 }}>
-          Shorts de «{video?.title_chosen ?? 'este vídeo'}»
+          Clips de «{episodio?.source_title ?? 'este episodio'}»
         </h1>
         <div style={{ flex: 1 }} />
         <Button
           variant={vivos.length === 0 ? 'primary' : 'secondary'}
-          disabled={proponerMut.isPending || video?.state !== 'hecho'}
+          disabled={proponerMut.isPending || !puedeProponer}
           onClick={() => proponerMut.mutate()}
         >
-          {vivos.length === 0 ? 'Buscar fragmentos' : 'Proponer otros'}
+          {vivos.length === 0 ? 'Buscar clips' : 'Proponer otros'}
         </Button>
       </div>
 
-      {shortsQ.isPending ? (
-        <SkeletonRows rows={3} label="Cargando los shorts" />
+      {episodio !== undefined && episodio.state === 'listo' && episodio.focus_x === null ? (
+        <div className="banner" style={{ marginBottom: 'var(--gap)' }}>
+          Falta elegir el encuadre vertical del episodio.{' '}
+          <Link to="/episodios">Elígelo en la lista de episodios</Link> y vuelve aquí para proponer
+          clips.
+        </div>
+      ) : null}
+
+      {clipsQ.isPending ? (
+        <SkeletonRows rows={3} label="Cargando los clips" />
       ) : vivos.length === 0 ? (
         <EmptyState title="Todavía no hay candidatos">
-          El sistema lee la narración y propone los fragmentos que funcionan solos. Tú eliges cuáles
-          se renderizan.
+          El director lee la transcripción del episodio y propone los momentos que funcionan solos.
+          Tú eliges cuáles se renderizan; cada clip sale con la atribución de la fuente en su
+          descripción.
         </EmptyState>
       ) : (
         <div
@@ -239,7 +259,7 @@ export function Shorts() {
                     <input
                       className="control"
                       defaultValue={s.title}
-                      aria-label="Título del short"
+                      aria-label="Título del clip"
                       style={{ fontWeight: 600 }}
                       onBlur={(e) => {
                         const title = e.target.value.trim();
@@ -384,8 +404,8 @@ export function Shorts() {
               )}
             </div>
             <p className="muted fs-sm" style={{ marginTop: 8, lineHeight: 1.5 }}>
-              Los cortes los fija el audio. Puedes elegir entre estos, cambiarles el título o pedir
-              otros, pero la ventana no se arrastra.
+              Los cortes los fija la transcripción y el encuadre quedó congelado al proponer. La
+              descripción de cada clip lleva la atribución al episodio original.
             </p>
           </div>
         </div>
@@ -406,7 +426,7 @@ export function Shorts() {
       <InputModal
         open={publicando !== null}
         title="Marcar como publicado"
-        desc="Registra el short que ya subiste tú. Con el enlace, las métricas del CSV de Studio casan por id exacto."
+        desc="Registra el clip que ya subiste tú. Con el enlace, las métricas del CSV de Studio casan por id exacto."
         label="Enlace o id del short en YouTube"
         placeholder="https://www.youtube.com/shorts/…"
         ayuda="Pega la URL del short o su id de 11 caracteres"

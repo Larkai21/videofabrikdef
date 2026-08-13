@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { EpisodeDto } from '@fabrica/shared';
 import {
   ApiError,
@@ -131,7 +132,11 @@ export function Episodios() {
   const episodios = episodiosQ.data ?? [];
 
   return (
-    <div style={{ display: 'grid', gap: 'var(--pad)' }}>
+    // wrap-1160 como el resto de pantallas: era la única sin contenedor
+    <div
+      className="wrap-1160"
+      style={{ padding: 'calc(var(--pad) * 2) 26px 72px', display: 'grid', gap: 'var(--pad)' }}
+    >
       <div className="card" style={{ padding: 'var(--pad)' }}>
         <div className="head" style={{ fontSize: 17, marginBottom: 6 }}>
           Nuevo episodio
@@ -227,9 +232,16 @@ export function Episodios() {
                   <EncuadreSelector episodeId={ep.id} onElegido={invalidar} />
                 ) : null}
                 {ep.focus_x !== null ? (
-                  <span className="muted fs-sm">
-                    Encuadre: {ep.focus_x === 0.25 ? 'izquierda' : ep.focus_x === 0.5 ? 'centro' : ep.focus_x === 0.75 ? 'derecha' : `x=${ep.focus_x}`}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <span className="muted fs-sm">
+                      Encuadre: {ep.focus_x === 0.25 ? 'izquierda' : ep.focus_x === 0.5 ? 'centro' : ep.focus_x === 0.75 ? 'derecha' : `x=${ep.focus_x}`}
+                    </span>
+                    {/* con el encuadre elegido el flujo sigue en su pantalla:
+                        proponer, aprobar y descargar viven allí */}
+                    <Link className="btn btn-primary" to={`/episodios/${ep.id}/clips`}>
+                      Clips del episodio
+                    </Link>
+                  </div>
                 ) : null}
               </div>
             );

@@ -10,7 +10,10 @@ import { Entrega } from './screens/Entrega';
 import { Guion } from './screens/Guion';
 import { Ideas } from './screens/Ideas';
 import { Shorts } from './screens/Shorts';
+import { EpisodioClips } from './screens/EpisodioClips';
 import { Episodios } from './screens/Episodios';
+import { ReelDetalle } from './screens/ReelDetalle';
+import { Reels } from './screens/Reels';
 import { Timeline } from './screens/Timeline';
 import { Wizard } from './screens/Wizard';
 
@@ -56,7 +59,10 @@ export function App() {
         <Route path="/videos/:id/entrega" element={<Entrega />} />
         <Route path="/videos/:id/shorts" element={<Shorts />} />
         <Route path="/episodios" element={<Episodios />} />
-      <Route path="/biblioteca" element={<Biblioteca />} />
+        <Route path="/episodios/:id/clips" element={<EpisodioClips />} />
+        <Route path="/reels" element={<Reels />} />
+        <Route path="/reels/:id" element={<ReelDetalle />} />
+        <Route path="/biblioteca" element={<Biblioteca />} />
         <Route path="/componentes" element={<Componentes />} />
         <Route path="/costes" element={<Costes />} />
         <Route path="/ajustes" element={<Ajustes />} />

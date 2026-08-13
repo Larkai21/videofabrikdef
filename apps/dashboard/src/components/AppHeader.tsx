@@ -14,6 +14,7 @@ const NAV = [
   { label: 'En curso', to: '/#en-curso' },
   { label: 'Publicados', to: '/#publicados' },
   { label: 'Episodios', to: '/episodios' },
+  { label: 'Reels', to: '/reels' },
   { label: 'Biblioteca', to: '/biblioteca' },
   { label: 'Brand kit', to: '/componentes' },
   { label: 'Costes', to: '/costes' },

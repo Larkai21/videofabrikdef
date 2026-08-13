@@ -673,3 +673,73 @@ export async function getEpisodeEncuadres(id: string): Promise<EpisodeEncuadresD
 export async function chooseEpisodeFocus(id: string, x: number): Promise<void> {
   await post(`/episodios/${encodeURIComponent(id)}/focus`, { x });
 }
+
+// clips del episodio: mismas filas y mismo DTO que los shorts de vídeo, así
+// que aprobar/descartar/reintentar/renombrar reutilizan las funciones de
+// /shorts/:id de arriba; aquí solo van proponer y listar, que cuelgan del padre
+
+export async function proposeEpisodeClips(id: string): Promise<{ ya_en_curso: boolean }> {
+  const data = await post(`/episodios/${encodeURIComponent(id)}/clips`);
+  return { ya_en_curso: (data as { ya_en_curso?: unknown } | null)?.ya_en_curso === true };
+}
+
+export async function getEpisodeClips(id: string): Promise<ShortDto[]> {
+  const data = await request(`/episodios/${encodeURIComponent(id)}/clips`);
+  return shortsListDtoSchema.parse(data).shorts;
+}
+
+// ---- reels (módulo editor: A-roll propio + guion de dirección) ----
+// import local a la sección, como el resto
+import {
+  reelDetailDtoSchema,
+  reelsListDtoSchema,
+  type ReelDetailDto,
+  type ReelDto,
+  type ReelPlanLayer,
+} from '@fabrica/shared';
+
+export async function getReels(): Promise<ReelDto[]> {
+  const data = await request('/reels');
+  return reelsListDtoSchema.parse(data).reels;
+}
+
+export async function getReel(id: string): Promise<ReelDetailDto> {
+  return reelDetailDtoSchema.parse(await request(`/reels/${encodeURIComponent(id)}`));
+}
+
+export async function createReel(input: {
+  file: File;
+  channelId: string;
+  guionJson: string;
+  title?: string;
+  formato?: string;
+}): Promise<{ reel_id: string }> {
+  const form = new FormData();
+  form.append('aroll', input.file);
+  form.append('channel_id', input.channelId);
+  form.append('guion', input.guionJson);
+  if (input.title !== undefined && input.title.trim() !== '') form.append('title', input.title);
+  if (input.formato !== undefined) form.append('formato', input.formato);
+  const data = await request('/reels', { method: 'POST', body: form });
+  const raw = (data ?? {}) as Record<string, unknown>;
+  if (typeof raw.reel_id !== 'string') {
+    throw new ApiError(500, 'Respuesta inesperada de /reels');
+  }
+  return { reel_id: raw.reel_id };
+}
+
+export async function updateReelPlan(id: string, plan: ReelPlanLayer[]): Promise<void> {
+  await patch(`/reels/${encodeURIComponent(id)}/plan`, { plan });
+}
+
+export async function renderReel(id: string): Promise<void> {
+  await post(`/reels/${encodeURIComponent(id)}/render`);
+}
+
+export async function prepareReel(id: string): Promise<void> {
+  await post(`/reels/${encodeURIComponent(id)}/preparar`);
+}
+
+export async function retryReel(id: string): Promise<void> {
+  await post(`/reels/${encodeURIComponent(id)}/retry`);
+}

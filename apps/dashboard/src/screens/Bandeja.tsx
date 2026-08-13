@@ -1,7 +1,7 @@
 import type { VideoState } from '@fabrica/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { getInboxFor } from '../lib/api';
 import { useChannel } from '../lib/channel';
 import {
@@ -53,10 +53,22 @@ export function Bandeja() {
   });
 
   const q = search.trim().toLowerCase();
+  // las puertas del clipping y del editor no paran ningún vídeo del raíl:
+  // van a su propia sección, cada ficha con su enlace a donde se resuelve
+  const puertasFuera = (inbox?.gates ?? []).filter(
+    (g) =>
+      (g.kind === 'episodio_listo' || g.kind === 'clips_episodio' || g.kind === 'reel_plan') &&
+      (q === '' || g.title.toLowerCase().includes(q)),
+  );
   // las puertas de idea son el radar y las de entrega la galería: aquí solo
   // interesan las que paran un vídeo a mitad de la línea
   const gates = (inbox?.gates ?? []).filter(
-    (g) => g.kind !== 'entrega' && (q === '' || g.title.toLowerCase().includes(q)),
+    (g) =>
+      g.kind !== 'entrega' &&
+      g.kind !== 'episodio_listo' &&
+      g.kind !== 'clips_episodio' &&
+      g.kind !== 'reel_plan' &&
+      (q === '' || g.title.toLowerCase().includes(q)),
   );
   const running = (inbox?.running ?? []).filter(
     (v) => q === '' || v.title.toLowerCase().includes(q),
@@ -92,7 +104,17 @@ export function Bandeja() {
       });
     }
     for (const g of gates) {
-      if (g.video_id === null || g.kind === 'idea' || g.kind === 'entrega') continue;
+      // el filtro de arriba ya excluye las puertas fuera del raíl; repetirlas
+      // aquí es lo que deja a TypeScript probar que g.kind indexa ESTADO_DE_PUERTA
+      if (
+        g.video_id === null ||
+        g.kind === 'idea' ||
+        g.kind === 'entrega' ||
+        g.kind === 'episodio_listo' ||
+        g.kind === 'clips_episodio' ||
+        g.kind === 'reel_plan'
+      )
+        continue;
       const previo = porId.get(g.video_id);
       porId.set(g.video_id, {
         video_id: g.video_id,
@@ -155,12 +177,76 @@ export function Bandeja() {
       {isPending ? (
         <SkeletonRows rows={1} label="Cargando la línea de producción" />
       ) : (
-        <LineaProduccion videos={enVuelo} />
+        <LineaProduccion
+          videos={enVuelo}
+          esperasFuera={puertasFuera.length}
+          minutosFuera={puertasFuera.reduce((acc, g) => acc + (g.eta_min ?? 0), 0)}
+        />
       )}
 
       {/* el radar es el lanzador: se usa cuando no hay nada esperando */}
       {activeChannelId !== null ? (
         <Radar channelId={activeChannelId} costeMedio={perVideo > 0 ? perVideo : null} />
+      ) : null}
+
+      {/* clips de episodios y reels del editor: turno humano que no vive en
+          el raíl. Ámbar como toda espera; cada ficha lleva a donde se resuelve
+          (el caso sin encuadre lo reconduce el banner de la pantalla de clips).
+          Shell de card silenciosa como el radar: el chrome del raíl (.linea)
+          es solo suyo. */}
+      {puertasFuera.length > 0 ? (
+        <section
+          className="card"
+          style={{ padding: 'var(--pad)', marginBottom: 'var(--sec-gap)' }}
+          aria-label="Clips y reels"
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              flexWrap: 'wrap',
+              gap: 12,
+              marginBottom: 12,
+            }}
+          >
+            <h2 className="head" style={{ fontSize: 17, margin: 0, whiteSpace: 'nowrap' }}>
+              Clips y reels
+            </h2>
+            <div style={{ flex: 1 }} />
+            <span className="mono fs-sm muted" style={{ whiteSpace: 'nowrap' }}>
+              {puertasFuera.length === 1
+                ? 'una pieza espera tu decisión'
+                : `${puertasFuera.length} piezas esperan tu decisión`}
+            </span>
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+              gap: 'var(--e-2)',
+            }}
+          >
+            {puertasFuera.map((g) => (
+              <Link
+                key={`${g.kind}-${g.episode_id ?? g.reel_id ?? g.title}`}
+                to={
+                  g.kind === 'reel_plan'
+                    ? g.reel_id != null
+                      ? `/reels/${g.reel_id}`
+                      : '/reels'
+                    : g.episode_id != null
+                      ? `/episodios/${g.episode_id}/clips`
+                      : '/episodios'
+                }
+                className="ficha"
+                data-estado="espera"
+              >
+                <span className="ficha-titulo">{g.title}</span>
+                <span className="ficha-detalle">{g.meta}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
       ) : null}
 
       <div
