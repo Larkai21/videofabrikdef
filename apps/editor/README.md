@@ -256,7 +256,7 @@ que el arnés lento renderiza a esa frecuencia.
 ## Estado
 
 182 plantillas de motion · 21 efectos de sonido sintetizados ·
-831 pruebas en el nivel rápido. La cola de trabajo vive en
+837 pruebas en el nivel rápido. La cola de trabajo vive en
 [`ROADMAP.md`](ROADMAP.md).
 
 ## Licencia

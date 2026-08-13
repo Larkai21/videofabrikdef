@@ -2911,3 +2911,24 @@ fusión `--only` conserva las rutas relativas en la ida y vuelta.
 - Los módulos comparten espacio de nombres plano dentro del paquete
   (`editor.contratos` importa `reloj`, no `editor.reloj`): unificarlo es
   de la mudanza real, no de esta fase.
+
+## Tanda 17 · La mudanza: la copia canónica vive en el monorepo
+
+La fase 2 se ejecutó el mismo día: los ficheros trackeados (más los nuevos
+de la Tanda 16) se copiaron a `videofabric/apps/editor`, que desde hoy es
+LA COPIA CANÓNICA. El repo editor-youtube queda como archivo histórico: lo
+que se toque allí no viaja solo — tócalo aquí.
+
+Qué cambia aquí y no allí: `package.json` se llama `@fabrica/editor` (regla
+de nombres del workspace pnpm); el arnés en un clon sin builds es `make ci`
+(776 en verde el día de la mudanza); el venv se crea en
+`apps/editor/.venv` con `pip install -e . -r requirements.txt` (y el
+`chflags nohidden` de los `.pth`, la trampa de la Tanda 16). El monorepo lo
+consume desde una cola BullMQ (`edit`) que invoca estos scripts como
+procesos con `EDITOR_BUILD` por reel — el mecanismo de `piezas.py`, tal
+cual. El porqué completo: `videofabric/docs/reels.md`.
+
+(Esta entrada nació en el ROADMAP del repo viejo y faltaba aquí: las dos
+copias divergieron en el fichero que declara que no deben divergir. La
+sincronía manual es exactamente la fricción que la mudanza elimina — si
+vuelve a pasar, el repo viejo sobra.)

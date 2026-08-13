@@ -20,13 +20,29 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 license = { text = "Copyright (c) 2026. Todos los derechos reservados." }
 
-# Sin dependencias A PROPÓSITO, y es deuda declarada de la fase 1: las de
-# verdad viven en requirements.txt (pipeline) y requirements-dev.txt (arnés),
-# instaladas por `make instalar-pipeline` / `make instalar`. Declararlas aquí
-# haría que `pip install -e .` arrastrara mlx-whisper y Playwright a cualquier
-# consumidor que solo quiera `editor.reloj`, que es puro stdlib. La fase 2
-# (el monorepo) decidirá el reparto en extras.
+# Sin dependencias base A PROPÓSITO: `editor.reloj`, `editor.mezcla`,
+# `editor.contratos` y `editor.comun` son stdlib puro, y un consumidor que
+# solo quiera el reloj (los tests compartidos de la fábrica, por ejemplo) no
+# debe arrastrar mlx-whisper ni Playwright. El reparto vive en extras — la
+# deuda de la Tanda 16, saldada en el monorepo (S2):
+#
+#   pip install -e .              → solo las librerías stdlib
+#   pip install -e '.[pipeline]'  → producir un vídeo (STT, B-roll, rostro)
+#   pip install -e '.[arnes]'     → correr make ci / make rapido
+#
+# requirements*.txt se mantienen como los lockfiles humanos que ya eran
+# (make instalar los sigue usando); estos extras son su espejo declarativo
+# para consumidores pip. Si divergen, mandan los requirements.
 dependencies = []
+
+[project.optional-dependencies]
+pipeline = [
+  "mlx-whisper>=0.4.0",
+  "google-genai>=1.0.0",
+  "pyobjc-framework-Vision>=10.0",
+  "pyobjc-framework-Quartz>=10.0",
+]
+arnes = ["pytest>=8.0"]
 
 [tool.setuptools]
 # El mapeo que hace todo el trabajo: el paquete `editor` ES scripts/, sin
