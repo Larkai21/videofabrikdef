@@ -9,16 +9,29 @@ import { useHotkeys } from '../lib/hotkeys';
 import { useSearch } from '../lib/search';
 import { CostBadge } from './ui';
 
-const NAV = [
-  { label: 'Bandeja', to: '/' },
-  { label: 'En curso', to: '/#en-curso' },
-  { label: 'Publicados', to: '/#publicados' },
-  { label: 'Episodios', to: '/episodios' },
-  { label: 'Reels', to: '/reels' },
-  { label: 'Biblioteca', to: '/biblioteca' },
-  { label: 'Brand kit', to: '/componentes' },
-  { label: 'Costes', to: '/costes' },
-  { label: 'Ajustes', to: '/ajustes' },
+// La nav en GRUPOS por producto (auditoría S4.1: once ítems planos mezclaban
+// productos, vistas, anclas y hasta una acción). El separador dibuja el mapa:
+// la fábrica del vídeo largo · los otros dos productos · los recursos · el
+// sistema. «Nuevo canal» es una ACCIÓN y vive como botón, no como sección.
+const NAV_GRUPOS: { label: string; to: string }[][] = [
+  [
+    { label: 'Bandeja', to: '/' },
+    { label: 'En curso', to: '/#en-curso' },
+    { label: 'Publicados', to: '/#publicados' },
+  ],
+  [
+    { label: 'Episodios', to: '/episodios' },
+    { label: 'Reels', to: '/reels' },
+    { label: 'Plantillas', to: '/reels/plantillas' },
+  ],
+  [
+    { label: 'Biblioteca', to: '/biblioteca' },
+    { label: 'Brand kit', to: '/componentes' },
+  ],
+  [
+    { label: 'Costes', to: '/costes' },
+    { label: 'Ajustes', to: '/ajustes' },
+  ],
 ];
 
 /**
@@ -79,15 +92,18 @@ export function AppHeader() {
   const isActive = (to: string): boolean => {
     if (to === '/') return location.pathname === '/' && location.hash === '';
     if (to.startsWith('/#')) return location.pathname === '/' && location.hash === to.slice(1);
+    // /reels/plantillas es más específico que /reels: gana el largo
+    if (to === '/reels') return location.pathname.startsWith(to) && !location.pathname.startsWith('/reels/plantillas');
     return location.pathname.startsWith(to);
   };
 
   return (
     <header className="app-header">
       <div className="wrap-1420 app-header-inner">
-        <span className="head" style={{ fontSize: 15 }}>
+        {/* el wordmark navega a casa: es lo que todo el mundo prueba primero */}
+        <Link to="/" className="head" style={{ fontSize: 15, textDecoration: 'none', color: 'var(--fg)' }}>
           Fábrica
-        </span>
+        </Link>
         {activeChannel?.avatar_url ? (
           <img
             src={fileUrl(activeChannel.avatar_url)}
@@ -103,37 +119,55 @@ export function AppHeader() {
             }}
           />
         ) : null}
-        {channels !== undefined && channels.length >= 2 ? (
+        {/* el selector se RESERVA sitio mientras cargan los canales: la
+            cabecera es el ancla espacial y no puede saltar por ruta (era el
+            hallazgo 5 de la auditoría — parecía inconsistencia por pantalla
+            y era layout shift de la carga) */}
+        {channels === undefined || channels.length >= 2 ? (
           <select
             className="control"
             aria-label="Canal activo"
             value={activeChannelId ?? ''}
+            disabled={channels === undefined}
             style={{ width: 'auto', minWidth: 120, fontSize: 'var(--fs-sm)' }}
             onChange={(e) => {
               if (e.target.value !== '') setActiveChannel(e.target.value);
             }}
           >
-            {channels.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
+            {channels === undefined ? (
+              <option value="">Canal…</option>
+            ) : (
+              channels.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))
+            )}
           </select>
         ) : null}
         <nav className="app-header-nav" aria-label="Secciones">
-          {NAV.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className="nav-link"
-              aria-current={isActive(item.to) ? 'page' : undefined}
-            >
-              {item.label}
-            </Link>
+          {NAV_GRUPOS.map((grupo, i) => (
+            <span key={i} style={{ display: 'contents' }}>
+              {i > 0 ? (
+                <span className="nav-sep" aria-hidden="true">
+                  ·
+                </span>
+              ) : null}
+              {grupo.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className="nav-link"
+                  aria-current={isActive(item.to) ? 'page' : undefined}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </span>
           ))}
         </nav>
         <Link to="/wizard" className="nav-link muted fs-sm" title="Crear un canal nuevo">
-          Nuevo canal
+          + Nuevo canal
         </Link>
         <div style={{ flex: 1 }} />
         <div className="input-wrap app-header-search" style={{ flex: '0 1 230px', minWidth: 120 }}>
@@ -145,12 +179,16 @@ export function AppHeader() {
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
-              if (location.pathname !== '/' && e.target.value !== '') {
+              // en las listas con búsqueda propia (bandeja, episodios, reels)
+              // el filtro actúa in situ; desde un detalle, teclear te lleva a
+              // la bandeja como siempre
+              const conBusqueda = ['/', '/episodios', '/reels'].includes(location.pathname);
+              if (!conBusqueda && e.target.value !== '') {
                 void navigate('/');
               }
             }}
-            placeholder="Buscar vídeos, ideas o beats"
-            aria-label="Buscar vídeos, ideas o beats"
+            placeholder="Buscar vídeos, ideas, episodios o reels"
+            aria-label="Buscar vídeos, ideas, episodios o reels"
           />
           <span className="kbd" aria-hidden="true">
             /

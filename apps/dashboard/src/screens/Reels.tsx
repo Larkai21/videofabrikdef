@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ReelDto } from '@fabrica/shared';
 import { ApiError, createReel, getChannels, getReels, retryReel } from '../lib/api';
+import { useSearch } from '../lib/search';
 import { useToasts } from '../lib/toasts';
 import { Button, Chip, EmptyState, Incidencia, SkeletonRows } from '../components/ui';
 
@@ -82,7 +83,12 @@ export function Reels() {
       push(err instanceof ApiError ? err.message : 'No se pudo reintentar', 'danger'),
   });
 
-  const reels = reelsQ.data ?? [];
+  // la búsqueda global filtra in situ, como en la bandeja
+  const { search } = useSearch();
+  const q = search.trim().toLowerCase();
+  const reels = (reelsQ.data ?? []).filter(
+    (reel) => q === '' || reel.title.toLowerCase().includes(q),
+  );
 
   return (
     <div

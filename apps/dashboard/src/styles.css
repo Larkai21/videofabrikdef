@@ -752,6 +752,15 @@ textarea.control {
   color: var(--fg);
   text-decoration: none;
 }
+/* el punto que separa los grupos de la nav: dibuja el mapa de productos sin
+   gastar ancho ni pedir un menú */
+.nav-sep {
+  color: var(--fg2);
+  opacity: 0.5;
+  user-select: none;
+  padding: 0 2px;
+}
+
 .nav-link[aria-current='page'] {
   color: var(--fg);
   border-bottom-color: var(--accent);

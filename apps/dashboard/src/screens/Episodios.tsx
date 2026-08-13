@@ -13,6 +13,7 @@ import {
   getEpisodes,
   retryEpisode,
 } from '../lib/api';
+import { useSearch } from '../lib/search';
 import { useToasts } from '../lib/toasts';
 import { Button, Chip, EmptyState, Incidencia, SkeletonRows } from '../components/ui';
 
@@ -151,7 +152,15 @@ export function Episodios() {
     },
   });
 
-  const episodios = episodiosQ.data ?? [];
+  // la búsqueda global filtra in situ, como en la bandeja
+  const { search } = useSearch();
+  const q = search.trim().toLowerCase();
+  const episodios = (episodiosQ.data ?? []).filter(
+    (ep) =>
+      q === '' ||
+      (ep.source_title ?? ep.source_url).toLowerCase().includes(q) ||
+      (ep.source_channel_name ?? '').toLowerCase().includes(q),
+  );
 
   return (
     // wrap-1160 como el resto de pantallas: era la única sin contenedor
