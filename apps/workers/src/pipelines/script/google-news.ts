@@ -21,7 +21,12 @@ import type pino from 'pino';
 
 // El cascarón solo entrega la firma a un navegador; con el user-agent del bot
 // devuelve la portada de Google News sin los atributos que hacen falta.
-const UA_NAVEGADOR = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)';
+// OJO: tiene que ser un UA de navegador COMPLETO (motor y versión incluidos):
+// el recorte «Mozilla/5.0 (Macintosh…)» a secas dejó de recibir la firma en
+// ago-2026 y el resolver volvía null en silencio — verificado con curl: el
+// mismo fetch con UA completo trae data-n-a-sg y el recortado no.
+const UA_NAVEGADOR =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const TIMEOUT_MS = 15_000;
 
 export function esEnlaceGoogleNews(url: string): boolean {
