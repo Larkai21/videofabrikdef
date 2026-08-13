@@ -6,6 +6,7 @@ import {
   plantillaUrl,
   type PiezaCatalogo,
 } from '../lib/editor-catalogo';
+import { MiniPlantilla } from '../components/MiniPlantilla';
 import { Button, Chip, EmptyState, SkeletonRows } from '../components/ui';
 
 // Galería de las plantillas del módulo editor: el CATALOGO.json que el agente
@@ -30,13 +31,20 @@ interface VentanaConTpl extends Window {
  */
 function VisorPlantilla({ pieza }: { pieza: PiezaCatalogo }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeBRef = useRef<HTMLIFrameElement>(null);
   const [dur, setDur] = useState(pieza.gesto_s ?? 6);
   const [t, setT] = useState(0);
   const [reproduciendo, setReproduciendo] = useState(false);
   const [tema, setTema] = useState<'carbon' | 'paper'>('carbon');
+  // comparador: un segundo iframe con el OTRO tema, mismo reloj — elegir tema
+  // se convierte en mirar los dos, no en alternar de memoria
+  const [comparar, setComparar] = useState(false);
+  const otroTema = tema === 'carbon' ? 'paper' : 'carbon';
 
   const tpl = (): VentanaConTpl['TPL'] =>
     (iframeRef.current?.contentWindow as VentanaConTpl | null)?.TPL;
+  const tplB = (): VentanaConTpl['TPL'] =>
+    (iframeBRef.current?.contentWindow as VentanaConTpl | null)?.TPL;
 
   // al cargar la plantilla: re-setup con el tema elegido y lee su duración
   const alCargar = () => {
@@ -48,6 +56,15 @@ function VisorPlantilla({ pieza }: { pieza: PiezaCatalogo }) {
     api.seek(0);
   };
 
+  // el segundo visor arranca cuando el comparador se abre: mismo setup con el
+  // otro tema y el mismo instante del scrubber
+  const alCargarB = () => {
+    const api = tplB();
+    if (api === undefined) return;
+    api.setup({ tema: otroTema });
+    api.seek(t);
+  };
+
   // el tema re-instancia la demo (setup pisa el estado del gesto), así que
   // el gesto vuelve a empezar: más honesto que hacer seek a un estado pisado
   useEffect(() => {
@@ -56,6 +73,11 @@ function VisorPlantilla({ pieza }: { pieza: PiezaCatalogo }) {
     api.setup({ tema });
     setT(0);
     api.seek(0);
+    const b = tplB();
+    if (b !== undefined) {
+      b.setup({ tema: otroTema });
+      b.seek(0);
+    }
   }, [tema]);
 
   // play por rAF: avanza t y hace seek; en el final vuelve a cero y sigue
@@ -69,6 +91,7 @@ function VisorPlantilla({ pieza }: { pieza: PiezaCatalogo }) {
       setT((prev) => {
         const sig = prev + dt >= dur ? 0 : prev + dt;
         tpl()?.seek(sig);
+        tplB()?.seek(sig);
         return sig;
       });
       raf = requestAnimationFrame(paso);
@@ -77,35 +100,57 @@ function VisorPlantilla({ pieza }: { pieza: PiezaCatalogo }) {
     return () => cancelAnimationFrame(raf);
   }, [reproduciendo, dur]);
 
-  // ~304 px de ancho de visor: 1080 × factor
-  const escala = 304 / 1080;
+  // ~304 px de ancho de visor: 1080 × factor; comparando caben dos
+  const escala = (comparar ? 148 : 304) / 1080;
+
+  const marcoVisor = {
+    width: Math.round(1080 * escala),
+    height: Math.round(1920 * escala),
+    overflow: 'hidden',
+    borderRadius: 'var(--r)',
+    border: '1px solid var(--line)',
+    background: '#000',
+  } as const;
+  const lienzoVisor = {
+    width: 1080,
+    height: 1920,
+    border: 0,
+    transform: `scale(${escala})`,
+    transformOrigin: 'top left',
+    pointerEvents: 'none',
+  } as const;
 
   return (
     <div style={{ display: 'grid', gap: 10, justifyItems: 'stretch' }}>
-      <div
-        style={{
-          width: Math.round(1080 * escala),
-          height: Math.round(1920 * escala),
-          overflow: 'hidden',
-          borderRadius: 'var(--r)',
-          border: '1px solid var(--line)',
-          background: '#000',
-        }}
-      >
-        <iframe
-          ref={iframeRef}
-          title={pieza.plantilla}
-          src={plantillaUrl(pieza.plantilla)}
-          onLoad={alCargar}
-          style={{
-            width: 1080,
-            height: 1920,
-            border: 0,
-            transform: `scale(${escala})`,
-            transformOrigin: 'top left',
-            pointerEvents: 'none',
-          }}
-        />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
+          <div style={marcoVisor}>
+            <iframe
+              ref={iframeRef}
+              title={pieza.plantilla}
+              src={plantillaUrl(pieza.plantilla)}
+              onLoad={alCargar}
+              style={lienzoVisor}
+            />
+          </div>
+          {comparar ? <span className="mono fs-sm muted">{tema}</span> : null}
+        </div>
+        {comparar ? (
+          <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
+            <div style={marcoVisor}>
+              {/* key por tema: cambiar el tema del principal re-instancia este
+                  con el contrario desde el onLoad */}
+              <iframe
+                ref={iframeBRef}
+                title={`${pieza.plantilla} (${otroTema})`}
+                src={plantillaUrl(pieza.plantilla)}
+                onLoad={alCargarB}
+                style={lienzoVisor}
+              />
+            </div>
+            <span className="mono fs-sm muted">{otroTema}</span>
+          </div>
+        ) : null}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <Button
@@ -128,13 +173,14 @@ function VisorPlantilla({ pieza }: { pieza: PiezaCatalogo }) {
             setReproduciendo(false);
             setT(v);
             tpl()?.seek(v);
+            tplB()?.seek(v);
           }}
         />
         <span className="mono fs-sm muted" style={{ minWidth: 76, textAlign: 'right' }}>
           {t.toFixed(1)} / {dur.toFixed(1)} s
         </span>
       </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <span className="muted fs-sm">Tema</span>
         {(['carbon', 'paper'] as const).map((op) => (
           <Button
@@ -145,7 +191,20 @@ function VisorPlantilla({ pieza }: { pieza: PiezaCatalogo }) {
             {op}
           </Button>
         ))}
+        <Button
+          variant={comparar ? 'primary' : 'secondary'}
+          onClick={() => setComparar((v) => !v)}
+        >
+          Lado a lado
+        </Button>
       </div>
+      <Link
+        className="btn btn-primary"
+        to={`/reels?plantilla=${encodeURIComponent(pieza.plantilla)}`}
+        style={{ justifySelf: 'start' }}
+      >
+        Usar en un reel nuevo
+      </Link>
       <div className="muted fs-sm" style={{ lineHeight: 1.5 }}>
         {pieza.admite_copy
           ? 'Admite copy: sus ranuras de texto se rellenan desde el guion.'
@@ -161,6 +220,19 @@ function VisorPlantilla({ pieza }: { pieza: PiezaCatalogo }) {
   );
 }
 
+// favoritas en localStorage: es preferencia de ESTA máquina y de este humano,
+// como el tema — no toca la API ni viaja con el plan
+const FAVORITAS_KEY = 'fabrica.plantillas.favoritas';
+
+function leerFavoritas(): Set<string> {
+  try {
+    const crudo: unknown = JSON.parse(localStorage.getItem(FAVORITAS_KEY) ?? '[]');
+    return new Set(Array.isArray(crudo) ? crudo.filter((v): v is string => typeof v === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
 export function Plantillas() {
   const catalogoQ = useQuery({
     queryKey: ['editor-catalogo'],
@@ -173,11 +245,27 @@ export function Plantillas() {
   const [origen, setOrigen] = useState<'todas' | 'propia' | 'hyperframes'>('todas');
   const [soloCopy, setSoloCopy] = useState(false);
   const [abierta, setAbierta] = useState<string | null>(null);
+  const [favoritas, setFavoritas] = useState<Set<string>>(leerFavoritas);
+  const [soloFavoritas, setSoloFavoritas] = useState(false);
+  // hover-play: UNA miniatura animada a la vez, en un overlay anclado a la
+  // tarjeta — montar un iframe por pieza del grid sería inviable con 182
+  const [hover, setHover] = useState<{ plantilla: string; x: number; y: number } | null>(null);
+
+  const alternarFavorita = (nombre: string) => {
+    setFavoritas((prev) => {
+      const s = new Set(prev);
+      if (s.has(nombre)) s.delete(nombre);
+      else s.add(nombre);
+      localStorage.setItem(FAVORITAS_KEY, JSON.stringify([...s]));
+      return s;
+    });
+  };
 
   const piezas = (catalogoQ.data?.piezas ?? []).filter(
     (p) =>
       (origen === 'todas' || p.origen === origen) &&
       (!soloCopy || p.admite_copy) &&
+      (!soloFavoritas || favoritas.has(p.plantilla)) &&
       (q.trim() === '' || p.plantilla.toLowerCase().includes(q.trim().toLowerCase())),
   );
   const seleccionada =
@@ -235,6 +323,12 @@ export function Plantillas() {
         >
           Solo con copy
         </Button>
+        <Button
+          variant={soloFavoritas ? 'primary' : 'secondary'}
+          onClick={() => setSoloFavoritas((v) => !v)}
+        >
+          ★ Favoritas{favoritas.size > 0 ? ` (${favoritas.size})` : ''}
+        </Button>
       </div>
 
       {catalogoQ.isPending ? (
@@ -266,38 +360,92 @@ export function Plantillas() {
             }}
           >
             {piezas.map((p) => (
-              <button
+              <div
                 key={p.plantilla}
-                type="button"
-                className="card"
-                onClick={() => setAbierta(p.plantilla)}
-                style={{
-                  padding: 'var(--pad)',
-                  display: 'grid',
-                  gap: 6,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  outline:
-                    seleccionada?.plantilla === p.plantilla
-                      ? '1px solid var(--accent)'
-                      : undefined,
+                style={{ position: 'relative' }}
+                onMouseEnter={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  setHover({ plantilla: p.plantilla, x: r.right + 8, y: r.top });
                 }}
+                onMouseLeave={() => setHover(null)}
               >
-                <span className="mono fs-sm" style={{ wordBreak: 'break-all' }}>
-                  {p.plantilla.replace(/\.html$/, '')}
-                </span>
-                <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <Chip kind={p.origen === 'propia' ? 'ok' : 'neutral'}>
-                    {p.origen === 'propia' ? 'propia' : 'HF'}
-                  </Chip>
-                  {p.admite_copy ? <Chip kind="warn">copy</Chip> : null}
-                  {p.gesto_s !== null ? (
-                    <span className="mono fs-sm muted">{p.gesto_s}s</span>
-                  ) : null}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  className="card"
+                  onClick={() => setAbierta(p.plantilla)}
+                  style={{
+                    width: '100%',
+                    padding: 'var(--pad)',
+                    display: 'grid',
+                    gap: 6,
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    outline:
+                      seleccionada?.plantilla === p.plantilla
+                        ? '1px solid var(--accent)'
+                        : undefined,
+                  }}
+                >
+                  <span
+                    className="mono fs-sm"
+                    style={{ wordBreak: 'break-all', paddingRight: 22 }}
+                  >
+                    {p.plantilla.replace(/\.html$/, '')}
+                  </span>
+                  <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <Chip kind={p.origen === 'propia' ? 'ok' : 'neutral'}>
+                      {p.origen === 'propia' ? 'propia' : 'HF'}
+                    </Chip>
+                    {p.admite_copy ? <Chip kind="warn">copy</Chip> : null}
+                    {p.gesto_s !== null ? (
+                      <span className="mono fs-sm muted">{p.gesto_s}s</span>
+                    ) : null}
+                  </span>
+                </button>
+                {/* la estrella es un botón HERMANO, no hijo: un botón dentro
+                    de otro botón es HTML inválido y rompe el teclado */}
+                <button
+                  type="button"
+                  aria-label={
+                    favoritas.has(p.plantilla)
+                      ? `Quitar ${p.plantilla} de favoritas`
+                      : `Marcar ${p.plantilla} como favorita`
+                  }
+                  onClick={() => alternarFavorita(p.plantilla)}
+                  style={{
+                    position: 'absolute',
+                    top: 6,
+                    right: 6,
+                    background: 'none',
+                    border: 0,
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    lineHeight: 1,
+                    padding: 4,
+                    color: favoritas.has(p.plantilla) ? 'var(--warn)' : 'var(--muted)',
+                  }}
+                >
+                  {favoritas.has(p.plantilla) ? '★' : '☆'}
+                </button>
+              </div>
             ))}
           </div>
+
+          {hover !== null ? (
+            <div
+              style={{
+                position: 'fixed',
+                left: Math.min(hover.x, window.innerWidth - 156),
+                top: Math.max(8, Math.min(hover.y, window.innerHeight - 264)),
+                zIndex: 30,
+                pointerEvents: 'none',
+                borderRadius: 'var(--r)',
+                boxShadow: '0 8px 28px rgba(0, 0, 0, 0.45)',
+              }}
+            >
+              <MiniPlantilla key={hover.plantilla} plantilla={hover.plantilla} ancho={140} animar />
+            </div>
+          ) : null}
 
           <div
             style={{ position: 'sticky', top: 'calc(var(--row) * 2 + 18px)', alignSelf: 'start' }}

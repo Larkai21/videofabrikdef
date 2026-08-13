@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import type { ReelDto } from '@fabrica/shared';
 import { ApiError, createReel, getChannels, getReels, retryReel } from '../lib/api';
 import { useSearch } from '../lib/search';
@@ -30,8 +30,14 @@ export function Reels() {
   const [nombreAroll, setNombreAroll] = useState('');
   const [titulo, setTitulo] = useState('');
   // el guion se escribe POR ACTOS (principio 2: nada de JSON crudo); el modo
-  // avanzado con JSON pegado sigue en un pliegue para no perder capacidad
-  const [actos, setActos] = useState<ActoGuion[]>([{ ...ACTO_VACIO }]);
+  // avanzado con JSON pegado sigue en un pliegue para no perder capacidad.
+  // ?plantilla= viene del «Usar en un reel nuevo» de la galería: el primer
+  // acto nace con esa tarjeta ya elegida
+  const [params] = useSearchParams();
+  const [actos, setActos] = useState<ActoGuion[]>(() => {
+    const plantilla = params.get('plantilla');
+    return [{ ...ACTO_VACIO, ...(plantilla !== null ? { plantilla } : {}) }];
+  });
   const [modoAvanzado, setModoAvanzado] = useState(false);
   const [guion, setGuion] = useState('');
 

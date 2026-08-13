@@ -19,11 +19,14 @@ export function MiniPlantilla({
   plantilla,
   config,
   ancho = 72,
+  animar = false,
 }: {
   plantilla: string;
   config?: Record<string, unknown> | undefined;
   /** ancho del sello en px; el alto sale del lienzo 1080×1920 */
   ancho?: number;
+  /** true = reproduce el gesto en bucle (hover de la galería) en vez de congelar */
+  animar?: boolean;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [cargado, setCargado] = useState(false);
@@ -41,6 +44,26 @@ export function MiniPlantilla({
     const dur = typeof api.duration === 'number' && api.duration > 0 ? api.duration : 2;
     api.seek(dur / 2);
   }, [cargado, configJson]);
+
+  // bucle de reproducción por rAF haciendo seek: la misma semántica
+  // determinista del rasterizador, igual que el visor grande de la galería
+  useEffect(() => {
+    if (!cargado || !animar) return;
+    const api = (iframeRef.current?.contentWindow as VentanaConTpl | null)?.TPL;
+    if (api === undefined) return;
+    const dur = typeof api.duration === 'number' && api.duration > 0 ? api.duration : 2;
+    let t = 0;
+    let antes = performance.now();
+    let raf = 0;
+    const paso = (ahora: number) => {
+      t = (t + (ahora - antes) / 1000) % dur;
+      antes = ahora;
+      api.seek(t);
+      raf = requestAnimationFrame(paso);
+    };
+    raf = requestAnimationFrame(paso);
+    return () => cancelAnimationFrame(raf);
+  }, [cargado, animar]);
 
   return (
     <div
