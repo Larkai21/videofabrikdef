@@ -39,9 +39,12 @@ también se dice: es lo que NO hay que tocar.
    no pudo abrir el navegador — Reintentar suele bastar» + detalle plegado.
    → S4.2 (componente Incidencia con resumen humano, detalle colapsado,
    acción sugerida destacada).
-4. **Ideas: esqueleto infinito y contador contradictorio** («0 ideas
-   puntuadas» en cabecera con 672 en el ranking del radar). Bug de
-   query/estado además de UX. → investigar en S4.4.
+4. **RETRACTADO tras re-verificar**: Ideas pinta las 672 en cuanto termina
+   la primera pintura (~3-4 s para 672 tarjetas); la captura a los 2 s pilló
+   el esqueleto legítimo y el contador a 0 mientras `isPending`. Queda un
+   hallazgo MENOR real: el contador de la cabecera dice «0 ideas» durante la
+   carga en vez de callarse — corregido en S4.4. Y la primera pintura de 672
+   tarjetas merece paginación/virtualización algún día (P3).
 5. **Cabecera inconsistente por ruta**: Costes y Ajustes pierden el selector
    de canal y el badge de coste, y la búsqueda cambia de posición. La
    cabecera es el ancla espacial: no puede mutar por pantalla. → S4.3.

@@ -729,7 +729,9 @@ textarea.control {
    y desplaza dentro de sí misma en vez de empujar la página. */
 .app-header-nav {
   display: flex;
-  gap: 14px;
+  /* 14→10px: con Plantillas y los separadores de grupo, a 1456px la nav
+     cortaba «Costes» por la mitad; el punto de grupo ya da el aire visual */
+  gap: 10px;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;

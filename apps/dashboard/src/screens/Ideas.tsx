@@ -72,7 +72,9 @@ export function Ideas() {
           <Chip kind="warn">Puerta 1 de 3</Chip>
           <div style={{ flex: 1 }} />
           <span className="mono fs-sm muted">
-            {sorted.length} ideas puntuadas por interés y encaje
+            {/* durante la carga el contador se calla: «0 ideas» mientras el
+                esqueleto gira era mentira dos veces */}
+            {isPending ? 'puntuando…' : `${sorted.length} ideas puntuadas por interés y encaje`}
           </span>
         </div>
       </div>

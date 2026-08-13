@@ -184,16 +184,13 @@ export function Bandeja() {
         />
       )}
 
-      {/* el radar es el lanzador: se usa cuando no hay nada esperando */}
-      {activeChannelId !== null ? (
-        <Radar channelId={activeChannelId} costeMedio={perVideo > 0 ? perVideo : null} />
-      ) : null}
-
       {/* clips de episodios y reels del editor: turno humano que no vive en
-          el raíl. Ámbar como toda espera; cada ficha lleva a donde se resuelve
-          (el caso sin encuadre lo reconduce el banner de la pantalla de clips).
-          Shell de card silenciosa como el radar: el chrome del raíl (.linea)
-          es solo suyo. */}
+          el raíl, y por eso va ANTES que el radar — lo que espera tu firma
+          nunca debajo del lanzador (auditoría S4.1, hallazgo 6). Ámbar como
+          toda espera; cada ficha lleva a donde se resuelve (el caso sin
+          encuadre lo reconduce el banner de la pantalla de clips). Shell de
+          card silenciosa como el radar: el chrome del raíl (.linea) es solo
+          suyo. */}
       {puertasFuera.length > 0 ? (
         <section
           className="card"
@@ -249,6 +246,12 @@ export function Bandeja() {
             ))}
           </div>
         </section>
+      ) : null}
+
+      {/* el radar es el lanzador: se usa cuando no hay nada esperando, así
+          que va detrás de todo lo que sí espera */}
+      {activeChannelId !== null ? (
+        <Radar channelId={activeChannelId} costeMedio={perVideo > 0 ? perVideo : null} />
       ) : null}
 
       <div

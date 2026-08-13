@@ -167,7 +167,7 @@ export function AppHeader() {
           ))}
         </nav>
         <Link to="/wizard" className="nav-link muted fs-sm" title="Crear un canal nuevo">
-          + Nuevo canal
+          + Canal
         </Link>
         <div style={{ flex: 1 }} />
         <div className="input-wrap app-header-search" style={{ flex: '0 1 230px', minWidth: 120 }}>
