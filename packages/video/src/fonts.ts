@@ -53,3 +53,49 @@ export function ensureFontLoaded(): void {
       );
     });
 }
+
+// ---- tipografía del formato de CLIPS ----
+// El canal de referencia (docs/referencia-clips.md) compone titulares y
+// captions en una geométrica redondeada; con Inter el lado a lado delataba la
+// diferencia al primer vistazo. Poppins (OFL, empaquetada en public/fonts)
+// es esa familia: ExtraBold para titulares/captions y Medium para el handle.
+export const CLIP_FONT_FAMILY = "'Poppins', 'Inter', 'Helvetica Neue', Arial, sans-serif";
+
+export function clipText(weight: 500 | 800 = 800): React.CSSProperties {
+  return {
+    fontFamily: CLIP_FONT_FAMILY,
+    fontWeight: weight,
+    letterSpacing: '0.005em',
+  };
+}
+
+let clipStarted = false;
+
+export function ensureClipFontLoaded(): void {
+  if (clipStarted) return;
+  clipStarted = true;
+  if (typeof document === 'undefined') return;
+  for (const [peso, fichero] of [
+    ['800', 'fonts/Poppins-ExtraBold.ttf'],
+    ['500', 'fonts/Poppins-Medium.ttf'],
+  ] as const) {
+    const handle = delayRender(`Carga de Poppins ${peso}`);
+    const face = new FontFace('Poppins', `url(${staticFile(fichero)}) format('truetype')`, {
+      weight: peso,
+      style: 'normal',
+    });
+    face
+      .load()
+      .then((loaded) => {
+        (document.fonts as unknown as { add: (f: FontFace) => void }).add(loaded);
+        continueRender(handle);
+      })
+      .catch((err: unknown) => {
+        // mismo criterio que Inter: un clip con otra fuente no es el mismo clip
+        continueRender(handle);
+        throw new Error(
+          `No se pudo cargar la fuente empaquetada Poppins: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+  }
+}

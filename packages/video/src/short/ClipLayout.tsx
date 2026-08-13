@@ -4,7 +4,7 @@ import type { Cue, DesignTokens } from '@fabrica/shared';
 import type { PiezaMaster } from '../brand-kit';
 import { defaultDesign, hexToRgba } from '@fabrica/shared';
 import { clamp, Ease, span } from '../effects/motion';
-import { displayText, FONT_FAMILY } from '../fonts';
+import { CLIP_FONT_FAMILY, clipText, ensureClipFontLoaded } from '../fonts';
 import { anchoLibreCentrado, useLienzo } from '../lienzo';
 import { isRenderableSrc, toSrc } from '../media-src';
 
@@ -68,14 +68,14 @@ const CabeceraCanal: React.FC<{
         />
       ) : null}
       <div style={{ display: 'grid', lineHeight: 1.15 }}>
-        <span style={{ ...displayText(800), fontSize: Math.round(ancho * 0.048), color: '#fff' }}>
+        <span style={{ ...clipText(800), fontSize: Math.round(ancho * 0.048), color: '#fff' }}>
           {nombre} <span style={{ color: CIAN }}>✓</span>
         </span>
         <span
           style={{
+            ...clipText(500),
             fontSize: Math.round(ancho * 0.03),
             color: hexToRgba('#ffffff', 0.55),
-            fontStyle: 'italic',
           }}
         >
           {handle}
@@ -102,7 +102,7 @@ const Titular: React.FC<{ titulo: string; ancho: number }> = ({ titulo, ancho })
         left: '5%',
         width: '90%',
         textAlign: 'center',
-        ...displayText(800),
+        ...clipText(800),
         fontSize: cuerpo,
         lineHeight: 1.18,
         color: '#fff',
@@ -182,7 +182,7 @@ const SubtituloClip: React.FC<{ cues: readonly Cue[]; ancho: number }> = ({ cues
         alignItems: 'baseline',
         gap: Math.round(cuerpo * 0.28),
         transform: `rotate(${giro.toFixed(2)}deg)`,
-        ...displayText(800),
+        ...clipText(800),
         fontSize: cuerpo,
         textTransform: 'uppercase',
         letterSpacing: '0.02em',
@@ -270,13 +270,14 @@ export const ClipLayout: React.FC<{
   design?: DesignTokens | undefined;
   avatarSrc?: string | undefined;
 }> = ({ master, design, avatarSrc }) => {
+  ensureClipFontLoaded();
   const d = design ?? defaultDesign();
   const { width: ancho } = useVideoConfig();
   const clipPath = master.beats?.[0]?.asset?.path;
   const nombre = master.brand?.channel_name ?? '';
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#000', fontFamily: FONT_FAMILY }}>
+    <AbsoluteFill style={{ backgroundColor: '#000', fontFamily: CLIP_FONT_FAMILY }}>
       <CabeceraCanal nombre={nombre} avatarSrc={avatarSrc} ancho={ancho} />
       {master.short !== undefined ? <Titular titulo={master.short.title} ancho={ancho} /> : null}
       {/* la tarjeta: ~cuadrada, redondeada, con el clip pre-cortado dentro */}
