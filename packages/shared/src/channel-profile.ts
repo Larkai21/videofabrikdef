@@ -121,6 +121,13 @@ export const channelSettingsSchema = z.object({
    * por clip y quita material — se enciende por canal cuando se confía.
    */
   clips_relleno: z.boolean().default(false),
+  /**
+   * B-roll ilustrativo en los clips de episodio: el director marca frases
+   * ilustrables y la cascada de biblioteca pone el plano (referencia: inserta
+   * metraje sobre «driving in a car»). Encendido por defecto porque degrada
+   * limpio: sin candidato digno en la biblioteca no hay inserto.
+   */
+  clips_broll: z.boolean().default(true),
   // duración objetivo de locución en minutos (SPEC: 6–9; corto para pruebas)
   /**
    * Duración objetivo en minutos. Se conserva por compatibilidad con los

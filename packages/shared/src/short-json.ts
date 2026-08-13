@@ -115,6 +115,30 @@ export const shortCutSchema = z.object({
    * layout y el contrato no cambien cuando llegue.
    */
   modo: z.enum(['tarjeta', 'full_bleed']).optional(),
+  /**
+   * B-roll ilustrativo DENTRO de la tarjeta (la referencia inserta metraje de
+   * película; nuestra versión legal es la cascada biblioteca→stock). Cada
+   * inserto va en el RELOJ DE SALIDA del clip (post-apretado) y sustituye al
+   * hablante en la tarjeta durante su tramo — el audio no se toca. Elegido
+   * por el director POR ÍNDICE de frase (nunca por tiempos, patrón C7) y
+   * casado por embedding contra la biblioteca; sin candidato digno no hay
+   * inserto: mejor hablante que un plano que no pega.
+   */
+  broll: z
+    .array(
+      z.object({
+        from_ms: z.number().int().nonnegative(),
+        to_ms: z.number().int().positive(),
+        /** ruta absoluta del asset elegido (clip de la biblioteca) */
+        asset_path: z.string(),
+        asset_id: z.string(),
+        /** la consulta visual que pidió el director (auditoría) */
+        query: z.string(),
+        /** similitud del matching (auditoría del umbral) */
+        score: z.number(),
+      }),
+    )
+    .optional(),
 });
 export type ShortCut = z.infer<typeof shortCutSchema>;
 

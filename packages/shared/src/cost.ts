@@ -59,6 +59,8 @@ export const COST_OPERATIONS = [
   'highlights_director',
   // marca frases prescindibles del clip (corte semántico; flag por canal)
   'clips_relleno',
+  // marca frases ilustrables del clip y su consulta visual (b-roll)
+  'clips_broll',
 ] as const;
 
 export const costOperationSchema = z.enum(COST_OPERATIONS);

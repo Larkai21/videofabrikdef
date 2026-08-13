@@ -23,7 +23,8 @@ import { createMedia, EPISODE_MAX_S } from '../../providers/media.js';
 import { createStt } from '../../providers/stt.js';
 import { loudnormToWav, measureLufs, probeDurationMs } from '../tts/audio.js';
 import { computeBeats, type BeatToken } from '../tts/beats.js';
-import { calcularKeeps, remapearTokens } from './apretar.js';
+import { calcularKeeps, remapear, remapearTokens } from './apretar.js';
+import { BROLL_MIN_MS, marcarBroll } from './broll.js';
 import { montarMaestroClip } from './clip.js';
 import { candidatoDeVentana, directHighlights } from './highlights.js';
 import { ajustarVentanaAFrase } from './fronteras.js';
@@ -619,6 +620,24 @@ export async function handleProposeHighlights(
       c.to_ms,
       quitar.length > 0 ? { quitar } : {},
     );
+    // 1c) B-ROLL ilustrativo (flag por canal, encendido por defecto): frases
+    //     marcadas por índice → asset de la biblioteca por embedding; los
+    //     tramos se traducen al reloj de SALIDA con el mapa del apretado.
+    //     Si una frontera cayó en material cortado, el inserto se descarta.
+    const brollVentana = ajustes.clips_broll
+      ? await marcarBroll(ctx, {
+          episodeId,
+          channelId: ep.channelId,
+          shortId: id,
+          tokens: tokensVentana,
+        })
+      : [];
+    const broll = brollVentana.flatMap((b) => {
+      const from = remapear(b.from_ms, keeps);
+      const to = remapear(b.to_ms, keeps);
+      if (from === null || to === null || to - from < BROLL_MIN_MS) return [];
+      return [{ ...b, from_ms: from, to_ms: to }];
+    });
     // 2) encuadre por plano Y por hablante sobre la ventana de ORIGEN
     const plan = await planDeEncuadre(ep.mediaPath!, c.from_ms, c.to_ms, log);
     // 3) piezas = keeps ∩ tramos de encuadre, en el reloj de ORIGEN
@@ -695,6 +714,7 @@ export async function handleProposeHighlights(
       clipVideoPath: corte.clipVideoPath,
       clipAudioPath: corte.clipAudioPath,
       lufs: corte.lufs,
+      ...(broll.length > 0 ? { broll } : {}),
       encuadrePlan: piezas.map((pz, i) => ({
         from_ms: pz.src_from_ms - c.from_ms,
         to_ms: pz.src_to_ms - c.from_ms,

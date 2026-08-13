@@ -62,6 +62,17 @@ export type PiezaMaster = {
         title: string;
         /** modo del lienzo del clip de episodio (tarjeta | full_bleed) */
         modo?: 'tarjeta' | 'full_bleed' | undefined;
+        /** insertos de b-roll en el reloj de salida (ilustran la frase) */
+        broll?:
+          | {
+              from_ms: number;
+              to_ms: number;
+              asset_path: string;
+              asset_id: string;
+              query: string;
+              score: number;
+            }[]
+          | undefined;
       }
     | undefined;
 };

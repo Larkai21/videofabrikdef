@@ -56,6 +56,15 @@ export function montarMaestroClip(params: {
     x: number | null;
     kf?: { t_ms: number; x: number }[];
   }[];
+  /** insertos de b-roll en el reloj de SALIDA (broll.ts); el layout los pinta */
+  broll?: {
+    from_ms: number;
+    to_ms: number;
+    asset_path: string;
+    asset_id: string;
+    query: string;
+    score: number;
+  }[];
 }): ShortMasterJson {
   const { shortId, episodio, cand, salida, clipVideoPath, clipAudioPath, lufs, brand } = params;
   const durMs = salida.dur_ms;
@@ -120,6 +129,7 @@ export function montarMaestroClip(params: {
         source_channel_name: episodio.sourceChannelName ?? '',
       },
       ...(params.encuadrePlan !== undefined ? { encuadre_plan: params.encuadrePlan } : {}),
+      ...(params.broll !== undefined && params.broll.length > 0 ? { broll: params.broll } : {}),
     },
   } as ShortMasterJson;
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, Img, OffthreadVideo, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Img, OffthreadVideo, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { Cue, DesignTokens } from '@fabrica/shared';
 import type { PiezaMaster } from '../brand-kit';
 import { defaultDesign, hexToRgba } from '@fabrica/shared';
@@ -395,8 +395,45 @@ export const ClipLayout: React.FC<{
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
         ) : null}
+        {/* b-roll ilustrativo DENTRO de la tarjeta, como la referencia: el
+            inserto tapa al hablante durante su tramo; el audio no cambia */}
+        <BrollEnTarjeta broll={master.short?.broll ?? []} />
       </div>
       <SubtituloClip cues={master.cues ?? []} ancho={ancho} />
     </AbsoluteFill>
+  );
+};
+
+const BrollEnTarjeta: React.FC<{
+  broll: NonNullable<NonNullable<PiezaMaster['short']>['broll']>;
+}> = ({ broll }) => {
+  const { fps } = useVideoConfig();
+  return (
+    <>
+      {broll.map((b) =>
+        isRenderableSrc(b.asset_path) ? (
+          // Sequence re-basa el reloj: el asset arranca en SU frame 0 dentro
+          // del tramo del inserto (determinista, principio 6)
+          <Sequence
+            key={`broll-${b.from_ms}`}
+            from={Math.round((b.from_ms / 1000) * fps)}
+            durationInFrames={Math.max(1, Math.round(((b.to_ms - b.from_ms) / 1000) * fps))}
+            layout="none"
+          >
+            <OffthreadVideo
+              src={toSrc(b.asset_path)}
+              muted
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+              }}
+            />
+          </Sequence>
+        ) : null,
+      )}
+    </>
   );
 };

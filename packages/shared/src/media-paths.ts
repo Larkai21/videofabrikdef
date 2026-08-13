@@ -12,6 +12,7 @@ export interface MediaBearingMaster {
       }>
     | undefined;
   edits?: Array<{ type: string; image_path?: string }> | undefined;
+  short?: { broll?: Array<{ asset_path: string }> | undefined } | undefined;
 }
 
 // El ÚNICO sitio donde se enumera qué campos del maestro son rutas de medio.
@@ -58,6 +59,12 @@ export function mapMasterMediaPaths<T extends MediaBearingMaster>(
     if (edit.type === 'imagen_apoyo' && edit.image_path !== undefined) {
       edit.image_path = fn(edit.image_path);
     }
+  }
+  // b-roll ilustrativo del clip de episodio: el inserto lleva su clip de la
+  // biblioteca con ruta local (cuarta vez que la regla casi se incumple: el
+  // primer render del inserto salió con el hablante porque esta línea faltaba)
+  for (const b of c.short?.broll ?? []) {
+    b.asset_path = fn(b.asset_path);
   }
   return c;
 }
