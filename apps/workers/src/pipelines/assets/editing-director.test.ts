@@ -246,6 +246,49 @@ describe('momentsToEdits (capa IA)', () => {
     expect(b && 'items' in b ? b.items : []).toEqual(['posibles', 'usadas']);
   });
 
+  it('un momento "linea_tiempo" produce sus hitos en orden', () => {
+    const out = momentsToEdits(
+      [
+        {
+          beat_idx: 3,
+          type: 'linea_tiempo',
+          hitos: [
+            { fecha: 'hoy', texto: 'sale el CVE' },
+            { fecha: 'mañana', texto: 'ya es acceso' },
+          ],
+          keyword: 'cifra',
+        },
+      ],
+      beats,
+      cues,
+      CLAIMS,
+    );
+    const lt = out.find((e) => e.type === 'linea_tiempo');
+    expect(lt && 'hitos' in lt ? lt.hitos.map((h) => h.fecha) : []).toEqual(['hoy', 'mañana']);
+  });
+
+  it('una fecha con dígitos que nadie dijo tumba la línea de tiempo entera', () => {
+    // «hoy» no tiene nada que fabricar, pero un «2019» sin respaldo es una
+    // cronología inventada: misma regla de cifras que stat/tendencia/barras
+    const out = momentsToEdits(
+      [
+        {
+          beat_idx: 3,
+          type: 'linea_tiempo',
+          hitos: [
+            { fecha: 'hoy', texto: 'sale el CVE' },
+            { fecha: '2019', texto: 'ya pasó una vez' },
+          ],
+          keyword: 'cifra',
+        },
+      ],
+      beats,
+      cues,
+      CLAIMS,
+    );
+    expect(out.filter((e) => e.type === 'linea_tiempo')).toHaveLength(0);
+  });
+
   it('unas barras con UNA magnitud sin respaldo no se dibujan: la proporción es la afirmación', () => {
     // la primera cifra está en el beat, la segunda no está en ningún sitio —
     // dibujarla a escala sería inventar exactamente lo que la barra afirma

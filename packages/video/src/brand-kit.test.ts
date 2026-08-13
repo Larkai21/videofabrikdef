@@ -291,6 +291,29 @@ describe('computeEffectsTrack', () => {
     });
   });
 
+  it('la línea de tiempo llega al render con sus hitos', () => {
+    const master = makeDemoMaster({ audioPath: 'demo/silence.wav' });
+    master.edits = [
+      {
+        type: 'linea_tiempo',
+        from_ms: 0,
+        to_ms: 4200,
+        hitos: [
+          { fecha: 'julio', texto: 'Se filtra' },
+          { fecha: 'hoy', texto: 'Nadie paga' },
+        ],
+      },
+    ];
+    const effects = computeEffectsTrack(master, 30, 0);
+    expect(effects[0]).toMatchObject({
+      type: 'linea_tiempo',
+      hitos: [
+        { fecha: 'julio', texto: 'Se filtra' },
+        { fecha: 'hoy', texto: 'Nadie paga' },
+      ],
+    });
+  });
+
   it('mapea los efectos nuevos (kinetic_text, stat_odometer) por passthrough', () => {
     const master = makeDemoMaster({ audioPath: 'demo/silence.wav' });
     master.edits = [

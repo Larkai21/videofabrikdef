@@ -37,6 +37,7 @@ import {
   DeviceFrame,
   ImagenApoyo,
   KineticText,
+  LineaTiempo,
   MicroFx,
   PasosFlow,
   ProgressBar,
@@ -139,6 +140,9 @@ const EditOverlay: React.FC<{ cue: EffectCue; design: DesignTokens }> = ({ cue, 
     return (
       <Barras items={cue.items ?? []} values={cue.values ?? []} label={cue.label} design={design} />
     );
+  }
+  if (cue.type === 'linea_tiempo') {
+    return <LineaTiempo hitos={cue.hitos ?? []} design={design} />;
   }
   if (cue.type === 'imagen_apoyo') {
     return (

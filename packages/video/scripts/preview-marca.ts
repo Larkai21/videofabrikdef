@@ -90,6 +90,16 @@ async function main(): Promise<void> {
       values: ['40 h', '3 h'],
       label: 'coste por corrida',
     },
+    {
+      type: 'linea_tiempo',
+      from_ms: 33800,
+      to_ms: 38000,
+      hitos: [
+        { fecha: 'julio', texto: 'Se filtra el modelo' },
+        { fecha: 'agosto', texto: 'Réplicas abiertas' },
+        { fecha: 'hoy', texto: 'Nadie paga API' },
+      ],
+    },
   ];
 
   const serveUrl = await bundle({
@@ -115,6 +125,7 @@ async function main(): Promise<void> {
     ['fx-tendencia', 96 + 690],
     ['fx-device', 96 + 810],
     ['fx-barras', 96 + 940],
+    ['fx-linea-tiempo', 96 + 1075],
     ['outro-a', total - 90],
     ['outro-b', total - 40],
   ];
@@ -260,6 +271,16 @@ async function main(): Promise<void> {
         items: ['Parchear', 'Explotar'],
         values: ['504 h', '2 h'],
         label: 'ventana real',
+      },
+      {
+        type: 'linea_tiempo',
+        from_ms: VENTANA_FX[0],
+        to_ms: VENTANA_FX[1],
+        hitos: [
+          { fecha: 'julio', texto: 'Se filtra el modelo' },
+          { fecha: 'agosto', texto: 'Réplicas abiertas' },
+          { fecha: 'hoy', texto: 'Nadie paga API' },
+        ],
       },
       { type: 'annotation', from_ms: VENTANA_FX[0], to_ms: VENTANA_FX[1], style: 'circulo' },
       { type: 'micro_fx', from_ms: VENTANA_FX[0], to_ms: VENTANA_FX[1], style: 'tachado' },

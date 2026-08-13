@@ -128,6 +128,8 @@ export interface EffectCue {
   items?: string[];
   /** barras: las dos magnitudes tal y como se dicen, en el orden de `items` */
   values?: string[];
+  /** linea_tiempo: 2-4 hitos con su cuándo */
+  hitos?: { fecha: string; texto: string }[];
   // SfxName y no string: el nivel de volumen se indexa con esto
   sfx?: SfxName;
   style?: string;
@@ -179,6 +181,7 @@ export function computeEffectsTrack(
       ...('keyword' in e ? { keyword: e.keyword } : {}),
       ...('items' in e && e.items !== undefined ? { items: e.items } : {}),
       ...('values' in e && e.values !== undefined ? { values: e.values } : {}),
+      ...('hitos' in e && e.hitos !== undefined ? { hitos: e.hitos } : {}),
       ...('sfx' in e ? { sfx: e.sfx } : {}),
       ...('style' in e && e.style !== undefined ? { style: e.style } : {}),
       // un campo no copiado aquí valida, sale en la timeline y renderiza VACÍO

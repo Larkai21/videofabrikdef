@@ -122,6 +122,8 @@ const DUR_MS: Record<string, number> = {
   // dos etiquetas + dos cifras y la proporción entre barras: se lee como una
   // comparación, no como un vistazo — el mismo régimen que split_versus
   barras: 3400,
+  // hitos escalonados como los pasos: el último aparece cuando la línea llega
+  linea_tiempo: 4200,
   // una imagen se reconoce en menos tiempo que se lee una lista, pero el
   // espectador tiene que poder MIRARLA: entre tarjeta y lista
   imagen_apoyo: 3000,
@@ -654,6 +656,8 @@ const editingResultSchema = z.object({
           // A frente a B CON magnitud: dos barras a escala. Nueva del sprint
           // de formas, elegida por frecuencia en el banco de frases (3/39).
           'barras',
+          // orden de hechos con su cuándo: hitos sobre una línea (banco: 2/39)
+          'linea_tiempo',
         ]),
         text: z.string().optional(),
         value: z.string().optional(),
@@ -662,6 +666,8 @@ const editingResultSchema = z.object({
         items: z.array(z.string()).optional(),
         /** barras: las dos magnitudes tal y como se dicen, misma unidad */
         values: z.array(z.string()).optional(),
+        /** linea_tiempo: 2-4 hitos, cada uno con su cuándo y su qué */
+        hitos: z.array(z.object({ fecha: z.string(), texto: z.string() })).optional(),
         direccion: z.enum(['sube', 'baja']).optional(),
         keyword: z.string().optional(),
         style: z.string().optional(),
@@ -691,6 +697,16 @@ const editingResultSchema = z.object({
         .refine(
           (m) => m.type !== 'barras' || ((m.items ?? []).length === 2 && (m.values ?? []).length === 2),
           { message: 'un momento "barras" necesita 2 items y 2 values' },
+        )
+        // sin fecha no hay línea de tiempo, hay una lista — y para eso ya
+        // están los pasos
+        .refine(
+          (m) =>
+            m.type !== 'linea_tiempo' ||
+            ((m.hitos ?? []).length >= 2 &&
+              (m.hitos ?? []).length <= 4 &&
+              (m.hitos ?? []).every((h) => h.fecha.trim() !== '' && h.texto.trim() !== '')),
+          { message: 'un momento "linea_tiempo" necesita de 2 a 4 hitos con fecha y texto' },
         ),
     )
     // 8 era el techo real del vídeo largo: por muchos beats que tuviera, el
@@ -744,6 +760,7 @@ function buildEditingPrompt(
           '- "pasos": un proceso, items = de 2 a 4 estaciones muy cortas EN ORDEN. Para "primero… luego…", "los tres pasos", "el cuello de botella está en X" (pon X como última estación).',
           '- "tendencia": una cifra que se dispara o se hunde; value = la cifra dicha, direccion = "sube" o "baja", label = de qué. Para "se disparó", "cayó a la mitad".',
           '- "barras": A frente a B CON magnitud; items = las 2 etiquetas, values = las 2 cifras TAL Y COMO SE DICEN y en la MISMA unidad ("3 semanas" y "2 horas" NO — "504 h" y "2 h" SÍ). Para "diez veces más", "semanas frente a horas". Las dos cifras tienen que estar dichas o respaldadas; nunca las inventes.',
+          '- "linea_tiempo": orden de hechos con su cuándo; hitos = de 2 a 4 objetos { "fecha", "texto" }, fecha MUY corta ("julio", "2026", "hoy") y dicha en la narración, texto de 2-4 palabras. Para "primero pasó… y luego…", plazos y cronologías.',
           'PREFIERE estas formas a un "callout" siempre que la frase exprese una relación: un rótulo que repite lo que ya dice el subtítulo no aporta nada.',
         ]
       : []),
@@ -755,12 +772,12 @@ function buildEditingPrompt(
     // gancho: tipografía cinética al abrir + payoff al cerrar
     `- OBLIGATORIO: un "kinetic" en el beat ${params.beats[0]?.idx ?? 0} con la frase-golpe del gancho, y un "callout" en el beat ${lastIdx} con el PAYOFF/conclusión.`,
     vertical
-      ? `Textos en ${langName}, muy cortos, sin comillas. Máximo 8 momentos; como mucho 1 "kinetic", 3 "annotation" y 2 de cada forma ("versus", "pasos", "tendencia", "barras").`
+      ? `Textos en ${langName}, muy cortos, sin comillas. Máximo 8 momentos; como mucho 1 "kinetic", 3 "annotation" y 2 de cada forma ("versus", "pasos", "tendencia", "barras", "linea_tiempo").`
       : // El tope era 6 fijo, o sea seis gráficos en ocho minutos. Ahora sale
         // de los beats que se le pasan, que son los que no ha cubierto nadie.
         `Textos en ${langName}, muy cortos, sin comillas. Máximo ${maxMomentos} momentos; como mucho 1 "kinetic", 1 "device" y ${Math.max(2, Math.round(maxMomentos / 4))} "annotation".`,
     vertical
-      ? 'Devuelve JSON: { "moments": [ { "beat_idx", "type", "keyword", "text"?, "value"?, "label"?, "items"?, "values"?, "direccion"? } ] }.'
+      ? 'Devuelve JSON: { "moments": [ { "beat_idx", "type", "keyword", "text"?, "value"?, "label"?, "items"?, "values"?, "hitos"?, "direccion"? } ] }.'
       : 'Devuelve JSON: { "moments": [ { "beat_idx", "type", "keyword", "text"?, "value"?, "label"? } ] }.',
   ].join('\n');
   const user = [
@@ -889,6 +906,26 @@ export function momentsToEdits(
         ...(m.label ? { label: m.label } : {}),
       });
       edits.push({ type: 'sfx', from_ms: at, to_ms: at + 400, sfx: 'pop' });
+    } else if (m.type === 'linea_tiempo' && (m.hitos ?? []).length >= 2) {
+      const hitos = m
+        .hitos!.map((h) => ({ fecha: h.fecha.trim(), texto: h.texto.trim() }))
+        .filter((h) => h.fecha !== '' && h.texto !== '')
+        .slice(0, 4);
+      if (hitos.length < 2) continue;
+      // una fecha CON dígitos sigue la regla de las cifras: dicha en el beat o
+      // respaldada por un claim. «hoy» o «mañana» no tienen nada que fabricar,
+      // pero un «2019» que nadie dijo es una cronología inventada.
+      const fechasOk = hitos.every(
+        (h) => !/\d/.test(h.fecha) || figureBackedBy(h.fecha, [beat.text, ...claimTexts]),
+      );
+      if (!fechasOk) continue;
+      edits.push({
+        type: 'linea_tiempo',
+        from_ms: at,
+        to_ms: window(DUR_MS.linea_tiempo!),
+        beat_idx: beat.idx,
+        hitos,
+      });
     } else if (m.type === 'annotation') {
       edits.push({
         type: 'annotation',

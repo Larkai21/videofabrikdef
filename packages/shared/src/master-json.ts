@@ -252,6 +252,11 @@ export const EDIT_TYPES = [
   // split_versus enfrenta dos cosas pero no dice CUÁNTO, y eso es justo lo que
   // este nicho compara («semanas frente a horas», «10x frente a 1x»).
   'barras',
+  // orden de hechos con su CUÁNDO («primero pasó esto, y en julio aquello»):
+  // hitos sobre una línea. pasos_flow ordena un proceso pero no lleva fechas,
+  // y la fecha es lo que convierte la lista en historia. `hitos` = 2-4 pares
+  // fecha + texto. Banco de frases: 2/39.
+  'linea_tiempo',
   // imagen REAL de referencia de una entidad con nombre (producto, empresa,
   // modelo), superpuesta al plano cuando la voz la menciona; `image_path`
   // congelado en workers + `text` (el término) + `credit` (atribución si la
@@ -302,6 +307,7 @@ export const EDIT_BANDA: Record<EditType, 'superior' | 'centro' | null> = {
   pasos_flow: 'centro',
   tendencia: 'centro',
   barras: 'centro',
+  linea_tiempo: 'centro',
   // no ocupan sitio: mueven la cámara, tiñen el subtítulo, marcan el b-roll o suenan
   zoom_punch: null,
   keyword_highlight: null,
@@ -329,6 +335,7 @@ export const EDIT_RENDER_KIND: Record<
   pasos_flow: 'overlay',
   tendencia: 'overlay',
   barras: 'overlay',
+  linea_tiempo: 'overlay',
   imagen_apoyo: 'overlay',
 };
 
@@ -427,6 +434,15 @@ export const editSchema = z.discriminatedUnion('type', [
     /** las dos magnitudes como se DICEN («3 semanas», «10x»), misma unidad */
     values: z.array(z.string().min(1)).length(2),
     label: z.string().optional(),
+  }),
+  // sin fecha no hay línea de tiempo, hay una lista: cada hito exige su cuándo
+  z.object({
+    ...editBase,
+    type: z.literal('linea_tiempo'),
+    hitos: z
+      .array(z.object({ fecha: z.string().min(1), texto: z.string().min(1) }))
+      .min(2)
+      .max(4),
   }),
   // annotation es la única sin payload obligatorio: es una marca sobre el b-roll
   z.object({

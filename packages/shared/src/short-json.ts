@@ -195,6 +195,9 @@ export const SHORT_EDIT_ALLOWED: Record<EditType, boolean> = {
   // dos barras horizontales apiladas: filas, así que caben a 1080 de ancho
   // igual que en 1920 — el eje largo de la barra es el único que importa
   barras: true,
+  // en vertical la línea corre de arriba abajo, que además es como se lee el
+  // formato: el mismo port a columna que los tres de lista
+  linea_tiempo: true,
   // el marco de navegador es 16:9 por definición
   device_frame: false,
   // un recuadro apaisado sobre un plano apaisado: dos cajas 16:9 en un lienzo

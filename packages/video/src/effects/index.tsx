@@ -1640,6 +1640,122 @@ export const Barras: React.FC<{
   );
 };
 
+/**
+ * Orden de hechos con su CUÁNDO: 2-4 hitos sobre una línea que se traza.
+ *
+ * `pasos_flow` ordena un proceso pero no lleva fechas, y la fecha es lo que
+ * convierte una lista en historia («primero pasó esto, y en julio aquello» —
+ * calibracion/frases-etiquetadas.json). La línea se dibuja de un extremo al
+ * otro con el mismo gesto que el trazo de Tendencia, y cada hito aterriza
+ * cuando la línea le llega: el orden de aparición ES la cronología.
+ *
+ * En apaisado la línea corre de izquierda a derecha; en vertical, de arriba
+ * abajo — el eje que el formato tiene, el mismo port a columna que los tres
+ * de lista (docs/motion-graphics-vertical.md).
+ */
+export const LineaTiempo: React.FC<{
+  hitos: { fecha: string; texto: string }[];
+  design?: DesignTokens;
+}> = ({ hitos, design }) => {
+  const d = design ?? defaultDesign();
+  const frame = useCurrentFrame();
+  const lienzo = useLienzo();
+  const { opacity } = useInOut();
+  const validos = hitos.filter((h) => h.fecha.trim() !== '' && h.texto.trim() !== '').slice(0, 4);
+  if (validos.length < 2) return null;
+  const col = lienzo.vertical;
+  const ESCALON = 9; // frames entre hitos, el mismo paso que PasosFlow
+  const trazo = span(frame, 4, 10 + ESCALON * (validos.length - 1), Ease.inOutCubic);
+
+  const hito = (h: { fecha: string; texto: string }, i: number): React.ReactNode => {
+    const p = span(frame, 6 + i * ESCALON, 12, Ease.outBack6);
+    return (
+      <div
+        key={`${i}-${h.fecha}`}
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: col ? 'row' : 'column',
+          alignItems: col ? 'center' : 'flex-start',
+          gap: col ? S[4] : S[2],
+          opacity: Math.min(1, p),
+          transform: col
+            ? `translateX(${(1 - Math.min(1, p)) * 22}px)`
+            : `translateY(${(1 - Math.min(1, p)) * 22}px)`,
+        }}
+      >
+        {/* el punto sobre la línea: relleno de acento, halo del fondo para
+            que la línea no lo atraviese */}
+        <div
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: 9,
+            background: d.accent,
+            border: `4px solid ${hexToRgba(d.background, 0.9)}`,
+            flexShrink: 0,
+            // centrar el punto SOBRE la línea: retroceder el padding (S[4]),
+            // media línea (2) y el radio del punto (9) — en fila sobre la
+            // línea horizontal de arriba, en columna sobre la vertical
+            ...(col ? { marginLeft: -(S[4] + 2 + 9) } : { marginTop: -(S[4] + 2 + 9) }),
+          }}
+        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: familias(d).mono,
+              fontSize: T.xs,
+              letterSpacing: '0.22em',
+              color: d.accent,
+              textTransform: 'uppercase',
+            }}
+          >
+            {h.fecha}
+          </div>
+          <div style={{ ...displayText(700), fontSize: T.md, lineHeight: 1.15, color: d.foreground }}>
+            {h.texto}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+      <div
+        style={{
+          opacity,
+          padding: `${S[5]}px ${S[6]}px`,
+          ...glassSurface(d),
+          borderRadius: R.lg,
+          fontFamily: FONT_FAMILY,
+          width: col ? lienzo.ancho - lienzo.safe.left - lienzo.safe.right : 1400,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: col ? 'column' : 'row',
+            alignItems: 'stretch',
+            gap: col ? S[5] : S[4],
+            // la línea del tiempo: un borde que el clip-path va descubriendo
+            // en el sentido de la lectura — mismo truco que el canto de
+            // SplitVersus, sin un SVG que haya que medir
+            ...(col
+              ? { borderLeft: `4px solid ${hexToRgba(d.accent, 0.55)}`, paddingLeft: S[4] }
+              : { borderTop: `4px solid ${hexToRgba(d.accent, 0.55)}`, paddingTop: S[4] }),
+            clipPath: col
+              ? `inset(0 0 ${((1 - trazo) * 100).toFixed(2)}% 0)`
+              : `inset(0 ${((1 - trazo) * 100).toFixed(2)}% 0 0)`,
+          }}
+        >
+          {validos.map(hito)}
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 // Imagen REAL de referencia de una entidad con nombre (producto, empresa,
 // modelo), superpuesta al plano mientras la voz la menciona. La resuelve el
 // worker (foto de stock → Wikimedia Commons, con veto del juez de planos) y

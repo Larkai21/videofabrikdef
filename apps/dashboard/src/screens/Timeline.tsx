@@ -58,6 +58,7 @@ const EDIT_LABELS: Record<EditType, string> = {
   pasos_flow: 'Pasos',
   tendencia: 'Tendencia',
   barras: 'Barras a escala',
+  linea_tiempo: 'Línea de tiempo',
   imagen_apoyo: 'Imagen de referencia',
   sfx: 'Sonido',
 };
