@@ -60,6 +60,34 @@ weight-shift (la activa engorda, la otra se apaga) y highlight (caja amarilla
 barriendo, texto negro) — dentro del área segura real (`anchoLibreCentrado` +
 suelo sobre la banda de la interfaz).
 
+## Certificación contra la referencia (13-ago-2026)
+
+Prueba de fuego: el MISMO material que el tutorial (Bryan Cranston Full
+Interview | CONAN on TBS, `YEbQ835Zqx8`) por el pipeline entero, comparado
+lado a lado con el short publicado del canal de referencia («When Brian
+Cranston Farted In Front Of His Girlfriend», 23 s). Resultado: la anatomía es
+LA MISMA — cabecera con marca, titular de dos líneas con palabras clave a
+color, tarjeta redondeada, subtítulos coreografiados en la banda baja, cortes
+de plano por hablante (6 tramos, x 0,39-0,63) y tracking continuo (kf en 4 de
+6 tramos). El clip está en `outputs/episodios/VyS5jpKL6RdkyjjqPqUMJ/`.
+
+Lo que destapó (y se arregló o quedó anotado):
+
+1. **STT alucinaba con material no español** (ARREGLADO): `lang: 'es'` fijo
+   hizo que whisper transcribiera un bloque entero de la entrevista inglesa
+   en falso español, justo sobre la anécdota objetivo. Ahora el idioma se
+   detecta en el primer bloque y queda clavado para el resto.
+2. **El director de highlights esquivó la anécdota de la referencia DOS
+   veces** (ABIERTO): en dos rondas propuso momentos correctos pero nunca la
+   historia de la novia sin olfato — la que el canal de referencia eligió y
+   monetizó. Salió a la segunda solo con el descarte dirigido («queremos la
+   anécdota de…»). Sesgo a favor de opiniones/datos y en contra de
+   historietas humanas cerradas; revisar los criterios del prompt.
+3. **Deltas de diseño confirmados en el lado a lado**: sin b-roll externo de
+   películas (la referencia inserta Breaking Bad; nuestra cascada es
+   biblioteca→stock por licencias), rótulos en el idioma del canal, y una
+   anécdota entera (58 s) donde la referencia publicó dos partes de 23 s.
+
 ## Deltas conocidos frente a la referencia
 
 - ~~Tracking CONTINUO dentro del plano~~ — hecho: el sidecar conserva la serie
