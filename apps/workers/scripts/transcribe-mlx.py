@@ -70,6 +70,9 @@ def main() -> int:
             )
     salida = {
         "text": (res.get("text") or "").strip(),
+        # idioma detectado (o el forzado): el pipeline lo clava para los
+        # bloques siguientes cuando pidió detección automática
+        "language": res.get("language"),
         "words": words,
         "segments": [
             {

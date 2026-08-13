@@ -33,11 +33,18 @@ export interface SttBlockResult {
   text: string;
   words: SttWord[];
   segments: SttSegment[];
+  /** idioma detectado (ISO 639-1) cuando el proveedor lo devuelve */
+  language?: string;
 }
 
 export interface SttProvider {
   readonly name: 'whisper' | 'mlx' | 'mock';
-  /** Transcribe UN bloque de audio (≤ ~10 min: el endpoint admite 25 MB). */
+  /**
+   * Transcribe UN bloque de audio (≤ ~10 min: el endpoint admite 25 MB).
+   * lang 'auto' = detección automática del proveedor; cualquier otro valor
+   * fuerza el idioma. Forzar el idioma equivocado no falla: ALUCINA — ver el
+   * porqué del clavado por episodio en pipelines/episodios/index.ts.
+   */
   transcribe(wavPath: string, opts: { lang: string; prompt?: string }): Promise<SttBlockResult>;
 }
 
@@ -52,17 +59,20 @@ class WhisperSttProvider implements SttProvider {
     const r = (await this.client.audio.transcriptions.create({
       file: fs.createReadStream(wavPath),
       model: 'whisper-1',
-      language: opts.lang,
+      // 'auto' = omitir el parámetro: el endpoint detecta solo
+      ...(opts.lang !== 'auto' ? { language: opts.lang } : {}),
       response_format: 'verbose_json',
       timestamp_granularities: ['word', 'segment'],
       ...(opts.prompt !== undefined && opts.prompt !== '' ? { prompt: opts.prompt } : {}),
     })) as unknown as {
       text: string;
+      language?: string;
       words?: { word: string; start: number; end: number }[];
       segments?: { text: string; start: number; end: number }[];
     };
     return {
       text: r.text,
+      ...(r.language !== undefined ? { language: r.language } : {}),
       words: (r.words ?? []).map((w) => ({
         text: w.word.trim(),
         from_ms: Math.round(w.start * 1000),

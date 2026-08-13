@@ -200,6 +200,14 @@ export async function handleTranscribe(
     const bloques = Math.max(1, Math.ceil(durS / BLOQUE_S));
     const tokens: BeatToken[] = [];
     let prompt = '';
+    // el idioma NO va fijo: el clipping ingiere material AJENO en cualquier
+    // idioma (la referencia replica un canal inglés). Forzar 'es' sobre una
+    // entrevista inglesa no falló: ALUCINÓ un bloque entero en falso español
+    // (certificación 13-ago-2026, Conan/Cranston). El primer bloque va en
+    // detección automática y el idioma detectado queda CLAVADO para el resto
+    // — la detección por bloque suelto derraparía en bloques que arrancan
+    // con música o silencio.
+    let idioma = 'auto';
     for (let b = 0; b < bloques; b += 1) {
       const desde = b * BLOQUE_S;
       const durBloque = Math.min(BLOQUE_S, durS - desde);
@@ -228,11 +236,15 @@ export async function handleTranscribe(
         meta: { model: 'whisper-1', bloque: b },
       });
       try {
-        const r = await stt.transcribe(bloqueWav, { lang: 'es', ...(prompt !== '' ? { prompt } : {}) });
+        const r = await stt.transcribe(bloqueWav, { lang: idioma, ...(prompt !== '' ? { prompt } : {}) });
         await closeCost(ctx.db, handle, {
           units: Number((durBloque / 60).toFixed(2)),
           unitCost: stt.name === 'whisper' ? PRICES.openai.stt_per_minute : 0,
         });
+        if (idioma === 'auto' && r.language !== undefined && r.language !== '') {
+          idioma = r.language;
+          log.info({ idioma }, 'Idioma del episodio detectado y clavado para el resto de bloques');
+        }
         tokens.push(...aTokens(r, desde * 1000));
         // encadenado: la cola del bloque anterior orienta el estilo del sig.
         prompt = r.text.slice(-200);
