@@ -27,6 +27,11 @@ import type pino from 'pino';
 // mismo fetch con UA completo trae data-n-a-sg y el recortado no.
 const UA_NAVEGADOR =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
+// Desde una IP europea, Google redirige a consent.google.com (RGPD) y ese
+// muro devuelve 403 al fetch sin cookies: TODO el flujo moría ahí. La cookie
+// SOCS/CONSENT declara el consentimiento ya dado y el redirect no ocurre.
+// Solo se envía a dominios de Google, nunca a los medios.
+const COOKIE_CONSENT = 'SOCS=CAI; CONSENT=YES+';
 const TIMEOUT_MS = 15_000;
 
 export function esEnlaceGoogleNews(url: string): boolean {
@@ -118,7 +123,7 @@ export async function resolverEnlaceGoogleNews(
   try {
     const paginaRes = await fetch(url, {
       signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { 'user-agent': UA_NAVEGADOR },
+      headers: { 'user-agent': UA_NAVEGADOR, cookie: COOKIE_CONSENT },
     });
     if (!paginaRes.ok) return null;
     const html = await paginaRes.text();
@@ -133,6 +138,7 @@ export async function resolverEnlaceGoogleNews(
       signal: AbortSignal.timeout(TIMEOUT_MS),
       headers: {
         'user-agent': UA_NAVEGADOR,
+        cookie: COOKIE_CONSENT,
         'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
       },
       body: cuerpoBatchExecute(id, Number(ts), sg),
