@@ -25,6 +25,8 @@ export interface ShortDirectorBeat {
   text: string;
   /** cuántos efectos de edición tiene el beat: donde ya hay material gráfico */
   edits: number;
+  /** carcajada detectada rematando el beat (clipping): el golpe confirmado */
+  risa_despues_ms?: number;
 }
 
 export const shortCandidatesSchema = z.object({

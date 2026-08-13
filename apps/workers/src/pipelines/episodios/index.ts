@@ -26,6 +26,8 @@ import { computeBeats, type BeatToken } from '../tts/beats.js';
 import { calcularKeeps, remapearTokens } from './apretar.js';
 import { montarMaestroClip } from './clip.js';
 import { directHighlights } from './highlights.js';
+import { ajustarVentanaAFrase } from './fronteras.js';
+import { detectarRisas, risaTrasBeat } from './risas.js';
 import { detectarSilencios } from './silencios.js';
 import { aTokens, cruzarConPausas, spansDePausas } from './tokens.js';
 
@@ -268,18 +270,26 @@ export async function handleTranscribe(
     const beats = await computeBeats(tokens, spans, totalMs, (texts) =>
       ctx.embeddings.embed(texts),
     );
+    // carcajadas: sonido sin palabras (estirón del ASR o hueco no cubierto
+    // por silencio). El beat que acaba en risa lleva la marca: es el remate
+    // confirmado por la gente y el director corta ahí (risas.ts)
+    const risas = detectarRisas(tokens, silencios);
 
     fs.writeFileSync(transcriptPath, JSON.stringify({ tokens }, null, 1));
     await ctx.db
       .update(episodes)
       .set({
         transcriptPath,
-        beats: beats.map((b) => ({
-          idx: b.idx,
-          from_ms: b.from_ms,
-          to_ms: b.to_ms,
-          text: b.text,
-        })),
+        beats: beats.map((b) => {
+          const risa = risaTrasBeat(b.to_ms, risas);
+          return {
+            idx: b.idx,
+            from_ms: b.from_ms,
+            to_ms: b.to_ms,
+            text: b.text,
+            ...(risa !== undefined ? { risa_despues_ms: risa } : {}),
+          };
+        }),
         sttMeta: {
           provider: stt.name,
           model:
@@ -558,7 +568,10 @@ export async function handleProposeHighlights(
   let siguienteIdx = previos.reduce((max, s) => Math.max(max, s.idx + 1), 0);
 
   const creados = [];
-  for (const c of candidatos) {
+  for (const c0 of candidatos) {
+    // fronteras dignas: la ventana ni arranca ni muere a mitad de frase —
+    // extiende el final al cierre (o lo retrae) y salta arranques a medias
+    const c = { ...c0, ...ajustarVentanaAFrase({ from_ms: c0.from_ms, to_ms: c0.to_ms }, tokens) };
     const id = nanoid(12);
     const destDir = path.join(episodeDir(ctx, episodeId), 'clips', id);
     const tokensVentana = tokens.filter((t) => t.from_ms >= c.from_ms && t.to_ms <= c.to_ms);

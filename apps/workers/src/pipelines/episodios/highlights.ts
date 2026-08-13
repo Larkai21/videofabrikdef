@@ -65,6 +65,7 @@ export function buildHighlightsPrompt(
     // la lección de la certificación (13-ago-2026): la referencia corta en el
     // punchline y publica 23 s; el director se llevaba la anécdota entera
     '3. El clip TERMINA EN EL REMATE: end_beat_idx es el beat donde cae el golpe (la carcajada, la frase lapidaria), no donde se agota el tema. No arrastres la reacción posterior ni la historia siguiente. Un remate a los 22 s gana a la anécdota completa de 55 s; si la historia tiene dos golpes, elige el primero y deja el resto para otro clip.',
+    '   Los beats marcados con CARCAJADA llevan risa REAL medida en el audio: son remates confirmados. Si tu fragmento contiene uno, termina exactamente en él.',
     '4. Descarta presentaciones, agradecimientos, transiciones y tramos que dependen de un ejemplo anterior.',
     'Campos:',
     '- title: el rótulo del clip, 6 palabras como mucho. En el idioma del episodio.',
@@ -86,11 +87,14 @@ export function buildHighlightsPrompt(
       ? ['Ventanas que NO debes proponer otra vez (motivo entre paréntesis):', ...excluidas.map((e) => `- ${e}`)]
       : []),
     '',
-    'Beats (idx · duración · narración):',
+    'Beats (idx · duración · narración; CARCAJADA = risa medida en el audio al final del beat):',
     ...bloque.map(
       (b) =>
         `${b.idx} · ${Math.round((b.to_ms - b.from_ms) / 1000)} s · ` +
-        b.text.replace(/\s+/g, ' ').trim().slice(0, 220),
+        b.text.replace(/\s+/g, ' ').trim().slice(0, 220) +
+        (b.risa_despues_ms !== undefined
+          ? ` [CARCAJADA ${(b.risa_despues_ms / 1000).toFixed(1)} s]`
+          : ''),
     ),
   ].join('\n');
   return { system, user };

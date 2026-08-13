@@ -373,7 +373,9 @@ export const episodes = pgTable(
     focus: jsonb('focus').$type<{ x: number }>(),
     // ComputedBeat[] (~600 × 200 B en un episodio de 2 h: cabe de sobra)
     beats: jsonb('beats').$type<
-      { idx: number; from_ms: number; to_ms: number; text: string }[]
+      // risa_despues_ms: carcajada detectada rematando el beat (risas.ts);
+      // señal para que el director corte en el golpe, no donde muere el tema
+      { idx: number; from_ms: number; to_ms: number; text: string; risa_despues_ms?: number }[]
     >(),
     // {provider, model, chunks, gate: {...}, cost} — el gate de probar:stt
     // reproducido dentro del pipeline, estampado para poder auditarlo
