@@ -224,6 +224,10 @@ export function registerEpisodeRoutes(app: FastifyInstance, ctx: ApiContext): vo
       .update(episodes)
       .set({ focus: { x: body.x }, updatedAt: new Date() })
       .where(eq(episodes.id, id));
+    // la puerta «Clips · proponer» de la bandeja deriva su texto del encuadre;
+    // sin este aviso la ficha seguiría pidiendo elegirlo hasta el refetch de
+    // respaldo (30 s)
+    await ctx.events.publish({ type: 'inbox_changed' });
     return { ok: true as const, x: body.x };
   });
 

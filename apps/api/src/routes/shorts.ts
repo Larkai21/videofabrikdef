@@ -193,6 +193,11 @@ export function registerShortRoutes(app: FastifyInstance, ctx: ApiContext): void
       ...(row.episodeId !== null ? { episode_id: row.episodeId } : {}),
       state: 'aprobado',
     });
+    // la puerta «clips · aprobar» de la bandeja cuenta clips en 'propuesto':
+    // sin este aviso se quedaría abierta hasta el refetch de respaldo (30 s)
+    if (row.episodeId !== null) {
+      await ctx.events.publish({ type: 'inbox_changed' });
+    }
     return { ok: true as const };
   });
 
@@ -211,6 +216,11 @@ export function registerShortRoutes(app: FastifyInstance, ctx: ApiContext): void
       ...(row.episodeId !== null ? { episode_id: row.episodeId } : {}),
       state: 'descartado',
     });
+    // descartar puede cerrar la puerta de aprobar Y reabrir la de proponer
+    // (si era el último clip vivo del episodio): la bandeja se recalcula
+    if (row.episodeId !== null) {
+      await ctx.events.publish({ type: 'inbox_changed' });
+    }
     return { ok: true as const };
   });
 
@@ -227,6 +237,16 @@ export function registerShortRoutes(app: FastifyInstance, ctx: ApiContext): void
       { shortId: id },
       { dedupeId: `short-${id}` },
     );
+    // espejo de approve: sin este aviso la transición incidencia→aprobado es
+    // invisible para otras vistas (y el evento reactiva el polling de 5 s).
+    // Sin inbox_changed: reintentar no cambia el recuento de 'propuesto'
+    await ctx.events.publish({
+      type: 'short_state',
+      short_id: id,
+      ...(row.videoId !== null ? { video_id: row.videoId } : {}),
+      ...(row.episodeId !== null ? { episode_id: row.episodeId } : {}),
+      state: 'aprobado',
+    });
     return { ok: true as const };
   });
 

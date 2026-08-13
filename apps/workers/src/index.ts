@@ -11,6 +11,7 @@ import { registerLibraryWorkers } from './pipelines/library/index.js';
 import { registerPublishWorkers } from './pipelines/publish/index.js';
 import { registerShortsWorkers } from './pipelines/shorts/index.js';
 import { registerMediaWorkers } from './pipelines/episodios/index.js';
+import { registerReelsWorkers } from './pipelines/reels/index.js';
 
 const ctx = createWorkerContext();
 ctx.logger.info(
@@ -30,6 +31,7 @@ const workers: Worker[] = [
   ...(await registerPublishWorkers(ctx)),
   ...(await registerShortsWorkers(ctx)),
   ...(await registerMediaWorkers(ctx)),
+  ...(await registerReelsWorkers(ctx)),
 ];
 
 ctx.logger.info({ count: workers.length }, 'Workers registrados');

@@ -1,7 +1,17 @@
 import type { FastifyInstance } from 'fastify';
-import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, ne, notExists, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { beats, channels, costLedger, ideas, sources, videos } from '@fabrica/db';
+import {
+  beats,
+  channels,
+  costLedger,
+  episodes,
+  ideas,
+  reels,
+  shorts,
+  sources,
+  videos,
+} from '@fabrica/db';
 import { channelSettingsSchema, type InboxDto, type VideoState } from '@fabrica/shared';
 import type { ApiContext } from '../lib/context.js';
 import { officialThumbnailUrl } from '../lib/files.js';
@@ -141,6 +151,105 @@ export function registerInboxRoutes(app: FastifyInstance, ctx: ApiContext): void
         title: videoTitle(video),
         meta: 'MP4 y metadatos listos para subir',
         eta_min: 2,
+      });
+    }
+
+    // puertas del clipping: no paran ningún vídeo del raíl, pero son turno
+    // humano igual — sin ellas un episodio transcrito muere en silencio en
+    // /episodios y los clips propuestos esperan a que alguien se acuerde
+
+    // episodio listo sin clips VIVOS (los descartados no cuentan: mismo
+    // criterio que la guarda de idempotencia del worker de highlights)
+    const episodiosListos = await ctx.db
+      .select()
+      .from(episodes)
+      .where(
+        and(
+          eq(episodes.state, 'listo'),
+          notExists(
+            ctx.db
+              .select({ id: shorts.id })
+              .from(shorts)
+              .where(and(eq(shorts.episodeId, episodes.id), ne(shorts.state, 'descartado'))),
+          ),
+          ...(channel !== undefined ? [eq(episodes.channelId, channel)] : []),
+        ),
+      );
+    for (const ep of episodiosListos) {
+      gates.push({
+        kind: 'episodio_listo',
+        video_id: null,
+        episode_id: ep.id,
+        channel_id: ep.channelId,
+        step_label: 'Clips · proponer',
+        title: ep.sourceTitle ?? ep.sourceUrl,
+        // proponer exige encuadre elegido (la API devuelve 409 sin él): el
+        // texto dice cuál de los dos pasos falta de verdad
+        meta: ep.focus === null ? 'Elige el encuadre y propón clips' : 'Listo para proponer clips',
+        eta_min: 2,
+      });
+    }
+
+    // clips propuestos pendientes de firma, agregados por episodio; el filtro
+    // de canal usa shorts.channelId, desnormalizado exactamente para esto
+    const clipsPendientes = await ctx.db
+      .select({
+        episodeId: shorts.episodeId,
+        channelId: shorts.channelId,
+        titulo: episodes.sourceTitle,
+        url: episodes.sourceUrl,
+        n: sql<string>`count(*)`,
+      })
+      .from(shorts)
+      .innerJoin(episodes, eq(shorts.episodeId, episodes.id))
+      .where(
+        and(
+          // isNotNull excluye los shorts de vídeo largo, que también viven en
+          // 'propuesto' pero ya tienen su puerta implícita en /videos/:id/shorts
+          isNotNull(shorts.episodeId),
+          eq(shorts.state, 'propuesto'),
+          ...(channel !== undefined ? [eq(shorts.channelId, channel)] : []),
+        ),
+      )
+      .groupBy(shorts.episodeId, shorts.channelId, episodes.sourceTitle, episodes.sourceUrl);
+    for (const c of clipsPendientes) {
+      const n = Number(c.n);
+      gates.push({
+        kind: 'clips_episodio',
+        video_id: null,
+        episode_id: c.episodeId,
+        channel_id: c.channelId,
+        step_label: 'Clips · aprobar',
+        title: c.titulo ?? c.url,
+        meta: n === 1 ? 'Un clip propuesto espera tu firma' : `${n} clips propuestos esperan tu firma`,
+        eta_min: 3,
+      });
+    }
+
+    // puerta del plan del reel (módulo editor): el plan existe y espera la
+    // firma humana — es LA puerta de ese pipeline, el render no arranca solo
+    const reelsEnPuerta = await ctx.db
+      .select()
+      .from(reels)
+      .where(
+        and(
+          eq(reels.state, 'plan_listo'),
+          ...(channel !== undefined ? [eq(reels.channelId, channel)] : []),
+        ),
+      );
+    for (const reel of reelsEnPuerta) {
+      gates.push({
+        kind: 'reel_plan',
+        video_id: null,
+        reel_id: reel.id,
+        channel_id: reel.channelId,
+        step_label: 'Reel · aprobar plan',
+        title: reel.title,
+        meta:
+          reel.plan === null
+            ? 'Plan pendiente de revisar'
+            : `Plan de ${reel.plan.length} capas listo para revisar`,
+        eta_min: 5,
       });
     }
 
