@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { episodeStateSchema } from './episode-states.js';
+import { reelStateSchema } from './reel-states.js';
 import { shortStateSchema } from './short-states.js';
 import { videoStateSchema } from './states.js';
 
@@ -46,6 +47,11 @@ export const fabricaEventSchema = z.discriminatedUnion('type', [
     type: z.literal('episode_state'),
     episode_id: z.string(),
     state: episodeStateSchema,
+  }),
+  z.object({
+    type: z.literal('reel_state'),
+    reel_id: z.string(),
+    state: reelStateSchema,
   }),
   z.object({
     type: z.literal('incident'),

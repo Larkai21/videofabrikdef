@@ -20,6 +20,10 @@ export const QUEUES = {
   media: 'media',
   // propuesta de clips desde un episodio listo (director + pre-corte)
   highlights: 'highlights',
+  // módulo editor (apps/editor): reels desde A-roll propio + guion JSON.
+  // Cola propia con concurrency 1 — su render abre OTRO Chromium (Playwright,
+  // no el de Remotion) y compone con ffmpeg: no debe competir consigo mismo
+  edit: 'edit',
 } as const;
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
@@ -43,6 +47,7 @@ export const JOBS = {
   shorts: { propose: 'propose' },
   media: { download: 'download', transcribe: 'transcribe' },
   highlights: { propose: 'propose' },
+  edit: { prepare: 'prepare', render: 'render' },
 } as const;
 
 // Propuesta de clips de un episodio LISTO. `excluir` funciona como en shorts:
@@ -63,6 +68,19 @@ export interface MediaDownloadJob {
 // transcript.json en disco.
 export interface MediaTranscribeJob {
   episodeId: string;
+}
+
+// Preparación de un reel: transcribir el A-roll, analizar el rostro, cruzar
+// el guion con lo grabado (leer_guion) y dejar el plan en la fila. Idempotente
+// contra build/ en disco, como el resto del módulo editor.
+export interface EditPrepareJob {
+  reelId: string;
+}
+
+// Render de un reel con el plan APROBADO (la fila lo congela; el worker lo
+// vuelca a build/plan.json antes de rasterizar y componer).
+export interface EditRenderJob {
+  reelId: string;
 }
 
 export interface SourcePollJob {

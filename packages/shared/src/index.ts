@@ -7,6 +7,7 @@ export * from './master-json.js';
 export * from './micro-fx.js';
 export * from './short-states.js';
 export * from './episode-states.js';
+export * from './reel-states.js';
 export * from './short-json.js';
 export * from './short-cut.js';
 export * from './stock-ref.js';

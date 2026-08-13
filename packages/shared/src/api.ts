@@ -8,6 +8,7 @@ import {
 } from './episode-states.js';
 import { beatSchema, candidateSchema, editSchema, masterVideoJsonV1 } from './master-json.js';
 import { videoMetricsSchema } from './metrics.js';
+import { reelFormatSchema, reelStateSchema } from './reel-states.js';
 import { shortMasterV1 } from './short-json.js';
 import { shortStateSchema } from './short-states.js';
 import { beatStatusSchema, ideaStatusSchema, videoStateSchema } from './states.js';
@@ -175,6 +176,58 @@ export const episodeEncuadresDtoSchema = z.object({
 });
 export type EpisodeEncuadresDto = z.infer<typeof episodeEncuadresDtoSchema>;
 
+// ---- reels (módulo editor: A-roll propio + guion de dirección) ----
+
+/**
+ * Una capa del plan del editor. El contrato completo del plan es del módulo
+ * (apps/editor valida con validar_plan.py contra su catálogo de capas); aquí
+ * solo se fija lo que la UI necesita para listar y editar sin adivinar.
+ */
+export const reelPlanLayerSchema = z.looseObject({
+  capa: z.string(),
+  template: z.string().optional(),
+  t: z.number().optional(),
+  duracion: z.number().optional(),
+});
+export type ReelPlanLayer = z.infer<typeof reelPlanLayerSchema>;
+
+export const reelDtoSchema = z.object({
+  id: z.string(),
+  channel_id: z.string(),
+  state: reelStateSchema,
+  title: z.string(),
+  formato: reelFormatSchema,
+  duration_ms: z.number().int().nullable(),
+  /** nº de capas del plan; null mientras prepare no lo haya escrito */
+  plan_capas: z.number().int().nullable(),
+  /** URL /files del MP4 final cuando está renderizado */
+  video_url: z.string().nullable(),
+  portada_url: z.string().nullable(),
+  incident: z
+    .object({
+      message: z.string(),
+      suggested_action: z.enum(['reintentar', 'regenerar', 'descartar']).nullable(),
+    })
+    .nullable(),
+  created_at: z.string(),
+});
+export type ReelDto = z.infer<typeof reelDtoSchema>;
+
+/** El detalle añade el plan entero (lo que la pantalla edita) y el guion. */
+export const reelDetailDtoSchema = reelDtoSchema.extend({
+  plan: z.array(reelPlanLayerSchema).nullable(),
+  guion: z.record(z.string(), z.unknown()),
+});
+export type ReelDetailDto = z.infer<typeof reelDetailDtoSchema>;
+
+export const reelsListDtoSchema = z.object({ reels: z.array(reelDtoSchema) });
+export type ReelsListDto = z.infer<typeof reelsListDtoSchema>;
+
+export const reelPlanUpdateRequestSchema = z.object({
+  plan: z.array(reelPlanLayerSchema).min(1),
+});
+export type ReelPlanUpdateRequest = z.infer<typeof reelPlanUpdateRequestSchema>;
+
 // ---- shorts verticales ----
 
 // Marcado manual del short, espejo del largo pero con el id OPCIONAL: marcar
@@ -232,8 +285,24 @@ export const shortDiscardRequestSchema = z.object({ reason: z.string().trim().ma
 export type ShortDiscardRequest = z.infer<typeof shortDiscardRequestSchema>;
 
 export const inboxGateSchema = z.object({
-  kind: z.enum(['idea', 'guion', 'timeline', 'entrega']),
+  // `episodio_listo` (episodio transcrito sin clips vivos), `clips_episodio`
+  // (clips propuestos esperando firma) y `reel_plan` (plan del editor esperando
+  // firma) son puertas que no paran ningún vídeo del raíl: la bandeja las
+  // pinta en su propia sección
+  kind: z.enum([
+    'idea',
+    'guion',
+    'timeline',
+    'entrega',
+    'episodio_listo',
+    'clips_episodio',
+    'reel_plan',
+  ]),
   video_id: z.string().nullable(),
+  /** solo en las puertas de clipping; enlaza a /episodios/:id/clips */
+  episode_id: z.string().nullable().optional(),
+  /** solo en la puerta del plan del reel; enlaza a /reels/:id */
+  reel_id: z.string().nullable().optional(),
   channel_id: z.string(),
   step_label: z.string(),
   title: z.string(),

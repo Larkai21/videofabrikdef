@@ -6,6 +6,7 @@ export * from './schema.js';
 export * from './state.js';
 export * from './short-state.js';
 export * from './episode-state.js';
+export * from './reel-state.js';
 export { schema };
 
 export type Db = ReturnType<typeof createDb>['db'];

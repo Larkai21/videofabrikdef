@@ -392,6 +392,48 @@ export const episodes = pgTable(
   ],
 );
 
+// Reels del módulo editor (apps/editor): A-roll PROPIO + guion de dirección
+// JSON → vertical terminado con plantillas HTML rasterizadas (Playwright) y
+// composición ffmpeg. Tabla propia por el mismo argumento que episodes: no
+// nace del radar, no tiene TTS ni assets de stock, y su motor de render es
+// otro. El plan generado vive AQUÍ (jsonb) tras `preparando`: la BD es la
+// fuente de verdad que el humano edita y el worker vuelca a build/plan.json
+// justo antes de renderizar — así el render usa exactamente lo aprobado.
+export const reels = pgTable(
+  'reels',
+  {
+    id: text('id').primaryKey(),
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => channels.id),
+    state: text('state').notNull().default('nuevo'),
+    stateBeforeIncident: text('state_before_incident'),
+    incident: jsonb('incident').$type<{
+      message: string;
+      suggested_action: 'reintentar' | 'regenerar' | 'descartar' | null;
+      queue?: string;
+      job?: { queue: string; name: string; data?: Record<string, unknown> };
+    }>(),
+    title: text('title').notNull(),
+    // lienzo del render (9:16 | 16:9 | 1:1); el catálogo de plantillas es el mismo
+    formato: text('formato').notNull().default('9:16'),
+    // A-roll subido por el humano: library/reels/<id>/input.mp4
+    arollPath: text('aroll_path'),
+    // guion de dirección (contrato en apps/editor/guiones/CONTRATO.md); se
+    // congela al alta — regenerar el plan lo relee, no lo reescribe
+    guion: jsonb('guion').$type<Record<string, unknown>>().notNull(),
+    // plan de capas generado por prepare (leer_guion + silencios + validar);
+    // editable por el humano SOLO en plan_listo
+    plan: jsonb('plan').$type<Record<string, unknown>[]>(),
+    buildDir: text('build_dir'),
+    outputDir: text('output_dir'),
+    durationMs: integer('duration_ms'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('reels_state_idx').on(t.state), index('reels_channel_idx').on(t.channelId)],
+);
+
 export const costLedger = pgTable(
   'cost_ledger',
   {
