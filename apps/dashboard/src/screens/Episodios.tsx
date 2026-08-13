@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import type { EpisodeDto } from '@fabrica/shared';
 import {
   ApiError,
+  archiveEpisode,
   chooseEpisodeFocus,
   createEpisode,
   fileUrl,
@@ -129,6 +130,27 @@ export function Episodios() {
       push(err instanceof ApiError ? err.message : 'No se pudo reintentar', 'danger'),
   });
 
+  // archivar pide DOS clics (armar + confirmar): purga el mp4 y después no se
+  // pueden proponer más clips — una decisión así no cabe en un clic al pasar
+  const [archivando, setArchivando] = useState<string | null>(null);
+  const archivarMut = useMutation({
+    mutationFn: (id: string) => archiveEpisode(id),
+    onSuccess: () => {
+      push('Episodio archivado: mp4 purgado; los clips ya cortados siguen intactos');
+      setArchivando(null);
+      invalidar();
+    },
+    onError: (err) => {
+      setArchivando(null);
+      push(
+        err instanceof ApiError && err.detail !== undefined
+          ? err.detail
+          : 'No se pudo archivar',
+        'danger',
+      );
+    },
+  });
+
   const episodios = episodiosQ.data ?? [];
 
   return (
@@ -241,6 +263,29 @@ export function Episodios() {
                     <Link className="btn btn-primary" to={`/episodios/${ep.id}/clips`}>
                       Clips del episodio
                     </Link>
+                    {ep.state === 'listo' ? (
+                      archivando === ep.id ? (
+                        <>
+                          <span className="fs-sm" style={{ color: 'var(--danger)' }}>
+                            Purga el mp4: no podrás proponer más clips ni re-encuadrar
+                          </span>
+                          <Button
+                            variant="danger"
+                            disabled={archivarMut.isPending}
+                            onClick={() => archivarMut.mutate(ep.id)}
+                          >
+                            Archivar de verdad
+                          </Button>
+                          <Button variant="ghost" onClick={() => setArchivando(null)}>
+                            Cancelar
+                          </Button>
+                        </>
+                      ) : (
+                        <Button variant="danger-ghost" onClick={() => setArchivando(ep.id)}>
+                          Archivar
+                        </Button>
+                      )
+                    ) : null}
                   </div>
                 ) : null}
               </div>

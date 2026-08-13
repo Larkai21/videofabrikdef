@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { nanoid } from 'nanoid';
 import { episodes, shorts, transitionEpisode } from '@fabrica/db';
@@ -229,6 +229,38 @@ export function registerEpisodeRoutes(app: FastifyInstance, ctx: ApiContext): vo
     // respaldo (30 s)
     await ctx.events.publish({ type: 'inbox_changed' });
     return { ok: true as const, x: body.x };
+  });
+
+  // Archivar: purga el mp4 grande (quedan wav + transcript + los pre-cortes
+  // de los clips, que por eso archivar no los rompe). Es una decisión humana
+  // CONSCIENTE — después no se pueden proponer más clips ni re-elegir
+  // encuadre, y por eso no hay disparador automático: la máquina no decide
+  // cuándo un episodio está exprimido.
+  app.post('/episodios/:id/archivar', async (req) => {
+    const { id } = req.params as { id: string };
+    const [row] = await ctx.db.select().from(episodes).where(eq(episodes.id, id)).limit(1);
+    if (!row) throw notFound(`Episodio ${id} no existe`);
+    const propuestos = await ctx.db
+      .select({ id: shorts.id })
+      .from(shorts)
+      .where(and(eq(shorts.episodeId, id), eq(shorts.state, 'propuesto')))
+      .limit(1);
+    if (propuestos.length > 0) {
+      throw conflict('Hay clips propuestos esperando decisión: apruébalos o descártalos antes de archivar');
+    }
+    await transitionEpisode(ctx.db, id, 'archivado', { expectFrom: 'listo' });
+    // primero la transición, luego el disco: si el rm falla, el episodio ya
+    // no propone clips y el fichero huérfano se limpia a mano sin incidencia
+    if (row.mediaPath !== null && fs.existsSync(row.mediaPath)) {
+      fs.rmSync(row.mediaPath, { force: true });
+    }
+    await ctx.db
+      .update(episodes)
+      .set({ mediaPath: null, archivedAt: new Date(), updatedAt: new Date() })
+      .where(eq(episodes.id, id));
+    await ctx.events.publish({ type: 'episode_state', episode_id: id, state: 'archivado' });
+    await ctx.events.publish({ type: 'inbox_changed' });
+    return { ok: true as const };
   });
 
   // Propuesta de clips: mismo contrato que los shorts de vídeo («proponer

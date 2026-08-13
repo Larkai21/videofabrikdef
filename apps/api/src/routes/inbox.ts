@@ -184,8 +184,10 @@ export function registerInboxRoutes(app: FastifyInstance, ctx: ApiContext): void
         step_label: 'Clips · proponer',
         title: ep.sourceTitle ?? ep.sourceUrl,
         // proponer exige encuadre elegido (la API devuelve 409 sin él): el
-        // texto dice cuál de los dos pasos falta de verdad
+        // texto dice cuál de los dos pasos falta de verdad, y el booleano
+        // deja que la ficha enlace a donde ese paso se resuelve
         meta: ep.focus === null ? 'Elige el encuadre y propón clips' : 'Listo para proponer clips',
+        encuadre_pendiente: ep.focus === null,
         eta_min: 2,
       });
     }

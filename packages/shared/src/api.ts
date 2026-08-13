@@ -301,6 +301,9 @@ export const inboxGateSchema = z.object({
   video_id: z.string().nullable(),
   /** solo en las puertas de clipping; enlaza a /episodios/:id/clips */
   episode_id: z.string().nullable().optional(),
+  /** solo episodio_listo: el selector de encuadre vive en /episodios, así
+      que la ficha enlaza allí mientras falte y a la pantalla de clips después */
+  encuadre_pendiente: z.boolean().optional(),
   /** solo en la puerta del plan del reel; enlaza a /reels/:id */
   reel_id: z.string().nullable().optional(),
   channel_id: z.string(),

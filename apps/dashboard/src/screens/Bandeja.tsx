@@ -234,7 +234,9 @@ export function Bandeja() {
                     ? g.reel_id != null
                       ? `/reels/${g.reel_id}`
                       : '/reels'
-                    : g.episode_id != null
+                    : // el selector de encuadre solo existe en /episodios: la
+                      // ficha lleva allí mientras falte ese paso
+                      g.episode_id != null && g.encuadre_pendiente !== true
                       ? `/episodios/${g.episode_id}/clips`
                       : '/episodios'
                 }

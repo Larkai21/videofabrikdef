@@ -83,9 +83,16 @@ El `refetchInterval` de 30 s de la Bandeja queda como red, no como mecanismo.
 
 ## Deuda declarada
 
-- `archivado` existe en la máquina pero nada lo dispara todavía (la purga del
-  mp4 grande está descrita, no implementada).
-- El MCP expone las puertas con `episode_id` pero aún no tiene herramientas de
-  proponer/aprobar clips (solo lectura vía inbox).
-- La puerta `episodio_listo` no distingue en su enlace el sub-caso «falta
-  encuadre» (el banner de la pantalla de clips lo reconduce a /episodios).
+Las tres deudas del estreno se cerraron en S1:
+
+- `archivado` se dispara desde `/episodios` (botón con confirmación armada en
+  dos clics) → `POST /episodios/:id/archivar`: purga el mp4 (quedan wav +
+  transcript + los pre-cortes de los clips), 409 si hay clips propuestos sin
+  decidir. Sin disparador automático A PROPÓSITO: la máquina no decide cuándo
+  un episodio está exprimido.
+- El MCP tiene la puerta de curación completa: `list_episode_clips`,
+  `propose_episode_clips`, `approve_clip`, `discard_clip` (el motivo del
+  descarte viaja y alimenta la siguiente propuesta).
+- La puerta `episodio_listo` lleva `encuadre_pendiente`: la ficha de la
+  bandeja enlaza a /episodios mientras falte el encuadre y a la pantalla de
+  clips después.
