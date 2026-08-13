@@ -155,10 +155,14 @@ const SubtituloClip: React.FC<{ cues: readonly Cue[]; ancho: number }> = ({ cues
   const grupo = pares[idx]!;
   const texto = grupo.words.map((w) => w.w).join(' ');
 
-  // geometría del área segura: ancho libre real y suelo sobre la banda
+  // geometría del área segura: ancho libre real y suelo sobre la banda.
+  // El cuerpo base es la medida DICHA en el tutorial de referencia («size of
+  // the captions … I'm going to go with 60» sobre secuencia 1080×1920): 60 px
+  // a 1080 de ancho. El 0.08 anterior daba 86 px y desbordaba el área segura
+  // en cuanto el par de palabras crecía.
   const anchoLibre = anchoLibreCentrado(lienzo);
   const cuerpo = Math.min(
-    Math.round(ancho * 0.08),
+    Math.round(ancho * 0.056),
     Math.floor(anchoLibre / (0.58 * Math.max(5, texto.length))),
   );
   const borde = Math.max(3, Math.round(cuerpo * 0.09));
