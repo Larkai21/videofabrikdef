@@ -14,6 +14,7 @@
     "rerank": "tsx scripts/rerank.ts",
     "encuadre": "tsx scripts/encuadre.ts",
     "clips:director": "tsx scripts/clips-director.ts",
+    "encuadre:kf": "tsx scripts/encuadre-kf.ts",
     "previews:kit": "tsx scripts/previews-kit.ts",
     "probar:voz": "tsx scripts/probar-voz.ts",
     "probar:stt": "tsx scripts/probar-stt.ts",

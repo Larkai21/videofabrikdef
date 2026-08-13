@@ -119,9 +119,10 @@ Lo que destapó (y se arregló o quedó anotado):
   muestreada del hablante (kf), el worker la suaviza con media móvil + zona
   muerta de 0,02 (`pipelines/episodios/encuadre.ts`, determinista) y el
   pre-corte hornea el paneo como expresión del crop. Los keyframes aplicados
-  quedan en `encuadre_plan[].kf` del maestro (auditoría). El banco `pnpm
-  encuadre` aún no tiene casos de hablante en movimiento: falta material
-  etiquetado con vaivén real.
+  quedan en `encuadre_plan[].kf` del maestro (auditoría). Banco de REGRESIÓN
+  con vaivén real: `pnpm encuadre:kf` (calibracion/vaiven/, tres cortes del
+  Conan con gestos y giros, 33 muestras kf congeladas como golden — vigila el
+  determinismo, no una verdad etiquetada a ojo que no existe).
 - ~~Modo full-bleed para b-roll de película~~ — el LAYOUT está
   (`short.modo: 'full_bleed'` en el maestro: metraje a sangre, subtítulo
   gigante en mayúsculas a media pantalla, palabra activa amarilla). Queda la
