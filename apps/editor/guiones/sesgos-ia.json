@@ -1,0 +1,245 @@
+{
+  "metadata": {
+    "title": "Sesgos en la IA: quién decide detrás del algoritmo",
+    "duration_seconds": 60,
+    "aspect_ratio": "9:16",
+    "brand_highlight_color": "#4CC2FF",
+    "nota_de_traduccion": "Guion recibido en otro dialecto y traducido a este contrato. Lo que NO se pudo traducir, dicho aquí y no escondido: (1) `custom-component: bias-pipeline-flow` no existe; sus cuatro nodos verticales con encendido secuencial son exactamente `pasos-flow.html`, y el sello sobre el nodo 2 pasa a ser un micro-FX anclado a «etiquetarlos», que es cuando se dice. (2) `stat-counter.html` tampoco existe; el contador es `odometro.html`. (3) Las palabras azules de varias palabras se resuelven a la más distintiva: el resaltado va por PALABRA. (4) Los `sfx_cues` con tiempo absoluto se convierten en `sfx` de acto: aquí el instante lo pone la capa que suena, no el guion, porque la capa se mueve con la transcripción y un segundo escrito a mano no. (5) `POS_BOT_CENTER` no está en la tabla de posiciones. (6) `#4CC2FF` es neón y §1 lo prohíbe: se usa el acento de marca."
+  },
+  "timeline": [
+    {
+      "act": 1,
+      "act_name": "gancho · el algoritmo no es neutro",
+      "time_range": "00:00 - 00:06",
+      "start_sec": 0,
+      "end_sec": 6,
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_CLOSE_UP",
+      "spatial_position": "POS_TOP_CENTER",
+      "voice_speech": "¿Creemos que los algoritmos son neutros por ser matemáticas? La realidad es que la inteligencia artificial aprende de nosotros, con todos nuestros sesgos.",
+      "blue_highlight_words": [
+        "artificial",
+        "sesgos"
+      ],
+      "visual_trigger": {
+        "component_type": "headline",
+        "name": "headline-clipper.html",
+        "position": "POS_TOP_CENTER",
+        "card_copy": "ALGORITMOS Y SESGOS",
+        "config": {
+          "entradilla": "aprende de nosotros, y de todo lo nuestro",
+          "seccion": "INTELIGENCIA ARTIFICIAL",
+          "medio": "quién decide detrás del algoritmo",
+          "resaltar": "SESGOS"
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "artificial",
+          "fx_id": "neural-node-pulse",
+          "position": "POS_CENTER",
+          "media_fetch": null
+        }
+      ],
+      "sfx": [
+        "hud_lock.wav"
+      ]
+    },
+    {
+      "act": 2,
+      "act_name": "problema · los cuatro momentos",
+      "time_range": "00:06 - 00:22",
+      "start_sec": 6,
+      "end_sec": 22,
+      "screen_mode": "MODE_FULL_MOTION",
+      "framing": "NONE",
+      "spatial_position": "POS_CENTER",
+      "voice_speech": "Un modelo no nace discriminando. El sesgo humano se cuela en cuatro momentos. Al seleccionar los datos, al etiquetarlos a mano, al elegir qué medir y al decidir cómo desplegarlo.",
+      "blue_highlight_words": [
+        "datos",
+        "desplegarlo"
+      ],
+      "visual_trigger": {
+        "component_type": "custom",
+        "name": "pasos-flow.html",
+        "position": "POS_CENTER",
+        "config": {
+          "pasos": [
+            {
+              "titulo": "DATOS",
+              "desc": "quién sale y quién no",
+              "ancla": "datos",
+              "n": "01"
+            },
+            {
+              "titulo": "ETIQUETADO",
+              "desc": "a mano, por personas",
+              "ancla": "etiquetarlos",
+              "n": "02"
+            },
+            {
+              "titulo": "MÉTRICA",
+              "desc": "qué decides medir",
+              "ancla": "medir",
+              "n": "03"
+            },
+            {
+              "titulo": "DESPLIEGUE",
+              "desc": "sobre quién se aplica",
+              "ancla": "desplegarlo",
+              "n": "04"
+            }
+          ]
+        },
+        "nota_de_direccion": "Era `custom-component: bias-pipeline-flow` con cuatro nodos verticales encendiéndose en secuencia. Eso es `pasos-flow` sin inventar nada. El acto va en full-motion: el A-Roll desaparece y la cadena ES el plano. Cada paso se enciende cuando su etapa se NOMBRA: se ancla a la palabra y `leer_guion` lo resuelve contra la grabación. El escalonado uniforme de 1,6 s dejaba el segundo paso 0,7 s tarde y el cuarto 1,6 s antes."
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "etiquetarlos",
+          "fx_id": "stamp-banned",
+          "position": "POS_CENTER",
+          "media_fetch": null,
+          "config": {
+            "texto": "SESGO HUMANO",
+            "tam": 96
+          },
+          "nota_de_direccion": "El `apply_stamp_banned` sobre el nodo 2 del guion original. Se ancla a la PALABRA «etiquetarlos» en vez de a un segundo fijo: así cae cuando se dice, aunque se vuelva a transcribir."
+        }
+      ],
+      "sfx": [
+        "whoosh_rise.wav",
+        "stamp_heavy.wav",
+        "tech_pulse.wav"
+      ]
+    },
+    {
+      "act": 3,
+      "act_name": "solucion · se audita",
+      "time_range": "00:22 - 00:35",
+      "start_sec": 22,
+      "end_sec": 35,
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_LEFT",
+      "spatial_position": "POS_MID_RIGHT",
+      "voice_speech": "Para detectarlo no hace falta leer papers matemáticos. Hoy en día existen herramientas de auditoría que analizan los resultados e indican si un colectivo sale perjudicado.",
+      "blue_highlight_words": [
+        "auditoría",
+        "perjudicado"
+      ],
+      "visual_trigger": {
+        "component_type": "definicion",
+        "name": "definition-card.html",
+        "position": "POS_MID_RIGHT",
+        "card_copy": "AUDITORÍA DE EQUIDAD",
+        "config": {
+          "palabra": "Auditoría de equidad",
+          "fonetica": "/aw.ði.toˈɾi.a/",
+          "categoria": "sustantivo",
+          "definicion": "Medir el RESULTADO por colectivo, no la intención del modelo."
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "auditoría",
+          "fx_id": "svg-checkmark",
+          "position": "POS_TOP_RIGHT",
+          "media_fetch": null
+        },
+        {
+          "trigger_word": "perjudicado",
+          "fx_id": "stroke-crossout",
+          "position": "POS_CENTER",
+          "media_fetch": null,
+          "config": {
+            "texto": "PERJUDICADO",
+            "tam": 120
+          }
+        }
+      ],
+      "sfx": [
+        "ping_success.wav"
+      ]
+    },
+    {
+      "act": 4,
+      "act_name": "prueba · la regla de paridad",
+      "time_range": "00:35 - 00:48",
+      "start_sec": 35,
+      "end_sec": 48,
+      "screen_mode": "MODE_FULL_MOTION",
+      "framing": "NONE",
+      "spatial_position": "POS_CENTER",
+      "voice_speech": "Aplica la regla de paridad. Si la tasa de éxito entre dos grupos varía más de un 20%, tu sistema incumple los nuevos estándares de responsabilidad.",
+      "blue_highlight_words": [
+        "20%",
+        "responsabilidad"
+      ],
+      "visual_trigger": {
+        "component_type": "custom",
+        "name": "split-versus.html",
+        "position": "POS_CENTER",
+        "config": {
+          "a": {
+            "rotulo": "GRUPO A",
+            "titulo": "85%",
+            "pie": "aprobación"
+          },
+          "b": {
+            "rotulo": "GRUPO B",
+            "titulo": "40%",
+            "pie": "aprobación"
+          },
+          "vs": "45 puntos"
+        },
+        "nota_de_direccion": "El `counter_display` con «>20% DISPARIDAD» era una plantilla que no existe (`stat-counter.html`). La disparidad se enseña donde se entiende: los dos grupos enfrentados, y la resta cantada en el medio."
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "20%",
+          "fx_id": "red-crash",
+          "position": "POS_CENTER",
+          "media_fetch": null
+        }
+      ],
+      "sfx": [
+        "error_buzz.wav"
+      ]
+    },
+    {
+      "act": 5,
+      "act_name": "cierre · exigir transparencia",
+      "time_range": "00:48 - 00:60",
+      "start_sec": 48,
+      "end_sec": 60,
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_CLOSE_UP",
+      "spatial_position": "POS_TOP_CENTER",
+      "voice_speech": "Exigir transparencia en cada decisión humana es la única forma de no cometer errores antes de preguntarnos si...",
+      "blue_highlight_words": [
+        "única"
+      ],
+      "visual_trigger": {
+        "component_type": "cta",
+        "name": "engagement-cta.html",
+        "position": "POS_TOP_CENTER",
+        "card_copy": "AUDITA TU IA",
+        "config": {
+          "sub": "mide el resultado por colectivo",
+          "boton": "Sígueme",
+          "botonHecho": "Auditando",
+          "marca": "sesgos",
+          "ico": true
+        }
+      },
+      "micro_fx": [],
+      "sfx": [
+        "unlock_click.wav"
+      ]
+    }
+  ],
+  "infinite_loop": {
+    "end_phrase": "antes de preguntarnos si...",
+    "start_phrase": "¿Creemos que los algoritmos son neutros por ser matemáticas?",
+    "nota_de_direccion": "El bucle es de FRASE, no de plano: la última termina en suspensión y la primera la completa. La costura se mide (cola + cabeza por debajo de 0,35 s) y sale en el informe."
+  }
+}

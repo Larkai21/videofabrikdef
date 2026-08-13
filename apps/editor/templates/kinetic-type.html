@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Kinetic Type</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; overflow: hidden; }
+
+  /* Nada de centrar y esperar: cada palabra ocupa el cuadro y se va.
+     El tamaño lo decide la longitud, no una escala fija — así "NO" llena
+     la pantalla y "TRANSCRIPCIÓN" también, cada una a su manera. */
+  .palabra {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform-origin: 50% 50%;
+    font-family: var(--display);
+    font-weight: 800;
+    letter-spacing: var(--tr-titan);
+    line-height: 0.86;
+    white-space: nowrap;
+    color: var(--ink);
+    will-change: transform, opacity;
+  }
+
+  /* la palabra marcada se lleva el acento y un bloque detrás */
+  .palabra.acento { color: var(--accent); }
+  .palabra.bloque {
+    color: var(--bg);
+    background: var(--accent);
+    padding: 0.06em 0.14em;
+    border-radius: var(--r-sm);
+  }
+  .palabra.contorno {
+    color: transparent;
+    -webkit-text-stroke: 3px var(--ink);
+  }
+
+  /* destello a pantalla completa para los golpes fuertes */
+  .flash { position: absolute; inset: 0; background: var(--accent); opacity: 0; }
+
+  /* barra que barre para separar bloques */
+  .barrido {
+    position: absolute; left: 0; right: 0; height: 100%;
+    background: var(--accent);
+    transform-origin: 0 50%;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="flash" id="flash"></div>
+  <div class="barrido" id="barrido"></div>
+  <div id="capa"></div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+/* Caja de un elemento en coordenadas del lienzo, con el punto en su
+   CENTRO. Otra capa la pide con `{sobre: 'capa.clave'}` en vez de copiar
+   coordenadas, que es lo que se desincroniza al cambiar el texto. */
+function ancla(el) {
+  const b = el.getBoundingClientRect();
+  return { x: Math.round(b.left + b.width / 2),
+           y: Math.round(b.top + b.height / 2),
+           w: Math.round(b.width), h: Math.round(b.height) };
+}
+
+const { Ease, span, clamp, noise } = Engine;
+
+const capa = document.getElementById('capa');
+const flash = document.getElementById('flash');
+const barrido = document.getElementById('barrido');
+let palabras = [];
+
+/* Cuatro gestos de entrada. Repetir siempre el mismo es lo que hace que
+   una secuencia larga se vuelva monótona: aquí rotan por índice. */
+const GESTOS = [
+  // aterrizaje desde muy grande
+  (p, e) => ({ s: 2.6 - 1.6 * e, x: 0, y: 0, r: 0, o: e }),
+  // entra desde el lateral con rotación
+  (p, e) => ({ s: 0.86 + 0.14 * e, x: (1 - e) * 620, y: 0, r: (1 - e) * 9, o: e }),
+  // sube desde abajo, sobrepasando
+  (p, e) => ({ s: 0.92 + 0.08 * e, x: 0, y: (1 - e) * 380, r: 0, o: e }),
+  // crece desde cero con giro corto
+  (p, e) => ({ s: e * 1.04, x: 0, y: 0, r: (1 - e) * -7, o: e })
+];
+
+function ajustar(el, texto, anchoMax) {
+  /* El cuerpo se calcula para que la palabra ocupe el ancho disponible.
+     Es la diferencia entre "texto grande" y tipografía que compone. */
+  el.style.fontSize = '200px';
+  const w = el.scrollWidth || 1;
+  el.style.fontSize = Math.min(280, Math.max(70, 200 * anchoMax / w)) + 'px';
+}
+
+Engine.register({
+  duration: 8,
+  defaults: {
+    anchoMax: 940,
+    salida: 0.35,
+    flashEn: [],       // instantes con destello a pantalla completa
+    barridoEn: null,   // { at, dur } para el barrido de separación
+    /* Cada entrada: { txt, at, dur, estilo?, gesto?, y? } */
+    palabras: [
+      { txt: 'SIN', at: 0.0, dur: 0.7 },
+      { txt: 'NUBE', at: 0.7, dur: 0.8, estilo: 'bloque' },
+      { txt: 'SIN COLA', at: 1.5, dur: 0.9 },
+      { txt: 'SIN FACTURA', at: 2.4, dur: 1.2, estilo: 'acento' }
+    ]
+  },
+
+  setup(cfg) {
+    capa.innerHTML = '';
+    palabras = cfg.palabras.map((p, i) => {
+      const el = document.createElement('div');
+      el.className = 'palabra' + (p.estilo ? ' ' + p.estilo : '');
+      el.textContent = p.txt;
+      capa.appendChild(el);
+      ajustar(el, p.txt, cfg.anchoMax);
+      return { el, p, gesto: GESTOS[(p.gesto !== undefined ? p.gesto : i) % GESTOS.length] };
+    });
+  },
+
+  anclas() {
+    /* Cada palabra por índice, y además la última: es el remate y lo que
+       casi siempre se quiere señalar. */
+    const a = {};
+    palabras.forEach(({ el }, i) => { a['p' + i] = ancla(el); });
+    if (palabras.length) a.ultima = ancla(palabras[palabras.length - 1].el);
+    return a;
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 8;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+
+    palabras.forEach(({ el, p, gesto }) => {
+      const dur = p.dur || 0.8;
+      const visible = t >= p.at && t < p.at + dur;
+      if (!visible) { el.style.opacity = 0; return; }
+
+      /* entrada rápida (25% del tiempo) y salida aún más rápida: el
+         tiempo de lectura está en medio, no en las transiciones */
+      const e = span(t, p.at, dur * 0.25, Ease.outExpo);
+      const sale = span(t, p.at + dur * 0.86, dur * 0.14, Ease.outCubic);
+      const g = gesto(p, e);
+
+      /* deriva constante: aunque esté quieta, la palabra respira */
+      const drift = Math.sin((t - p.at) * 2.2) * 5;
+      const y = (p.y || 0) + g.y + drift - (sale * 90);
+
+      el.style.opacity = g.o * (1 - sale) * cierre;
+      el.style.transform =
+        `translate(-50%, -50%) translate(${g.x}px, ${y}px) ` +
+        `scale(${g.s * (1 - sale * 0.12)}) rotate(${g.r}deg)`;
+    });
+
+    /* destellos: 3 frames de acento a pantalla completa. Es el recurso
+       más barato que existe para marcar un golpe, y el más efectivo. */
+    let f = 0;
+    (cfg.flashEn || []).forEach(at => {
+      f = Math.max(f, 1 - clamp((t - at) / 0.12, 0, 1));
+      if (t < at) f = Math.max(f, 0);
+    });
+    flash.style.opacity = (t >= 0 ? f : 0) * 0.85 * cierre;
+
+    /* barrido: una barra que cruza y limpia la pantalla */
+    if (cfg.barridoEn) {
+      const { at, dur = 0.5 } = cfg.barridoEn;
+      const p = span(t, at, dur, Ease.inOutCubic);
+      const q = span(t, at + dur * 0.5, dur, Ease.inOutCubic);
+      barrido.style.opacity = (p > 0 && q < 1) ? 1 : 0;
+      barrido.style.transform = `scaleX(${p - q})`;
+      barrido.style.left = (q * 1080) + 'px';
+    } else {
+      barrido.style.opacity = 0;
+    }
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Transiciones</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; overflow: hidden; }
+
+  /* Cada transición es una superficie que entra, tapa el instante del
+     cambio, y sale por el otro lado. Lo que la hace legible como
+     transición y no como parpadeo es que ENTRA y SALE por sitios
+     distintos: el ojo lee dirección, no solo aparición. */
+  .hoja {
+    position: absolute; inset: -12%;
+    will-change: clip-path, transform, opacity;
+  }
+  /* Cepillado, no plano. La hoja cruza el cuadro entero: es la mayor
+     superficie de bronce que ve el espectador en toda la pieza, y era un
+     relleno liso. §2 lo prohíbe expresamente desde el principio. */
+  .hoja.solida {
+    background-image: linear-gradient(
+      var(--metal-ang), var(--metal-1) 0%, var(--metal-2) 22%,
+      var(--metal-3) 46%, var(--metal-4) 62%, var(--metal-5) 88%);
+  }
+  .hoja.tinta  { background: var(--velo-oscuro); }
+  .hoja.papel  { background: var(--velo-claro); }
+
+  /* rótulo que viaja dentro de la hoja: da continuidad narrativa */
+  .marca {
+    position: absolute; left: 0; right: 0; top: 50%;
+    transform: translateY(-50%);
+    text-align: center;
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: var(--t-3xl);
+    letter-spacing: var(--tr-hero);
+    color: var(--bg);
+    white-space: nowrap;
+    z-index: 2;
+  }
+  .hoja.papel .marca { color: var(--velo-oscuro); }
+  .hoja.tinta .marca { color: var(--velo-claro); }
+
+  /* EL CANTO. Una hoja que barre sin borde no es una hoja: es un color que
+     aparece. Lo que hace que el ojo lea «algo pasa por delante» es la arista
+     —una línea clara donde la superficie termina— y la sombra que proyecta
+     sobre lo que todavía no ha tapado.
+
+     Va como elemento aparte y no como `box-shadow` de la hoja porque la hoja
+     está recortada con `clip-path`, y `clip-path` recorta también la sombra:
+     el canto habría desaparecido justo en el borde donde tiene que estar. */
+  .canto {
+    position: absolute; top: -30%; bottom: -30%;
+    width: 42px; margin-left: -21px;
+    background-image: linear-gradient(90deg,
+      transparent 0%, var(--sombra) 34%, var(--metal-3) 47%,
+      var(--metal-2) 53%, transparent 66%);
+    will-change: transform, opacity;
+    z-index: 3; pointer-events: none;
+  }
+  .canto.der { transform: scaleX(-1); }
+
+  /* franjas para el modo persiana */
+  .franja { position: absolute; top: -6%; bottom: -6%;
+            box-shadow: 0 26px 40px -18px var(--sombra); }
+</style>
+</head>
+<body>
+<div class="stage" id="stage"></div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const stage = document.getElementById('stage');
+let cortes = [];
+
+/* Cada modo devuelve el estilo de la hoja para un progreso p (0..1),
+   donde 0.5 es "pantalla totalmente tapada". La asimetría entre entrada
+   y salida es lo que da dirección. */
+const MODOS = {
+  /* barrido diagonal: entra por abajo-izquierda, sale por arriba-derecha */
+  barrido(el, p) {
+    const a = clamp(p * 2, 0, 1), b = clamp(p * 2 - 1, 0, 1);
+    const e = Ease.inOutCubic(a), s = Ease.inOutCubic(b);
+    el.style.clipPath =
+      `polygon(${-20 + e * 140}% 120%, ${-60 + e * 140}% -20%, ` +
+      `${-60 + s * 140}% -20%, ${-20 + s * 140}% 120%)`;
+    /* La arista que AVANZA: la de entrada mientras la hoja tapa, la de salida
+       cuando se retira. Se devuelve en fracción del ancho para que el canto no
+       tenga que saber nada del recorte. */
+    return { x: (b > 0 ? -40 + s * 140 : -40 + e * 140) / 100, giro: -14,
+             der: b > 0 };
+  },
+  /* Iris: un círculo engulle la pantalla y luego se abre un agujero
+     desde el mismo punto. Las dos mitades usan mecanismos distintos a
+     propósito: clip-path para crecer (es una forma) y una máscara con
+     agujero para abrir (una forma no puede tener hueco). */
+  iris(el, p) {
+    if (p < 0.5) {
+      const r = Ease.outCubic(p * 2) * 155;
+      el.style.clipPath = `circle(${r}% at 50% 42%)`;
+      el.style.maskImage = 'none';
+      el.style.webkitMaskImage = 'none';
+    } else {
+      const r = Ease.inOutCubic((p - 0.5) * 2) * 155;
+      el.style.clipPath = 'none';
+      const m = `radial-gradient(circle at 50% 42%, transparent ${r}%, #000 ${r + 0.4}%)`;
+      el.style.maskImage = m;
+      el.style.webkitMaskImage = m;
+    }
+    /* El iris no tiene una arista recta: la suya es un círculo, y un canto
+       plano puesto encima mentiría sobre la forma. Devuelve null y el canto
+       se apaga — es preferible que un modo no lo tenga a que lo tenga mal. */
+    return null;
+  },
+  /* persiana: columnas que caen escalonadas y se retiran igual */
+  persiana(el, p, cfg) {
+    const n = cfg.franjas || 6;
+    if (!el._franjas) {
+      /* Se INSERTAN antes del rótulo, no se reemplaza el contenido: un
+         innerHTML='' aquí borraba la marca y el corte se quedaba mudo. */
+      el._franjas = Array.from({ length: n }, (_, i) => {
+        const f = document.createElement('span');
+        f.className = 'franja';
+        f.style.left = (i * 100 / n) + '%';
+        f.style.width = (100 / n + 0.4) + '%';
+        f.style.background = 'inherit';
+        el.insertBefore(f, el.firstChild);
+        return f;
+      });
+      el.style.background = 'transparent';
+      el._franjas.forEach(f => f.style.background = el.dataset.color);
+    }
+    el._franjas.forEach((f, i) => {
+      const d = i * 0.055;
+      const a = Ease.outCubic(clamp((p * 2 - d) / (1 - d || 1), 0, 1));
+      const b = Ease.inOutCubic(clamp((p * 2 - 1 - d) / (1 - d || 1), 0, 1));
+      f.style.transform = `translateY(${(1 - a) * -115 + b * 115}%)`;
+    });
+    /* Cada franja lleva SU propia sombra de canto en la hoja de estilo: son
+       seis aristas horizontales, no una vertical. */
+    return null;
+  },
+  /* cortina: se abre desde el centro hacia los lados */
+  cortina(el, p) {
+    const a = clamp(p * 2, 0, 1), b = clamp(p * 2 - 1, 0, 1);
+    const e = Ease.inOutCubic(a) * 50, s = Ease.inOutCubic(b) * 50;
+    el.style.clipPath =
+      `polygon(${50 - e}% 0%, ${50 + e}% 0%, ${50 + e}% 100%, ${50 - e}% 100%,` +
+      `${50 - e}% 100%, ${50 - s}% 100%, ${50 - s}% 0%, ${50 - e}% 0%)`;
+    el.style.clipPath =
+      `inset(0 ${50 - e}% 0 ${50 - e}%)`;
+    if (b > 0) el.style.clipPath = `inset(0 ${50 - e}% 0 ${50 + s}%)`;
+  }
+};
+
+Engine.register({
+  /* 2,2 y no 10. Con `duration: 10` y UN corte de 0,7 s, la capa pasaba el
+     83 % de su tiempo con la hoja a opacidad 0: 250 fotogramas PNG vacíos que
+     el compositor tiene que leer y descartar, y una ficha de catálogo que
+     enseña ocho segundos de nada.
+     El plan que la usa pasa su propia `duration` —una transición vive dentro
+     de la pieza, no al revés—, así que este número solo lo ve el catálogo. Y
+     lo que el catálogo tiene que enseñar de una transición es la transición. */
+  duration: 2.2,
+  defaults: {
+    /* [{ at, dur, modo, color, marca? }] */
+    cortes: [
+      { at: 0.45, dur: 0.95, modo: 'barrido', color: 'solida', marca: '01' }
+    ],
+    franjas: 6
+  },
+
+  setup(cfg) {
+    stage.innerHTML = '';
+    cortes = (cfg.cortes || []).map(c => {
+      const el = document.createElement('div');
+      el.className = 'hoja ' + (c.color || 'solida');
+      el.dataset.color = getComputedStyle(document.documentElement)
+        .getPropertyValue(c.color === 'tinta' ? '--velo-oscuro'
+                        : c.color === 'papel' ? '--velo-claro' : '--accent').trim();
+      if (c.marca) {
+        const m = document.createElement('div');
+        m.className = 'marca';
+        m.textContent = c.marca;
+        el.appendChild(m);
+      }
+      /* El grano va en la hoja sólida: es la mayor superficie de bronce que
+         ve el espectador en toda la pieza —cruza el cuadro entero— y un plano
+         de metal sin grano se lee como un relleno de CSS. */
+      if ((c.color || 'solida') === 'solida') {
+        Engine.grano(el, { px: 256, semilla: 6, op: 0.22 });
+      }
+      const canto = document.createElement('i');
+      canto.className = 'canto';
+      canto.style.opacity = 0;
+      el.appendChild(canto);
+      el.style.opacity = 0;
+      stage.appendChild(el);
+      return { el, c, canto, marca: el.querySelector('.marca') };
+    });
+  },
+
+  draw(t, cfg) {
+    cortes.forEach(({ el, c, canto, marca }) => {
+      const dur = c.dur || 0.7;
+      const p = (t - c.at) / dur;
+      if (p <= 0 || p >= 1) { el.style.opacity = 0; return; }
+      el.style.opacity = 1;
+      const arista = (MODOS[c.modo] || MODOS.barrido)(el, p, cfg);
+
+      /* El canto va FUERA del recorte de la hoja y sigue su arista. Se apaga
+         en los extremos del recorrido: cuando la hoja ya ha salido del cuadro
+         no hay nada cuyo borde marcar, y un filete flotando en el vacío
+         delataría que es un elemento pegado. */
+      if (canto) {
+        if (!arista) { canto.style.opacity = 0; }
+        else {
+          const fuera = clamp(Math.min(arista.x + 0.12, 1.12 - arista.x) * 6,
+                              0, 1);
+          canto.style.opacity = fuera;
+          canto.style.transform =
+            `translateX(${(arista.x * 100).toFixed(2)}vw) ` +
+            `rotate(${arista.giro || 0}deg)` +
+            (arista.der ? ' scaleX(-1)' : '');
+        }
+      }
+
+      /* La marca solo se lee cuando la hoja tapa de verdad: si se ve
+         entrando y saliendo, compite con el contenido en vez de puntuar
+         el corte. */
+      if (marca) {
+        const centro = 1 - Math.abs(p - 0.5) * 2.6;
+        const v = clamp(centro, 0, 1);
+        marca.style.opacity = v;
+        marca.style.transform =
+          `translateY(-50%) translateX(${(p - 0.5) * 90}px)`;
+        /* El número no solo pasa: ENGORDA al pasar por el centro. Es el eje
+           variable, y es lo que separa un rótulo que viaja de un rótulo
+           pegado a una hoja que viaja. */
+        Engine.peso(marca, Math.round(400 + 500 * v));
+      }
+    });
+  }
+});
+</script>
+</body>
+</html>

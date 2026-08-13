@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Globo</title>
+<meta name="gesto" content="correr:itinerario">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+  canvas { position: absolute; left: 0; top: 0; }
+
+  .etiqueta {
+    position: absolute;
+    display: flex; align-items: baseline; gap: var(--s-2);
+    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    border: var(--hairline) solid var(--stroke);
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps);
+    color: var(--ink);
+    box-shadow: 0 8px 20px var(--sombra);
+    transform: translate(-50%, -50%);
+    white-space: nowrap;
+    will-change: opacity, transform;
+  }
+  /* La coordenada, en el peso más fino: es el dato de fondo, no el nombre.
+     Y es lo que convierte la etiqueta en una lectura de instrumento en vez
+     de en una chincheta de Google Maps. */
+  .etiqueta .coord { color: var(--ink-faint); font-weight: var(--w-fino);
+                     font-size: var(--t-2xs); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <canvas id="lienzo" width="1080" height="1920"></canvas>
+  <div id="etiquetas"></div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const cv = document.getElementById('lienzo');
+const ctx = cv.getContext('2d');
+const capaEtiq = document.getElementById('etiquetas');
+let etiquetas = [], tramos = [], rot0 = 0, pts3 = [], ritmo = null;
+
+const RAD = Math.PI / 180;
+
+/* ======================================================================
+   Lo que le faltaba a este globo no eran continentes: era un MOTIVO.
+   Una esfera de alambre girando en bucle es un salvapantallas — dice «algo
+   global» y nada más, y por eso era la plantilla más cara del catálogo y la
+   que menos salía.
+
+   Cuatro cosas la convierten en un instrumento que afirma algo:
+
+     · la rotación se DETIENE en cada punto, en vez de girar sin parar. Un
+       globo que se para es un globo que está enseñando ALGO.
+     · arcos de círculo máximo entre los puntos, que es la ruta real sobre
+       una esfera y lo que dice «esto está conectado con esto».
+     · terminador día/noche, que es lo que hace que se lea como un planeta
+       iluminado y no como una malla.
+     · retícula JERÁRQUICA: el ecuador y el meridiano cero mandan, los
+       trópicos siguen, el resto acompaña. Con todas las líneas al mismo peso
+       la retícula es una textura y no una referencia.
+   ====================================================================== */
+
+/* Un punto de la esfera en coordenadas de VISTA: x a la derecha, y arriba,
+   z hacia el espectador. Se separa de la proyección porque hace falta el
+   vector en 3D para el terminador y para los arcos, no solo su sombra. */
+function aVista(lat, lon, rotX, rotY) {
+  const f = lat * RAD, l = (lon + rotX) * RAD, f0 = rotY * RAD;
+  const cf = Math.cos(f), sf = Math.sin(f);
+  const cl = Math.cos(l), sl = Math.sin(l);
+  const c0 = Math.cos(f0), s0 = Math.sin(f0);
+  return { x: cf * sl,
+           y: c0 * sf - s0 * cf * cl,
+           z: s0 * sf + c0 * cf * cl };
+}
+
+/* Vector cartesiano en coordenadas de la TIERRA, para interpolar rutas. */
+function aTierra(lat, lon) {
+  const f = lat * RAD, l = lon * RAD;
+  return { x: Math.cos(f) * Math.sin(l),
+           y: Math.sin(f),
+           z: Math.cos(f) * Math.cos(l) };
+}
+function aLatLon(v) {
+  return { lat: Math.asin(clamp(v.y, -1, 1)) / RAD,
+           lon: Math.atan2(v.x, v.z) / RAD };
+}
+/* Interpolación esférica: el camino MÁS CORTO sobre la esfera, que es lo que
+   vuela un avión y lo que recorre un paquete por un cable submarino. Una
+   recta entre dos puntos de un mapa plano no es ninguna de las dos cosas. */
+function slerp(a, b, u) {
+  let d = clamp(a.x * b.x + a.y * b.y + a.z * b.z, -1, 1);
+  const w = Math.acos(d);
+  if (w < 1e-6) return a;
+  const s = Math.sin(w), k1 = Math.sin((1 - u) * w) / s, k2 = Math.sin(u * w) / s;
+  return { x: a.x * k1 + b.x * k2, y: a.y * k1 + b.y * k2, z: a.z * k1 + b.z * k2 };
+}
+
+function color(v) {
+  return getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+}
+
+/* El atajo entre dos longitudes: nunca da la vuelta larga. Sin esto, ir de
+   Tokio (139°) a San Francisco (−122°) cruzaba Europa y Asia enteras —261°
+   de rotación— en vez de los 99° del Pacífico, que además es por donde va el
+   cable. */
+function atajo(desde, hasta) {
+  return ((hasta - desde + 540) % 360) - 180;
+}
+
+Engine.register({
+  duration: 8,
+  defaults: {
+    cx: 540, cy: 900, r: 380,
+    paso: 15,              // grados entre meridianos y paralelos
+    velocidad: 9,          // grados por segundo, SOLO si `visita: false`
+    /* +22 y no −18: los tres puntos por defecto están entre 35° y 40° NORTE,
+       y mirando desde 18° al SUR quedan escorzados contra el limbo de arriba
+       —igual que sus arcos, que se veían como una astilla junto al polo—.
+       Desde 22° al norte, el hemisferio que se está enseñando queda de cara. */
+    rotY: 22,              // inclinación del eje
+    /* La rotación se detiene en cada punto. `false` vuelve al giro continuo
+       de antes, para una capa de fondo que solo tiene que estar. */
+    visita: true,
+    viaje: 1.1,            // cuánto tarda en girar de un punto al siguiente
+    permanencia: 0.9,      // cuánto se queda parado en cada uno
+    arco: 46,              // grados de recorrido antes de llegar al primero
+    /* Punto subsolar. Fijo en el ESPACIO: la Tierra gira por debajo, así que
+       las ciudades entran y salen de la noche solas. */
+    /* 68° y no 28°: el terminador es correcto en cualquier posición, pero
+       con el sol casi de frente la noche se queda en un filo del limbo y no
+       se ve. A ~70° de longitud de vista el terminador cruza el disco por el
+       tercio izquierdo, que es la iluminación con la que se dibuja un planeta
+       desde que existen los planetarios. */
+    sol: { lat: 16, lon: 68 },
+    noche: 0.5,            // cuánto oscurece la cara nocturna
+    arcos: true,           // rutas de círculo máximo entre puntos
+    entrada: 0.8,
+    salida: 0.5,
+    relleno: null,   // color del disco; null = --accent
+    puntos: [
+      { lat: 40.4, lon: -3.7, txt: 'MADRID' },
+      { lat: 37.8, lon: -122.4, txt: 'SF' },
+      { lat: 35.7, lon: 139.7, txt: 'TOKIO' }
+    ]
+  },
+
+  setup(cfg) {
+    const P = cfg.puntos || [];
+    capaEtiq.innerHTML = '';
+    etiquetas = P.map(p => {
+      const el = document.createElement('div');
+      el.className = 'etiqueta';
+      el.innerHTML = `<span>${p.txt}</span>` +
+        `<span class="coord">${Math.abs(p.lat).toFixed(1)}°` +
+        `${p.lat >= 0 ? 'N' : 'S'}</span>`;
+      capaEtiq.appendChild(el);
+      return { el, p };
+    });
+    pts3 = P.map(p => aTierra(p.lat, p.lon));
+
+    /* El itinerario, resuelto ENTERO aquí: cada tramo guarda cuándo empieza y
+       cuántos grados hay que girar, y `draw` solo suma. Así `seek(t)` sigue
+       siendo función pura de t —se puede saltar a cualquier instante— en vez
+       de depender de por dónde se haya pasado. */
+    /* El itinerario tiene que CABER. El director coloca las tarjetas entre 2,5
+       y 4 segundos, y tres ciudades a 1,1 de viaje más 0,9 de parada piden
+       6,4: sin esto, la tercera ciudad no se visita nunca y el globo se queda
+       a medio girar cuando la capa se va. Se comprime en bloque —viaje y
+       parada en la misma proporción— para que el ritmo no cambie, solo la
+       escala. Lo hace la plantilla y no quien la configura porque es la
+       plantilla la que sabe cuánto necesita. */
+    const util = Math.max(0.4, (cfg.duration || 8) - cfg.entrada * 0.5 - cfg.salida);
+    const pide = P.length * (cfg.viaje + cfg.permanencia);
+    const k = pide > util ? util / pide : 1;
+    const viaje = cfg.viaje * k, parada = cfg.permanencia * k;
+    ritmo = { viaje, parada };
+
+    rot0 = P.length ? -P[0].lon - cfg.arco : 0;
+    let prev = rot0;
+    tramos = P.map((p, i) => {
+      const d = atajo(prev, -p.lon);
+      const tr = { at: cfg.entrada * 0.5 + i * (viaje + parada), d, llega: 0 };
+      tr.llega = tr.at + viaje;
+      prev += d;
+      return tr;
+    });
+
+    /* Un `clic` al atracar en cada ciudad. Es el mismo criterio que en
+       `pasos-flow`: la señal marca la LLEGADA, no la salida, y su instante
+       sale del mismo itinerario que mueve el globo. */
+    const cues = tramos.slice(0, 6).map(tr => ({
+      at: +tr.llega.toFixed(3), sfx: 'clic', gain: 0.45
+    }));
+    return { cues: cfg.sinSonido ? [] : cues };
+  },
+
+  anclas(cfg) {
+    return { globo: { x: cfg.cx, y: cfg.cy,
+                      w: Math.round(cfg.r * 2), h: Math.round(cfg.r * 2) } };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 8;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+    const ent = Engine.entra(t, cfg.entrada);
+    const alfa = ent * cierre;
+
+    const R = cfg.r * (0.9 + 0.1 * ent);
+    const cx = cfg.cx, cy = cfg.cy, rotY = cfg.rotY;
+
+    /* La rotación: o el itinerario, o el giro de siempre. `inOutCubic` porque
+       una masa que gira arranca y frena; con `outCubic` el globo salía
+       disparado en el primer fotograma de cada tramo. */
+    let rotX;
+    if (cfg.visita !== false && tramos.length) {
+      rotX = rot0;
+      tramos.forEach(tr => {
+        rotX += tr.d * span(t, tr.at, ritmo.viaje, Ease.inOutCubic);
+      });
+      /* Y NO SE PARA EN SECO. Al atracar en la última ciudad el globo se
+         quedaba clavado el resto de la capa: medido, el 20 % del plano con la
+         ficha real. Un planeta no deja de girar porque hayas terminado de
+         mirarlo. Sigue a la décima parte de la velocidad de crucero, que es
+         deriva y no giro: la última ciudad no se va de cuadro. */
+      const ult = tramos[tramos.length - 1];
+      const tras = Math.max(0, t - (ult.llega + ritmo.parada));
+      rotX += tras * cfg.velocidad * 0.1;
+    } else {
+      rotX = t * cfg.velocidad;
+    }
+
+    const tinta = color('--ink-soft');
+    const acento = color('--accent');
+    const metal = color('--metal-3');
+
+    ctx.clearRect(0, 0, cv.width, cv.height);
+
+    const pantalla = v => ({ x: cx + R * v.x, y: cy - R * v.y, z: v.z });
+
+    /* El sol va fijo en el ESPACIO mientras la Tierra gira, así que su
+       longitud en coordenadas terrestres es `lon0 − rotX` y al proyectarla se
+       cancela con el `+ rotX` de la vista. O sea: el terminador no se mueve y
+       las ciudades pasan por debajo. Es lo correcto físicamente y además lo
+       barato — se calcula una vez por fotograma. */
+    const S = cfg.sol || { lat: 16, lon: 68 };
+    const sol = aVista(S.lat, S.lon, 0, rotY);
+    const dia = v => v.x * sol.x + v.y * sol.y + v.z * sol.z;
+
+    /* ---------- disco ---------- */
+    ctx.globalAlpha = alfa * 0.13;
+    ctx.fillStyle = cfg.relleno || acento;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+
+    /* ---------- terminador ----------
+       El conjunto de puntos con `p·sol = 0` es un círculo máximo, y su parte
+       visible es UN arco —dos círculos máximos se cortan en dos puntos—. Se
+       muestrea, se queda el tramo visible, y se cierra por el limbo eligiendo
+       el lado de NOCHE: un punto del limbo a ángulo φ es `(cos φ, sen φ, 0)`
+       en coordenadas de vista, así que basta mirar el signo de su producto
+       con el sol. Nada de aproximar con un degradado lineal: sobre una
+       ortográfica el terminador es una elipse, y un degradado solo coincide
+       con ella cuando el sol cae justo en el plano de proyección. */
+    if (cfg.noche > 0) {
+      /* Dos vectores perpendiculares al sol: el marco del círculo máximo. */
+      const aux = Math.abs(sol.y) < 0.9 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 };
+      let u = { x: sol.y * aux.z - sol.z * aux.y,
+                y: sol.z * aux.x - sol.x * aux.z,
+                z: sol.x * aux.y - sol.y * aux.x };
+      const nu = Math.hypot(u.x, u.y, u.z) || 1;
+      u = { x: u.x / nu, y: u.y / nu, z: u.z / nu };
+      const v = { x: sol.y * u.z - sol.z * u.y,
+                  y: sol.z * u.x - sol.x * u.z,
+                  z: sol.x * u.y - sol.y * u.x };
+
+      const N = 240, vis = [];
+      for (let i = 0; i <= N; i++) {
+        const th = i / N * Math.PI * 2;
+        const c = Math.cos(th), s = Math.sin(th);
+        const p = { x: u.x * c + v.x * s, y: u.y * c + v.y * s, z: u.z * c + v.z * s };
+        vis.push(p.z >= 0 ? p : null);
+      }
+      /* El tramo visible puede empezar a mitad del muestreo: se busca el
+         primer nulo y se recorre desde ahí, así el arco sale entero. */
+      let ini = vis.findIndex(p => !p);
+      const arco = [];
+      if (ini >= 0) {
+        for (let k = 1; k <= N; k++) {
+          const p = vis[(ini + k) % (N + 1)];
+          if (p) arco.push(p); else if (arco.length) break;
+        }
+      }
+      if (arco.length > 1) {
+        const A = arco[0], B = arco[arco.length - 1];
+        const fA = Math.atan2(A.y, A.x), fB = Math.atan2(B.y, B.x);
+        /* Los dos caminos posibles por el limbo; se toma aquel cuyo punto
+           medio está a oscuras. */
+        let d = fA - fB;
+        while (d <= -Math.PI) d += Math.PI * 2;
+        while (d > Math.PI) d -= Math.PI * 2;
+        const fm = fB + d / 2;
+        const anti = Math.cos(fm) * sol.x + Math.sin(fm) * sol.y < 0;
+        ctx.save();
+        ctx.beginPath();
+        arco.forEach((p, i) => {
+          const q = pantalla(p);
+          if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
+        });
+        /* El lienzo tiene la y invertida respecto a la vista: un ángulo φ de
+           vista es −φ en pantalla, así que recorrer el camino corto (+d en
+           vista) es −d en pantalla y hace falta el sentido ANTIHORARIO cuando
+           d > 0. Con el signo cambiado se sombreaba el camino largo, o sea la
+           cara del SOL: el globo salía iluminado por detrás. Se veía en el
+           fotograma —la noche caía justo del lado del sol— y en ningún log. */
+        ctx.arc(cx, cy, R, -fB, -fA, anti ? d > 0 : d < 0);
+        ctx.closePath();
+        ctx.globalAlpha = alfa * cfg.noche;
+        ctx.fillStyle = color('--bg');
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    /* limbo */
+    ctx.strokeStyle = acento;
+    ctx.globalAlpha = alfa * 0.5;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+
+    /* ---------- retícula jerárquica ----------
+       Antes todas las líneas iban a 0,5 de opacidad salvo el ecuador. Una
+       retícula sin jerarquía es una trama: no se puede leer una latitud
+       porque no hay de dónde contar. Ahora hay tres niveles —ecuador y
+       meridiano cero, luego cada 30°, luego el resto— y se cuenta desde
+       ellos, que es como está impreso cualquier globo. */
+    const nivel = g => (g === 0 ? 2 : (Math.abs(g) % 30 === 0 ? 1 : 0));
+    const GROSOR = [1, 1.4, 2];
+    const OPAC = [0.30, 0.52, 0.86];
+
+    const traza = (puntos3, gr, op) => {
+      ctx.lineWidth = gr;
+      ctx.strokeStyle = tinta;
+      let abierto = false;
+      ctx.beginPath();
+      for (const p of puntos3) {
+        if (p.z < 0) { abierto = false; continue; }
+        const q = pantalla(p);
+        if (!abierto) { ctx.moveTo(q.x, q.y); abierto = true; }
+        else ctx.lineTo(q.x, q.y);
+      }
+      ctx.globalAlpha = alfa * op;
+      ctx.stroke();
+    };
+
+    for (let lat = -75; lat <= 75; lat += cfg.paso) {
+      const n = nivel(lat), pl = [];
+      for (let lon = -180; lon <= 180; lon += 3) pl.push(aVista(lat, lon, rotX, rotY));
+      traza(pl, GROSOR[n], OPAC[n]);
+    }
+    for (let lon = -180; lon < 180; lon += cfg.paso) {
+      const n = nivel(((lon % 360) + 540) % 360 - 180);
+      const pl = [];
+      for (let lat = -90; lat <= 90; lat += 3) pl.push(aVista(lat, lon, rotX, rotY));
+      traza(pl, GROSOR[n], OPAC[n]);
+    }
+
+    /* ---------- rutas ----------
+       Cada arco se DIBUJA durante el viaje entre sus dos ciudades: el globo
+       gira de una a otra y la ruta se traza a la vez. Así el arco no es un
+       adorno, es lo que está pasando. */
+    if (cfg.arcos !== false && pts3.length > 1) {
+      for (let i = 0; i + 1 < pts3.length; i++) {
+        const tr = tramos[i + 1];
+        const p = tr ? span(t, tr.at, ritmo.viaje, Ease.inOutCubic) : 1;
+        if (p <= 0) continue;
+        const M = 90, hasta = Math.max(2, Math.round(M * p));
+        const ruta = [];
+        for (let k = 0; k <= hasta; k++) {
+          const w = aLatLon(slerp(pts3[i], pts3[i + 1], k / M));
+          ruta.push(aVista(w.lat, w.lon, rotX, rotY));
+        }
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = metal;
+        let abierto = false;
+        ctx.beginPath();
+        for (const q3 of ruta) {
+          if (q3.z < 0) { abierto = false; continue; }
+          const q = pantalla(q3);
+          if (!abierto) { ctx.moveTo(q.x, q.y); abierto = true; }
+          else ctx.lineTo(q.x, q.y);
+        }
+        ctx.globalAlpha = alfa * 0.9;
+        ctx.stroke();
+      }
+    }
+
+    /* ---------- puntos y etiquetas ---------- */
+    etiquetas.forEach((e, i) => {
+      const v = aVista(e.p.lat, e.p.lon, rotX, rotY);
+      const tr = tramos[i];
+      const aparece = tr ? span(t, tr.llega - 0.25, 0.4, Ease.outCubic)
+                         : span(t, cfg.entrada, 0.4, Ease.outCubic);
+      if (v.z < 0) { e.el.style.opacity = 0; return; }
+      const q = pantalla(v);
+
+      /* En la cara nocturna el punto se apaga a la mitad: una ciudad a
+         oscuras se sigue viendo —son luces— pero no manda. */
+      const luz = dia(v) > 0 ? 1 : 0.45;
+      ctx.globalAlpha = alfa * aparece * (0.35 + 0.65 * v.z) * luz;
+      ctx.fillStyle = acento;
+      ctx.beginPath(); ctx.arc(q.x, q.y, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = alfa * aparece * 0.22 * v.z * luz;
+      ctx.beginPath(); ctx.arc(q.x, q.y, 16, 0, Math.PI * 2); ctx.fill();
+
+      /* La etiqueta deriva aunque el globo esté PARADO. La parada en cada
+         ciudad es el diseño —un globo que se detiene es un globo que está
+         enseñando algo— pero §10 sigue aplicando: durante la parada de 0,9 s
+         la capa era una imagen fija, y lo que no puede quedarse quieto es la
+         etiqueta, que además es lo que un cartógrafo mueve para que no tape.
+         Es lo único que deriva: el punto sigue clavado en su coordenada,
+         porque una ciudad no se mueve. */
+      const fe = Engine.flota(t, i + 5, { amp: 2.4, periodo: 5.2, semilla: 19 });
+      e.el.style.left = (q.x + fe.x) + 'px';
+      e.el.style.top = (q.y - 34 + fe.y) + 'px';
+      e.el.style.opacity = alfa * aparece * clamp(v.z * 2.2, 0, 1);
+    });
+
+    ctx.globalAlpha = 1;
+  }
+});
+</script>
+</body>
+</html>

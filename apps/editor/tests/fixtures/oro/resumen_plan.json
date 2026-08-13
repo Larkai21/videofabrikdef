@@ -1,0 +1,56 @@
+{
+ "_por_que": "RESUMEN y no el plan entero: `dirigir.plantillas_disponibles()` lee el directorio, así que añadir una plantilla cambia el reparto y un golden completo se pondría rojo cada tanda. Esto sobrevive a lo cosmético y sigue cazando que el director deje de emitir micro-FX o que un acto se quede vacío.",
+ "capas": 8,
+ "cronologia": [
+  [
+   0.0,
+   "highlighter-text.html"
+  ],
+  [
+   14.9,
+   "definition-card.html"
+  ],
+  [
+   31.3,
+   "notification-pop.html"
+  ],
+  [
+   46.8,
+   "cierre-cta.html"
+  ]
+ ],
+ "cronologia_microfx": [
+  [
+   21.7,
+   "head-explode.html"
+  ],
+  [
+   35.5,
+   "green-spike.html"
+  ],
+  [
+   44.6,
+   "timer-ring.html"
+  ]
+ ],
+ "microfx": 3,
+ "reparto": {
+  "cierre-cta.html": 1,
+  "definition-card.html": 1,
+  "green-spike.html": 1,
+  "head-explode.html": 1,
+  "highlighter-text.html": 1,
+  "kinetic-captions.html": 1,
+  "notification-pop.html": 1,
+  "timer-ring.html": 1
+ },
+ "separacion_minima_microfx": 9.1,
+ "separacion_minima_tarjetas": 12.0,
+ "tarjetas_de_acto": 4,
+ "zooms": [
+  1.0,
+  1.12,
+  1.15,
+  1.2
+ ]
+}

@@ -1,0 +1,60 @@
+{
+ "source": "tests/fixtures/clip3s.mp4",
+ "engine": "vision",
+ "verificado": true,
+ "duration": 3.0,
+ "muestras": 3,
+ "con_rostro": 3,
+ "tasa_deteccion": 1.0,
+ "banda_libre": {
+  "arriba": 0.301,
+  "abajo": 0.268,
+  "y0": 0.301,
+  "y1": 0.732,
+  "espacio_ui": "amplio",
+  "lado": "arriba"
+ },
+ "samples": [
+  {
+   "t": 0.0,
+   "bbox": [
+    0.2279,
+    0.3202,
+    0.9608,
+    0.7322
+   ],
+   "heredado": false,
+   "safe": "bottom"
+  },
+  {
+   "t": 1.0,
+   "bbox": [
+    0.1808,
+    0.3046,
+    0.9506,
+    0.7373
+   ],
+   "heredado": false,
+   "safe": "bottom"
+  },
+  {
+   "t": 2.0,
+   "bbox": [
+    0.0911,
+    0.3008,
+    0.837,
+    0.72
+   ],
+   "heredado": false,
+   "safe": "bottom"
+  }
+ ],
+ "zones": [
+  {
+   "t0": 0.0,
+   "t1": 3.0,
+   "safe": "bottom",
+   "y_ui": 0.72
+  }
+ ]
+}

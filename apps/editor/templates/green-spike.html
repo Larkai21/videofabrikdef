@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Pico de crecimiento</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  #linea { fill: none; stroke: var(--verde, var(--senal-ok)); stroke-width: 12;
+           stroke-linecap: round; stroke-linejoin: round;
+           filter: drop-shadow(0 0 18px rgba(61,214,140,0.55)); }
+  #punta { fill: var(--verde, var(--senal-ok));
+           filter: drop-shadow(0 0 20px rgba(61,214,140,0.7)); }
+  .etq { position: absolute; left: 0; right: 0; margin-inline: auto;
+         width: fit-content; font-family: var(--display); font-weight: 800;
+         color: var(--verde, var(--senal-ok)); letter-spacing: -0.02em;
+         text-shadow: 0 3px 0 rgba(0,0,0,0.5); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <svg id="svg" viewBox="0 0 1080 1920" preserveAspectRatio="none">
+    <path id="linea"></path>
+    <circle id="punta" r="16"></circle>
+  </svg>
+  <div class="etq" id="etq"></div></div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp, noise } = Engine;
+
+const linea = document.getElementById('linea');
+const punta = document.getElementById('punta');
+const etq = document.getElementById('etq');
+let pts = [], largo = 1;
+
+Engine.register({
+  duration: 1.2,
+  defaults: { texto: '', y: 1000, ancho: 640, alto: 300, tam: 96 },
+
+  setup(cfg) {
+    etq.textContent = cfg.texto || '';
+    etq.style.fontSize = cfg.tam + 'px';
+    etq.style.top = (cfg.y - cfg.alto - cfg.tam * 1.15) + 'px';
+
+    /* Perfil deliberado: casi plano al principio y disparado al final.
+       Una recta diagonal dice «sube»; esto dice «se dispara», que es la
+       palabra que lo activa. */
+    const x0 = (1080 - cfg.ancho) / 2, y0 = cfg.y;
+    const perfil = [[0,0],[0.22,0.06],[0.40,0.02],[0.58,0.22],
+                    [0.74,0.30],[0.88,0.62],[1,1]];
+    pts = perfil.map(([a,b]) => [x0 + a*cfg.ancho, y0 - b*cfg.alto]);
+    linea.setAttribute('d', pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' '));
+    largo = linea.getTotalLength() || 1;
+    linea.style.strokeDasharray = largo;
+  },
+
+  draw(t, cfg) {
+    const d = span(t, 0.05, 0.55, Ease.outCubic);
+    linea.style.strokeDashoffset = largo * (1 - d);
+    const p = linea.getPointAtLength(largo * d);
+    punta.setAttribute('cx', p.x); punta.setAttribute('cy', p.y);
+    punta.style.opacity = d > 0.02 ? 1 : 0;
+
+    /* La etiqueta VIBRA hacia arriba en vez de aparecer: el temblor es lo
+       que se lee como energía. Amplitud decreciente para que no se quede
+       oscilando como un error. */
+    const e = span(t, 0.45, 0.3, Ease.outBack || Ease.outCubic);
+    const vib = Math.exp(-7*Math.max(0,t-0.45)) * Math.sin(38*t) * 9;
+    etq.style.opacity = e;
+    etq.style.transform = `translateY(${(1-e)*30 + vib}px)`;
+
+    const fin = 1 - span(t, (cfg.duration||1.2)-0.25, 0.25, Ease.inOutCubic);
+    linea.style.opacity = fin; punta.style.opacity *= fin; etq.style.opacity *= fin;
+  }
+});
+</script>
+</body>
+</html>

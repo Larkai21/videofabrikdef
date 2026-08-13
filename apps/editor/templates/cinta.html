@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Cinta en bucle</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; overflow: hidden; }
+
+  .banda {
+    position: absolute; left: -20%; width: 140%;
+    display: flex; align-items: center;
+    overflow: hidden;
+    will-change: transform, opacity;
+  }
+  /* La pista se duplica: mientras una copia sale por un lado, la
+     siguiente ya está entrando. Con una sola copia el bucle deja un hueco
+     del ancho de la pantalla cada vuelta. */
+  .pista { display: flex; align-items: center; flex: none;
+           will-change: transform; }
+  .grupo { display: flex; align-items: center; flex: none; }
+
+  .item {
+    font-family: var(--display);
+    font-weight: var(--w-negro);
+    letter-spacing: var(--tr-display);
+    white-space: nowrap;
+    color: var(--ink);
+  }
+  /* Alternancia de VOZ, no de tamaño ni de color. Una palabra de cada dos
+     entra en la didone en cursiva y caja baja: es el par display/editorial de
+     §1 —contraste y peso, nunca luz— y es lo que convierte una fila de
+     mayúsculas idénticas en un renglón con ritmo. Sin esto la cinta es la
+     misma palabra repetida con distintas letras.
+
+     Playfair Display estaba instalada y con CERO usos en las 56. */
+  .item.matiz {
+    font-family: var(--editorial);
+    font-weight: var(--w-libro);
+    font-style: italic;
+    text-transform: lowercase;
+    letter-spacing: var(--tr-cuerpo);
+  }
+
+  /* Era `✦`, un glifo de la fuente del sistema: no es de esta marca y en una
+     máquina sin esa fuente sale un cuadrito. Ahora es un filete de bronce
+     inclinado, que es como se separan los campos en una placa grabada. */
+  .sep { flex: none; align-self: center; width: 3px;
+         transform: skewX(-12deg);
+         background-image: linear-gradient(var(--metal-ang),
+           var(--metal-1), var(--metal-3) 50%, var(--metal-5)); }
+
+  /* El sombreado de CILINDRO es lo que hace que una banda deje de ser un
+     rectángulo y pase a ser un rodillo: oscura por los cantos, con una luz
+     larga por el centro. Con dos bandas girando en sentidos opuestos y un
+     filete de bronce entre ellas, el conjunto se lee como un mecanismo y no
+     como dos marquesinas que casualmente están juntas. */
+  .cil { position: absolute; inset: 0; pointer-events: none;
+         background-image: linear-gradient(180deg,
+           rgba(0,0,0,0.40) 0%, rgba(0,0,0,0.06) 24%,
+           rgba(255,255,255,0.07) 50%,
+           rgba(0,0,0,0.08) 76%, rgba(0,0,0,0.42) 100%); }
+  /* El canto donde las dos bandas se tocan. Es UN filete, no dos bordes. */
+  .canto { position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+           background-image: linear-gradient(90deg,
+             var(--metal-1), var(--metal-3) 30%, var(--metal-4) 62%,
+             var(--metal-5)); }
+
+  /* estilos de banda */
+  /* La placa de bronce: el metal es del sistema de material (§2), no un plano
+     de `--accent`, y lleva trama para que sea una superficie grabada y no un
+     relleno. Es el estilo por defecto de la banda principal. */
+  .banda.placa { background-image: linear-gradient(var(--metal-ang),
+                   var(--metal-1) 0%, var(--metal-4) 38%,
+                   var(--metal-3) 58%, var(--metal-5) 100%); }
+  .banda.placa .item { color: var(--bg); }
+  .banda.placa .item.matiz { color: var(--bg); }
+  /* Sobre la placa el filete separador va GRABADO, no en relieve: bronce sobre
+     bronce no se ve, y una línea oscura con un realce claro debajo es como se
+     lee una incisión en metal. */
+  .banda.placa .sep {
+    background-image: none;
+    background: var(--bg); opacity: 0.55;
+    box-shadow: 1px 0 0 rgba(255,255,255,0.30);
+  }
+
+  .banda.solida { background: var(--accent); }
+  .banda.solida .item { color: var(--bg); }
+
+  .banda.tinta { background: var(--ink); }
+  .banda.tinta .item { color: var(--bg); }
+
+  .banda.filete {
+    border-top: var(--hairline) solid var(--stroke);
+    border-bottom: var(--hairline) solid var(--stroke);
+  }
+
+  .banda.contorno .item {
+    color: transparent;
+    -webkit-text-stroke: 2px var(--ink);
+  }
+  .banda.contorno .item.matiz { -webkit-text-stroke-width: 1.4px; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage"></div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const stage = document.getElementById('stage');
+let bandas = [];
+
+/* Recorrido de la correa en el instante t, en píxeles.
+   ---------------------------------------------------------------------
+   Antes era `t * velocidad`: velocidad constante desde el fotograma cero. Una
+   correa con masa no arranca a plena velocidad, y el movimiento perfectamente
+   lineal es la firma de que lo mueve una hoja de cálculo — es el mismo defecto
+   que el rebote elástico, por el lado contrario.
+
+   La velocidad sube por un `smoothstep` —aceleración nula al empezar y al
+   llegar a régimen, o sea sin tirón— y el RECORRIDO es su integral, resuelta
+   en forma cerrada:
+
+       v(u) = V·(3u² − 2u³)        con u = t/T
+       x(t) = ∫v = V·T·(u³ − u⁴/2)
+
+   Se integra a mano y no acumulando por fotograma a propósito: `seek(t)` tiene
+   que seguir siendo función PURA de t. Un acumulador daría un fotograma
+   distinto según por dónde se haya entrado, y todo el renderizador depende de
+   que no sea así —se capturan instantes sueltos, y la galería y la hoja de
+   contactos saltan directamente a t=2—.
+
+   Comprobación: en u=1 da V·T/2, que es exactamente la velocidad media de una
+   rampa simétrica por el tiempo que dura. */
+function recorrido(t, V, T, tFren, F) {
+  let x;
+  if (T > 0 && t < T) {
+    const u = t / T;
+    x = V * T * (u * u * u - u * u * u * u / 2);
+    return x;
+  }
+  x = (T > 0 ? V * T / 2 : 0) + V * (Math.min(t, tFren) - (T > 0 ? T : 0));
+  if (F > 0 && t > tFren) {
+    /* La frenada es la misma rampa del revés: v(u) = V·(1 − (3u² − 2u³)),
+       cuya integral es V·F·(u − u³ + u⁴/2). */
+    const u = clamp((t - tFren) / F, 0, 1);
+    x += V * F * (u - u * u * u + u * u * u * u / 2);
+  }
+  return x;
+}
+
+Engine.register({
+  duration: 8,
+  defaults: {
+    /* Cada banda: { items, y, tam, velocidad (px/s), dir, estilo, angulo,
+                     canto (filete de bronce en el borde inferior) } */
+    bandas: [
+      { items: ['LOCAL', 'DETERMINISTA', 'SIN NUBE'], y: 812,
+        tam: 88, velocidad: 132, dir: -1, estilo: 'placa', canto: true },
+      { items: ['WHISPER', 'PLAYWRIGHT', 'FFMPEG'], y: 948,
+        tam: 88, velocidad: 84, dir: 1, estilo: 'filete' }
+    ],
+    /* Alterna la voz de una palabra de cada dos. `false` deja todo en
+       display, que es como estaba. */
+    alternar: true,
+    /* Arranque y frenada de la correa, en segundos. `frenada: 0` deja la
+       cinta a régimen hasta el final, que es lo que quiere una capa que
+       simplemente sigue ahí mientras se habla de otra cosa. */
+    arranque: 1.15,
+    frenada: 0,
+    entrada: 0.55,
+    salida: 0.45
+  },
+
+  setup(cfg) {
+    stage.innerHTML = '';
+    bandas = (cfg.bandas || []).map(b => {
+      const el = document.createElement('div');
+      el.className = 'banda ' + (b.estilo || 'filete');
+      el.style.top = b.y + 'px';
+      /* La cinta es CROMO, no protagonista. Bajarla de opacidad es lo que
+         evita que compita con la tarjeta central: a plena intensidad, un
+         texto en movimiento se lleva la mirada siempre. */
+      el.dataset.op = (b.opacidad !== undefined ? b.opacidad : 1);
+      el.style.height = Math.round((b.tam || 88) * 1.55) + 'px';
+      if (b.angulo) {
+        el.style.transform = `rotate(${b.angulo}deg)`;
+        el.style.transformOrigin = '50% 50%';
+      }
+
+      const pista = document.createElement('div');
+      pista.className = 'pista';
+      el.appendChild(pista);
+      stage.appendChild(el);
+
+      /* Un grupo = la lista completa una vez. Se mide ese grupo y se
+         repiten los que hagan falta para cubrir el ancho de la banda más
+         uno de margen; así el desplazamiento puede volver a cero sin que
+         se note. */
+      const hazGrupo = () => {
+        const g = document.createElement('div');
+        g.className = 'grupo';
+        (b.items || []).forEach((txt, j) => {
+          const i = document.createElement('span');
+          /* La alternancia se cuenta sobre la lista ENTERA y no dentro del
+             grupo, para que al repetirse la pista no salgan dos palabras
+             seguidas con la misma voz en la costura. Con un número impar de
+             elementos el patrón se desplaza en cada vuelta, que es lo que hace
+             que un bucle de tres palabras no se lea como un bucle. */
+          const matiz = cfg.alternar && (j % 2 === 1);
+          i.className = 'item' + (matiz ? ' matiz' : '');
+          /* La didone en cursiva tiene menos altura de x: al mismo cuerpo se
+             ve más pequeña, y la alternancia se leería como jerarquía en vez
+             de como voz. 1,14 las iguala ópticamente. */
+          i.style.fontSize = Math.round((b.tam || 88) * (matiz ? 1.14 : 1)) + 'px';
+          i.textContent = txt;
+          g.appendChild(i);
+          const s = document.createElement('i');
+          s.className = 'sep';
+          s.style.height = Math.round((b.tam || 88) * 0.58) + 'px';
+          s.style.marginInline = Math.round((b.tam || 88) * 0.34) + 'px';
+          g.appendChild(s);
+        });
+        return g;
+      };
+
+      const primero = hazGrupo();
+      pista.appendChild(primero);
+      const anchoGrupo = primero.getBoundingClientRect().width || 1;
+      /* +2: uno para cubrir el ancho visible y otro para que siempre haya
+         material entrando cuando el primero se está yendo. */
+      const copias = Math.ceil(el.getBoundingClientRect().width / anchoGrupo) + 2;
+      for (let k = 1; k < copias; k++) pista.appendChild(hazGrupo());
+
+      /* El cilindro y el canto van DESPUÉS de la pista para quedar encima, y
+         solo donde tienen sentido: sobre una banda transparente un sombreado
+         de rodillo sería un rectángulo oscuro sobre el vídeo. */
+      const opaca = ['placa', 'solida', 'tinta'].includes(b.estilo || '');
+      if ((b.estilo || '') === 'placa') {
+        Engine.grano(el, { px: 256, semilla: 4, op: 0.26 });
+      }
+      if (opaca) {
+        const c = document.createElement('div');
+        c.className = 'cil';
+        el.appendChild(c);
+      }
+      if (b.canto) {
+        const k = document.createElement('div');
+        k.className = 'canto';
+        el.appendChild(k);
+      }
+
+      return { el, pista, anchoGrupo, b };
+    });
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 8;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+    /* La frenada, si la hay, acaba justo cuando empieza la salida: una correa
+       que sigue a toda velocidad mientras la capa se desvanece deja la
+       sensación de que el plano se corta, no de que termina. */
+    const tFren = Math.max(0, fin - cfg.salida - (cfg.frenada || 0));
+
+    bandas.forEach(({ el, pista, anchoGrupo, b }, i) => {
+      const p = span(t, i * 0.1, cfg.entrada, Ease.outCubic);
+      el.style.opacity = p * cierre * Number(el.dataset.op || 1);
+
+      /* Función pura de t: mismo instante, mismo píxel. Nada de animaciones
+         CSS, que en captura fotograma a fotograma producen saltos. */
+      const bruto = recorrido(t, b.velocidad || 120, cfg.arranque || 0,
+                              tFren, cfg.frenada || 0);
+      const rec = ((bruto % anchoGrupo) + anchoGrupo) % anchoGrupo;
+      const dir = (b.dir || 1) < 0 ? -1 : 1;
+      const x = dir < 0 ? -rec : rec - anchoGrupo;
+      pista.style.transform = `translateX(${x.toFixed(2)}px)`;
+    });
+  }
+});
+</script>
+</body>
+</html>

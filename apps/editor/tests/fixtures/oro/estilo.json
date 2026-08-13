@@ -1,0 +1,21 @@
+{
+ "color_rico": 50,
+ "con_textura": 34,
+ "curva_cobertura_pct": 71.9,
+ "curva_dominante": "outCubic",
+ "curva_usos_total": 339,
+ "curvas_por_plantilla": 3.19,
+ "dominancia_pct": 35.7,
+ "ease_inexistente": 0,
+ "familias_por_plantilla": 1.79,
+ "gestos_distintos": 29,
+ "hex_ajenos": 17,
+ "hex_literal": 0,
+ "pesos_distintos": 2.7,
+ "plantillas": 57,
+ "props_animadas": 8.58,
+ "px_tipografico": 2,
+ "solo_opacidad_transform": 14,
+ "tokens_color": 7.12,
+ "tracking_libre": 10
+}

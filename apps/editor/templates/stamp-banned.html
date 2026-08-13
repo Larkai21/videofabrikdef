@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Sello de rechazo</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+  .sello {
+    position: absolute; left: 0; right: 0; margin-inline: auto;
+    width: fit-content;
+    padding: 0.16em 0.34em;
+    border: 0.09em solid var(--rojo, var(--senal-no));
+    border-radius: 0.12em;
+    color: var(--rojo, var(--senal-no));
+    font-family: var(--display); font-weight: 800;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    white-space: nowrap;
+    will-change: transform, opacity;
+  }
+  .polvo { position: absolute; pointer-events: none; }
+  .mota { position: absolute; border-radius: 50%;
+          background: var(--ink-soft); will-change: transform, opacity; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="sello" id="s"></div>
+  <div class="polvo" id="polvo"></div></div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp, noise } = Engine;
+
+const s = document.getElementById('s');
+const polvo = document.getElementById('polvo');
+let motas = [];
+
+Engine.register({
+  duration: 1.4,
+  defaults: { texto: 'OBSOLETO', y: 880, tam: 120, giro: -9, nPolvo: 14 },
+
+  setup(cfg) {
+    s.textContent = cfg.texto || '';
+    s.style.fontSize = cfg.tam + 'px';
+    s.style.top = cfg.y + 'px';
+
+    const r = s.getBoundingClientRect();
+    polvo.style.left = (r.left + r.width / 2) + 'px';
+    polvo.style.top = (r.top + r.height / 2) + 'px';
+    polvo.innerHTML = '';
+    motas = Array.from({ length: cfg.nPolvo }, () => {
+      const el = document.createElement('div');
+      el.className = 'mota';
+      polvo.appendChild(el);
+      return el;
+    });
+  },
+
+  draw(t, cfg) {
+    /* Cae de golpe y rebota. Un sello que baja suave parece una tarjeta
+       apareciendo; lo que lo hace un SELLO es que llega antes de que el
+       ojo lo siga y luego se asienta. */
+    const c = span(t, 0, 0.26, Ease.outCubic);
+    const k = 1.9 - 0.9 * c;
+    const rebote = t > 0.26
+      ? Math.exp(-9 * (t - 0.26)) * Math.sin(26 * (t - 0.26)) * 0.05 : 0;
+    const fin = 1 - span(t, (cfg.duration || 1.4) - 0.3, 0.3, Ease.inOutCubic);
+    s.style.opacity = Math.min(1, c * 2.4) * fin;
+    s.style.transform =
+      `rotate(${cfg.giro}deg) scale(${k + rebote}) translateY(${(1 - c) * -40}px)`;
+
+    /* El polvo solo tiene sentido DESPUÉS del golpe: salta al impactar. */
+    motas.forEach((el, i) => {
+      const q = clamp((t - 0.26) / 0.7, 0, 1);
+      if (t < 0.26 || q >= 1) { el.style.opacity = 0; return; }
+      const ang = Math.PI + (noise(i, 3) - 0.5) * Math.PI * 1.6;
+      const d = Ease.outCubic(q) * (90 + 120 * noise(i, 11));
+      const px = Math.cos(ang) * d;
+      const py = Math.sin(ang) * d + q * q * 70;   // le pesa la gravedad
+      const s2 = 4 + 7 * noise(i, 5);
+      el.style.width = s2 + 'px'; el.style.height = s2 + 'px';
+      el.style.opacity = (1 - q) * 0.5 * fin;
+      el.style.transform = `translate(${px}px, ${py}px)`;
+    });
+  }
+});
+</script>
+</body>
+</html>

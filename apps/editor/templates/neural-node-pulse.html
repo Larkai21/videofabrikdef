@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Impulso por la red — surco grabado</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* =====================================================================
+     QUÉ ES ESTE OBJETO
+
+     Antes era «nodos de una red parpadeando»: un anillo de siete círculos
+     con `drop-shadow(0 0 14px …)` y tres halos concéntricos expandiéndose.
+     Tres cosas mal, y las tres de manual:
+
+       · el halo concéntrico es un radar, y un radar en bucle es un
+         salvapantallas: se puede mirar en cualquier fotograma y da igual
+         cuál, que es la definición de que no pasa nada;
+       · el `drop-shadow` de 14 px sobre el acento es un halo de neón, o
+         sea EXACTAMENTE lo que §1 prohíbe («si un elemento necesita
+         destacar, lo hace con contraste y peso, nunca con luz») — y además
+         con un `rgba()` escrito a pelo, sin token;
+       · los nodos iban en anillo alrededor de un centro y todos colgaban
+         del centro con una arista, así que todas las distancias eran casi
+         iguales: encendían casi en fase. El comentario decía «se leen
+         escalonados desde el centro» y el escalonado era un `i*0.045`
+         cosido a mano, no la topología. Con las siete distancias iguales,
+         el orden lo daba el índice del bucle. Eso no es propagación: es
+         una lista.
+
+     Ahora es una LÁMINA con un circuito GRABADO. Nada se enciende. Pasan
+     dos cosas materiales sobre una superficie:
+
+       1. una punta RAYA la lámina y abre el surco, desde el borne de
+          entrada hacia fuera;
+       2. por el surco abierto corre una GOTA de bronce fundido que lo
+          rellena y va cerrando cada borne al llegar.
+
+     El orden lo pone la GEOMETRÍA, no un índice: los tiempos de llegada
+     salen de un Dijkstra sobre el grafo, así que un borne al final de la
+     rama larga cierra tarde porque está lejos, y si se mueve un punto los
+     tiempos se mueven solos. En la disposición por defecto la distancia
+     máxima por el cobre son 535 px sobre una lámina de 513 px de ancho:
+     el impulso no va en línea recta, DA LA VUELTA. Eso es lo que no puede
+     fingir un escalonado por índice.
+
+     Y la única luz que hay es RASANTE: una banda cruza la lámina y los
+     cantos que pilla de refilón devuelven el brillo. Es la misma banda
+     para todo —un `<linearGradient>` en `userSpaceOnUse` compartido por
+     todos los trazos— o sea UNA lámina bajo UNA luz, no doce piezas cada
+     una con su reflejo, que es lo que delata el collage.
+
+     ---------------------------------------------------------------------
+     COSTE. Es un micro-FX: se renderiza a 30 fps sobre piezas enteras.
+     9 aristas x 4 capas + 7 bornes x 4 capas = 64 nodos SVG, creados UNA
+     vez en `setup`. Por fotograma se escriben ~60 atributos y no se crea
+     nada. Cero `feTurbulence`, cero filtros, cero `getTotalLength()` —las
+     aristas son rectas y su longitud es un `hypot`, exacto y gratis—.
+     ===================================================================== */
+  .stage { position: absolute; inset: 0; }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%;
+        overflow: visible; }
+
+  /* El SURCO: el canal abierto, todavía vacío. Va en `--velo-oscuro`, que
+     es oscuro en LOS DOS temas a propósito (§12: `--ink` se invierte y en
+     carbon es casi blanco; un canal en sombra no puede volverse claro
+     porque cambie el tema). Sobre metraje arbitrario esto es lo único que
+     garantiza que el surco se lea: una raya oscura con un labio claro al
+     lado es legible sobre cualquier cosa, y un trazo de acento a secas
+     desaparece en cuanto el fondo es del mismo tono. */
+  .surco { fill: none; stroke: var(--velo-oscuro); stroke-opacity: 0.62;
+           stroke-linecap: round; }
+
+  /* El LABIO: el canto que la punta levanta al rayar, desplazado hacia
+     arriba-izquierda. Es lo que convierte una raya en un SURCO: sin él la
+     lámina es un dibujo de líneas. `--glass-highlight` es el token del
+     «canto duro superior» y es blanco en los dos temas, que es lo correcto
+     — un canto no se tiñe, refleja. */
+  .labio { fill: none; stroke: var(--glass-highlight);
+           stroke-linecap: round; }
+
+  /* La CARGA: el bronce que ya ha corrido por el surco. Comparte la lámina
+     de luz con los bornes (`url(#metal)`), así que a su paso por la banda
+     se aclara y fuera de ella queda en bronce oscuro. En `paper` los cinco
+     stops del metal se colapsan al acento por diseño del tema —«en claro un
+     degradado de bronce sobre papel se ve sucio»—, así que allí la carga es
+     color plano y quien diferencia es el grosor. */
+  .carga { fill: none; stroke: url(#metal); stroke-linecap: round; }
+
+  /* La GOTA: el frente. No es un punto que viaja por encima de una línea,
+     es el ENGROSAMIENTO del propio surco donde el metal todavía está
+     líquido — por eso es el mismo trazo, 1,6 veces más ancho, y por eso se
+     apaga sola en cuanto los dos frentes de un bucle se encuentran.
+     Va en `--metal-3` plano (la parada más clara) y no en el degradado:
+     tiene que leerse esté donde esté la banda de luz, incluida `paper`,
+     donde el degradado no diferencia nada. */
+  .gota { fill: none; stroke: var(--metal-3); stroke-linecap: round; }
+
+  /* El BORNE. La cara lleva trama de mecanizado —no color plano: 48 de 56
+     plantillas del catálogo no tienen ninguna textura y esa es media firma
+     de «demo de CSS»—. La trama es un `<pattern>` de dos elementos, no un
+     filtro. */
+  .cara   { fill: url(#malla); stroke: var(--ink-faint); }
+  .viva   { fill: none; stroke: url(#metal); }   /* el canto ya cerrado */
+  .asiento{ fill: var(--velo-oscuro); fill-opacity: 0.45; stroke: none; }
+  .nlabio { fill: none; stroke: var(--glass-highlight);
+            stroke-linejoin: round; stroke-linecap: round; }
+
+  /* La trama tiene que declararse en CSS y no como atributo de
+     presentación: `fill="var(--surface)"` dentro de `<defs>` no resuelve
+     de forma fiable, y una custom property SÍ se hereda hasta el contenido
+     del `<pattern>`. El ángulo es el mismo `rotate(25)` que usa
+     `Engine.gradienteMetal` cuando no le dan caja, para que el mecanizado
+     y el cepillado del metal vayan en la misma dirección. */
+  #malla rect { fill: var(--surface); }
+  #malla path { stroke: var(--stroke); stroke-width: 1.7; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <svg id="svg" viewBox="0 0 1080 1920">
+    <defs>
+      <pattern id="malla" width="7" height="7" patternUnits="userSpaceOnUse"
+               patternTransform="rotate(25)">
+        <rect width="7" height="7"></rect>
+        <path d="M0 0 V7"></path>
+      </pattern>
+    </defs>
+    <g id="g"></g>
+  </svg>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp, noise, sale } = Engine;
+
+const NS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('svg');
+const g = document.getElementById('g');
+
+/* Orden de celdas ESCRITO A MANO sobre una retícula de 4x3. No es una
+   lista arbitraria: está ordenada para que cualquier `n` entre 3 y 12 dé
+   una nube repartida y para que la primera celda sea la de la izquierda —
+   el borne de entrada—. Con un reparto por `noise` puro salían layouts en
+   los que tres bornes caían pegados y el grafo se leía como una mancha;
+   con la retícula el reparto está garantizado y el `noise` solo desordena
+   dentro de la celda, que es donde no puede hacer daño. */
+const CELDAS = [[0,1],[1,0],[2,2],[3,1],[1,2],[3,0],[2,1],
+                [0,0],[3,2],[1,1],[0,2],[2,0]];
+
+let bornes = [], aristas = [], maxD = 1, k = 1, ent0 = 0;
+let caja = [0, 0, 1, 1];
+
+/* Contorno del borne, centrado en el origen y en sentido horario EMPEZANDO
+   POR ARRIBA-IZQUIERDA. El orden importa: el labio son los vértices
+   [n-2, n-1, 0, 1], o sea el canto izquierdo más el chaflán superior, que
+   es por donde entra la luz (`--metal-ang` es 115deg: viene de arriba-
+   izquierda, y por eso la sombra cae abajo-derecha). Con la misma
+   convención para las dos formas, el labio se saca igual sin casos. */
+function contorno(tipo, kk) {
+  if (tipo === 'octo') {
+    /* Octógono para el borne de entrada: es una tuerca, no un nodo. Que la
+       forma diga cuál es la entrada ahorra tener que señalarla con luz. */
+    const R = 25 * kk, p = [];
+    for (let j = 0; j < 8; j++) {
+      const a = (-112.5 + j * 45) * Math.PI / 180;
+      p.push([Math.cos(a) * R, Math.sin(a) * R]);
+    }
+    return p;
+  }
+  /* Placa con los cantos matados en el torno. Un cuadrado a secas es un
+     píxel; el chaflán es lo que hace que se lea como una pieza. */
+  const h = 19 * kk, c = 6.5 * kk;
+  return [[-h + c, -h], [h - c, -h], [h, -h + c], [h, h - c],
+          [h - c, h], [-h + c, h], [-h, h - c], [-h, -h + c]];
+}
+
+function poli(clase, pts, cx, cy) {
+  const el = document.createElementNS(NS, 'polygon');
+  el.setAttribute('class', clase);
+  el.setAttribute('points', pts.map(p => (p[0] + cx) + ',' + (p[1] + cy)).join(' '));
+  return el;
+}
+
+/* Pinta en `el` una lista de tramos [ini, fin] de una recta de longitud L
+   con UN solo `stroke-dasharray`. Los tramos vienen ordenados y sin
+   solapar.
+
+   El hueco inicial va en `stroke-dashoffset` y NO como un primer guion de
+   longitud cero, que es la trampa: con `stroke-linecap: round` un guion de
+   longitud 0 dibuja un PUNTO del diámetro del trazo. O sea que la versión
+   obvia deja una bolita de bronce clavada en el origen de cada arista
+   durante todo el efecto, y no da ningún error: solo se ve mirando el
+   fotograma. */
+function tramos(el, tr, L) {
+  if (!tr.length) { el.style.opacity = 0; return; }
+  el.style.opacity = 1;
+  const d = [];
+  for (let i = 0; i < tr.length; i++) {
+    d.push(tr[i][1] - tr[i][0]);
+    if (i + 1 < tr.length) d.push(tr[i + 1][0] - tr[i][1]);
+  }
+  d.push(L + 20);
+  el.style.strokeDasharray = d.join(' ');
+  el.style.strokeDashoffset = -tr[0][0];
+}
+
+Engine.register({
+  duration: 1.4,
+
+  /* `halos` ya no se usa: los anillos concéntricos eran el radar que este
+     rediseño quita. Se conserva en `defaults` a propósito —§11 del manual:
+     el contrato solo puede CRECER— para que un plan antiguo que lo pase
+     siga funcionando en vez de reventar por una clave desconocida.
+     `entrada`, `viaje` y `salida` están en `reloj.SEMANTICA` como
+     duraciones, así que `silencios.py` las remapea. */
+  defaults: { x: 540, y: 820, r: 190, n: 7, halos: 3,
+              entrada: 0.16, viaje: 0.34, salida: 0.30 },
+
+  setup(cfg) {
+    g.innerHTML = '';
+    bornes = []; aristas = [];
+
+    k = cfg.r / 190;
+    /* Lámina ANCHA Y BAJA (2,70 r x 1,45 r = 513x276 con la r por defecto)
+       en vez del anillo de 380x380 de antes. No es estética: este gráfico
+       se compone sobre una cara y §6 pide dejarle sitio. Una nube ancha y
+       baja se sale del óvalo del rostro por los lados; un anillo del mismo
+       área lo tapa por arriba y por abajo. */
+    const W = cfg.r * 2.70, H = cfg.r * 1.45;
+    const x0 = cfg.x - W / 2, y0 = cfg.y - H / 2;
+    caja = [x0, y0, W, H];
+
+    const n = clamp(Math.round(cfg.n) || 7, 3, 12);
+    const cw = W / 4, ch = H / 3;
+    const P = [];
+    for (let i = 0; i < n; i++) {
+      const cel = CELDAS[i % CELDAS.length];
+      P.push([x0 + (cel[0] + 0.5) * cw + (noise(i, 41) - 0.5) * cw * 0.52,
+              y0 + (cel[1] + 0.5) * ch + (noise(i, 97) - 0.5) * ch * 0.52]);
+    }
+
+    /* --- el grafo ---
+       Árbol de recubrimiento mínimo (Prim) más las cuerdas más cortas. Las
+       dos partes hacen falta y hacen cosas distintas:
+
+         · el árbol garantiza que TODO borne está conectado y que hay
+           PROFUNDIDAD — con la estrella de antes todos los caminos median
+           un salto y por eso encendían en fase;
+         · las cuerdas cierran bucles, y un bucle es lo que convierte un
+           árbol (una raíz) en una RED. Además producen el mejor momento
+           del efecto: por un bucle el bronce entra por los dos extremos y
+           los dos frentes se encuentran en medio. Con la disposición por
+           defecto los dos caminos hasta el borne F miden 535,4 px los dos
+           —empatan— así que se encuentran clavados en el borne. */
+    const dd = (a, b) => Math.hypot(P[a][0] - P[b][0], P[a][1] - P[b][1]);
+    const dentro = [0], fuera = [];
+    for (let i = 1; i < n; i++) fuera.push(i);
+    const pares = [];
+    while (fuera.length) {
+      let mejor = Infinity, ba = -1, bf = -1;
+      for (const a of dentro) for (const f of fuera) {
+        const d = dd(a, f);
+        if (d < mejor) { mejor = d; ba = a; bf = f; }
+      }
+      pares.push([ba, bf]);
+      dentro.push(bf); fuera.splice(fuera.indexOf(bf), 1);
+    }
+    const yaEsta = (a, b) => pares.some(p =>
+      (p[0] === a && p[1] === b) || (p[0] === b && p[1] === a));
+    const cuerdas = [];
+    for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
+      if (!yaEsta(a, b)) cuerdas.push([a, b, dd(a, b)]);
+    }
+    cuerdas.sort((u, v) => u[2] - v[2]);
+    const nCuerdas = Math.max(1, Math.round((n - 1) / 2));
+    for (let i = 0; i < Math.min(nCuerdas, cuerdas.length); i++) {
+      pares.push([cuerdas[i][0], cuerdas[i][1]]);
+    }
+
+    /* Entrada: el borne más a la izquierda. La luz de la lámina también
+       barre de izquierda a derecha, así que el impulso y la luz entran por
+       el mismo lado y no se contradicen. */
+    ent0 = 0;
+    for (let i = 1; i < n; i++) if (P[i][0] < P[ent0][0]) ent0 = i;
+
+    /* --- Dijkstra: cuándo le toca a cada borne ---
+       Esto es el rediseño entero en cinco líneas. El tiempo de llegada de
+       un borne es su distancia POR EL COBRE al borne de entrada, no su
+       índice ni su distancia en línea recta. */
+    const ady = P.map(() => []);
+    pares.forEach(([a, b]) => { ady[a].push([b, dd(a, b)]); ady[b].push([a, dd(a, b)]); });
+    const dist = P.map(() => Infinity);
+    dist[ent0] = 0;
+    const visto = P.map(() => false);
+    for (let paso = 0; paso < n; paso++) {
+      let u = -1;
+      for (let i = 0; i < n; i++) if (!visto[i] && (u < 0 || dist[i] < dist[u])) u = i;
+      if (u < 0 || dist[u] === Infinity) break;
+      visto[u] = true;
+      for (const [v, w] of ady[u]) if (dist[u] + w < dist[v]) dist[v] = dist[u] + w;
+    }
+    maxD = Math.max(1, ...dist.filter(d => d < Infinity));
+
+    /* --- DOM, en capas y de una sola vez ---
+       El orden de pintado es el orden físico del material: primero el
+       canal, luego su canto, luego el metal que lo llena, luego el frente
+       líquido y por último las piezas atornilladas encima. */
+    const capa = c => { const e = document.createElementNS(NS, 'g');
+                        e.setAttribute('class', c); g.appendChild(e); return e; };
+    const gSurco = capa('c-surco');
+    const gLabio = capa('c-labio');
+    gLabio.setAttribute('transform',
+      'translate(' + (-1.3 * k).toFixed(2) + ',' + (-1.8 * k).toFixed(2) + ')');
+    const gCarga = capa('c-carga');
+    const gGota  = capa('c-gota');
+    const gBorne = capa('c-borne');
+
+    pares.forEach(([a, b]) => {
+      const L = dd(a, b);
+      const d = 'M' + P[a][0].toFixed(1) + ' ' + P[a][1].toFixed(1) +
+                'L' + P[b][0].toFixed(1) + ' ' + P[b][1].toFixed(1);
+      const mk = (padre, clase, ancho) => {
+        const p = document.createElementNS(NS, 'path');
+        p.setAttribute('class', clase); p.setAttribute('d', d);
+        p.setAttribute('stroke-width', ancho.toFixed(2));
+        padre.appendChild(p); return p;
+      };
+      aristas.push({
+        a, b, L,
+        mx: (P[a][0] + P[b][0]) / 2,
+        surco: mk(gSurco, 'surco', 8.0 * k),
+        labio: mk(gLabio, 'labio', 2.2 * k),
+        carga: mk(gCarga, 'carga', 4.6 * k),
+        gota:  mk(gGota,  'gota',  7.2 * k)
+      });
+    });
+
+    P.forEach((p, i) => {
+      const pts = contorno(i === ent0 ? 'octo' : 'placa', k);
+      const nodo = document.createElementNS(NS, 'g');
+      const asiento = poli('asiento', pts, p[0], p[1]);
+      const cara = poli('cara', pts, p[0], p[1]);
+      cara.setAttribute('stroke-width', (2.2 * k).toFixed(2));
+      const viva = poli('viva', pts, p[0], p[1]);
+      viva.setAttribute('stroke-width', (2.6 * k).toFixed(2));
+      const lab = document.createElementNS(NS, 'polyline');
+      lab.setAttribute('class', 'nlabio');
+      lab.setAttribute('stroke-width', (1.8 * k).toFixed(2));
+      const q = pts.length;
+      lab.setAttribute('points', [q - 2, q - 1, 0, 1]
+        .map(j => (pts[j][0] + p[0]) + ',' + (pts[j][1] + p[1])).join(' '));
+      nodo.appendChild(asiento); nodo.appendChild(cara);
+      nodo.appendChild(viva); nodo.appendChild(lab);
+      gBorne.appendChild(nodo);
+      bornes.push({ x: p[0], y: p[1], d: dist[i], asiento, cara, viva, lab });
+    });
+
+    /* Sin `cues` a propósito, y no por olvido. `dirigir.py` ya le asigna a
+       esta capa un `escaner` con ganancia 0,7 (`SFX_MICRO`), y
+       `render_playwright.js` SUMA las señales de la plantilla a las del
+       plan: publicar aquí el golpe del contacto pondría dos sonidos en
+       el mismo cuarto de segundo. Una señal por evento, y el evento ya
+       tiene la suya. */
+  },
+
+  draw(t, cfg) {
+    const dur = cfg.duration || 1.4;
+    /* Los tres tiempos se COMPRIMEN si la capa es corta en vez de
+       recortarse. Un micro-FX se pide entre 0,3 y 1,2 s y `dirigir.py` lo
+       pide a 1,4: con los valores fijos, una capa de 0,5 s tendría la
+       salida empezando antes de que llegara la carga y el gráfico se
+       apagaría a media propagación sin decir nada. */
+    const sal = Math.min(cfg.salida, dur * 0.35);
+    const ent = Math.min(cfg.entrada, dur * 0.22);
+    const via = Math.min(cfg.viaje, Math.max(0.08, dur - sal - ent * 0.55 - 0.04));
+    const t0 = ent * 0.55;                     /* la gota sale con el surco medio abierto */
+
+    /* --- los dos frentes, en PÍXELES de recorrido por el cobre ---
+       `outExpo` para el rayado: una punta que ataca la lámina no recorre,
+       GOLPEA — cubre el 87 % en el primer tercio y luego alcanza los
+       rincones. Es además una curva que el catálogo casi no usa (el 91 %
+       es `outCubic`).
+       `linear` para la carga, y esto no es una preferencia: un frente en un
+       conductor va a velocidad constante. Con `outCubic` la carga frenaría
+       al final, que es justo donde están los bornes lejanos, y el efecto
+       se leería como «se acaba» en vez de como «llega». */
+    /* El 1,14 de sobrerrecorrido NO es un margen de seguridad: sin él el
+       borne MÁS LEJANO no aparece nunca. Su `nv` se mide como
+       `(corte - d) / (maxD·0,10)`, y para ese borne `d` vale exactamente
+       `maxD`, así que con el frente parando en `maxD` el cociente se queda
+       clavado en 0. Y no daba ningún error: la punta abría igual su surco
+       —el surco se recorta con `clamp(…, 0, L)`— así que en el fotograma
+       salía una arista que terminaba EN EL AIRE, sin pieza al final. Se vio
+       mirando el PNG; el humo lo daba verde. */
+    const corte = maxD * 1.14 * span(t, 0, ent, Ease.outExpo);
+    const frente = maxD * span(t, t0, via, Ease.linear);
+
+    /* --- la banda de luz rasante ---
+       Entra con la carga y se queda derivando: NO vuelve, no hay ciclo.
+       Un barrido que se repite es un bucle y un bucle es el salvapantallas
+       que este rediseño quita. */
+    const uRap = span(t, t0, via, Ease.linear);
+    const uLen = span(t, t0 + via, Math.max(0.05, dur - t0 - via), Ease.linear);
+    const [x0, y0, W, H] = caja;
+    /* El reparto 0,55 / 0,45 está MEDIDO, no elegido. Con el primero en
+       0,74 la banda salía de la lámina a los 0,43 s —justo al cerrar el
+       último borne— y los 0,67 s de permanencia se quedaban con la placa
+       iluminada por igual: seis fotogramas seguidos idénticos, que es la
+       captura pegada encima del vídeo que §10 describe. Con 0,55 la banda
+       está en `x0 + 0,575 W` cuando acaba la carga y tarda hasta el
+       segundo 1,04 en salir por la derecha, o sea que cruza durante la
+       permanencia entera. `Engine.flota` NO sirve para esto: no hay reposo
+       del que derivar en medio segundo, y una lámina atornillada no
+       cabecea. Lo que se mueve es la LUZ. */
+    const xB = x0 - W * 0.25 + W * 1.50 * (0.55 * uRap + 0.45 * uLen);
+    /* La caja es OBLIGATORIA: sin ella el degradado usa `objectBoundingBox`
+       y un trazo recto tiene caja de área cero, así que no se dibuja. Está
+       documentado en `_engine.js` y costó un raíl entero en `pasos-flow`.
+       Aquí además es lo que hace que la luz VIAJE: mover la caja mueve la
+       banda por toda la lámina de una vez. */
+    Engine.gradienteMetal(svg, 'metal',
+      [xB - W * 0.28, y0 - H * 0.25, xB + W * 0.28, y0 + H * 1.25]);
+
+    const cierre = sale(t, dur, sal);
+    /* La luz abandona la pieza ANTES que la pieza abandone el plano: el
+       labio se apaga en la primera mitad de la salida. Es lo que hace una
+       superficie real cuando la fuente se va, y da un segundo canal a una
+       salida que si no sería una bajada de opacidad y nada más. */
+    const luz = 1 - span(t, dur - sal * 1.25, sal * 0.80, Ease.inOutCubic);
+    g.style.opacity = cierre;
+
+    /* El `max(1, …)` no es paranoia: con `r: 0` en la configuración sigma
+       valdría 0 y `(x - xB) / 0` es `NaN` justo en el centro de la banda,
+       que se propaga a la opacidad y APAGA el labio sin dar error. */
+    const sigma = Math.max(1, W * 0.26);
+    const brillo = x => Math.exp(-Math.pow((x - xB) / sigma, 2));
+
+    for (const e of aristas) {
+      /* Cuánto ha corrido cada frente DENTRO de esta arista, medido desde
+         cada extremo. En una cuerda los dos son > 0 y el surco se llena
+         por los dos lados. */
+      const ka = clamp(corte - bornes[e.a].d, 0, e.L);
+      const kb = clamp(corte - bornes[e.b].d, 0, e.L);
+      const ca = clamp(frente - bornes[e.a].d, 0, e.L);
+      const cb = clamp(frente - bornes[e.b].d, 0, e.L);
+
+      const abierto = ka + kb >= e.L - 0.01
+        ? [[0, e.L]] : [[0, ka], [e.L - kb, e.L]].filter(s => s[1] - s[0] > 0.01);
+      tramos(e.surco, abierto, e.L);
+      tramos(e.labio, abierto, e.L);
+      e.labio.style.opacity = (0.30 + 0.70 * brillo(e.mx)) * luz *
+                              (abierto.length ? 1 : 0);
+
+      const lleno = ca + cb >= e.L - 0.01
+        ? [[0, e.L]] : [[0, ca], [e.L - cb, e.L]].filter(s => s[1] - s[0] > 0.01);
+      tramos(e.carga, lleno, e.L);
+
+      /* La gota solo existe mientras hay frente DENTRO de la arista. En
+         cuanto los dos se encuentran —o uno llega al final— se apaga sola,
+         sin ninguna condición temporal escrita a mano. */
+      const B = 26 * k, unido = ca + cb >= e.L - 0.01;
+      const gt = [];
+      if (!unido && ca > 0.01) gt.push([Math.max(0, ca - B), ca]);
+      if (!unido && cb > 0.01) gt.push([e.L - cb, Math.min(e.L, e.L - cb + B)]);
+      tramos(e.gota, gt, e.L);
+    }
+
+    for (const b of bornes) {
+      /* Aparece cuando la punta llega, no en un instante propio: el
+         progreso lo da la posición del FRENTE, así que si se mueve un
+         borne su aparición se mueve con él. */
+      const nv = clamp((corte - b.d) / (maxD * 0.10), 0, 1);
+      /* Instante de cierre: la misma expresión que mueve la carga
+         (`frente = maxD·p` con p lineal), despejada. Si se toca `viaje`,
+         el contacto se mueve con el metal en vez de desincronizarse. */
+      const ta = t0 + via * (b.d / maxD);
+      const na = span(t, ta, 0.09, Ease.outCubic);
+      /* Golpe del contacto: sube en 0,05 s y se asienta en 0,10. Son 1,5 y
+         3 fotogramas a 30 fps — el mínimo que se VE. Nada de `Engine.flota`
+         aquí: en medio segundo no hay reposo del que derivar, y una
+         flotación sobre un borne atornillado a una lámina sería mentira. */
+      const golpe = span(t, ta, 0.05, Ease.outCubic) -
+                    span(t, ta + 0.05, 0.10, Ease.inOutCubic);
+
+      b.cara.style.opacity = nv;
+      b.viva.style.opacity = nv * na;
+      /* El canto se ENSANCHA al cerrar. Es el único gesto de «llegada» y es
+         material: más canto de cara a la luz, no más luz. §1 no permite lo
+         segundo. */
+      b.cara.style.strokeWidth = (2.2 * k * (1 + 0.55 * golpe)).toFixed(2);
+      b.viva.style.strokeWidth = (2.6 * k * (1 + 0.45 * golpe)).toFixed(2);
+      /* La pieza SE SIENTA: su sombra se acorta de golpe y vuelve. Es un
+         desplazamiento de la SOMBRA, no del borne — el borne está
+         atornillado. Y la sombra no lleva el degradado, así que moverla no
+         descoloca la lámina de luz, que sí pasaría si transformara el
+         grupo: `userSpaceOnUse` se resuelve en el espacio del elemento que
+         REFERENCIA el degradado, o sea que un `scale` en el borne le daría
+         a cada pieza su propio reflejo. */
+      const s = 1 - 0.62 * golpe;
+      b.asiento.setAttribute('transform',
+        'translate(' + (1.6 * k * s).toFixed(2) + ',' + (2.2 * k * s).toFixed(2) + ')');
+      b.asiento.style.opacity = nv;
+      b.lab.style.opacity = (0.18 + 0.62 * brillo(b.x)) *
+                            (0.45 + 0.55 * na) * nv * luz;
+    }
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Compare A/B</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+
+  /* ------------------------------------------------------------------
+     POR QUÉ ESTO YA NO ES UNA HOJA DE CÁLCULO
+
+     Antes: dos fichas idénticas una al lado de otra, cada una con su barra
+     de progreso de color liso y un `VS` de texto en medio. Dos barras
+     puestas en paralelo con 18 px de aire entre ellas no se comparan: se
+     leen por separado y el espectador tiene que hacer la resta.
+
+     Ahora: UN bloque de material partido por un canto de bronce. Las dos
+     placas salen del mismo corte —los radios lo dicen: redondeado por
+     fuera, RECTO por el lado del canto— y sus dos coladas mueren contra
+     esa misma arista, una desde arriba y otra desde abajo. Las puntas
+     quedan a 104 px la una de la otra y sobre la misma vertical, así que
+     la diferencia es una LONGITUD que se ve, no un número que se calcula.
+     Y el canto la acota: dos marcas de instrumento en las dos puntas y un
+     tramo pulido entre ellas. Eso es lo que hace un calibre.
+     ------------------------------------------------------------------ */
+
+  /* `.tarjeta` va en un envoltorio VACÍO, y no es un detalle de estilo.
+     `_engine.js` envuelve todo `.tarjeta` en un posicionador absoluto y le
+     deja al hijo el contenido; la versión anterior ponía `.tarjeta` en las
+     DOS fichas y además redefinía `.tarjeta` en esta misma hoja
+     (`position: relative; flex: 1; padding; background`). Resultado medido
+     mirando el fotograma: los estilos de ficha se aplicaban al envoltorio Y
+     al contenido —dos cajas anidadas—, cada envoltorio se llevaba el
+     `width: 90%; max-width: 900px` de `_tokens.css` dentro de una fila de
+     940 px, y la ficha B se salía ENTERA del lienzo por la derecha. O sea
+     que la mitad de una comparativa no estaba en el vídeo.
+
+     No daba ningún error: el humo la ve moverse, el PNG pesa lo suyo y no
+     hay anclas que comprobar. Se ve componiendo un fotograma sobre gris.
+
+     De paso, ahora `data-zona` funciona de verdad: esta plantilla puede
+     esquivar el rostro, que antes tampoco hacía. */
+  .bloque { position: relative; width: 100%; }
+
+  /* ---------- el rótulo grabado ---------- */
+  /* Alineado a la IZQUIERDA y en peso 300, no centrado y en 800. Un titular
+     centrado a 46/800 sobre dos tarjetas es la portada por defecto de
+     cualquier plantilla; una etiqueta grabada al filo del bloque, con su
+     marca de bronce delante, es una pieza. La jerarquía la lleva la cifra
+     de la diferencia, que es lo que esto viene a decir. */
+  .rotulo {
+    display: flex; align-items: center; gap: var(--s-3);
+    margin-bottom: var(--s-4);
+    font-family: var(--display);
+    font-size: var(--t-xl);
+    font-weight: var(--w-claro);
+    letter-spacing: var(--tr-display);
+    line-height: 1.05;
+    color: var(--ink);
+  }
+  .rotulo i {
+    display: block; flex: none; width: 34px; height: 3px;
+    background-image: linear-gradient(var(--metal-ang),
+      var(--metal-1), var(--metal-3) 55%, var(--metal-5));
+  }
+
+  /* ---------- las placas ---------- */
+  .placa {
+    position: relative;
+    padding: var(--s-5) var(--s-6);
+    border: var(--hairline) solid var(--stroke);
+    overflow: hidden;
+    will-change: transform, opacity;
+  }
+  /* El corte. Los dos radios exteriores redondeados y los del canto a
+     escuadra: es lo que dice que las dos placas eran una sola pieza antes
+     de partirse por la junta. Con cuatro radios iguales vuelven a ser dos
+     tarjetas que casualmente están cerca. */
+  .placa.arriba { border-radius: var(--r-lg) var(--r-lg) 0 0; border-bottom: 0; }
+  .placa.abajo  { border-radius: 0 0 var(--r-lg) var(--r-lg); border-top: 0; }
+  /* La CARA DEL CORTE: 2 px de luz en el canto y nada en los otros tres
+     bordes. Es lo que distingue una superficie recién fresada de un borde de
+     caja, y es la única pista de que las dos placas salieron de la misma
+     pieza cuando están separadas y todavía no ha entrado la cota. */
+  .placa.arriba .cara { box-shadow: inset 0 -2px 0 var(--stroke); }
+  .placa.abajo  .cara { box-shadow: inset 0  2px 0 var(--stroke); }
+
+  /* La CARA del material va en su propia capa: el grano se pinta dentro de
+     ella con `mix-blend-mode: multiply` y necesita un fondo propio contra el
+     que multiplicar, además de `isolation` para no morder lo que hay detrás
+     en el vídeo. Si el grano colgara de `.placa`, multiplicaría contra el
+     metraje. */
+  .cara {
+    position: absolute; inset: 0; z-index: 0;
+    background-color: var(--surface);
+    border-radius: inherit;
+    isolation: isolate;
+  }
+  .capa { position: relative; z-index: 1; }
+
+  .cab { display: flex; align-items: baseline; gap: var(--s-3); }
+  .nombre {
+    font-family: var(--display);
+    font-size: var(--t-lg);
+    letter-spacing: var(--tr-texto);
+    line-height: 1.1;
+    will-change: font-variation-settings, color;
+  }
+  .sub {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps);
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* El punzón del ganador. Era una pastilla de acento con `#FFFFFF` dentro
+     —el único hex de la plantilla, y encima blanco puro, que en tema paper
+     desaparecía sobre el naranja—. Ahora es una marca troquelada: filete de
+     bronce de 2 px y la palabra en mono muy espaciada. Cuesta lo mismo y no
+     es la insignia de un framework. */
+  .punzon {
+    display: inline-flex; align-items: center; gap: var(--s-1);
+    font-family: var(--mono);
+    font-size: var(--t-2xs);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps-ancho);
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .punzon i {
+    display: block; width: 26px; height: 2px;
+    background-image: linear-gradient(var(--metal-ang),
+      var(--metal-1), var(--metal-3) 55%, var(--metal-5));
+  }
+
+  .cifra {
+    margin-top: var(--s-3);
+    display: flex; align-items: baseline; gap: var(--s-2);
+    font-family: var(--display);
+    font-size: var(--t-hero);
+    letter-spacing: var(--tr-hero);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    will-change: font-variation-settings, color;
+  }
+  .cifra .u {
+    font-family: var(--mono);
+    font-size: var(--t-lg);
+    font-weight: var(--w-fino);
+    letter-spacing: var(--tr-caps);
+    color: var(--ink-faint);
+  }
+
+  .pie {
+    margin-top: var(--s-2);
+    font-family: var(--subs);
+    font-size: var(--t-sm);
+    font-weight: var(--w-libro);
+    line-height: 1.3;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- el canal y la colada ---------- */
+  /* No es una barra de progreso: es una ranura mecanizada en la placa con
+     material dentro. La profundidad la dan las dos sombras interiores —una
+     arriba, dura, y una luz de 1 px abajo—, que es lo que separa un hueco
+     de un rectángulo gris. Radio 3 px y no 5: una ranura fresada tiene el
+     canto vivo; el `border-radius: 5px` de la versión anterior era media
+     píldora y leía como widget. */
+  .canal {
+    position: relative; height: 24px;
+    background: var(--pista);
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: inset 0 2px 5px var(--sombra),
+                inset 0 -1px 0 var(--stroke);
+    isolation: isolate;   /* la trama mezcla DENTRO del canal, no con el vídeo */
+  }
+  .arriba .canal { margin-top: var(--s-5); }
+  .abajo  .canal { margin-bottom: var(--s-5); }
+
+  .colada {
+    position: absolute; top: 0; bottom: 0; left: 0; width: 0;
+    border-radius: 2px 1px 1px 2px;
+    background-size: 260% 100%;      /* deja sitio para que el reflejo corra */
+    will-change: width, background-position;
+  }
+  /* El PERDEDOR no es «el mismo color pero apagado»: es el mismo bronce
+     OXIDADO. Cardenillo, que es literalmente lo que le pasa al bronce con
+     el tiempo, así que las dos coladas siguen siendo el mismo material en
+     dos estados — que es lo que una comparativa antes/después dice. La
+     lección es de `mapa-calor`: el valor es MATERIAL, no opacidad. */
+  .colada.patina {
+    background-image: linear-gradient(var(--metal-ang),
+      color-mix(in oklab, var(--accent-2) 62%, var(--chrome-3)) 0%,
+      var(--accent-2) 46%,
+      color-mix(in oklab, var(--accent-2) 74%, var(--chrome-3)) 100%);
+  }
+  /* La trama de mecanizado codifica el valor por SEGUNDA vez: densidad alta
+     en el bronce vivo, baja en el oxidado. Con eso el gráfico se sigue
+     leyendo en escala de grises y no depende solo del tono. */
+  /* `mix-blend-mode` y no la opacidad de `.trama` a secas: el rayado se
+     dibuja con `--stroke`, que en paper es tinta al 10 % y sobre el naranja
+     lleno del acento se pierde —o sea que justo en el tema donde el metal se
+     colapsa a color plano, la codificación redundante por densidad
+     desaparecía y el gráfico volvía a depender solo del tono—. Mezclando en
+     `overlay` el rayado oscurece o aclara según lo que tenga debajo y se ve
+     en los dos temas. */
+  .colada .trama { position: absolute; inset: 0; mix-blend-mode: overlay; }
+
+  /* El frente de la colada: el material que avanza tiene un menisco, un
+     rectángulo de color liso no. 3 px del stop más claro del metal. */
+  .frente {
+    position: absolute; top: 0; bottom: 0; right: 0; width: 3px;
+    background: var(--metal-3);
+  }
+  .patina .frente { background: color-mix(in oklab, var(--accent-2) 55%, var(--metal-3)); }
+
+  /* ---------- la junta ---------- */
+  .junta { position: relative; height: 104px; }
+  .junta svg { position: absolute; inset: 0; width: 100%; height: 104px;
+               overflow: visible; }
+  /* El canto es de BRONCE, no un separador gris. Primero se probó con
+     `--ink-ghost`: sobre metraje gris medio se queda en 1,1:1 y la arista
+     —que es la referencia contra la que asientan las dos placas y la única
+     razón de que esto sea un bloque partido y no dos tarjetas— sencillamente
+     no se veía. Va con la misma lámina de metal que la cota, a 2 px y al
+     62 % de opacidad: mismo material, un flanco y una medida. */
+  .canto { stroke: var(--accent-line); stroke-width: 2; stroke-linecap: butt; }
+  .cota  { stroke-width: 6; stroke-linecap: round; }
+  .marca { stroke-width: 2; stroke-linecap: butt; }
+  .guia  { stroke: var(--ink-faint); stroke-width: 1; }
+
+  /* La plaquita de la diferencia. `.filete-metal` le da 1 px de bronce
+     alrededor y el interior en `--surface`: es una chapa atornillada al
+     canto, y rompe la línea justo donde un plano acotado la rompe para
+     meter la medida. */
+  .plaquita {
+    position: absolute; top: 52px; left: 0;
+    border-radius: var(--r-sm);
+    box-shadow: 0 14px 32px var(--sombra);
+    will-change: transform, opacity;
+  }
+  .plaquita > .dif {
+    padding: var(--s-2) var(--s-4);
+    font-family: var(--display);
+    font-size: var(--t-xl);
+    letter-spacing: var(--tr-display);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    white-space: nowrap;
+    will-change: font-variation-settings;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="tarjeta" id="pos">
+    <div class="bloque" id="bloque">
+      <div class="rotulo" id="rotulo"><i></i><span id="rotuloTxt"></span></div>
+      <div class="placa arriba" id="pa"></div>
+      <div class="junta" id="junta">
+        <svg id="sj">
+          <line class="canto" id="cantoI"></line>
+          <line class="canto" id="cantoD"></line>
+          <line class="guia"  id="guiaA"></line>
+          <line class="guia"  id="guiaB"></line>
+          <line class="cota"  id="cota"></line>
+          <line class="marca" id="marcaA"></line>
+          <line class="marca" id="marcaB"></line>
+        </svg>
+        <div class="plaquita filete-metal" id="plaq"><div class="dif" id="dif"></div></div>
+      </div>
+      <div class="placa abajo" id="pb"></div>
+    </div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const CY = 52;          // el canto, a media altura de la junta (104 px)
+const SEP = 46;         // cuánto se separan las placas antes de asentar
+
+const bloque = document.getElementById('bloque');
+const rotulo = document.getElementById('rotulo');
+const sj     = document.getElementById('sj');
+const plaq   = document.getElementById('plaq');
+const dif    = document.getElementById('dif');
+const cantoI = document.getElementById('cantoI');
+const cantoD = document.getElementById('cantoD');
+
+let placas = [], geo = { x: 0, w: 1 }, W = 900;
+let hayDif = false, anchoPlaq = 0, hayGanador = true;
+
+/* Los dos instantes que también publican los `cues`. Viven aquí y no
+   copiados dentro de `setup`: si mañana el asiento pasa a durar otra cosa,
+   la señal se mueve con él. Copiar la fórmula es exactamente como se
+   desincronizan el sonido y la imagen. */
+const tAsienta = cfg => cfg.entrada;
+const tCuaja   = cfg => cfg.ini + cfg.subida;
+const tAcota   = cfg => cfg.ini + cfg.subida * 0.72;
+
+/* Interpolación en oklab. Entre `--ink` y `--ink-soft` sRGB pasa por un gris
+   sucio; es el mismo argumento que ya está escrito en `mapa-calor` y en
+   `pasos-flow`, y por eso aquí solo se aplica. */
+function mezcla(a, p, b) {
+  return `color-mix(in oklab, ${a} ${(clamp(p, 0, 1) * 100).toFixed(1)}%, ${b})`;
+}
+
+/* Coma decimal: la pieza está en castellano y un «1.6x» dentro de un vídeo
+   en español canta. Se corta en un decimal porque «4,7 veces» es una
+   afirmación y «4,73 veces» es una tabla. */
+function cifra(v) {
+  const s = Math.abs(v) >= 100 ? String(Math.round(v)) : v.toFixed(1);
+  return s.replace(/[.,]0$/, '').replace('.', ',');
+}
+
+/* La diferencia, que es lo ÚNICO que una comparativa viene a decir y lo
+   único que la versión anterior no decía: dejaba dos números en pantalla y
+   la resta al espectador.
+
+   `auto` prefiere la RAZÓN cuando pasa de 1,55x —«cinco veces» se recuerda,
+   «+800K» no— y cae a la diferencia absoluta cuando la razón es pequeña.
+   Si los valores no son numéricos —`dirigir.py` manda «ALTO» y «BAJO», que
+   son comparaciones honestas sin número— devuelve cadena vacía: entonces el
+   canto se acota igual con las dos marcas y el tramo pulido, sin rotularlo.
+   Inventar una cifra a partir de `barra`, que es una longitud de dibujo,
+   sería fabricar un dato. */
+function calcularDif(cfg) {
+  if (cfg.diferencia !== 'auto') return String(cfg.diferencia == null ? '' : cfg.diferencia);
+  const na = Number(cfg.a.valor), nb = Number(cfg.b.valor);
+  if (!Number.isFinite(na) || !Number.isFinite(nb)) return '';
+  const alto = Math.max(na, nb), bajo = Math.min(na, nb);
+  if (alto === bajo) return '';
+  if (bajo > 0 && alto / bajo >= 1.55) return cifra(alto / bajo) + '×';
+  return '+' + cifra(alto - bajo) + (cfg.a.unidad || cfg.b.unidad || '');
+}
+
+function montar(el, d, gana, arriba) {
+  const canal =
+    `<div class="canal"><div class="colada${gana ? ' brushed' : ' patina'}">` +
+    `<i class="trama" data-densidad="${gana ? 'alta' : 'baja'}"></i>` +
+    `<i class="frente"></i></div></div>`;
+  el.innerHTML =
+    `<i class="cara trama" data-densidad="baja"></i>` +
+    (arriba ? '' : canal) +
+    `<div class="capa">` +
+      `<div class="cab"><span class="nombre">${d.titulo}</span>` +
+      (gana && d.medalla ? `<span class="punzon"><i></i>${d.medalla}</span>` : '') +
+      `<span class="sub">${d.sub || ''}</span></div>` +
+      `<div class="cifra"><span class="num">0</span>` +
+      `<span class="u">${d.unidad || ''}</span></div>` +
+      (d.pie ? `<div class="pie">${d.pie}</div>` : '') +
+    `</div>` +
+    (arriba ? canal : '');
+
+  const o = {
+    el, d, gana,
+    cara:   el.querySelector('.cara'),
+    nombre: el.querySelector('.nombre'),
+    num:    el.querySelector('.num'),
+    cifra:  el.querySelector('.cifra'),
+    canal:  el.querySelector('.canal'),
+    colada: el.querySelector('.colada'),
+    frente: el.querySelector('.frente')
+  };
+  /* Grano de impresión. 48 de las 56 plantillas no tienen ninguna textura y
+     ese es medio diagnóstico del catálogo: plano no es sobrio, es plano. */
+  o.grano = Engine.grano(o.cara, { px: 256, semilla: gana ? 17 : 23, op: 0.3 });
+  return o;
+}
+
+Engine.register({
+  duration: 7,
+  defaults: {
+    titulo: 'Contexto disponible',
+    ganador: 'b',           // 'a' | 'b' | null
+    entrada: 0.55,
+    ini: 0.55,              // cuándo empieza la colada
+    subida: 1.1,
+    salida: 0.45,
+    /* 'auto' calcula la razón o la resta; una cadena la escribe tal cual;
+       '' o null la omite. Es una clave NUEVA con defecto, que es lo único
+       que se puede añadir sin romper un montaje ya escrito. */
+    diferencia: 'auto',
+    a: { titulo: 'Antes', sub: 'modelo previo', valor: 200, unidad: 'K',
+         barra: 0.2, pie: 'hay que trocear el repo' },
+    b: { titulo: 'Opus 5', sub: '1M', valor: 1000, unidad: 'K',
+         barra: 1.0, pie: 'cabe entero', medalla: 'MEJOR' }
+  },
+
+  setup(cfg) {
+    document.getElementById('rotuloTxt').textContent = cfg.titulo;
+
+    placas = [
+      montar(document.getElementById('pa'), cfg.a, cfg.ganador === 'a', true),
+      montar(document.getElementById('pb'), cfg.b, cfg.ganador === 'b', false)
+    ];
+
+    /* La lámina de bronce de la junta, con CAJA explícita. Sin ella el
+       degradado usa `objectBoundingBox` y una línea horizontal tiene alto
+       cero: el SVG dice que un elemento con caja de dimensión cero NO SE
+       DIBUJA, así que el canto acotado y las dos marcas desaparecerían sin
+       un solo aviso en consola. Está documentado en `_engine.js` porque ya
+       mordió en `pasos-flow`. */
+    W = bloque.clientWidth || 900;
+    Engine.gradienteMetal(sj, 'metal', [0, 0, W, 104]);
+    ['cota', 'marcaA', 'marcaB', 'cantoI', 'cantoD'].forEach(id =>
+      document.getElementById(id).setAttribute('stroke', 'url(#metal)'));
+
+    /* Geometría del canal, medida UNA vez: no depende del reloj —lo único
+       que cambia con t es el ancho de la colada— y medirla en cada
+       fotograma obligaría a descontar la flotación de la placa. */
+    geo = { x: placas[0].canal.offsetLeft, w: placas[0].canal.offsetWidth };
+
+    hayGanador = cfg.ganador === 'a' || cfg.ganador === 'b';
+
+    const texto = calcularDif(cfg);
+    hayDif = texto.length > 0;
+    dif.textContent = texto;
+    plaq.style.display = hayDif ? '' : 'none';
+    /* El ancho de la chapa se mide aquí, sin escalar: sirve para que no se
+       salga del bloque cuando la cota muere pegada a un borde —con
+       `barra: 1.0` la punta cae en el filo y la mitad de la chapa quedaba
+       fuera del lienzo—. */
+    anchoPlaq = hayDif ? plaq.offsetWidth : 0;
+
+    /* Tres señales, una por EVENTO: las placas se descuelgan, las placas
+       asientan contra el canto, y la medida cuaja. No hay una por barra ni
+       una por dígito del contador. */
+    const cues = [
+      { at: 0.02, sfx: 'deslizar', gain: 0.34 },
+      { at: +tAsienta(cfg).toFixed(3), sfx: 'impacto', gain: 0.5 },
+      { at: +tCuaja(cfg).toFixed(3), sfx: 'resolucion', gain: 0.6 }
+    ];
+    return { cues: cfg.sinSonido ? [] : cues };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 7;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+    const ap = span(t, 0, cfg.entrada * 0.6, Ease.outCubic);
+    bloque.style.opacity = (ap * cierre).toFixed(3);
+
+    /* `inOutCubic` y no `outCubic`: una placa que se posa arranca DESDE EL
+       REPOSO. En el primer 20 % del tiempo `outCubic` ya ha recorrido el
+       48,8 % de los 46 px —la placa aparece prácticamente puesta y el gesto
+       se lee como un barrido automático— y `inOutCubic` el 3,2 %, o sea que
+       se ve salir, ir y frenar. Es masa, y masa es lo que §10 pide para lo
+       que se desplaza. */
+    const asiento = span(t, 0, cfg.entrada, Ease.inOutCubic);
+    /* Al cerrar el bloque se vuelve a partir por la junta en vez de fundir a
+       secas: la pieza se abre por donde estaba cortada. */
+    const sep = (1 - asiento) * SEP + (1 - cierre) * 16;
+
+    /* La colada también en `inOutCubic`, y este es el cambio de fondo.
+       `outExpo` —lo que había— cubre el 64,6 % de la longitud en el primer
+       15 % del tiempo, frente al 1,4 % de `inOutCubic`: cuando el ojo
+       registra que algo está creciendo, con `outExpo` las dos barras ya
+       están casi puestas y solo se comparan sus FINALES. Con `inOutCubic`
+       las dos corren juntas desde cero y se separan A LA VISTA, que es
+       literalmente el gesto que una comparativa tiene que hacer. */
+    const p = span(t, cfg.ini, cfg.subida, Ease.inOutCubic);
+
+    /* Deriva del reflejo. La luz sobre un metal no está clavada, y además
+       esta plantilla estaba marcada como CONGELA: dos de los tres instantes
+       del humo eran el mismo fotograma byte a byte, o sea que el gráfico se
+       moría en pantalla en cuanto la barra llegaba a su sitio. Periodo 6,3 s
+       y 18 px de recorrido sobre un fondo de 260 % de ancho: se nota como
+       material vivo y no como un efecto. */
+    const luz = 18 * Math.sin(2 * Math.PI * t / 6.3);
+
+    const tips = [];
+    placas.forEach((o, i) => {
+      const fl = Engine.flota(t, i, { amp: 2.6, periodo: 9.1, semilla: 4 });
+      const dy = (i === 0 ? -sep : sep) + fl.y;
+      o.el.style.transform = `translate(${fl.x.toFixed(2)}px, ${dy.toFixed(2)}px)`;
+
+      const w = p * clamp(o.d.barra, 0, 1) * geo.w;
+      tips.push(geo.x + w);
+      o.colada.style.width = w.toFixed(1) + 'px';
+      o.colada.style.backgroundPosition = (luz + i * 9).toFixed(1) + 'px 50%';
+      o.frente.style.opacity = w > 4 ? 1 : 0;
+
+      /* Un valor puede ser CUALITATIVO —«ALTO», «BAJO»—, y entonces no hay
+         contador que animar: se escribe tal cual y solo la colada se mueve.
+         Antes se hacía `Math.round(valor * p)` a ciegas y una etiqueta de
+         texto salía como «NaN» en pantalla, que es peor que no poner nada.
+         Muchas comparaciones honestas no tienen número. */
+      const n = Number(o.d.valor);
+      o.num.textContent = Number.isFinite(n)
+        ? Math.round(n * p)
+        : (p > 0.02 ? String(o.d.valor) : '');
+
+      /* El veredicto NO viene puesto de fábrica: las dos placas empiezan en
+         400 y en `--ink-soft`, y la jerarquía EMERGE mientras se llena el
+         canal. La ganadora sube a 800 y la perdedora baja a 200 —600 puntos
+         de salto, muy por encima de los 400 que §1 exige para que la
+         jerarquía viva dentro de la línea— sin tocar el cuerpo ni encender
+         un color. Solo el eje `wght` puede hacer esto, y `--display` lo
+         tiene: medido en este Chromium con la prueba de anchos, Plus Jakarta
+         Sans responde de 200 a 800 y fuera de ese rango el ancho ya no
+         cambia. `--subs` y `--mono` NO responden, así que el gesto solo
+         puede vivir en `--display`.
+
+         Sin ganador declarado —`ganador: null`, que es como lo deja
+         `dirigir.py` cuando la frase compara sin arbitrar— no se degrada a
+         nadie: las dos suben a 500 y se quedan en `--ink`. La primera
+         versión de esto mandaba las dos a 200 y a `--ink-soft` porque
+         ninguna era `gana`, y el fotograma salía entero apagado: una
+         comparativa sin veredicto no es una comparativa perdida. */
+      const salto = !hayGanador ? 100 : (o.gana ? 400 : -200);
+      const tinta = !hayGanador ? 1 : (o.gana ? p : 0);
+      Engine.peso(o.cifra, Math.round(400 + salto * p));
+      o.cifra.style.color = mezcla('var(--ink)', tinta, 'var(--ink-soft)');
+      Engine.peso(o.nombre, Math.round(400 + (!hayGanador ? 100 : (o.gana ? 400 : -100)) * p));
+      o.nombre.style.color =
+        mezcla('var(--ink)', !hayGanador ? 1 : (o.gana ? p : 1 - p * 0.8), 'var(--ink-soft)');
+    });
+
+    /* --- el canto se traza desde el centro hacia fuera ------------------
+       No de izquierda a derecha: la junta es donde el bloque se PARTE, así
+       que la arista nace en medio y corre hacia los dos bordes. Dos
+       segmentos y no un `stroke-dasharray`, que para esto son dos atributos
+       en vez de medir longitudes. */
+    const pc = span(t, 0, cfg.entrada * 1.5, Ease.outCubic);
+    const med = W / 2;
+    cantoI.setAttribute('x1', med); cantoI.setAttribute('x2', med - med * pc);
+    cantoD.setAttribute('x1', med); cantoD.setAttribute('x2', med + med * pc);
+    [cantoI, cantoD].forEach(l => {
+      l.setAttribute('y1', CY); l.setAttribute('y2', CY);
+      l.style.opacity = cierre * 0.62;
+    });
+
+    /* --- la acotación --------------------------------------------------
+       El canto está muerto salvo entre las dos puntas, donde se pule. O sea
+       que el bronce aparece EXACTAMENTE donde hay algo que decir, que es la
+       única forma de que un acento signifique algo. Las dos marcas cruzan
+       el canto en las puntas y dos guías de 1 px suben hasta el borde de
+       cada placa: es una cota de plano, no una decoración. */
+    const x0 = Math.min(tips[0], tips[1]), x1 = Math.max(tips[0], tips[1]);
+    const vale = cierre * clamp((x1 - x0) / 10, 0, 1) * clamp(pc * 3 - 2, 0, 1);
+    const cota = document.getElementById('cota');
+    cota.setAttribute('x1', x0.toFixed(1)); cota.setAttribute('x2', x1.toFixed(1));
+    cota.setAttribute('y1', CY); cota.setAttribute('y2', CY);
+    cota.style.opacity = vale;
+
+    /* `+0.5` para que una línea de 1 o 2 px caiga sobre la rejilla de
+       píxeles: sin eso el trazo se reparte entre dos columnas y sale gris y
+       borroso, que en un gráfico de instrumento se nota. */
+    const cruje = (id, x, y1, y2, op) => {
+      const l = document.getElementById(id);
+      const xx = Math.round(x) + 0.5;
+      l.setAttribute('x1', xx); l.setAttribute('x2', xx);
+      l.setAttribute('y1', y1); l.setAttribute('y2', y2);
+      l.style.opacity = op;
+    };
+    cruje('marcaA', tips[0], CY - 15, CY + 15, vale);
+    cruje('marcaB', tips[1], CY - 15, CY + 15, vale);
+    /* Las guías arrancan en el borde de la placa, que se mueve con la
+       flotación y con el asiento: si se dibujaran fijas, la línea quedaría
+       colgada en el aire mientras la placa respira. */
+    const flA = Engine.flota(t, 0, { amp: 2.6, periodo: 9.1, semilla: 4 });
+    const flB = Engine.flota(t, 1, { amp: 2.6, periodo: 9.1, semilla: 4 });
+    cruje('guiaA', tips[0] + flA.x, -sep + flA.y, CY - 15, vale * 0.45);
+    cruje('guiaB', tips[1] + flB.x, CY + 15, 104 + sep + flB.y, vale * 0.45);
+
+    /* --- la plaquita de la diferencia ---------------------------------- */
+    if (hayDif) {
+      /* `outBack6` es el único sobrepaso que §1 admite —6 %, calibrado— y
+         aquí es lo correcto: una chapa se atornilla, se pasa un pelo y
+         asienta. Con `outCubic` la medida aparece sin haber sido puesta. */
+      const pp = span(t, tAcota(cfg), 0.5, Ease.outBack6);
+      const op = span(t, tAcota(cfg), 0.34, Ease.outCubic);
+      const cx = clamp((x0 + x1) / 2, anchoPlaq / 2, W - anchoPlaq / 2);
+      plaq.style.transform =
+        `translate(${cx.toFixed(1)}px, 0) translate(-50%, -50%) ` +
+        `scale(${(0.88 + 0.12 * pp).toFixed(3)})`;
+      plaq.style.opacity = (op * cierre).toFixed(3);
+      /* Y aquí es donde el peso variable dice la frase: la diferencia entra
+         en 200 —un dato pendiente— y cuaja en 800. Es el mismo gesto que
+         hacen las dos cifras, pero llevado al extremo del eje, porque esto
+         es la conclusión y no un término de la comparación. */
+      const pw = span(t, tAcota(cfg), 0.66, Ease.outExpo);
+      Engine.peso(dif, Math.round(200 + 600 * pw));
+    }
+
+    /* El rótulo entra antes que nada y flota con su propio periodo: si
+       derivara con el de las placas el conjunto respiraría como un bloque,
+       que es tan artificial como no moverse (§10). */
+    const fr = Engine.flota(t, 5, { amp: 2.2, periodo: 11.7, semilla: 9 });
+    rotulo.style.transform =
+      `translate(${fr.x.toFixed(2)}px, ${(fr.y - (1 - ap) * 12).toFixed(2)}px)`;
+    rotulo.style.opacity = ap;
+  }
+});
+</script>
+</body>
+</html>

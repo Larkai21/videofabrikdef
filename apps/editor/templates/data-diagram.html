@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Data Diagram — Carbon &amp; Bronze</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* Sin `y`, la tarjeta se centra — y en vertical el centro es justo
+     donde está la cara. Con `y` se ancla arriba y deja de competir con el
+     rostro, que es el sujeto. */
+  .stage { position: absolute; inset: 0; display: grid; place-items: center; }
+  .stage.anclado { display: block; }
+  .stage.anclado .panel { position: absolute; left: 50%;
+                          transform-origin: 50% 0; }
+
+  .panel {
+    position: relative; width: 940px;
+    background: var(--surface);
+    border: var(--hairline) solid var(--stroke);
+    border-radius: var(--r-md);
+    box-shadow: 0 36px 84px var(--sombra);
+    overflow: hidden;
+    transform-origin: 50% 50%;
+  }
+
+  /* Vidrio. El fondo translúcido, el filete de acento y las sombras SÍ
+     sobreviven a la captura con alfa. El `backdrop-filter` NO: al capturar
+     sobre transparencia no hay píxeles detrás que muestrear y saldría un
+     panel gris. El desenfoque real lo aporta el compositor con la pasada
+     de máscara (`cristal: true` en el plan), que difumina el METRAJE.
+     Ver BRAND_RULES §7-§10. */
+  .panel.vidrio {
+    background: color-mix(in srgb, var(--surface) 75%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6),
+                0 0 20px color-mix(in srgb, var(--accent) 10%, transparent),
+                inset 0 1px 0 var(--glass-highlight);
+  }
+  .cabecera {
+    display: flex; align-items: baseline; gap: var(--s-3);
+    padding: var(--s-4) var(--s-5) var(--s-3);
+    border-bottom: var(--hairline) solid var(--rule);
+  }
+  .cabecera h2 {
+    font-family: var(--display);
+    font-size: var(--t-md); font-weight: var(--w-negro);
+    letter-spacing: var(--tr-texto); color: var(--ink);
+  }
+  .cabecera .sub {
+    font-family: var(--mono); font-size: var(--t-xs);
+    font-weight: var(--w-medio);
+    color: var(--ink-faint);
+    letter-spacing: var(--tr-caps); margin-left: auto;
+  }
+
+  /* ---------- modo diagrama ---------- */
+  .lienzo { position: relative; height: 520px; }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  /* La PISTA: el recorrido completo, en gris, desde que se dibuja. Un
+     diagrama sin sus pistas es una lista de cajas que aparecen; con ellas se
+     ve la topología entera antes de que pase nada por dentro. */
+  .pista-hilo { fill: none; stroke: var(--rule); stroke-width: 2;
+                stroke-linecap: round; stroke-linejoin: round; }
+
+  /* El PAQUETE: UN segmento corto viajando, no un patrón de guiones
+     arrastrándose. Ver el comentario largo en `draw`. */
+  .paquete { fill: none; stroke-width: 3.5;
+             stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- la placa mecanizada ---------- */
+  /* Era un HEXÁGONO. El hexágono es la forma «tech» por defecto —blockchain,
+     crypto, cualquier infografía generada— y no significa nada aquí: no hay
+     nada hexagonal en un pipeline de vídeo. Una PLACA con las esquinas
+     achaflanadas sí es algo: es lo que queda cuando a una pieza rectangular
+     le matas los cantos en el torno, y es la forma de cualquier bancada,
+     brida o placa de bornes real.
+
+     El chaflán se hace con dos capas y el mismo `clip-path`, porque un
+     `border` se recorta con la forma y en los chaflanes no quedaría filete:
+     la de fuera es el canto —gris en reposo, bronce cuando el nodo está
+     activo— y la de dentro es la cara. */
+  .nodo {
+    position: absolute; transform: translate(-50%, -50%);
+    display: grid; place-items: center;
+    width: 176px; height: 116px;
+    will-change: transform, opacity;
+  }
+  .placa, .cara {
+    position: absolute;
+    clip-path: polygon(15px 0, calc(100% - 15px) 0, 100% 15px,
+                       100% calc(100% - 15px), calc(100% - 15px) 100%,
+                       15px 100%, 0 calc(100% - 15px), 0 15px);
+  }
+  .placa { inset: 0; background: var(--rule); }
+  /* `overflow` e `isolation` no son adorno: el grano es una capa hija con
+     `mix-blend-mode: multiply`, y sin ellos en el nodo REDONDO —que no lleva
+     `clip-path` sino `border-radius`, y el radio no recorta hijos— la teja
+     salía como un CUADRADO gris de 132 px alrededor del círculo, mezclándose
+     además con lo que hubiera detrás en vez de con la propia cara. */
+  .cara  { inset: 2px; background: var(--surface);
+           overflow: hidden; isolation: isolate;
+           background-image: linear-gradient(180deg,
+             rgba(255,255,255,0.055), rgba(255,255,255,0) 42%,
+             rgba(0,0,0,0.10)); }
+  /* Un BISEL, no un contorno. La luz cae por un canto y el resto del canto
+     queda en sombra, que es lo que hace un chaflán de verdad; con el bronce
+     claro repartido por todo el perímetro cada placa se leía como un rótulo
+     de neón encendido, y §1 prohíbe exactamente eso.
+
+     No basta con oscurecer el bronce: incluso `--metal-5`, la parada más
+     apagada, sigue leyéndose naranja sobre fondo oscuro, así que un degradado
+     entre bronces da un contorno más o menos brillante pero contorno al fin.
+     El lado en sombra tiene que morir en `--rule`, que es el gris del canto
+     sin luz. El tramo brillante ocupa el primer 10 %. */
+  .nodo.activo .placa {
+    background: none;
+    background-image: linear-gradient(var(--metal-ang),
+      var(--metal-3) 0%, var(--metal-4) 10%, var(--metal-1) 28%,
+      color-mix(in oklab, var(--metal-5) 40%, var(--rule)) 70%,
+      var(--rule) 100%);
+  }
+  .nodo.activo .cara { background-color: var(--surface-2); }
+
+  /* Una brida redonda para el nodo que no es una etapa sino un órgano —el
+     motor, el modelo—. Se conserva el nombre `circulo` de la configuración. */
+  .nodo.circulo .placa, .nodo.circulo .cara { clip-path: none;
+                                              border-radius: var(--r-pill); }
+  .nodo.circulo { width: 136px; height: 136px; }
+
+  .nodo .txt {
+    position: relative; text-align: center; padding: 0 var(--s-3);
+    font-family: var(--mono); font-size: var(--t-xs);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-cuerpo);
+    color: var(--ink); line-height: 1.25;
+  }
+  /* La unidad va en el peso más fino del sistema: es el dato de fondo, no el
+     nombre. Es jerarquía DENTRO de la línea, que es lo que pide §1. */
+  .nodo .txt small { display: block; color: var(--ink-faint);
+                     font-size: var(--t-2xs);
+                     font-weight: var(--w-fino);
+                     letter-spacing: var(--tr-caps);
+                     margin-top: 5px; }
+
+  /* ---------- modo tabla ---------- */
+  .tabla { width: 100%; border-collapse: collapse; }
+  .tabla th, .tabla td {
+    padding: var(--s-3) var(--s-5); text-align: left;
+    border-bottom: var(--hairline) solid var(--rule);
+    font-family: var(--subs); font-size: var(--t-sm);
+  }
+  .tabla th {
+    font-family: var(--mono); font-size: var(--t-xs);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps); text-transform: uppercase;
+    color: var(--accent); background: var(--accent-soft);
+  }
+  .tabla td { color: var(--ink); }
+  .tabla td.num { font-family: var(--mono); color: var(--accent-2);
+                  text-align: right; font-variant-numeric: tabular-nums;
+                  font-weight: var(--w-medio); }
+  .tabla tr:last-child td { border-bottom: 0; }
+
+  /* Barras horizontales de comparativa.
+     display:block es obligatorio: son <span> y a un inline no se le
+     aplica height — la barra existiría con altura cero y no se vería. */
+  .celda-barra { position: relative; min-width: 220px; }
+  .pista {
+    display: block; width: 100%; height: 10px;
+    border-radius: 5px; background: var(--pista); overflow: hidden;
+  }
+  .relleno { display: block; height: 100%; border-radius: 5px;
+             background-image: linear-gradient(var(--metal-ang),
+               var(--metal-1), var(--metal-3) 50%, var(--metal-5)); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="panel" id="panel">
+    <div class="cabecera">
+      <h2 id="titulo">Arquitectura</h2>
+      <span class="sub" id="subtitulo">LOCAL</span>
+    </div>
+    <div id="cuerpo"></div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const panel = document.getElementById('panel');
+const stage = document.querySelector('.stage');
+const cuerpo = document.getElementById('cuerpo');
+let vista = 'nodos', nodos = [], conectores = [], filas = [], barras = [];
+
+const NS = 'http://www.w3.org/2000/svg';
+const W = 940, H = 520;
+
+/* Por dónde SALE y por dónde ENTRA el hilo. Antes iba de centro a centro y el
+   trazo se metía por debajo de la caja, así que el diagrama se leía como
+   cuatro cajas atravesadas por rayas en vez de como cajas conectadas. */
+function puertos(A, B) {
+  const dx = B.x - A.x, dy = B.y - A.y;
+  if (Math.abs(dx) >= 8) {
+    const s = Math.sign(dx);
+    return [{ x: A.x + s * A.w / 2, y: A.y }, { x: B.x - s * B.w / 2, y: B.y }];
+  }
+  const s = Math.sign(dy) || 1;
+  return [{ x: A.x, y: A.y + s * A.h / 2 }, { x: B.x, y: B.y - s * B.h / 2 }];
+}
+
+/* Trazado ORTOGONAL con las esquinas redondeadas: sale recto, gira una vez y
+   entra recto. Una recta en diagonal entre dos cajas es lo que dibuja quien
+   une dos puntos; un esquema real —una placa, un plano de bornes, un
+   diagrama de instalación— enruta en horizontal y vertical, porque así es
+   como se fabrica. Y de paso las aristas dejan de cruzarse en ángulos
+   arbitrarios, que es lo que hace ilegible un grafo. */
+function rutaOrto(p, q, r) {
+  const dx = q.x - p.x, dy = q.y - p.y;
+  if (Math.abs(dy) < 2) return `M ${p.x} ${p.y} L ${q.x} ${q.y}`;
+  if (Math.abs(dx) < 2) return `M ${p.x} ${p.y} L ${q.x} ${q.y}`;
+  const mx = (p.x + q.x) / 2;
+  const sx = Math.sign(dx), sy = Math.sign(dy);
+  /* El radio no puede pasarse de la mitad del tramo más corto o las dos
+     curvas se comerían la recta que hay entre ellas. */
+  const rr = Math.min(r, Math.abs(mx - p.x), Math.abs(dy) / 2);
+  return `M ${p.x} ${p.y} L ${(mx - rr * sx).toFixed(1)} ${p.y}` +
+         ` Q ${mx} ${p.y} ${mx} ${(p.y + rr * sy).toFixed(1)}` +
+         ` L ${mx} ${(q.y - rr * sy).toFixed(1)}` +
+         ` Q ${mx} ${q.y} ${(mx + rr * sx).toFixed(1)} ${q.y}` +
+         ` L ${q.x} ${q.y}`;
+}
+
+function construirNodos(cfg) {
+  cuerpo.innerHTML = '<div class="lienzo" id="lienzo"><svg id="svg"></svg></div>';
+  const lienzo = document.getElementById('lienzo');
+  const svg = document.getElementById('svg');
+  const idMetal = Engine.gradienteMetal(svg, 'metalDiag', [0, 0, W, H]);
+
+  nodos = cfg.nodos.map(n => {
+    const el = document.createElement('div');
+    const redondo = n.forma === 'circulo';
+    el.className = 'nodo' + (redondo ? ' circulo' : '');
+    el.style.left = (n.x * W) + 'px';
+    el.style.top = (n.y * H) + 'px';
+    el.innerHTML = `<span class="placa"></span><span class="cara"></span>` +
+                   `<span class="txt">${n.txt}` +
+                   (n.sub ? `<small>${n.sub}</small>` : '') + `</span>`;
+    lienzo.appendChild(el);
+    Engine.grano(el.querySelector('.cara'), { px: 256, semilla: 9, op: 0.22 });
+    return { el, x: n.x * W, y: n.y * H, at: n.at || 0,
+             w: redondo ? 136 : 176, h: redondo ? 136 : 116 };
+  });
+
+  conectores = (cfg.aristas || []).map(a => {
+    const A = nodos[a.de], B = nodos[a.a];
+    const [p, q] = puertos(A, B);
+    const d = rutaOrto(p, q, 26);
+
+    const hilo = document.createElementNS(NS, 'path');
+    hilo.setAttribute('class', 'pista-hilo');
+    hilo.setAttribute('d', d);
+    svg.appendChild(hilo);
+
+    const paq = document.createElementNS(NS, 'path');
+    paq.setAttribute('class', 'paquete');
+    paq.setAttribute('d', d);
+    paq.setAttribute('stroke', `url(#${idMetal})`);
+    svg.appendChild(paq);
+
+    const L = hilo.getTotalLength();
+    hilo.style.strokeDasharray = L;
+    return { hilo, paq, L, at: a.at || 0 };
+  });
+}
+
+function construirTabla(cfg) {
+  const enc = cfg.columnas.map(c => `<th>${c}</th>`).join('');
+  const cuerpoFilas = cfg.filas.map(f => {
+    const celdas = f.celdas.map((c, i) => {
+      if (f.barra !== undefined && i === f.celdas.length - 1) {
+        return `<td class="celda-barra"><span class="pista">` +
+               `<span class="relleno"></span></span></td>`;
+      }
+      return `<td class="${i > 0 ? 'num' : ''}">${c}</td>`;
+    }).join('');
+    return `<tr>${celdas}</tr>`;
+  }).join('');
+  cuerpo.innerHTML = `<table class="tabla"><thead><tr>${enc}</tr></thead>` +
+                     `<tbody>${cuerpoFilas}</tbody></table>`;
+  filas = [...cuerpo.querySelectorAll('tbody tr')];
+  barras = filas.map((tr, i) => {
+    const r = tr.querySelector('.relleno');
+    return r ? { el: r, valor: cfg.filas[i].barra || 0 } : null;
+  });
+}
+
+Engine.register({
+  duration: 6.5,
+  defaults: {
+    /* `vista` y NO `modo`: el renderizador reserva `modo` para su propio
+       valor ('detalle' | 'mascara') y lo inyecta con
+       `Object.assign({}, capa.config, { modo })`, así que pisa el del plan.
+       Con `modo`, esta plantilla se renderizaba SIEMPRE como diagrama de
+       nodos y el modo tabla era inalcanzable desde el pipeline — aunque
+       funcionara en `hoja_contactos.js`, que llama a `setup()` directo, y
+       eso es justo lo que lo hacía difícil de ver. Es el mismo fallo que ya
+       se corrigió en `subtitles-showcase`, renombrando igual. */
+    vista: 'nodos',
+    titulo: 'Arquitectura',
+    subtitulo: 'LOCAL',
+    salida: 0.45,
+    nodos: [
+      { x: 0.16, y: 0.30, txt: 'A-Roll',  sub: 'mp4',    at: 0.4 },
+      { x: 0.50, y: 0.22, txt: 'Whisper', sub: 'MLX',    at: 0.9, forma: 'circulo' },
+      { x: 0.50, y: 0.72, txt: 'Limpieza', sub: 'n-gram', at: 1.4 },
+      { x: 0.84, y: 0.46, txt: 'Render',  sub: 'ffmpeg', at: 1.9 }
+    ],
+    aristas: [
+      { de: 0, a: 1, at: 0.9 }, { de: 1, a: 2, at: 1.4 },
+      { de: 2, a: 3, at: 1.9 }, { de: 0, a: 2, at: 1.6 }
+    ],
+    /* Longitud del paquete en píxeles y su velocidad. Un paquete de 54 px
+       sobre una arista de ~300 ocupa menos de una quinta parte: se lee como
+       algo que va por el hilo, no como el hilo iluminándose. */
+    paquete: 54,
+    velFlujo: 210,
+    columnas: ['Etapa', 'Tiempo', 'Carga'],
+    filas: [
+      { celdas: ['Transcripción', '18 s', ''], barra: 0.8 },
+      { celdas: ['Limpieza', '2 s', ''], barra: 0.15 },
+      { celdas: ['Motion', '41 s', ''], barra: 1.0 }
+    ]
+  },
+
+  setup(cfg) {
+    panel.classList.toggle('vidrio', cfg.vidrio !== false);
+
+    /* Posición y escala explícitas. `escala` reduce la tarjeta sin tocar
+       su tipografía interna: encoger los px uno a uno rompería la
+       jerarquía entre título, nodos y pie. */
+    const anclado = cfg.y !== undefined;
+    stage.classList.toggle('anclado', anclado);
+    const k = cfg.escala || 1;
+    if (anclado) {
+      panel.style.top = cfg.y + 'px';
+      panel.style.marginLeft = (-940 * k / 2) + 'px';
+      panel.style.transform = 'scale(' + k + ')';
+    } else {
+      panel.style.top = panel.style.marginLeft = '';
+      panel.style.transform = k === 1 ? '' : 'scale(' + k + ')';
+    }
+    panel.dataset.escala = k;
+    document.getElementById('titulo').textContent = cfg.titulo;
+    document.getElementById('subtitulo').textContent = cfg.subtitulo;
+    vista = cfg.vista;
+    if (vista === 'tabla') { construirTabla(cfg); return { cues: [] }; }
+    construirNodos(cfg);
+
+    /* Un `clic` cuando cada placa ASIENTA, con la misma expresión que usa
+       `draw` para marcarla activa. Van bajos —0,34— porque la capa entera ya
+       lleva un `escaner` en `dirigir.py:608`: el barrido es el gráfico
+       apareciendo, y los clics son cada pieza encajando. A volumen normal
+       competirían con él y sonarían a metralleta.
+
+       Y solo los seis primeros: un grafo de doce nodos son doce señales en
+       cuatro segundos, y el mezclador solo admite 24 cues en toda la pieza.
+       Truncar aquí, donde se sabe cuáles importan, es mejor que dejar que el
+       truncado por prioridad se lleve el final del vídeo. */
+    const cues = (cfg.nodos || []).slice(0, 6).map((n, i) => ({
+      at: +((n.at || 0) + 0.4).toFixed(3), sfx: 'clic', gain: 0.34
+    }));
+    return { cues: cfg.sinSonido ? [] : cues };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 6.5;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+    const e = span(t, 0, 0.45, Ease.outCubic);
+    panel.style.opacity = e * cierre;
+    /* La escala se compone con la entrada, no la reemplaza: escribir
+       `transform` a secas en `draw` borraba el `scale()` que fija `setup`
+       y la tarjeta volvía a tamaño completo en el primer fotograma. */
+    const k = Number(panel.dataset.escala || 1);
+    panel.style.transform =
+      `translateY(${(1 - e) * 18}px)` + (k === 1 ? '' : ` scale(${k})`);
+
+    if (vista === 'tabla') {
+      filas.forEach((tr, i) => {
+        const p = span(t, 0.5 + i * 0.16, 0.4, Ease.outCubic);
+        tr.style.opacity = p;
+        /* La vista de TABLA se quedaba congelada aunque la de nodos no: la
+           flotación se añadió solo a las placas. El humo lo veía —`data-diagram
+           (tabla)` repetía dos de sus tres hashes— porque desde esta tanda mide
+           las 60 fichas y no las 56 plantillas. */
+        const fl = Engine.flota(t, i + 7, { amp: 2.2, periodo: 10.4, semilla: 4 });
+        tr.style.transform =
+          `translate(${(fl.x + (1 - p) * -18).toFixed(2)}px, ${fl.y.toFixed(2)}px)`;
+      });
+      barras.forEach((b, i) => {
+        if (!b) return;
+        const p = span(t, 0.7 + i * 0.16, 0.7, Ease.outCubic);
+        b.el.style.width = (p * b.valor * 100) + '%';
+      });
+      return;
+    }
+
+    /* Las placas ASIENTAN: entran un pelo elevadas y bajan. `outCubic` con
+       6 % de escala, que es el máximo de §10, y nada de halo — el nodo activo
+       se distingue por su canto de bronce y por su peso, no por encenderse.
+       El resplandor que había (`0 0 22px` del acento más un `drop-shadow` en
+       los hilos) es exactamente lo que §1 prohíbe: jerarquía por luz. */
+    nodos.forEach((n, i) => {
+      const p = span(t, n.at, 0.4, Ease.outCubic);
+      const fl = Engine.flota(t, i, { amp: 2.4, periodo: 9.2, semilla: 6 });
+      n.el.style.opacity = p;
+      n.el.style.transform =
+        `translate(-50%, -50%) translate(${fl.x.toFixed(2)}px, ` +
+        `${(fl.y + (1 - p) * -10).toFixed(2)}px) scale(${(0.94 + 0.06 * p).toFixed(3)})`;
+      n.el.classList.toggle('activo', t >= n.at + 0.4);
+    });
+
+    conectores.forEach((c, i) => {
+      const dibujo = span(t, c.at, 0.5, Ease.inOutCubic);
+      c.hilo.style.opacity = dibujo > 0 ? 1 : 0;
+      c.hilo.style.strokeDashoffset = (c.L * (1 - dibujo)).toFixed(1);
+
+      /* UN paquete viajando, no un patrón de guiones arrastrándose.
+         ---------------------------------------------------------------
+         El `stroke-dasharray: 9 15` con el desfase animado son las HORMIGAS
+         MARCHANTES: una fila infinita de guiones idénticos. Dice «hay flujo»
+         y no dice nada más — es la selección de Photoshop, y es lo que pone
+         cualquier plantilla de infografía sobre cualquier flecha.
+
+         Un dato no es una cinta transportadora: sale de un sitio y llega a
+         otro. Con `dasharray: seg, L` el patrón mide seg+L, o sea que en un
+         camino de longitud L cabe UN solo guion a la vez —comprobado: para
+         un desfase k, el guion n empieza en k−n(seg+L), y solo n=0 cae dentro
+         de [0,L] mientras k≤L—. Moviendo el desfase, ese único guion recorre
+         la arista y desaparece por el nodo de destino.
+
+         La fase se mide en PÍXELES por segundo y no en fracción por segundo:
+         con fracción, una arista corta y una larga tardan lo mismo, y el
+         paquete de la corta va al ralentí. */
+      const seg = cfg.paquete || 54;
+      const vivo = t > c.at + 0.5;
+      c.paq.style.opacity = vivo ? cierre : 0;
+      if (vivo) {
+        const P = c.L + seg;
+        /* El desfase por arista evita que los cuatro paquetes salgan a la vez
+           como un pelotón; sale del índice y no de un azar, que rompería la
+           reproducibilidad. */
+        const rec = ((t - c.at - 0.5) * (cfg.velFlujo || 210) + i * P * 0.37) % P;
+        c.paq.style.strokeDasharray = `${seg} ${c.L}`;
+        c.paq.style.strokeDashoffset = (-rec).toFixed(1);
+      }
+    });
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Kicker — placa graduada</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* ======================================================================
+     ERA un HUD: filete de acento con un lavado de degradado detrás del
+     kicker, titular a 100 px con las seis palabras al mismo peso 800, y una
+     cajita de cristal flotante con un cursor de bloque parpadeando. O sea el
+     cromo de una interfaz de videojuego pegado encima del metraje, que es
+     exactamente el cliché de la categoría: cuatro plantillas del catálogo se
+     podrían intercambiar con esta sin que se notara.
+
+     ES una PLACA GRADUADA de instrumento. Tres cosas cambian de naturaleza:
+
+       · el filete decorativo de la izquierda pasa a ser una ESCALA de
+         verdad, con tres especies de división —menor, media y registro— y
+         una corredera de bronce que se desliza por ella hasta el renglón que
+         toca leer. Una graduación con jerarquía, que es lo que un
+         instrumento tiene y un HUD imita;
+       · el titular deja de ser un bloque de peso 800 y consigue su jerarquía
+         DENTRO DE LA LÍNEA: 300 de base contra 800 en el resaltado, o sea
+         500 puntos de salto, que es el mínimo que pide §1. El peso además se
+         asienta con la entrada, y eso no se puede fingir con dos ficheros
+         estáticos;
+       · la cajita de cristal pasa a ser una VENTANA DE LECTURA rebajada en
+         la placa: recinto con trama de mecanizado y grano de impresión, y
+         los dos datos en mono TABULAR. Se abre con un obturador, no con un
+         fundido.
+
+     Nada de esquinas de mira, retículas ni corchetes de encuadre: ninguna de
+     esas formas mide nada.
+     ====================================================================== */
+
+  .stage { position: absolute; inset: 0; }
+
+  .placa {
+    position: absolute; left: 64px; right: 64px; top: 170px;
+    transform-origin: 0 0;          /* `escala` encoge desde la esquina */
+    will-change: opacity;
+  }
+
+  /* El contenido se aparta 56 px para dejarle sitio a la escala. Con el
+     calibre metido debajo del texto la graduación se lee como una textura de
+     fondo, y una graduación que no se puede contar no gradúa nada. */
+  .campo {
+    margin-left: 56px;
+    display: flex; flex-direction: column; align-items: flex-start;
+    gap: var(--s-5);
+  }
+
+  /* ---------------- la escala ---------------- */
+  /* `height: 1px` con `overflow: visible`, como el raíl de `pasos-flow`: la
+     altura real la decide la maquetación del campo y se mide en cada pasada,
+     así que declararla aquí sería declarar dos veces la misma cosa y que una
+     de las dos se quedase vieja. */
+  .calibre { position: absolute; left: 0; top: 0; width: 44px; height: 1px;
+             overflow: visible; pointer-events: none; }
+
+  .riel  { fill: none; stroke-width: 2; }
+  /* Tres especies de división, y la jerarquía está en el LARGO y en el
+     MATERIAL, no en el color de acento. La menor solo permite estimar; la
+     media da el paso de cinco; la de registro es la única de bronce y marca
+     un renglón con contenido. */
+  /* `--ink-faint` era el token correcto por semántica y el equivocado por
+     contraste: sobre el gris de metraje 0x2E3238 cae a 1,9:1 y la graduación
+     sencillamente no se ve —comprobado mirando el fotograma compuesto, no el
+     diff—. Es el mismo fallo que documenta el raíl de `pasos-flow`, y en una
+     plantilla cuyo argumento entero es la escala, una escala invisible no es
+     un matiz: es que no está. */
+  .marca         { stroke-width: 1; }
+  .marca.menor   { stroke: var(--ink-soft); opacity: 0.55; }
+  .marca.media   { stroke: var(--ink);      opacity: 0.5; }
+  .marca.registro{ stroke-width: 2; }
+
+  /* La corredera de una regla de cálculo: un taco que abraza la escala y
+     lleva su PELO —la línea fina que sirve para leer— cruzándolo. El pelo se
+     prolonga hacia el campo, así que la corredera no solo se mueve: dice qué
+     renglón está leyendo. */
+  .hilo     { stroke: var(--surface);     stroke-width: 1; }
+  .prolonga { stroke: var(--accent-line); stroke-width: 1; }
+
+  /* ---------------- el kicker ---------------- */
+  .cabecera {
+    align-self: stretch;
+    display: flex; align-items: center; gap: var(--s-3);
+    will-change: transform, opacity;
+  }
+  .kicker {
+    flex: none;
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps-ancho);
+    text-transform: uppercase;
+    color: var(--accent);
+    /* Scrim de legibilidad, no halo: el color del velo es `--scrim` —negro
+       en carbón, papel en claro— y nunca el acento. Un resplandor de acento
+       es justo lo que §1 prohíbe. */
+    text-shadow: 0 2px 12px var(--scrim);
+    white-space: nowrap;
+    will-change: font-variation-settings;
+  }
+  /* El filete no subraya: se traza hacia la derecha como la línea de una
+     leyenda grabada, y se apaga antes del borde para que no parezca un
+     divisor de tarjeta. */
+  .filete {
+    flex: 1 1 auto; height: var(--hairline);
+    transform-origin: 0 50%;
+    background-image: linear-gradient(90deg, var(--accent-line), transparent 82%);
+    will-change: transform;
+  }
+
+  /* ---------------- el titular ---------------- */
+  .titulo {
+    font-family: var(--display);
+    font-size: var(--t-3xl);
+    line-height: 1.06;
+    letter-spacing: var(--tr-hero);
+    font-weight: var(--w-claro);
+    color: var(--ink);
+    will-change: transform, opacity;
+  }
+  .titulo .w { display: inline-block;
+               will-change: transform, opacity, font-variation-settings; }
+  /* El scrim va en las palabras NORMALES y nunca en las resaltadas, y esto es
+     un fallo heredado que solo se ve mirando el fotograma.
+
+     `.brushed-text` pinta el bronce como FONDO y lo recorta con la silueta de
+     las letras. El orden de pintado de CSS es fondo → sombras de texto →
+     texto, así que un `text-shadow` sobre esa palabra se pinta ENCIMA del
+     bronce, no detrás. En carbón el scrim es negro al 80 % y apagaba el
+     resaltado hasta dejarlo en marrón —«Opus 5» medía 2,4:1 sobre el gris de
+     metraje cuando el bronce solo vale 3,7:1—; en PAPEL el scrim es papel al
+     92 % y lo borraba directamente: las letras salían blancas con un filo
+     naranja. La plantilla anterior lo tenía igual y ningún control lo dice,
+     porque el PNG pesa lo mismo.
+
+     El scrim del resaltado va por `filter: drop-shadow`, que sí se aplica al
+     resultado ya compuesto y por tanto DEBAJO. Y va con desplazamiento y en
+     `--scrim`, nunca en el acento: un `drop-shadow(0 0 Npx <acento>)` es
+     exactamente el halo de neón que §1 prohíbe. */
+  .titulo .w:not(.hl) { text-shadow: 0 4px 26px var(--scrim), 0 1px 3px var(--scrim); }
+  /* Los dos velos encadenados son los MISMOS que lleva la palabra normal —uno
+     ancho y uno pegado—, y eso es deliberado: si el resaltado llevara un
+     velo distinto, la diferencia entre las dos mitades del titular dejaría de
+     ser solo peso y material. Con uno solo y estrecho el papel se acumulaba
+     en un anillo alrededor de las letras y se leía como un resplandor, que es
+     justo lo que no puede parecer. */
+  .titulo .hl { filter: drop-shadow(0 4px 26px var(--scrim))
+                        drop-shadow(0 1px 3px var(--scrim)); }
+
+  /* ---------------- la ventana de lectura ---------------- */
+  .ventana {
+    position: relative;
+    display: flex; align-items: baseline; gap: var(--s-5);
+    min-width: 560px;
+    padding: var(--s-3) var(--s-5);
+    border-radius: var(--r-sm);
+    /* Un rebaje, no una tarjeta flotante: canto oscuro arriba y luz abajo.
+       Sin sombra proyectada — lo que está hundido no levanta. */
+    box-shadow: inset 0 var(--hairline) 0 var(--sombra),
+                inset 0 calc(-1 * var(--hairline)) 0 var(--stroke);
+    /* `isolation` no es cosmética: `Engine.grano` pinta con `mix-blend-mode:
+       multiply`, y sin un grupo aislado el multiplicado se resuelve contra el
+       fondo TRANSPARENTE del PNG, donde multiplicar deja la fuente tal cual y
+       el grano sale como ruido gris flotando fuera del recinto. */
+    isolation: isolate;
+    overflow: hidden;
+    will-change: clip-path, transform;
+  }
+  /* OJO con la propiedad: `background-color` y NO el atajo `background`.
+     `.trama` vive en `_tokens.css`, que se enlaza ANTES de esta hoja, y las
+     dos reglas son de la misma especificidad — así que el atajo de aquí
+     ganaría y pondría `background-image: none`, borrando la trama sin un solo
+     aviso. Es el mismo fallo que documenta `Engine.grano` con el degradado de
+     la placa de `cinta`. */
+  /* `--surface` y no `--chrome-3`: en carbón los dos funcionan, pero en papel
+     `--chrome-3` es #C9C1B4 y sobre un metraje claro el rebaje desaparecía
+     —queda a 1,15:1 contra un fondo de 0xB9B2A6, o sea invisible— mientras el
+     texto seguía dependiendo de él para leerse. `--surface` es #1E1E24 en
+     carbón y #FFFFFF en papel: relleno opaco en los dos, que es lo que pide
+     el comentario de `.chip` en `_tokens.css`. */
+  .fondo {
+    position: absolute; inset: 0;
+    background-color: color-mix(in srgb, var(--surface) 94%, transparent);
+  }
+  /* `in srgb` a propósito y no `in oklab`: esta mezcla no interpola TONO
+     —el segundo término es `transparent`— sino ALFA, y el espacio no
+     interviene. La regla de oklab es para mezclar dos colores. */
+
+  .lectura, .metrica { position: relative; z-index: 1; }
+
+  .lectura {
+    font-family: var(--mono);
+    font-size: var(--t-lg);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps);
+    color: var(--ink);
+    white-space: pre;
+  }
+  /* La cabeza de estampado. NO parpadea: el parpadeo es una convención de
+     pantalla —dice «te toca escribir»— y esto es una placa grabada, donde lo
+     que hay que ver es que la marca se está imprimiendo. Cuando el código
+     está completo se retira. */
+  .cabeza {
+    display: inline-block; width: 3px; height: 0.92em;
+    margin-left: 0.14em; vertical-align: -0.14em;
+    background-image: linear-gradient(180deg,
+      var(--metal-3), var(--metal-4) 55%, var(--metal-1));
+  }
+  .metrica {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    font-weight: var(--w-libro);
+    letter-spacing: var(--tr-caps);
+    color: var(--ink-soft);
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="placa" id="placa">
+    <svg class="calibre" id="calibre">
+      <path class="riel" id="riel"></path>
+      <g id="marcas"></g>
+      <g id="corredera">
+        <rect id="taco" rx="3"></rect>
+        <line class="hilo" id="hilo"></line>
+        <line class="prolonga" id="prolonga"></line>
+      </g>
+    </svg>
+    <div class="campo" id="campo">
+      <div class="cabecera" id="cabecera">
+        <span class="kicker" id="kicker"></span>
+        <i class="filete" id="filete"></i>
+      </div>
+      <h1 class="titulo" id="titulo"></h1>
+      <div class="ventana" id="ventana">
+        <i class="fondo trama" id="fondo"></i>
+        <span class="lectura tnum"><span id="lbl"></span><i class="cabeza" id="cabeza"></i></span>
+        <span class="metrica tnum" id="metrica"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, typed, clamp } = Engine;
+const NS = 'http://www.w3.org/2000/svg';
+
+const placa    = document.getElementById('placa');
+const campo    = document.getElementById('campo');
+const calibre  = document.getElementById('calibre');
+const riel     = document.getElementById('riel');
+const gMarcas  = document.getElementById('marcas');
+const corredera= document.getElementById('corredera');
+const taco     = document.getElementById('taco');
+const hilo     = document.getElementById('hilo');
+const prolonga = document.getElementById('prolonga');
+const cabecera = document.getElementById('cabecera');
+const elKicker = document.getElementById('kicker');
+const filete   = document.getElementById('filete');
+const elTitulo = document.getElementById('titulo');
+const ventana  = document.getElementById('ventana');
+const elLbl    = document.getElementById('lbl');
+const cabeza   = document.getElementById('cabeza');
+const elMet    = document.getElementById('metrica');
+
+const CX = 13;          // eje de la escala, en px de maquetación
+const VIAJE = 0.34;     // lo que tarda la corredera en cambiar de registro
+
+let palabras = [];
+let marcas = [];        // [{el, y}] para encender cada división al trazarla
+let capaGrano = null;
+let H = -1, cy = [0, 0, 0], LARGO = 1;
+let W_BASE = 300, W_HL = 800, W_KICK = 500;
+
+/* Los pesos NO se escriben a mano aquí: se leen de los tokens. `--w-claro` y
+   `--w-negro` son 300 y 800, o sea los 500 puntos de salto que §1 exige para
+   que la jerarquía del titular viva dentro de la línea; si mañana la escala
+   de pesos se mueve, este gesto se mueve con ella en vez de quedarse
+   contradiciendo la hoja de tokens. */
+function leerPesos() {
+  const est = getComputedStyle(document.documentElement);
+  const n = (k, d) => parseInt(est.getPropertyValue(k), 10) || d;
+  W_BASE = n('--w-claro', 300);
+  W_HL   = n('--w-negro', 800);
+  W_KICK = n('--w-medio', 500);
+}
+
+/* El compás de la pieza, en UN solo sitio. `draw` y las señales de sonido
+   salen de esta misma función: copiar la fórmula es exactamente cómo un
+   `tic` acaba sonando 0,2 s antes de que la corredera encaje. */
+function ritmo(cfg, nPal) {
+  const e = cfg.entrada;
+  const tKicker  = e * 0.28;
+  const tTitulo  = e * 0.74;
+  const tVentana = tTitulo + Math.max(1, nPal) * cfg.escalonado + e * 0.62;
+  const tCodigo  = tVentana + 0.22;
+  const cps      = cfg.cps > 0 ? cfg.cps : 22;
+  const tSellado = tCodigo + String(cfg.funcion || '').length / cps;
+  return { tKicker, tTitulo, tVentana, tCodigo, tSellado, cps };
+}
+
+/* Construye la graduación para una altura de campo dada.
+   ---------------------------------------------------------------------
+   Se llama desde `draw` y no desde `setup`, y con un guarda de «¿ha
+   cambiado la maquetación?». La razón es que la altura del campo depende de
+   cuántas líneas ocupe el titular con la fuente REAL, y hay herramientas del
+   repo —`tiras.js`— que llaman a `setup` antes de que resuelva
+   `document.fonts.ready`. Midiendo solo en `setup` la escala se quedaba
+   graduada para el titular en la fuente de sistema. Esto no es un acumulador
+   entre fotogramas: con las fuentes ya cargadas todas las pasadas miden lo
+   mismo y el resultado sigue siendo función pura de `t`. */
+function graduar(cfg) {
+  const alto = campo.offsetHeight;
+  const c1 = elTitulo.offsetTop + elTitulo.offsetHeight / 2;
+  if (Math.abs(alto - H) < 1 && Math.abs(c1 - cy[1]) < 1) return;
+
+  H = alto;
+  cy = [cabecera.offsetTop + cabecera.offsetHeight / 2, c1,
+        ventana.offsetTop + ventana.offsetHeight / 2];
+
+  /* La escala sobresale 12 px por los dos extremos. Una graduación que
+     empieza justo en el primer dato y acaba justo en el último parece
+     recortada a medida del contenido; una regla real es más larga que lo que
+     mide. */
+  riel.setAttribute('d', `M ${CX} -12 L ${CX} ${(H + 12).toFixed(1)}`);
+  LARGO = riel.getTotalLength();
+  riel.style.strokeDasharray = LARGO;
+
+  gMarcas.textContent = '';
+  marcas = [];
+  const paso = cfg.division;
+  /* Cada quinta división es media: es el ritmo de cualquier regla grabada
+     —cinco menores, una media—, y es lo que permite CONTAR sin ir de una en
+     una. Con 15 px de paso sobre un campo de 430 px salen 29 menores y 6
+     medias: bastantes para estimar, pocas para que se lea como una trama. */
+  for (let y = 0, i = 0; y <= H; y += paso, i++) {
+    const media = i % 5 === 0;
+    const l = document.createElementNS(NS, 'line');
+    l.setAttribute('class', 'marca ' + (media ? 'media' : 'menor'));
+    /* 8 px · 20 px · 30 px. Los tres largos están separados por más del doble
+       a propósito: con 7 y 15 la diferencia existía en el código y NO se veía
+       en el fotograma ampliado a 3x, o sea que la graduación tenía tres
+       especies y se leía como una sola. Una jerarquía que hay que medir con
+       una regla no es una jerarquía. */
+    l.setAttribute('x1', media ? CX - 2 : CX + 2);
+    l.setAttribute('x2', media ? CX + 18 : CX + 10);
+    l.setAttribute('y1', y.toFixed(1));
+    l.setAttribute('y2', y.toFixed(1));
+    gMarcas.appendChild(l);
+    marcas.push({ el: l, y });
+  }
+  /* Las de registro van DESPUÉS para quedar por encima de cualquier menor
+     que caiga en el mismo sitio, que con paso fijo pasa a menudo. Y bajan
+     también por debajo del eje, que es como se marca una división mayor en
+     una escala grabada. */
+  cy.forEach(y => {
+    const l = document.createElementNS(NS, 'line');
+    l.setAttribute('class', 'marca registro');
+    l.setAttribute('x1', CX - 7);
+    l.setAttribute('x2', CX + 23);
+    l.setAttribute('y1', y.toFixed(1));
+    l.setAttribute('y2', y.toFixed(1));
+    /* Bronce: es la ÚNICA especie de división que lleva material, y por eso
+       se distingue de las otras dos sin subir de tamaño ni encender nada. */
+    l.setAttribute('stroke', 'url(#metal)');
+    gMarcas.appendChild(l);
+    marcas.push({ el: l, y });
+  });
+
+  taco.setAttribute('x', CX - 11);
+  taco.setAttribute('y', -17);
+  taco.setAttribute('width', 22);
+  taco.setAttribute('height', 34);
+  hilo.setAttribute('x1', CX - 15); hilo.setAttribute('x2', CX + 15);
+  hilo.setAttribute('y1', 0);       hilo.setAttribute('y2', 0);
+  prolonga.setAttribute('x1', CX + 15); prolonga.setAttribute('x2', CX + 36);
+  prolonga.setAttribute('y1', 0);       prolonga.setAttribute('y2', 0);
+}
+
+Engine.register({
+  duration: 5.5,
+  defaults: {
+    kicker: 'CLAUDE CODE',
+    titulo: 'Edita vídeo *sin tocar* el ratón',   // *…* = resaltado en bronce
+    funcion: '[ FUNCIÓN 01 ]',
+    metrica: 'M4 PRO · 24 GB',
+    cps: 22,             // velocidad de estampado del código
+    entrada: 0.5,        // gesto de llegada de cada registro
+    escalonado: 0.08,    // aire entre palabras del titular
+    division: 15,        // paso de la graduación menor, en px
+    salida: 0.5,         // fundido final
+    y: 170,              // altura del bloque; ajustable por zona segura
+    escala: 1.0          // reducir en planos cerrados
+  },
+
+  setup(cfg) {
+    leerPesos();
+    placa.style.top = (cfg.y || 170) + 'px';
+    placa.style.transform = 'scale(' + (cfg.escala || 1) + ')';
+    elKicker.textContent = cfg.kicker;
+    elMet.textContent = cfg.metrica;
+
+    /* Una sola lámina de bronce para toda la escala, en `userSpaceOnUse`.
+       La `caja` NO es opcional aquí: el riel es una recta VERTICAL y las
+       divisiones de registro son rectas HORIZONTALES, o sea cajas de ancho o
+       alto cero, y con `objectBoundingBox` —el defecto— el SVG manda no
+       dibujar nada. Sin caja la escala entera desaparece sin un solo aviso
+       en consola: los `<path>` y los `<line>` están en el DOM, con su `d` y
+       su `stroke-width`, y no pintan un píxel. */
+    Engine.gradienteMetal(calibre, 'metal', [0, 0, 44, 520]);
+    riel.setAttribute('stroke', 'url(#metal)');
+    taco.setAttribute('fill', 'url(#metal)');
+
+    /* Grano de impresión sobre el rebaje. Es la textura que 48 de 56
+       plantillas no tienen, y aquí además hace un trabajo concreto: sobre un
+       plano de color liso el rebaje se lee como un rectángulo de CSS; con
+       trama de mecanizado más grano se lee como una superficie. */
+    capaGrano = Engine.grano(document.getElementById('fondo'),
+                             { px: 256, semilla: 13, op: 0 });
+
+    /* Trocear en palabras respetando el marcado *resaltado*.
+       Primero se parte en TRAMOS por los asteriscos y luego cada tramo
+       en palabras: así un resaltado puede abarcar varias palabras
+       (*sin tocar*), que es el caso normal en un titular. */
+    elTitulo.innerHTML = '';
+    palabras = [];
+    String(cfg.titulo || '').split(/(\*[^*]+\*)/).filter(Boolean).forEach(tramo => {
+      const hl = /^\*[^*]+\*$/.test(tramo);
+      const texto = hl ? tramo.slice(1, -1) : tramo;
+      texto.split(/\s+/).filter(Boolean).forEach(p => {
+        const s = document.createElement('span');
+        s.className = hl ? 'w hl brushed-text' : 'w';
+        s.textContent = p;
+        s._peso = hl ? W_HL : W_BASE;
+        elTitulo.appendChild(s);
+        elTitulo.appendChild(document.createTextNode(' '));
+        palabras.push(s);
+      });
+    });
+
+    /* El ancho de cada palabra se MIDE a su peso final y se congela.
+       Sin esto, animar el eje `wght` reflúa el titular en cada fotograma: la
+       palabra resaltada pasa de 200 a 800 y se ensancha un 9,4 % —«tocar» a
+       82 px va de 178 a 195 px—, así que un salto de línea que estaba en la
+       tercera palabra se muda a la segunda a mitad de entrada y el titular
+       se recompone solo. Congelando el ancho, el eje variable se anima y la
+       maquetación no se entera. Es el mismo remedio que `capitulos` aplica a
+       sus rótulos, y por la misma razón: al peso MÁS GORDO, que es el ancho
+       máximo que la palabra va a ocupar. */
+    palabras.forEach(s => { Engine.peso(s, s._peso); });
+    /* `getBoundingClientRect` devuelve píxeles de PANTALLA y `width` se
+       declara en píxeles de MAQUETACIÓN, y entre los dos hay un factor:
+       `cfg.escala` pone un `scale()` en la placa y `cfg.zoom` un `zoom` en la
+       raíz. Congelar el rect tal cual dejaba cada palabra un 28 % más
+       estrecha con `escala: 0.72` y el titular se PISABA — «Sin tocar el
+       ratón» salía «Sirtocaelratón» en el fotograma, sin un solo error, y
+       solo en los planos cerrados, que es donde nadie mira. Lo cazó componer
+       una captura con esa configuración, no leer el código.
+
+       El factor se MIDE en vez de reconstruirse multiplicando `escala` por
+       `zoom`: `offsetWidth` está por definición en el mismo espacio que la
+       propiedad `width`, así que su cociente con el rect es el factor real
+       venga de donde venga. Reconstruirlo a mano vuelve a fallar en cuanto
+       aparezca una tercera fuente de escala. */
+    const factor = (placa.getBoundingClientRect().width / (placa.offsetWidth || 1)) || 1;
+    const anchos = palabras.map(s => s.getBoundingClientRect().width / factor);
+    palabras.forEach((s, i) => { s.style.width = anchos[i].toFixed(2) + 'px'; });
+
+    /* UNA lámina de bronce para todo el resaltado, no una por palabra.
+       `.brushed-text` recorta el degradado a la caja de SU elemento, así que
+       con «*sin tocar*» —dos palabras, dos spans— salían dos degradados
+       independientes: cada palabra con su propio reflejo, que es exactamente
+       lo que `Engine.gradienteMetal` documenta como «lo que delata que son
+       piezas pegadas». Aquí se resuelve dando a cada span el TAMAÑO de la
+       caja del titular y desplazando el origen a su posición dentro de ella:
+       todas muestrean la misma lámina.
+
+       Se mide con `offset*` y no con `getBoundingClientRect`: `cfg.escala`
+       aplica un `scale()` a la placa, así que los rects vienen en píxeles ya
+       escalados mientras `background-size` se declara sin escalar. Con
+       `escala: 0.8` el desfase habría sido del 20 % y solo se notaría en los
+       planos cerrados, que es donde nadie mira. */
+    const anchoT = elTitulo.offsetWidth, altoT = elTitulo.offsetHeight;
+    palabras.forEach(s => {
+      if (!s.classList.contains('hl')) return;
+      s.style.backgroundSize = anchoT + 'px ' + altoT + 'px';
+      s.style.backgroundPosition =
+        (-(s.offsetLeft - elTitulo.offsetLeft)) + 'px ' +
+        (-(s.offsetTop - elTitulo.offsetTop)) + 'px';
+    });
+
+    /* Tres señales, tres hechos físicos, y ni una por carácter: a 30 pps un
+       `tecleo` por letra es un zumbido. Los instantes salen de `ritmo()`, la
+       misma función de la que sale `draw`. */
+    const r = ritmo(cfg, palabras.length);
+    const cues = [
+      { at: 0.02,             sfx: 'barrido', gain: 0.38 },  // se traza la escala
+      { at: +r.tVentana.toFixed(3), sfx: 'tic',  gain: 0.5 },  // la corredera encaja
+      { at: +r.tSellado.toFixed(3), sfx: 'clic', gain: 0.42 }  // el código queda sellado
+    ];
+    return { cues: cfg.sinSonido ? [] : cues };
+  },
+
+  anclas() {
+    const caja = el => {
+      const b = el.getBoundingClientRect();
+      return { x: Math.round(b.left + b.width / 2),
+               y: Math.round(b.top + b.height / 2),
+               w: Math.round(b.width), h: Math.round(b.height) };
+    };
+    return { titular: caja(elTitulo), lectura: caja(ventana) };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 5.5;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+    const r = ritmo(cfg, palabras.length);
+    graduar(cfg);
+    placa.style.opacity = cierre;
+
+    /* --- la escala se TRAZA ------------------------------------------
+       `outExpo` y no `outCubic`: un trazo grabado sale disparado y frena, no
+       arranca despacio. Es la única curva del catálogo que hace eso, y aquí
+       está justificada — es la punta de un buril, no un objeto con masa. */
+    const pRiel = span(t, 0, cfg.entrada * 1.7, Ease.outExpo);
+    riel.style.strokeDashoffset = (LARGO * (1 - pRiel)).toFixed(2);
+    riel.style.opacity = cierre;
+
+    /* Cada división se enciende cuando el buril PASA por ella, no en un
+       escalonado propio: así la escala se revela con un solo gesto en vez de
+       con treinta apariciones desplazadas. El 8 % de adelanto es lo que hace
+       que la última división exista: sin él su opacidad llega a 0 justo
+       cuando el trazo termina y la de abajo del todo no se ve nunca. */
+    const encendida = y => clamp((pRiel * 1.08 - (y + 12) / (H + 24)) * 9, 0, 1);
+    marcas.forEach(m => { m.el.style.opacity = (encendida(m.y) * cierre).toFixed(3); });
+
+    /* La luz sobre el bronce se desplaza. Un degradado clavado convierte el
+       metal en una calcomanía —lo dice el token `--metal-ang` de la hoja— y
+       aquí la lámina es la misma para el riel, las divisiones de registro y
+       la corredera, así que el reflejo viaja por las tres piezas a la vez,
+       que es lo que delata que son UNA pieza y no tres pegadas.
+       Periodo 9,3 s: más largo que cualquier capa de este tipo (5,5 s por
+       defecto), así que dentro de la pieza nunca se repite. */
+    const luz = 60 * Math.sin(2 * Math.PI * t / 9.3);
+    Engine.gradienteMetal(calibre, 'metal', [0, -80 + luz, 44, H + 80 + luz]);
+
+    /* --- la corredera --------------------------------------------------
+       Dos viajes con `inOutCubic`: una corredera tiene masa, arranca y para.
+       Con `outCubic` salía disparada en el primer fotograma y parecía un
+       barrido automático, que es justo lo contrario de un gesto de lectura.
+       Llega EXACTAMENTE en `tTitulo` y en `tVentana`, que son los instantes
+       de los que salen las señales de sonido. */
+    const v1 = span(t, r.tKicker, Math.max(0.001, r.tTitulo - r.tKicker), Ease.inOutCubic);
+    const v2 = span(t, r.tVentana - VIAJE, VIAJE, Ease.inOutCubic);
+    const yC = cy[0] + (cy[1] - cy[0]) * v1 + (cy[2] - cy[1]) * v2;
+    corredera.setAttribute('transform', `translate(0 ${yC.toFixed(2)})`);
+    corredera.style.opacity = (encendida(cy[0]) * cierre).toFixed(3);
+
+    /* --- el kicker ------------------------------------------------------ */
+    const k = span(t, r.tKicker, cfg.entrada * 0.9, Ease.outExpo);
+    /* §10: flotación de reposo, y en el CAMPO, no en la escala. La escala es
+       la máquina y tiene que estar quieta; lo que respira es lo que se lee.
+       Sin esto la plantilla se quedaba congelada BYTE A BYTE: dos de los tres
+       instantes que captura el humo daban el mismo md5 —está en el
+       diagnóstico como CONGELA— o sea que el gráfico se moría durante la
+       mitad de su tiempo en pantalla. Tres periodos distintos a propósito: si
+       los tres renglones derivaran a la vez el bloque latiría, que es tan
+       artificial como no moverse. */
+    const fK = Engine.flota(t, 0, { amp: 2.6, periodo: 8.2, semilla: 4 });
+    cabecera.style.opacity = (k * cierre).toFixed(3);
+    cabecera.style.transform =
+      `translate(${fK.x.toFixed(2)}px, ${((1 - k) * -10 + fK.y).toFixed(2)}px)`;
+    Engine.peso(elKicker, Math.round(200 + (W_KICK - 200) * k));
+    filete.style.transform = `scaleX(${k.toFixed(4)})`;
+
+    /* --- el titular ------------------------------------------------------
+       `outBack6` y no `outBack`: el `s` por defecto se pasa un 10,0 % y §1
+       solo admite un 6 %. Con seis palabras escalonadas la diferencia no es
+       sutil — son seis rebotes seguidos, y a 10 % el bloque entero se lee
+       como elástico. */
+    palabras.forEach((w, i) => {
+      const p = span(t, r.tTitulo + i * cfg.escalonado, cfg.entrada * 0.84,
+                     Ease.outBack6);
+      const o = clamp(p, 0, 1);
+      w.style.opacity = o.toFixed(3);
+      w.style.transform = `translateY(${((1 - p) * 26).toFixed(2)}px)`;
+      /* El peso se asienta con la palabra: 200 al llegar, su peso de rol al
+         posarse. Es lo que separa una palabra que carga de una que acompaña,
+         y no se puede imitar con dos ficheros estáticos: entre 200 y 800 hay
+         una transición continua. */
+      Engine.peso(w, Math.round(200 + (w._peso - 200) * o));
+    });
+    const fT = Engine.flota(t, 1, { amp: 2.2, periodo: 9.1, semilla: 4 });
+    elTitulo.style.transform =
+      `translate(${fT.x.toFixed(2)}px, ${fT.y.toFixed(2)}px)`;
+
+    /* --- la ventana de lectura ------------------------------------------
+       Se abre con un OBTURADOR y no con un fundido: un rebaje mecanizado no
+       aparece de la nada, se destapa. `clip-path` además saca a esta
+       plantilla del montón de las 42 que solo animan `opacity` y
+       `transform`. */
+    const c = span(t, r.tVentana, cfg.entrada * 0.9, Ease.inOutCubic);
+    ventana.style.clipPath = `inset(0 ${((1 - c) * 100).toFixed(2)}% 0 0)`;
+    const fV = Engine.flota(t, 2, { amp: 3.0, periodo: 7.6, semilla: 4 });
+    ventana.style.transform =
+      `translate(${fV.x.toFixed(2)}px, ${fV.y.toFixed(2)}px)`;
+    capaGrano.style.opacity = (0.34 * c).toFixed(3);
+
+    /* Estampado del código de función. */
+    elLbl.textContent = typed(cfg.funcion, t, r.tCodigo, r.cps);
+    /* La cabeza no parpadea: se retira cuando la marca está puesta. El
+       parpadeo dice «escribe tú», y aquí nadie va a escribir. */
+    cabeza.style.opacity = (t < r.tCodigo ? 0
+      : 1 - span(t, r.tSellado, 0.28, Ease.outCubic)).toFixed(3);
+    /* La métrica es la SEGUNDA lectura y entra cuando la primera está
+       sellada: dos datos que aparecen a la vez se leen como uno solo. */
+    elMet.style.opacity = span(t, r.tSellado - 0.1, 0.4, Ease.outCubic).toFixed(3);
+  }
+});
+</script>
+</body>
+</html>

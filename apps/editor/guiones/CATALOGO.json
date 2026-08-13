@@ -1,0 +1,5610 @@
+{
+ "generado_por": "scripts/catalogo_json.py",
+ "contrato": "guiones/CONTRATO.md",
+ "lienzo": "1080x1920",
+ "piezas_totales": 182,
+ "piezas_que_admiten_copy": 85,
+ "reglas_que_abortan": [
+  "un `name` o un `fx_id` fuera de este catálogo aborta",
+  "una pieza con `admite_copy: false` ABORTA: su texto vive en el marcado, no hay config que lo cambie, y compondría el de su demo",
+  "un micro-FX con ranura de texto que no recibe copy ABORTA: sin eso rasteriza el texto de muestra de su plantilla",
+  "una clave de `config` que la plantilla no lea aborta (lint_config --estricto)",
+  "un `sfx` fuera de la tabla de sonidos aborta",
+  "los micro-FX tienen presupuesto: uno cada 7,5 s de pieza, mínimo seis, y cada efecto UNA sola vez (BRAND_RULES §15)",
+  "nada de neón: §1 se aplica aunque la pieza esté en el catálogo"
+ ],
+ "como_se_ancla": "Todo se ancla a una PALABRA del `voice_speech` de su acto, nunca a un segundo: si se vuelve a transcribir, el plan se mueve con la grabación. Vale también para los pasos de `pasos-flow`, que aceptan `ancla` por paso.",
+ "sonidos": [
+  "appear.wav",
+  "error_buzz.wav",
+  "hud_lock.wav",
+  "keyboard_fast.wav",
+  "mouse_click.wav",
+  "music_bed.wav",
+  "notification.wav",
+  "ping_success.wav",
+  "pop.wav",
+  "sparkle.wav",
+  "stamp_heavy.wav",
+  "sub_drop.wav",
+  "subscribe_reminder.wav",
+  "tech_pulse.wav",
+  "unlock_click.wav",
+  "whoosh.wav",
+  "whoosh_rise.wav"
+ ],
+ "encuadres": [
+  "FRAME_CLOSE_UP",
+  "FRAME_LEFT",
+  "FRAME_WIDE",
+  "NONE"
+ ],
+ "posiciones": [
+  "POS_CENTER",
+  "POS_MID_LEFT",
+  "POS_MID_RIGHT",
+  "POS_TOP_CENTER",
+  "POS_TOP_LEFT",
+  "POS_TOP_RIGHT"
+ ],
+ "piezas": [
+  {
+   "plantilla": "anotacion.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "anotacion.html"
+   ],
+   "como_micro_fx": [
+    "anotacion"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "duration",
+    "marcas",
+    "permanece",
+    "pluma",
+    "salida",
+    "semilla",
+    "sinSonido"
+   ]
+  },
+  {
+   "plantilla": "antes-despues.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "antes-despues.html"
+   ],
+   "como_micro_fx": [
+    "antes-despues"
+   ],
+   "copy": [
+    "antes",
+    "despues"
+   ],
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "barrido",
+   "config": [
+    "antes",
+    "desde",
+    "despues",
+    "duration",
+    "entrada",
+    "espera",
+    "hasta",
+    "mango",
+    "pie",
+    "rotulos",
+    "salida",
+    "viaje",
+    "vuelta"
+   ]
+  },
+  {
+   "plantilla": "capitulos.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "capitulos.html"
+   ],
+   "como_micro_fx": [
+    "capitulos"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": null,
+   "config": [
+    "capitulos",
+    "duration",
+    "entrada",
+    "opacidad",
+    "restante",
+    "salida",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "chapter-card.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "chapter-card.html"
+   ],
+   "como_micro_fx": [
+    "chapter-card"
+   ],
+   "copy": "titulo",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "impacto",
+   "config": [
+    "duration",
+    "entrada",
+    "n",
+    "salida",
+    "titulo"
+   ]
+  },
+  {
+   "plantilla": "chat-bubbles.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "chat-bubbles.html"
+   ],
+   "como_micro_fx": [
+    "chat-bubbles"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cps",
+    "duration",
+    "mensajes",
+    "pensar",
+    "rotulos",
+    "salida",
+    "sinSonido",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "cierre-cta.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "cierre-cta.html",
+    "engagement-cta.html"
+   ],
+   "como_micro_fx": [
+    "cierre-cta"
+   ],
+   "copy": "titular",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "boton",
+    "botonHecho",
+    "duration",
+    "entrada",
+    "ico",
+    "icoHecho",
+    "marca",
+    "matiz",
+    "nChispas",
+    "permanencia",
+    "pulsacion",
+    "rotulo",
+    "salida",
+    "sub",
+    "titular",
+    "viaje"
+   ]
+  },
+  {
+   "plantilla": "cinta.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "cinta.html"
+   ],
+   "como_micro_fx": [
+    "cinta"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": null,
+   "config": [
+    "alternar",
+    "arranque",
+    "bandas",
+    "duration",
+    "entrada",
+    "frenada",
+    "salida"
+   ]
+  },
+  {
+   "plantilla": "cita.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "cita.html"
+   ],
+   "como_micro_fx": [
+    "cita"
+   ],
+   "copy": "cita",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "autor",
+    "cargo",
+    "cita",
+    "duration",
+    "entrada",
+    "escalonado",
+    "resaltar",
+    "salida",
+    "sinSonido",
+    "tam"
+   ]
+  },
+  {
+   "plantilla": "code-mockup.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "code-mockup.html"
+   ],
+   "como_micro_fx": [
+    "code-mockup"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "anclaje",
+    "archivo",
+    "codigo",
+    "cps",
+    "duration",
+    "entrada",
+    "escala",
+    "estado",
+    "margen",
+    "primera",
+    "rama",
+    "salida",
+    "sinSonido",
+    "tam"
+   ]
+  },
+  {
+   "plantilla": "comment-bubble.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "comment-bubble.html"
+   ],
+   "como_micro_fx": [
+    "comment-bubble"
+   ],
+   "copy": "texto",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "pop",
+   "config": [
+    "cps",
+    "duration",
+    "entrada",
+    "iniciales",
+    "likes",
+    "nombre",
+    "respuestas",
+    "salida",
+    "texto",
+    "usuario",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "compare-ab.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "compare-ab.html"
+   ],
+   "como_micro_fx": [
+    "compare-ab"
+   ],
+   "copy": "titulo",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "a",
+    "b",
+    "diferencia",
+    "duration",
+    "entrada",
+    "ganador",
+    "ini",
+    "salida",
+    "sinSonido",
+    "subida",
+    "titulo"
+   ]
+  },
+  {
+   "plantilla": "cursor-tap.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "cursor-tap.html"
+   ],
+   "como_micro_fx": [
+    "cursor-tap"
+   ],
+   "copy": "texto",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "clic",
+   "config": [
+    "duration",
+    "entrada",
+    "escala",
+    "giro",
+    "pulsacion",
+    "salida",
+    "texto",
+    "viaje",
+    "x",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "cut-strip.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "cut-strip.html"
+   ],
+   "como_micro_fx": [
+    "cut-strip"
+   ],
+   "copy": "texto",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "angulo",
+    "at",
+    "corte",
+    "duration",
+    "entrada",
+    "salida",
+    "sinSonido",
+    "tam",
+    "texto",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "data-diagram.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "data-diagram.html"
+   ],
+   "como_micro_fx": [
+    "data-diagram"
+   ],
+   "copy": "titulo",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "aristas",
+    "columnas",
+    "duration",
+    "escala",
+    "filas",
+    "nodos",
+    "paquete",
+    "salida",
+    "sinSonido",
+    "subtitulo",
+    "titulo",
+    "velFlujo",
+    "vidrio",
+    "vista",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "definition-card.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "definition-card.html"
+   ],
+   "como_micro_fx": [
+    "definition-card"
+   ],
+   "copy": "palabra",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "deslizar",
+   "config": [
+    "categoria",
+    "definicion",
+    "duration",
+    "entrada",
+    "fonetica",
+    "lectura",
+    "letra",
+    "palabra",
+    "salida",
+    "x",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "fondo.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "fondo.html"
+   ],
+   "como_micro_fx": [
+    "fondo"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": null,
+   "config": [
+    "blobs",
+    "celda",
+    "duration",
+    "entrada",
+    "grano"
+   ]
+  },
+  {
+   "plantilla": "glass-dock.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "glass-dock.html"
+   ],
+   "como_micro_fx": [
+    "glass-dock"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": null,
+   "config": [
+    "duration",
+    "entrada",
+    "items",
+    "salida",
+    "salto_dur",
+    "saltos",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "globo.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "globo.html"
+   ],
+   "como_micro_fx": [
+    "globo"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "arco",
+    "arcos",
+    "cx",
+    "cy",
+    "duration",
+    "entrada",
+    "noche",
+    "paso",
+    "permanencia",
+    "puntos",
+    "r",
+    "relleno",
+    "rotY",
+    "salida",
+    "sinSonido",
+    "sol",
+    "velocidad",
+    "viaje",
+    "visita"
+   ]
+  },
+  {
+   "plantilla": "gold-glint.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "gold-glint.html"
+   ],
+   "como_micro_fx": [
+    "gold-glint"
+   ],
+   "copy": "texto",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "destello",
+   "config": [
+    "anchoMax",
+    "barrido",
+    "duration",
+    "espera",
+    "salida",
+    "tam",
+    "texto",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "green-spike.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "green-spike.html"
+   ],
+   "como_micro_fx": [
+    "green-spike"
+   ],
+   "copy": "texto",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "aparicion",
+   "config": [
+    "alto",
+    "ancho",
+    "duration",
+    "tam",
+    "texto",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "head-explode.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "head-explode.html"
+   ],
+   "como_micro_fx": [
+    "head-explode"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "impacto",
+   "config": [
+    "alcance",
+    "duration",
+    "grosor",
+    "n",
+    "sacudida",
+    "salida",
+    "x",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "headline-clipper.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "headline-clipper.html"
+   ],
+   "como_micro_fx": [
+    "headline-clipper"
+   ],
+   "copy": "titular",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "duration",
+    "entrada",
+    "entradilla",
+    "fecha",
+    "firma",
+    "giro",
+    "medio",
+    "pop",
+    "resaltar",
+    "salida",
+    "seccion",
+    "semilla",
+    "sinSonido",
+    "titular",
+    "trazo"
+   ]
+  },
+  {
+   "plantilla": "hero-stat.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "hero-stat.html"
+   ],
+   "como_micro_fx": [
+    "hero-stat"
+   ],
+   "copy": "rotulo",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "tic",
+   "config": [
+    "align",
+    "decimales",
+    "desde",
+    "duration",
+    "etiqueta",
+    "flecha",
+    "nota",
+    "rotulo",
+    "salida",
+    "separador",
+    "subida",
+    "unidad",
+    "valor",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "hf-app-showcase.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "app-showcase",
+    "Unleash Full Potential",
+    "START NOW",
+    "James Medrano",
+    "Premium Member",
+    "Weekly Goal"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-app-showcase.html"
+   ],
+   "como_micro_fx": [
+    "hf-app-showcase"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 5.5,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-apple-money-count.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-apple-money-count.html"
+   ],
+   "como_micro_fx": [
+    "hf-apple-money-count"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 4.76,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "ease",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-beat-freeze-cut.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Beat Freeze Cut",
+    "MUSIC PROMO",
+    "LIVE",
+    "Next shot",
+    "HARD",
+    "CUT"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-beat-freeze-cut.html"
+   ],
+   "como_micro_fx": [
+    "hf-beat-freeze-cut"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 6.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-blue-sweater-intro-video.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Blue Sweater Intro Video",
+    "Introducing",
+    "Intro",
+    "ducin",
+    "tro",
+    "blu"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-blue-sweater-intro-video.html"
+   ],
+   "como_micro_fx": [
+    "hf-blue-sweater-intro-video"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 11.24,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "ease",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-camcorder-hud.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "REC",
+    "JAN 01 2000",
+    "12:00 AM",
+    "SP · 16:9",
+    "00:00:00"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-camcorder-hud.html"
+   ],
+   "como_micro_fx": [
+    "hf-camcorder-hud"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-caption-clip-wipe.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Clip Wipe"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-caption-clip-wipe.html"
+   ],
+   "como_micro_fx": [
+    "hf-caption-clip-wipe"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 8.08,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-caption-editorial-emphasis.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Editorial Emphasis"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-caption-editorial-emphasis.html"
+   ],
+   "como_micro_fx": [
+    "hf-caption-editorial-emphasis"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 7.7,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-caption-emoji-pop.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Emoji Pop"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-caption-emoji-pop.html"
+   ],
+   "como_micro_fx": [
+    "hf-caption-emoji-pop"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 7.7,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-caption-gradient-fill.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Gradient Fill"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-caption-gradient-fill.html"
+   ],
+   "como_micro_fx": [
+    "hf-caption-gradient-fill"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 8.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-caption-highlight.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Highlight"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-caption-highlight.html"
+   ],
+   "como_micro_fx": [
+    "hf-caption-highlight"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 7.8,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-caption-kinetic-slam.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Kinetic Slam"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-caption-kinetic-slam.html"
+   ],
+   "como_micro_fx": [
+    "hf-caption-kinetic-slam"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 7.8,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-caption-parallax-layers.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Parallax Layers"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-caption-parallax-layers.html"
+   ],
+   "como_micro_fx": [
+    "hf-caption-parallax-layers"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 8.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-caption-pill-karaoke.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Pill Karaoke"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-caption-pill-karaoke.html"
+   ],
+   "como_micro_fx": [
+    "hf-caption-pill-karaoke"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 7.7,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-caption-weight-shift.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Weight Shift"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-caption-weight-shift.html"
+   ],
+   "como_micro_fx": [
+    "hf-caption-weight-shift"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 7.7,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-chromatic-radial-split.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "08 / 14",
+    "SCENE A",
+    "SCENE B",
+    "Chromatic Radial Split",
+    "Prompt",
+    "\"use chromatic radial split shader transition\""
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-chromatic-radial-split.html"
+   ],
+   "como_micro_fx": [
+    "hf-chromatic-radial-split"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-cinematic-zoom.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "07 / 14",
+    "SCENE A",
+    "SCENE B",
+    "Cinematic Zoom",
+    "Prompt",
+    "\"use cinematic zoom shader transition\""
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-cinematic-zoom.html"
+   ],
+   "como_micro_fx": [
+    "hf-cinematic-zoom"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-code-3d-extrude.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Code 3D Extrude"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-code-3d-extrude.html"
+   ],
+   "como_micro_fx": [
+    "hf-code-3d-extrude"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-code-diff.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Code Diff",
+    "greet.js",
+    "— Code Diff"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-code-diff.html"
+   ],
+   "como_micro_fx": [
+    "hf-code-diff"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-code-highlight.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Code Highlight Sweep",
+    "loadConfig.js",
+    "— Code Highlight Sweep"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-code-highlight.html"
+   ],
+   "como_micro_fx": [
+    "hf-code-highlight"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-code-morph.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Code Morph",
+    "refactor.js",
+    "— Code Morph"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-code-morph.html"
+   ],
+   "como_micro_fx": [
+    "hf-code-morph"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-code-particle-assemble.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Code Particle Assemble"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-code-particle-assemble.html"
+   ],
+   "como_micro_fx": [
+    "hf-code-particle-assemble"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-code-scroll.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Code Scroll To Line",
+    "fetchWithRetry.js",
+    "— Code Scroll To Line"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-code-scroll.html"
+   ],
+   "como_micro_fx": [
+    "hf-code-scroll"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-code-shader-dissolve.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Code Shader Dissolve"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-code-shader-dissolve.html"
+   ],
+   "como_micro_fx": [
+    "hf-code-shader-dissolve"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-code-typing.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Code Typing",
+    "loadConfig.js",
+    "— Code Typing"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-code-typing.html"
+   ],
+   "como_micro_fx": [
+    "hf-code-typing"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-cross-warp-morph.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "13 / 14",
+    "SCENE A",
+    "SCENE B",
+    "Cross-Warp Morph",
+    "Prompt",
+    "\"use cross-warp morph shader transition\""
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-cross-warp-morph.html"
+   ],
+   "como_micro_fx": [
+    "hf-cross-warp-morph"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-data-chart.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Data Chart",
+    "Monthly Revenue vs. Conversion Rate",
+    "Jan–Jun 2024, in thousands",
+    "Revenue",
+    "Conversion Rate",
+    "Source: Internal analytics"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-data-chart.html"
+   ],
+   "como_micro_fx": [
+    "hf-data-chart"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 9.5,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-domain-warp-dissolve.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "01 / 14",
+    "SCENE A",
+    "SCENE B",
+    "Domain Warp Dissolve",
+    "Prompt",
+    "\"use domain warp dissolve shader transition\""
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-domain-warp-dissolve.html"
+   ],
+   "como_micro_fx": [
+    "hf-domain-warp-dissolve"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-flash-through-white.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "12 / 14",
+    "SCENE A",
+    "SCENE B",
+    "Flash Through White",
+    "Prompt",
+    "\"use flash through white shader transition\""
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-flash-through-white.html"
+   ],
+   "como_micro_fx": [
+    "flash-through-white",
+    "hf-flash-through-white"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-flowchart-vertical.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Flowchart Vertical",
+    "Yes",
+    "Not sure",
+    "Should I learn to code?",
+    "Yes",
+    "Not sure"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-flowchart-vertical.html"
+   ],
+   "como_micro_fx": [
+    "hf-flowchart-vertical"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 8.5,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-flowchart.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Flowchart",
+    "Yes",
+    "Not sure",
+    "Should I learn to code?",
+    "Yes",
+    "Not sure"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-flowchart.html"
+   ],
+   "como_micro_fx": [
+    "hf-flowchart"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 8.5,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-freeze-frame-dressing.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-freeze-frame-dressing.html"
+   ],
+   "como_micro_fx": [
+    "freeze-frame-dressing",
+    "hf-freeze-frame-dressing"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-glitch.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "09 / 14",
+    "SCENE A",
+    "SCENE B",
+    "Glitch",
+    "Prompt",
+    "\"use glitch shader transition\""
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-glitch.html"
+   ],
+   "como_micro_fx": [
+    "hf-glitch"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-gravitational-lens.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "06 / 14",
+    "SCENE A",
+    "SCENE B",
+    "Gravitational Lens",
+    "Prompt",
+    "\"use gravitational lens shader transition\""
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-gravitational-lens.html"
+   ],
+   "como_micro_fx": [
+    "hf-gravitational-lens"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-hw-arrow.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-hw-arrow.html"
+   ],
+   "como_micro_fx": [
+    "hf-hw-arrow",
+    "hw-arrow"
+   ],
+   "copy": null,
+   "ranuras": {
+    "lineas": "#hw-ar-demo"
+   },
+   "gesto_s": 3.98,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "lineas",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-hw-boil.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "the boil",
+    "FRAME DROP 3",
+    "FRAME DROP 1",
+    "TEXT, AMP 1.2"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-hw-boil.html"
+   ],
+   "como_micro_fx": [
+    "hf-hw-boil"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 3.98,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-hw-box-label.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-hw-box-label.html"
+   ],
+   "como_micro_fx": [
+    "hf-hw-box-label",
+    "hw-box-label"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 3.98,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-hw-callout-circle.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "subject"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-hw-callout-circle.html"
+   ],
+   "como_micro_fx": [
+    "hf-hw-callout-circle",
+    "hw-callout-circle"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 4.98,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-hw-frame.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-hw-frame.html"
+   ],
+   "como_micro_fx": [
+    "hf-hw-frame"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 8.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-hw-path-text.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-hw-path-text.html"
+   ],
+   "como_micro_fx": [
+    "hf-hw-path-text"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 6.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-hw-pipeline.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-hw-pipeline.html"
+   ],
+   "como_micro_fx": [
+    "hf-hw-pipeline"
+   ],
+   "copy": null,
+   "ranuras": {
+    "nodos": ".hw-pl-label"
+   },
+   "gesto_s": 7.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "nodos",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-hw-scribble-transition.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-hw-scribble-transition.html"
+   ],
+   "como_micro_fx": [
+    "hf-hw-scribble-transition",
+    "hw-scribble-transition"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.49,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-hw-text-cloud.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-hw-text-cloud.html"
+   ],
+   "como_micro_fx": [
+    "hf-hw-text-cloud"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 6.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-hw-title.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-hw-title.html"
+   ],
+   "como_micro_fx": [
+    "hf-hw-title"
+   ],
+   "copy": null,
+   "ranuras": {
+    "lineas": "#hw-t-line"
+   },
+   "gesto_s": 6.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "lineas",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-hw-underline.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-hw-underline.html"
+   ],
+   "como_micro_fx": [
+    "hf-hw-underline",
+    "hw-underline"
+   ],
+   "copy": null,
+   "ranuras": {
+    "lineas": ".hw-mark"
+   },
+   "gesto_s": 3.98,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "lineas",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-instagram-follow.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "HeyGen",
+    "@heygen_official",
+    "47.5K followers",
+    "Follow",
+    "Following"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-instagram-follow.html"
+   ],
+   "como_micro_fx": [
+    "hf-instagram-follow"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 2.19,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-ios26-liquid-glass.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Devices Canvas — HTML-in-Canvas API Showcase",
+    "15:16",
+    "Weather",
+    "Stocks",
+    "Find My",
+    "Home"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-ios26-liquid-glass.html"
+   ],
+   "como_micro_fx": [
+    "hf-ios26-liquid-glass"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 15.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-light-leak.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "14 / 14",
+    "SCENE A",
+    "SCENE B",
+    "Light Leak",
+    "Prompt",
+    "\"use light leak shader transition\""
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-light-leak.html"
+   ],
+   "como_micro_fx": [
+    "hf-light-leak",
+    "light-leak"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-liquid-glass-context-menu.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Liquid Glass Context Menu",
+    "liquid-glass.mov",
+    "Preview render - 08s",
+    "Share",
+    "Add to Bookmarks",
+    "Add Bookmark to..."
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-liquid-glass-context-menu.html"
+   ],
+   "como_micro_fx": [
+    "hf-liquid-glass-context-menu"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-liquid-glass-media-controls.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Liquid Glass Media Controls",
+    "Search",
+    "All",
+    "Favorites",
+    "Recent",
+    "Midnight Drive"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-liquid-glass-media-controls.html"
+   ],
+   "como_micro_fx": [
+    "hf-liquid-glass-media-controls"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-liquid-glass-notification.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Render complete",
+    "rendering",
+    "Liquid glass preview is encoding with GPU capture.",
+    "Messages",
+    "now",
+    "Miguel: can it feel alive but still native?"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-liquid-glass-notification.html"
+   ],
+   "como_micro_fx": [
+    "hf-liquid-glass-notification"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-liquid-glass-widgets.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Liquid Glass Widgets",
+    "Temperature",
+    "Battery",
+    "Steps",
+    "8.2K",
+    "Preview pipeline"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-liquid-glass-widgets.html"
+   ],
+   "como_micro_fx": [
+    "hf-liquid-glass-widgets"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-logo-outro.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Logo Outro",
+    "Nothing great is made alone.",
+    "figma.com"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-logo-outro.html"
+   ],
+   "como_micro_fx": [
+    "hf-logo-outro"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-lower-third-bild.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-lower-third-bild.html"
+   ],
+   "como_micro_fx": [
+    "hf-lower-third-bild"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-lt-accent-underline.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Dr. Maya Chen",
+    "Host · Neuroscientist"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-lt-accent-underline.html"
+   ],
+   "como_micro_fx": [
+    "hf-lt-accent-underline"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.49,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-lt-bold-block.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-lt-bold-block.html"
+   ],
+   "como_micro_fx": [
+    "hf-lt-bold-block"
+   ],
+   "copy": null,
+   "ranuras": {
+    "lineas": ".lt-name, .lt-tag"
+   },
+   "gesto_s": 1.49,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "lineas",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-lt-clean-bar.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Dr. Maya Chen",
+    "Host · Neuroscientist"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-lt-clean-bar.html"
+   ],
+   "como_micro_fx": [
+    "hf-lt-clean-bar"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.49,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-lt-color-block.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Dr. Maya Chen",
+    "Host · Neuroscientist"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-lt-color-block.html"
+   ],
+   "como_micro_fx": [
+    "hf-lt-color-block"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.49,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-lt-dark-card.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Dr. Maya Chen",
+    "Host · Neuroscientist"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-lt-dark-card.html"
+   ],
+   "como_micro_fx": [
+    "hf-lt-dark-card"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.69,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-lt-kicker-name.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Episode 47",
+    "Maya Chen"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-lt-kicker-name.html"
+   ],
+   "como_micro_fx": [
+    "hf-lt-kicker-name"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.69,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-lt-mask-reveal.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Dr. Maya Chen",
+    "Host · Neuroscientist"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-lt-mask-reveal.html"
+   ],
+   "como_micro_fx": [
+    "hf-lt-mask-reveal"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.69,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-lt-side-rule.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Dr. Maya Chen",
+    "Host · Neuroscientist"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-lt-side-rule.html"
+   ],
+   "como_micro_fx": [
+    "hf-lt-side-rule"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.49,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-lt-soft-pill.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Dr. Maya Chen",
+    "Host · Neuroscientist"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-lt-soft-pill.html"
+   ],
+   "como_micro_fx": [
+    "hf-lt-soft-pill"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.49,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-lt-stack-bars.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Maya Chen",
+    "Host · Neuroscientist"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-lt-stack-bars.html"
+   ],
+   "como_micro_fx": [
+    "hf-lt-stack-bars"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.29,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-macos-notification.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "HyperFrames",
+    "now",
+    "Prompt to replace this title",
+    "Prompt to change this body text, the app icon, and the app name to match your content."
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-macos-notification.html"
+   ],
+   "como_micro_fx": [
+    "hf-macos-notification"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.25,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-macos-tahoe-liquid-glass.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Devices Canvas — HTML-in-Canvas API Showcase",
+    "HyperFrames",
+    "Log in",
+    "Community Playground",
+    "Made with HyperFrames",
+    "Examples"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-macos-tahoe-liquid-glass.html"
+   ],
+   "como_micro_fx": [
+    "hf-macos-tahoe-liquid-glass"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 15.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-mk-background.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-mk-background.html"
+   ],
+   "como_micro_fx": [
+    "hf-mk-background"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 9.98,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-mk-callout-highlight.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-mk-callout-highlight.html"
+   ],
+   "como_micro_fx": [
+    "hf-mk-callout-highlight"
+   ],
+   "copy": null,
+   "ranuras": {
+    "lineas": "#mk-ch-box"
+   },
+   "gesto_s": 8.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "lineas",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-mk-clone-wall-transition.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-mk-clone-wall-transition.html"
+   ],
+   "como_micro_fx": [
+    "hf-mk-clone-wall-transition"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 2.36,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-mk-line-graph.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-mk-line-graph.html"
+   ],
+   "como_micro_fx": [
+    "hf-mk-line-graph"
+   ],
+   "copy": null,
+   "ranuras": {
+    "series": ".mk-lg-legend-name",
+    "ejex": ".mk-lg-xlabel"
+   },
+   "gesto_s": 7.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "ejex",
+    "encaje",
+    "escala",
+    "salida",
+    "series",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-mk-placeholder-grid.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-mk-placeholder-grid.html"
+   ],
+   "como_micro_fx": [
+    "hf-mk-placeholder-grid"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 7.98,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-mk-progress-stat.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-mk-progress-stat.html"
+   ],
+   "como_micro_fx": [
+    "hf-mk-progress-stat"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 7.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cifra",
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "pie",
+    "rotulo",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-mk-specs-list.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-mk-specs-list.html"
+   ],
+   "como_micro_fx": [
+    "hf-mk-specs-list"
+   ],
+   "copy": null,
+   "ranuras": {
+    "filas": ".mk-sl-label"
+   },
+   "gesto_s": 8.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "filas",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-mk-usage-arc.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-mk-usage-arc.html"
+   ],
+   "como_micro_fx": [
+    "hf-mk-usage-arc"
+   ],
+   "copy": null,
+   "ranuras": {
+    "cifra": ".mk-arc-num",
+    "rotulo": ".mk-arc-label"
+   },
+   "gesto_s": 2.16,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cifra",
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "rotulo",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-morph-text.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Morph Text",
+    "Do more with less.",
+    "Built for what's next.",
+    "Fast. Focused. Powerful.",
+    "Your work, amplified.",
+    "Start free today."
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-morph-text.html"
+   ],
+   "como_micro_fx": [
+    "hf-morph-text",
+    "morph-text"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 15.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-news-ticker.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "News Ticker",
+    "Live",
+    "Global Desk",
+    "AI video tools move from",
+    "prototype",
+    "production"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-news-ticker.html"
+   ],
+   "como_micro_fx": [
+    "hf-news-ticker"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 6.96,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-north-korea-locked-down.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "LOCKED",
+    "DOWN",
+    "© OpenStreetMap contributors © CARTO"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-north-korea-locked-down.html"
+   ],
+   "como_micro_fx": [
+    "hf-north-korea-locked-down"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 6.74,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "overwrite",
+    "salida",
+    "sinSonido",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-nyc-paris-flight.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "New York",
+    "JFK / NYC",
+    "Paris",
+    "CDG / FR",
+    "ARRIVED",
+    "Six-second transatlantic hop"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-nyc-paris-flight.html"
+   ],
+   "como_micro_fx": [
+    "hf-nyc-paris-flight"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 5.62,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "overwrite",
+    "salida",
+    "sinSonido",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-organic-light-leak-overlay.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-organic-light-leak-overlay.html"
+   ],
+   "como_micro_fx": [
+    "hf-organic-light-leak-overlay"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 4.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-reddit-post.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "r/hyperframes",
+    "u/placeholder_user &middot; 3h",
+    "Prompt to change this title to whatever you want",
+    "Prompt to change this body text, the subreddit, username, and vote count to match your",
+    "content.",
+    "4.2k"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-reddit-post.html"
+   ],
+   "como_micro_fx": [
+    "hf-reddit-post"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.25,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-ridged-burn.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "02 / 14",
+    "SCENE A",
+    "SCENE B",
+    "Ridged Burn",
+    "Prompt",
+    "\"use ridged burn shader transition\""
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-ridged-burn.html"
+   ],
+   "como_micro_fx": [
+    "hf-ridged-burn"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-ripple-waves.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "05 / 14",
+    "SCENE A",
+    "SCENE B",
+    "Ripple Waves",
+    "Prompt",
+    "\"use ripple waves shader transition\""
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-ripple-waves.html"
+   ],
+   "como_micro_fx": [
+    "hf-ripple-waves"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-sdf-iris.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "04 / 14",
+    "SCENE A",
+    "SCENE B",
+    "SDF Iris",
+    "Prompt",
+    "\"use sdf iris shader transition\""
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-sdf-iris.html"
+   ],
+   "como_micro_fx": [
+    "hf-sdf-iris"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-spain-map.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Spain Map",
+    "PIB per c&aacute;pita por Comunidad Aut&oacute;noma",
+    "Producto Interior Bruto per c&aacute;pita, estimaci&oacute;n 2024",
+    "Bajo",
+    "Alto",
+    "Fuente: Instituto Nacional de Estad&iacute;stica"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-spain-map.html"
+   ],
+   "como_micro_fx": [
+    "hf-spain-map"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-spotify-card.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "HyperFrames",
+    "HeyGen",
+    "Spotify"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-spotify-card.html"
+   ],
+   "como_micro_fx": [
+    "hf-spotify-card"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 4.7,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-swirl-vortex.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "10 / 14",
+    "SCENE A",
+    "SCENE B",
+    "Swirl Vortex",
+    "Prompt",
+    "\"use swirl vortex shader transition\""
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-swirl-vortex.html"
+   ],
+   "como_micro_fx": [
+    "hf-swirl-vortex"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-thermal-distortion.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "11 / 14",
+    "SCENE A",
+    "SCENE B",
+    "Thermal Distortion",
+    "Prompt",
+    "\"use thermal distortion shader transition\""
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-thermal-distortion.html"
+   ],
+   "como_micro_fx": [
+    "hf-thermal-distortion"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-tiktok-follow.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "HeyGen",
+    "@heygen.com",
+    "1,999 followers",
+    "Follow",
+    "Following"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-tiktok-follow.html"
+   ],
+   "como_micro_fx": [
+    "hf-tiktok-follow"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 2.19,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-transitions-3d.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "3D Transitions",
+    "3D Transitions",
+    "1 Transition",
+    "ONE",
+    "Scene A",
+    "TWO"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-transitions-3d.html"
+   ],
+   "como_micro_fx": [
+    "hf-transitions-3d"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-transitions-blur.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "TRANSITION CATALOG",
+    "Blur Transitions",
+    "3 transitions",
+    "ONE",
+    "SCENE A",
+    "TWO"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-transitions-blur.html"
+   ],
+   "como_micro_fx": [
+    "hf-transitions-blur"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 19.3,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-transitions-cover.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Cover Transitions Showcase",
+    "Cover Transitions",
+    "3 transition styles",
+    "ONE",
+    "SCENE A",
+    "TWO"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-transitions-cover.html"
+   ],
+   "como_micro_fx": [
+    "hf-transitions-cover"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 19.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-transitions-destruction.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "TRANSITION CATALOG",
+    "Destruction Transitions",
+    "1 transition",
+    "ONE",
+    "SCENE A",
+    "TWO"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-transitions-destruction.html"
+   ],
+   "como_micro_fx": [
+    "hf-transitions-destruction"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 8.81,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-transitions-dissolve.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "TRANSITION CATALOG",
+    "Dissolve Transitions",
+    "4 transitions",
+    "ONE",
+    "SCENE A",
+    "TWO"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-transitions-dissolve.html"
+   ],
+   "como_micro_fx": [
+    "hf-transitions-dissolve"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 23.8,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-transitions-distortion.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Distortion Transitions",
+    "Distortion Transitions",
+    "Glitch &bull; Chromatic &bull; Ripple",
+    "ONE",
+    "Scene A",
+    "TWO"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-transitions-distortion.html"
+   ],
+   "como_micro_fx": [
+    "hf-transitions-distortion"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 20.9,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "ease",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-transitions-grid.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Grid Transitions",
+    "Grid Transitions",
+    "Grid Dissolve",
+    "ONE",
+    "Scene A",
+    "TWO"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-transitions-grid.html"
+   ],
+   "como_micro_fx": [
+    "hf-transitions-grid"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 10.9,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "ease",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-transitions-light.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Light Transitions Showcase",
+    "Light Transitions",
+    "3 transition styles",
+    "ONE",
+    "SCENE A",
+    "TWO"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-transitions-light.html"
+   ],
+   "como_micro_fx": [
+    "hf-transitions-light"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 19.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-transitions-mechanical.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "TRANSITION CATALOG",
+    "Mechanical Transitions",
+    "2 transitions",
+    "ONE",
+    "SCENE A",
+    "TWO"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-transitions-mechanical.html"
+   ],
+   "como_micro_fx": [
+    "hf-transitions-mechanical"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 14.8,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-transitions-other.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "TRANSITION CATALOG",
+    "Other Transitions",
+    "3 transitions",
+    "ONE",
+    "SCENE A",
+    "TWO"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-transitions-other.html"
+   ],
+   "como_micro_fx": [
+    "hf-transitions-other"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 19.3,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-transitions-push.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "TRANSITION CATALOG",
+    "Push Transitions",
+    "4 transitions",
+    "ONE",
+    "SCENE A",
+    "TWO"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-transitions-push.html"
+   ],
+   "como_micro_fx": [
+    "hf-transitions-push"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 23.8,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-transitions-radial.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Radial Transitions",
+    "Radial Transitions",
+    "3 Transitions",
+    "ONE",
+    "Scene A",
+    "TWO"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-transitions-radial.html"
+   ],
+   "como_micro_fx": [
+    "hf-transitions-radial"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 14.25,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-transitions-scale.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "TRANSITION CATALOG",
+    "Scale Transitions",
+    "2 transitions",
+    "ONE",
+    "SCENE A",
+    "TWO"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-transitions-scale.html"
+   ],
+   "como_micro_fx": [
+    "hf-transitions-scale"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 14.8,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-ui-3d-reveal.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "ui-3d-reveal",
+    "App Redesign",
+    "Design System",
+    "Design",
+    "Dev",
+    "Share"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-ui-3d-reveal.html"
+   ],
+   "como_micro_fx": [
+    "hf-ui-3d-reveal"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 13.3,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-us-map-bubble.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "US Bubble Map",
+    "Top 20 US Cities by Population",
+    "Proportional bubble markers by metropolitan population",
+    "Source: U.S. Census Bureau, 2024"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-us-map-bubble.html"
+   ],
+   "como_micro_fx": [
+    "hf-us-map-bubble"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-us-map-flow.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "US Flow Map",
+    "Interstate Flow Connections",
+    "Relative volume of major city-to-city corridors",
+    "Source: Illustrative data"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-us-map-flow.html"
+   ],
+   "como_micro_fx": [
+    "hf-us-map-flow"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-us-map-hex.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "US Hex Grid Map",
+    "Median Household Income by State",
+    "American Community Survey, 2024",
+    "$52k",
+    "$107k",
+    "Source: U.S. Census Bureau, American Community Survey 2024"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-us-map-hex.html"
+   ],
+   "como_micro_fx": [
+    "hf-us-map-hex"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 8.74,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-us-map.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "US Map",
+    "Population Density by State",
+    "Residents per square mile, 2024 Census estimates",
+    "Low",
+    "High",
+    "Source: U.S. Census Bureau"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-us-map.html"
+   ],
+   "como_micro_fx": [
+    "hf-us-map"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-vfx-iphone-device.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Devices Canvas — HTML-in-Canvas API Showcase",
+    "HyperFrames",
+    "Log in",
+    "Community Playground",
+    "Made with HyperFrames",
+    "Examples"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-vfx-iphone-device.html"
+   ],
+   "como_micro_fx": [
+    "hf-vfx-iphone-device"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-vfx-liquid-background.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Vault",
+    "Portfolio",
+    "Markets",
+    "Activity",
+    "Settings",
+    "Total Balance"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-vfx-liquid-background.html"
+   ],
+   "como_micro_fx": [
+    "hf-vfx-liquid-background"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-vfx-liquid-glass.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Liquid Glass Parallax",
+    "Write HTML → Render Video",
+    "Ship videos",
+    "10x faster",
+    "HTML is the source of truth for video. No timeline editors, no After Effects — just",
+    "code."
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-vfx-liquid-glass.html"
+   ],
+   "como_micro_fx": [
+    "hf-vfx-liquid-glass"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 20.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-vfx-magnetic.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Magnetic Cursor — HTML-in-Canvas",
+    "Pixels bend toward",
+    "your",
+    "cursor",
+    "Move your mouse across this page. Every pixel is drawn through a WebGL shader that",
+    "warps space toward your cursor position, like a magnet pulling iron filings beneath a"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-vfx-magnetic.html"
+   ],
+   "como_micro_fx": [
+    "hf-vfx-magnetic"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 15.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-vfx-portal.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "HTML Portal Transition",
+    "HyperFrames",
+    "Docs",
+    "Catalog",
+    "GitHub",
+    "Sign In"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-vfx-portal.html"
+   ],
+   "como_micro_fx": [
+    "hf-vfx-portal"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-vfx-text-cursor.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "VFX Text Cursor",
+    "canvas",
+    "Now available",
+    "in HyperFrames"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-vfx-text-cursor.html"
+   ],
+   "como_micro_fx": [
+    "hf-vfx-text-cursor"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 5.54,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-vpn-youtube-spot.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "PRIVATE",
+    "SIMPLY",
+    "A calmer way to browse.",
+    "SAFE",
+    "Search",
+    "privacy apps"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-vpn-youtube-spot.html"
+   ],
+   "como_micro_fx": [
+    "hf-vpn-youtube-spot"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 7.75,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "ease",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-whip-pan.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "03 / 14",
+    "SCENE A",
+    "SCENE B",
+    "Whip Pan",
+    "Prompt",
+    "\"use whip pan shader transition\""
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-whip-pan.html"
+   ],
+   "como_micro_fx": [
+    "hf-whip-pan",
+    "whip-pan"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-world-map.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "World Map",
+    "Global GDP per Capita",
+    "Nominal GDP per capita, 2024 IMF estimates",
+    "Low",
+    "High",
+    "Source: International Monetary Fund"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-world-map.html"
+   ],
+   "como_micro_fx": [
+    "hf-world-map"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.2,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-x-post.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "Hyperframes",
+    "@hyperframes",
+    "Prompt to replace this text with your tweet. Change the display name, handle, timestamp,",
+    "and engagement counts to match your content.",
+    "#YourHashtag",
+    "1:10 PM &middot; Apr 7, 2026"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-x-post.html"
+   ],
+   "como_micro_fx": [
+    "hf-x-post"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.25,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-yt-camera-move.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "FOOTAGE"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-yt-camera-move.html"
+   ],
+   "como_micro_fx": [
+    "hf-yt-camera-move"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 2.16,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-yt-circle-pointer.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "the thing",
+    "sec"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-yt-circle-pointer.html"
+   ],
+   "como_micro_fx": [
+    "hf-yt-circle-pointer",
+    "yt-circle-pointer"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 2.37,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-yt-comment-card.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-yt-comment-card.html"
+   ],
+   "como_micro_fx": [
+    "hf-yt-comment-card"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 8.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-yt-feather-highlight.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-yt-feather-highlight.html"
+   ],
+   "como_micro_fx": [
+    "hf-yt-feather-highlight",
+    "yt-feather-highlight"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.54,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-yt-lcd-background.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-yt-lcd-background.html"
+   ],
+   "como_micro_fx": [
+    "hf-yt-lcd-background"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 10.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-yt-logo-intro.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-yt-logo-intro.html"
+   ],
+   "como_micro_fx": [
+    "hf-yt-logo-intro"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 6.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-yt-lower-third.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "HeyGen",
+    "82.2K subscribers",
+    "Subscribe",
+    "Subscribed"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-yt-lower-third.html"
+   ],
+   "como_micro_fx": [
+    "hf-yt-lower-third"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 2.19,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-yt-prism-title.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-yt-prism-title.html"
+   ],
+   "como_micro_fx": [
+    "hf-yt-prism-title"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 6.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-yt-screen-warp.html",
+   "admite_copy": false,
+   "texto_de_fabrica": [
+    "on screen"
+   ],
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-yt-screen-warp.html"
+   ],
+   "como_micro_fx": [
+    "hf-yt-screen-warp"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 1.83,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "hf-yt-vertical-fill.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "hyperframes",
+   "como_tarjeta": [
+    "hf-yt-vertical-fill.html"
+   ],
+   "como_micro_fx": [
+    "hf-yt-vertical-fill"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": 8.0,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cue",
+    "cueGain",
+    "duration",
+    "encaje",
+    "escala",
+    "salida",
+    "sinSonido",
+    "tema",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "highlighter-text.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "highlighter-text.html"
+   ],
+   "como_micro_fx": [
+    "highlighter-text"
+   ],
+   "copy": "texto",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": null,
+   "config": [
+    "at",
+    "barrido",
+    "color",
+    "colores",
+    "duration",
+    "entrada",
+    "marcar",
+    "salida",
+    "tam",
+    "texto"
+   ]
+  },
+  {
+   "plantilla": "karaoke-subs.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "karaoke-subs.html"
+   ],
+   "como_micro_fx": [
+    "karaoke-subs"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": null,
+   "config": [
+    "alto",
+    "bloques",
+    "caja",
+    "pop",
+    "tam",
+    "tema",
+    "tercio",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "kicker-hud.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "kicker-hud.html"
+   ],
+   "como_micro_fx": [
+    "kicker-hud"
+   ],
+   "copy": "titulo",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cps",
+    "division",
+    "duration",
+    "entrada",
+    "escala",
+    "escalonado",
+    "funcion",
+    "kicker",
+    "metrica",
+    "salida",
+    "sinSonido",
+    "titulo",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "kinetic-captions.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "kinetic-captions.html"
+   ],
+   "como_micro_fx": [
+    "kinetic-captions"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": null,
+   "config": [
+    "acento",
+    "anchoMax",
+    "clave",
+    "cuerpoClave",
+    "escalonado",
+    "fijoAbajo",
+    "gestos",
+    "giroClave",
+    "huecoMax",
+    "max",
+    "palabras",
+    "pop",
+    "popClave",
+    "popPalabra",
+    "preset",
+    "subida",
+    "tam",
+    "trazo",
+    "vaiven",
+    "ventanas",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "kinetic-quote.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "kinetic-quote.html"
+   ],
+   "como_micro_fx": [
+    "kinetic-quote"
+   ],
+   "copy": "texto",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "impacto",
+   "config": [
+    "anchoMax",
+    "duration",
+    "entrada",
+    "resaltar",
+    "salida",
+    "tam",
+    "texto"
+   ]
+  },
+  {
+   "plantilla": "kinetic-type.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "kinetic-type.html"
+   ],
+   "como_micro_fx": [
+    "kinetic-type"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": null,
+   "config": [
+    "anchoMax",
+    "at",
+    "barridoEn",
+    "dur",
+    "duration",
+    "flashEn",
+    "palabras",
+    "salida"
+   ]
+  },
+  {
+   "plantilla": "lower-third.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "lower-third.html"
+   ],
+   "como_micro_fx": [
+    "lower-third"
+   ],
+   "copy": "nombre",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "bug",
+    "conBug",
+    "duration",
+    "entrada",
+    "escalonado",
+    "lado",
+    "nombre",
+    "rol",
+    "salida",
+    "sinSonido",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "mapa-calor.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "mapa-calor.html"
+   ],
+   "como_micro_fx": [
+    "mapa-calor"
+   ],
+   "copy": "titulo",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "escaner",
+   "config": [
+    "celda",
+    "columnas",
+    "duration",
+    "entrada",
+    "escalonado",
+    "etiquetas",
+    "filas",
+    "foco",
+    "salida",
+    "sub",
+    "titulo",
+    "valores"
+   ]
+  },
+  {
+   "plantilla": "marcos.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "marcos.html"
+   ],
+   "como_micro_fx": [
+    "marcos"
+   ],
+   "copy": "titular",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "alto",
+    "ancho",
+    "cps",
+    "desplazamiento",
+    "duration",
+    "entrada",
+    "localhost",
+    "origen",
+    "salida",
+    "sinSonido",
+    "tipo",
+    "titular",
+    "url"
+   ]
+  },
+  {
+   "plantilla": "neural-node-pulse.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "neural-node-pulse.html"
+   ],
+   "como_micro_fx": [
+    "neural-node-pulse"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "escaner",
+   "config": [
+    "duration",
+    "entrada",
+    "halos",
+    "n",
+    "r",
+    "salida",
+    "viaje",
+    "x",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "notification-pop.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "notification-pop.html"
+   ],
+   "como_micro_fx": [
+    "notification-pop"
+   ],
+   "copy": "titulo",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "app",
+    "entrada",
+    "hora",
+    "icono",
+    "permanencia",
+    "sub",
+    "titulo",
+    "venta",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "odometro.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "odometro.html"
+   ],
+   "como_micro_fx": [
+    "odometro"
+   ],
+   "copy": "rotulo",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "desde",
+    "duration",
+    "entrada",
+    "pie",
+    "rigidez",
+    "rotulo",
+    "salida",
+    "separador",
+    "sinSonido",
+    "subida",
+    "sufijo",
+    "tam",
+    "valor"
+   ]
+  },
+  {
+   "plantilla": "onda.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "onda.html"
+   ],
+   "como_micro_fx": [
+    "onda"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": null,
+   "config": [
+    "alto",
+    "ancho",
+    "barras",
+    "desde",
+    "duration",
+    "entrada",
+    "etiqueta",
+    "minimo",
+    "niveles",
+    "salida",
+    "suelo",
+    "tasa",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "padlock-unlock.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "padlock-unlock.html"
+   ],
+   "como_micro_fx": [
+    "padlock-unlock"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "acierto",
+   "config": [
+    "alza",
+    "duration",
+    "escala",
+    "giro",
+    "salto",
+    "x",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "pasos-flow.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "pasos-flow.html"
+   ],
+   "como_micro_fx": [
+    "pasos-flow"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "duration",
+    "entrada",
+    "escalonado",
+    "hueco",
+    "pasos",
+    "salida",
+    "sinSonido",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "pills.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "pills.html"
+   ],
+   "como_micro_fx": [
+    "pills"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "pop",
+   "config": [
+    "align",
+    "barrido",
+    "duration",
+    "entrada",
+    "escalonado",
+    "items",
+    "salida",
+    "sinSonido",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "pip-frame.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "pip-frame.html"
+   ],
+   "como_micro_fx": [
+    "pip-frame"
+   ],
+   "copy": "label",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "apertura",
+    "contador",
+    "duration",
+    "entrada",
+    "grosor",
+    "h",
+    "intensidadEq",
+    "label",
+    "medidor",
+    "salida",
+    "sinSonido",
+    "w",
+    "x",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "poll-rating.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "poll-rating.html"
+   ],
+   "como_micro_fx": [
+    "poll-rating"
+   ],
+   "copy": "titulo",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "duration",
+    "entrada",
+    "escalonado",
+    "opciones",
+    "paso",
+    "salida",
+    "sinSonido",
+    "subida",
+    "titulo"
+   ]
+  },
+  {
+   "plantilla": "red-crash.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "red-crash.html"
+   ],
+   "como_micro_fx": [
+    "red-crash"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "fallo",
+   "config": [
+    "alto",
+    "ancho",
+    "destellos",
+    "duration",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "rejilla-logos.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "rejilla-logos.html"
+   ],
+   "como_micro_fx": [
+    "rejilla-logos"
+   ],
+   "copy": "titulo",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": null,
+   "config": [
+    "columnas",
+    "duration",
+    "elegido",
+    "entrada",
+    "escalonado",
+    "hueco",
+    "items",
+    "lado",
+    "lockup",
+    "nota",
+    "salida",
+    "sub",
+    "titulo",
+    "vista",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "search-bar.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "search-bar.html"
+   ],
+   "como_micro_fx": [
+    "search-bar"
+   ],
+   "copy": "consulta",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "tecleo",
+   "config": [
+    "consulta",
+    "cps",
+    "duration",
+    "entrada",
+    "pulsacion",
+    "salida",
+    "sugEn",
+    "sugerencias",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "security-pipeline-nodes.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "custom-component: security-pipeline-nodes",
+    "security-pipeline-nodes.html"
+   ],
+   "como_micro_fx": [
+    "security-pipeline-nodes"
+   ],
+   "copy": "titulo",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "celda",
+    "ciclo",
+    "duration",
+    "entrada",
+    "fundido",
+    "lienzo",
+    "nodos",
+    "rejilla",
+    "reparto",
+    "salida",
+    "sinSonido",
+    "titulo",
+    "viaje",
+    "y",
+    "zona"
+   ]
+  },
+  {
+   "plantilla": "split-versus.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "split-versus.html"
+   ],
+   "como_micro_fx": [
+    "split-versus"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "a",
+    "b",
+    "barrido",
+    "duration",
+    "entrada",
+    "espera",
+    "salida",
+    "sinSonido",
+    "vs",
+    "vsEn"
+   ]
+  },
+  {
+   "plantilla": "stamp-banned.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "stamp-banned.html"
+   ],
+   "como_micro_fx": [
+    "stamp-banned"
+   ],
+   "copy": "texto",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "fallo",
+   "config": [
+    "duration",
+    "giro",
+    "nPolvo",
+    "tam",
+    "texto",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "stroke-crossout.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "stroke-crossout.html"
+   ],
+   "como_micro_fx": [
+    "stroke-crossout"
+   ],
+   "copy": "texto",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "clic",
+   "config": [
+    "diagonal",
+    "duration",
+    "grosor",
+    "tam",
+    "texto",
+    "trazo",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "subtitles-showcase.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "subtitles-showcase.html"
+   ],
+   "como_micro_fx": [
+    "subtitles-showcase"
+   ],
+   "copy": "texto",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": null,
+   "config": [
+    "brillo",
+    "clave",
+    "cuerpo",
+    "entrada",
+    "escalaTexto",
+    "escalonado",
+    "permanencia",
+    "pop",
+    "preset",
+    "texto",
+    "viaje",
+    "vista"
+   ]
+  },
+  {
+   "plantilla": "svg-checkmark.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "svg-checkmark.html"
+   ],
+   "como_micro_fx": [
+    "svg-checkmark"
+   ],
+   "copy": "texto",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "acierto",
+   "config": [
+    "duration",
+    "r",
+    "tam",
+    "texto",
+    "x",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "target-hud.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "target-hud.html"
+   ],
+   "como_micro_fx": [
+    "target-hud"
+   ],
+   "copy": "texto",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "escaner",
+   "config": [
+    "division",
+    "duration",
+    "entrada",
+    "giro",
+    "lectura",
+    "r",
+    "salida",
+    "texto",
+    "viaje",
+    "x",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "tarjeta-3d.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "tarjeta-3d.html"
+   ],
+   "como_micro_fx": [
+    "tarjeta-3d"
+   ],
+   "copy": "titulo",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "cifra",
+    "duration",
+    "entrada",
+    "inclinacion",
+    "periodo",
+    "pie",
+    "rotulo",
+    "salida",
+    "sinSonido",
+    "titulo",
+    "unidad"
+   ]
+  },
+  {
+   "plantilla": "terminal.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "terminal.html"
+   ],
+   "como_micro_fx": [
+    "cli-typewriter",
+    "terminal"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "propios (los publica la plantilla)",
+   "config": [
+    "alto",
+    "ancho",
+    "cps",
+    "duration",
+    "eje",
+    "entrada",
+    "lineas",
+    "prompt",
+    "ruta",
+    "salida",
+    "sinSonido",
+    "tam",
+    "titulo"
+   ]
+  },
+  {
+   "plantilla": "text-stack-offset.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "text-stack-offset.html"
+   ],
+   "como_micro_fx": [
+    "text-stack-offset"
+   ],
+   "copy": "texto",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "pop",
+   "config": [
+    "copias",
+    "duration",
+    "dx",
+    "dy",
+    "tam",
+    "texto",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "timer-ring.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "timer-ring.html"
+   ],
+   "como_micro_fx": [
+    "timer-ring"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "tic",
+   "config": [
+    "desde",
+    "duration",
+    "r",
+    "tam",
+    "vaciado",
+    "x",
+    "y"
+   ]
+  },
+  {
+   "plantilla": "transicion.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "transicion.html"
+   ],
+   "como_micro_fx": [
+    "transicion"
+   ],
+   "copy": null,
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": null,
+   "config": [
+    "cortes",
+    "franjas"
+   ]
+  },
+  {
+   "plantilla": "tweet-card.html",
+   "admite_copy": true,
+   "texto_de_fabrica": null,
+   "origen": "propia",
+   "como_tarjeta": [
+    "tweet-card.html"
+   ],
+   "como_micro_fx": [
+    "tweet-card"
+   ],
+   "copy": "texto",
+   "ranuras": null,
+   "gesto_s": null,
+   "sonido": "pop",
+   "config": [
+    "duration",
+    "entrada",
+    "escalonado",
+    "metricas",
+    "nombre",
+    "red",
+    "resaltar",
+    "salida",
+    "sello",
+    "subida",
+    "texto",
+    "usuario",
+    "verificado"
+   ]
+  }
+ ]
+}

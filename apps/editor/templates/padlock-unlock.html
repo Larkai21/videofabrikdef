@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Candado que se abre</title>
+<meta name="gesto" content="crecer:arco">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+  /* El canto oscuro NO es decoración: esta capa se compone sobre metraje
+     arbitrario —casi siempre una cara— y sin un borde propio el bronce se
+     funde con cualquier piel o madera que haya detrás. `--sombra` es el
+     token correcto por semántica (el canto en sombra de una pieza) y es el
+     único que oscurece en los dos temas. En `paper` vale 0,16 de alfa
+     frente a 0,55: el borde es MÁS FLOJO en claro, y es deliberado — sobre
+     papel el registro es editorial y un contorno negro lo convertiría en
+     una pegatina. */
+  #arco, #cuerpo { stroke: var(--sombra); stroke-width: 2.5;
+                   stroke-linejoin: round; }
+
+  /* Chaflán mecanizado, juntas de laminación y escudo. Un candado de verdad
+     es un cuerpo LAMINADO: chapas apiladas y remachadas, con la cerradura
+     montada en un escudo. Esas cuatro cosas son lo que separa un objeto
+     fabricado del icono redondeado de una barra de herramientas, y cuestan
+     cuatro <path> estáticos: cero coste por fotograma. */
+  #canto   { fill: none; stroke: var(--stroke); stroke-width: 2; }
+  #costura { fill: none; stroke: var(--sombra); stroke-width: 1.6; }
+  #brillo  { fill: none; stroke: var(--stroke); stroke-width: 1.6; }
+
+  /* La cavidad del bocallave y el hueco de los remaches: bronce EN SOMBRA,
+     no negro. `color-mix` en oklab y no en sRGB porque entre el bronce y el
+     casi-negro sRGB pasa por un gris sucio; en oklab conserva el matiz
+     cálido, que es lo que hace que se lea como un agujero EN ESTE metal y
+     no como un agujero pegado encima. Sale igual de bien en los dos temas
+     porque `--velo-oscuro` es fijo y `--accent` es el bronce del tema. */
+  #bocallave { fill: color-mix(in oklab, var(--accent) 26%, var(--velo-oscuro)); }
+  #remaches  { fill: color-mix(in oklab, var(--accent) 46%, var(--velo-oscuro));
+               stroke: var(--stroke); stroke-width: 1.4; }
+
+  /* Trama de cepillado. Se hace con un <pattern> de SVG y no con
+     `Engine.grano`: el grano pinta con `mix-blend-mode: multiply` sobre una
+     capa hija, y multiplicar contra alfa 0 devuelve el gris de la teja — un
+     rectángulo gris sobre el vídeo. Aquí la superficie es una silueta
+     irregular con alfa alrededor, o sea justo el caso en el que el grano no
+     vale. Un patrón cuesta UNA rasterización para toda la pieza y se recorta
+     solo con el `clip-path`. */
+  #raya line { stroke: var(--stroke); stroke-width: 2.2; }
+
+  /* La luz rasante. §1 prohíbe destacar con luz, así que esto no puede ser
+     un destello: va RECORTADO a la silueta del metal, de modo que no existe
+     ni un píxel de brillo fuera de la pieza. Lo que se ve es una superficie
+     que ya estaba ahí devolviendo la luz, no un halo alrededor. */
+  #franja stop.alta { stop-color: var(--glass-highlight); }
+  #franja stop.nula { stop-color: var(--glass-highlight); stop-opacity: 0; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <svg id="svg" viewBox="0 0 1080 1920">
+    <defs>
+      <pattern id="raya" width="6" height="6" patternUnits="userSpaceOnUse"
+               patternTransform="rotate(-25)">
+        <line x1="-1" y1="3" x2="7" y2="3"></line>
+      </pattern>
+      <linearGradient id="franja" gradientUnits="userSpaceOnUse">
+        <stop offset="0"   class="nula"></stop>
+        <stop offset="0.5" class="alta"></stop>
+        <stop offset="1"   class="nula"></stop>
+      </linearGradient>
+      <clipPath id="cl">
+        <path id="clArco"></path>
+        <path id="clCuerpo"></path>
+      </clipPath>
+    </defs>
+
+    <g id="g">
+      <!-- El arco va DEBAJO del cuerpo: sus patas tienen que desaparecer en
+           la cara del candado, que es lo que dice que están metidas dentro.
+           Si fuera al revés, el arco sería una pegatina en forma de U. -->
+      <path id="arco"></path>
+      <g id="gcuerpo">
+        <path id="cuerpo"></path>
+        <path id="canto"></path>
+        <path id="costura"></path>
+        <path id="brillo"></path>
+        <path id="remaches"></path>
+      </g>
+      <!-- Trama y luz comparten recorte: las dos son cosas que le pasan a la
+           SUPERFICIE, así que ninguna puede salirse de ella. -->
+      <g clip-path="url(#cl)">
+        <rect id="trama" fill="url(#raya)"></rect>
+        <rect id="rasante" fill="url(#franja)"></rect>
+      </g>
+      <!-- El bocallave se pinta DESPUÉS del recorte: es un agujero, y por un
+           agujero ni se ve el cepillado ni corre la luz. -->
+      <path id="bocallave"></path>
+    </g>
+  </svg>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span } = Engine;
+
+const $ = id => document.getElementById(id);
+const svg=$('svg'), g=$('g'), arco=$('arco'), gcuerpo=$('gcuerpo'),
+      cuerpo=$('cuerpo'), canto=$('canto'), costura=$('costura'),
+      brillo=$('brillo'), remaches=$('remaches'), bocallave=$('bocallave'),
+      trama=$('trama'), rasante=$('rasante'), franja=$('franja'),
+      clArco=$('clArco'), clCuerpo=$('clCuerpo');
+
+/* --- generadores de contorno ---------------------------------------------
+   Rectángulo redondeado a mano y no <rect rx>: el cuerpo laminado necesita
+   que su contorno, su chaflán interior y su copia para el recorte salgan de
+   la MISMA expresión con distinto margen. Con tres <rect> habría que
+   mantener tres juegos de radios sincronizados. */
+function rrect(x, y, w, h, r) {
+  return `M${x+r} ${y} H${x+w-r} A${r} ${r} 0 0 1 ${x+w} ${y+r}` +
+         ` V${y+h-r} A${r} ${r} 0 0 1 ${x+w-r} ${y+h}` +
+         ` H${x+r} A${r} ${r} 0 0 1 ${x} ${y+h-r}` +
+         ` V${y+r} A${r} ${r} 0 0 1 ${x+r} ${y} Z`;
+}
+
+/* Geometría del montaje, calculada una vez en setup. `draw` no vuelve a
+   tocarla: lo único que cambia con el reloj son transformaciones y las
+   coordenadas de dos degradados. */
+const G = {};
+
+Engine.register({
+  duration: 1.3,
+  /* `salto` y `escala` se conservan con su significado de siempre —hay
+      planes escritos que los pasan— y `giro`/`alza` se AÑADEN con defecto,
+      que es lo único que el contrato permite. Ninguna de las dos es clave de
+      tiempo: son grados y píxeles, así que no entran en `reloj.SEMANTICA`. */
+  defaults: { x: 540, y: 820, escala: 1, salto: 0.42, giro: 24, alza: 30 },
+
+  setup(cfg) {
+    const cx = cfg.x, yb = cfg.y;
+
+    /* --- el cuerpo ---
+       Los tres números que separan esto del emoji de candado, medidos sobre
+       la primera versión de este rediseño:
+         · radio 13 y no 26. Con 26 sobre 208 px el contorno es un
+           rectángulo redondeado de icono de aplicación; con 13 es un bloque
+           fresado. Es el cambio que más se nota y no cuesta nada.
+         · proporción casi cuadrada: 194/208 = 0,93. La primera versión daba
+           0,82 —claramente apaisada— que es la del icono de candado de
+           cualquier barra de navegación.
+         · la luz del arco ocupa el 71 % del ancho del cuerpo (147/208). En
+           la primera versión era el 75 % y el conjunto se leía como una U
+           montada sobre una pastilla. */
+    const BW = 208, BH = 194, BRX = 13;
+    const bx = cx - BW / 2;
+
+    /* --- el arco ---
+       Se dibuja como contorno CERRADO y no como `stroke` con
+       `stroke-linecap: round`. Es la diferencia entera entre esto y el
+       original: una U de trazo redondo no puede tener ni ranura de cierre ni
+       chaflán en la punta ni patas de distinta longitud, o sea que no puede
+       tener MECANISMO. Es, literalmente, el pictograma. */
+    const r = 60, TH = 27;              // radio a la fibra neutra y grosor
+    const Ro = r + TH / 2, Ri = r - TH / 2;
+    const yc = yb - 42;                 // centro del arco de la U
+    const yL = yb + 12;                 // pie de la pata LIBRE
+    const yR = yb + 52;                 // pie de la pata CAUTIVA, más larga
+    const gT = yb + 2, gH = 20, gD = 11;   // ranura de cierre
+    const ch = 10;                      // chaflán de la punta libre
+
+    /* Las dos patas miden distinto A PROPÓSITO y ese número manda sobre todo
+       lo demás: con `alza = 30`, la punta libre (yb+12) sale 18 px por
+       encima de la cara y la cautiva (yb+52) se queda 22 px DENTRO. Por eso
+       el arco puede girar: sigue preso por un lado. Si las dos midieran
+       igual, al levantarse saldrían las dos y el giro no significaría nada
+       —sería un icono rotando—. Comprobado con la rotación aplicada: tras
+       levantar y girar 24°, el canto interior de la pata cautiva queda en
+       yb+12, o sea todavía 12 px por debajo de la cara. Con yR = yb+34 salía
+       en yb−5,4: fuera, y el mecanismo se leía roto. */
+    G.dArco =
+      `M${cx-Ro} ${yL-ch}` +
+      ` L${cx-Ro} ${yc}` +
+      ` A${Ro} ${Ro} 0 0 1 ${cx+Ro} ${yc}` +
+      ` L${cx+Ro} ${gT}` +
+      ` L${cx+Ro-gD} ${gT+5}` +          // entra la ranura de cierre
+      ` L${cx+Ro-gD} ${gT+gH-5}` +
+      ` L${cx+Ro} ${gT+gH}` +            // y sale
+      ` L${cx+Ro} ${yR}` +
+      ` L${cx+Ri} ${yR}` +
+      ` L${cx+Ri} ${yc}` +
+      ` A${Ri} ${Ri} 0 0 0 ${cx-Ri} ${yc}` +
+      ` L${cx-Ri} ${yL}` +
+      ` L${cx-Ro+ch} ${yL}` +            // chaflán de la punta
+      ` Z`;
+
+    G.dCuerpo = rrect(bx, yb, BW, BH, BRX);
+    arco.setAttribute('d', G.dArco);
+    cuerpo.setAttribute('d', G.dCuerpo);
+    clArco.setAttribute('d', G.dArco);
+    clCuerpo.setAttribute('d', G.dCuerpo);
+
+    /* Chaflán: el filo mecanizado del canto. Un solo trazo de 2 px a 9 px
+       del borde, que es lo que se ve en una pieza fresada. */
+    canto.setAttribute('d', rrect(bx+9, yb+9, BW-9-9, BH-18, Math.max(4, BRX-9)));
+
+    /* Junta de laminación + su brillo, EN PAREJA y separadas 2 px: una junta
+       entre chapas es una línea oscura con el canto de la chapa de abajo
+       devolviendo luz justo debajo. Una línea sola se lee como un subrayado
+       dibujado; dos, como un canto.
+       Dos juntas y no tres: con tres, la del medio cruzaba el bocallave y la
+       cara pasaba de «bloque laminado» a «cuaderno rayado». Encuadran el
+       escudo en vez de competir con él. */
+    const kx = cx, ky = yb + 104, kr = 18, esc = 40, ey = ky + 4;
+    const juntas = [yb+40, yb+BH-38];
+    /* El escudo del bocallave: el anillo resaltado que rodea la cerradura en
+       cualquier candado real. Convierte el agujero en un MECANISMO montado
+       en la placa; sin él, un óvalo negro en mitad de una chapa se lee como
+       una calcomanía.
+       Va en PAREJA oscuro/claro como las juntas, y por la misma razón: con
+       solo el trazo claro —`--stroke` es blanco al 10 %— el anillo salía como
+       un círculo fantasma que ni se leía ni se podía ignorar. Desplazar 2 px
+       el aro claro respecto al oscuro es lo que lo convierte en un bisel. */
+    const aro = (c, r_) => `M${kx+r_} ${c} A${r_} ${r_} 0 1 1 ${kx-r_} ${c}` +
+                           ` A${r_} ${r_} 0 1 1 ${kx+r_} ${c}`;
+    costura.setAttribute('d',
+      juntas.map(y => `M${bx+7} ${y} H${bx+BW-7}`).join(' ') + ' ' + aro(ey, esc));
+    brillo.setAttribute('d',
+      juntas.map(y => `M${bx+7} ${y+2} H${bx+BW-7}`).join(' ') + ' ' + aro(ey+2, esc));
+
+    /* Cuatro remaches: son lo que MANTIENE unidas las chapas, así que van en
+       las esquinas y no repartidos por gusto. */
+    const rr = 6.5, rx = [bx+22, bx+BW-22], ry = [yb+22, yb+BH-22];
+    let dRem = '';
+    for (const x of rx) for (const y of ry) {
+      dRem += `M${x+rr} ${y} A${rr} ${rr} 0 1 1 ${x-rr} ${y}` +
+              ` A${rr} ${rr} 0 1 1 ${x+rr} ${y} Z`;
+    }
+    remaches.setAttribute('d', dRem);
+
+    /* Bocallave: círculo del pitón más la ranura de la guarda. La forma es
+       la de una llave real y no un ojo redondo — un ojo redondo en mitad de
+       una placa se lee como un botón. */
+    bocallave.setAttribute('d',
+      `M${kx+kr} ${ky} A${kr} ${kr} 0 1 1 ${kx-kr} ${ky}` +
+      ` A${kr} ${kr} 0 1 1 ${kx+kr} ${ky} Z` +
+      `M${kx-8} ${ky} L${kx-15} ${ky+42} L${kx+15} ${ky+42} L${kx+8} ${ky} Z`);
+
+    /* --- el metal ---
+       DOS degradados con los mismos stops y no uno. El del arco se
+       contra-transforma en cada fotograma (ver `draw`) para quedarse quieto
+       en el mundo mientras la pieza gira debajo. Sin eso el reflejo viaja
+       PEGADO al arco y girar no cambia una sola sombra: es el detalle que
+       separa «una U rotando» de «una pieza de metal que se mueve bajo una
+       luz».
+       `caja` es obligatoria: sin ella el degradado usa `objectBoundingBox` y
+       una forma de caja plana no se dibujaría. Y compartir caja hace que
+       cuerpo y arco tengan UNA sola luz, que es lo que delata a las piezas
+       pegadas cuando cada una lleva su reflejo.
+       La caja se CIÑE a la pieza (208 x 310) y no lleva margen holgado: con
+       una caja grande, los cuatro stops del bronce se reparten por el aire y
+       al cuerpo solo le toca una franja estrecha del degradado — sale un
+       plano naranja, que es lo que §2 prohíbe expresamente. Ceñida, el metal
+       recorre oscuro → claro → medio → oscuro DENTRO del objeto. */
+    G.caja = [cx - BW / 2, yb - 116, cx + BW / 2, yb + BH];
+    /* Se borran antes de pedirlos porque `Engine.gradienteMetal` cachea por
+       id: si el mismo documento se configura dos veces con temas distintos
+       —lo hace `galeria.js`— el segundo tema se quedaría con los stops del
+       primero y el bronce de `paper` saldría con los cinco tonos de `carbon`.
+       No da ningún error: sale el color equivocado y ya. */
+    ['metal', 'metalArco'].forEach(id => {
+      const v = svg.querySelector('#' + id); if (v) v.remove();
+    });
+    Engine.gradienteMetal(svg, 'metal', G.caja);
+    Engine.gradienteMetal(svg, 'metalArco', G.caja);
+    cuerpo.setAttribute('fill', 'url(#metal)');
+    arco.setAttribute('fill', 'url(#metalArco)');
+
+    /* Eje de la luz rasante: la misma diagonal descendente que `--metal-ang`,
+       o sea la luz entra por arriba a la izquierda. Se guarda el vector
+       unitario para no re-normalizar 39 veces por capa. */
+    const ax = cx - 118, ay = yb - 125, bx2 = cx + 118, by2 = yb + 200;
+    G.L = Math.hypot(bx2 - ax, by2 - ay);
+    G.ax = ax; G.ay = ay;
+    G.dx = (bx2 - ax) / G.L; G.dy = (by2 - ay) / G.L;
+    /* 110 px de franja sobre un cuerpo de 208: una BANDA que cruza. La
+       primera versión usaba 150 y la franja cubría el cuerpo entero a la vez
+       — se leía como «el candado se ha puesto más claro», que es un
+       fogonazo, o sea justo lo que §1 prohíbe. */
+    G.W = 110;
+
+    /* Cuánto vale la franja, preguntándole al TEMA si tiene metal en vez de
+       preguntarle cómo se llama. `_tokens.css` colapsa los cinco stops al
+       acento en los temas planos —«en claro un degradado de bronce sobre
+       papel se ve sucio»—, así que `--metal-1 === --metal-3` es la propia
+       declaración del tema de que ahí no hay superficie especular.
+       Hace falta porque `--glass-highlight` vale 0,72 de alfa en carbón y
+       0,95 en papel: con la misma opacidad, el blanco efectivo pasa de 0,33
+       a 0,44 y sobre el naranja plano la franja dejaba de ser luz rasante y
+       se convertía en el brillo de pegatina que barre un banner. Medido
+       mirando la tira: en papel a 0,46 la banda blanca se comía la cara del
+       candado.
+       Preguntar por el nombre del tema habría funcionado hoy y se habría
+       roto con el siguiente tema plano que alguien añada. */
+    const est = getComputedStyle(document.documentElement);
+    G.opLuz = est.getPropertyValue('--metal-1').trim() ===
+              est.getPropertyValue('--metal-3').trim() ? 0.20 : 0.46;
+
+    /* Un solo rectángulo para trama y luz, holgado: lo que decide la forma es
+       el `clip-path`, no estas medidas. */
+    [trama, rasante].forEach(el => {
+      el.setAttribute('x', cx - 200); el.setAttribute('y', yb - 240);
+      el.setAttribute('width', 400);  el.setAttribute('height', 480);
+    });
+
+    /* El pivote del giro es la pata CAUTIVA en la cara del cuerpo, que es
+       por donde un arco de verdad bascula. */
+    G.px = cx + r; G.py = yb;
+
+    /* El cepillado no parpadea: es el ACABADO de la pieza, así que se escribe
+       una vez y no 39 veces. Estaba en `draw` con un valor constante, que es
+       un escritura por fotograma que no dice nada. */
+    trama.style.opacity = 0.9;
+
+    /* Centro óptico de la pieza —no su esquina— para que `escala` la encoja
+       sobre sí misma. */
+    g.style.transformOrigin = `${cx}px ${yb + 27}px`;
+    g.style.willChange = 'transform, opacity';
+    arco.style.willChange = 'transform';
+  },
+
+  draw(t, cfg) {
+    const dur = cfg.duration || 1.3;
+    const alza = cfg.alza, giro = cfg.giro;
+
+    /* 1 · LLEGADA — el candado no aparece: LLEGA y se para en seco.
+       `outExpo` y no `outCubic`, que es la curva del 91 % del catálogo. Lo
+       que distingue una masa de un icono es cómo TERMINA el recorrido:
+       outExpo lleva hecho el 90 % en el 33 % del tiempo y luego se clava
+       contra su asiento; outCubic reparte la frenada y la pieza se lee como
+       si flotara hasta su sitio. Son 30 px de CAÍDA, no un `scale` desde 0,7:
+       un objeto con peso no crece, cae.
+       0,20 s y no 0,17: medido a 30 pps, con 0,17 la caída se resolvía en
+       TRES fotogramas (16 → 5 → 1 px) y eso ya no es una llegada, es una
+       aparición. Con 0,20 y 30 px hay cinco fotogramas con desplazamiento
+       visible. */
+    const ll = Engine.entra(t, 0.20, Ease.outExpo);
+    const cierre = Engine.sale(t, dur, 0.26);
+    const opa = span(t, 0, 0.10, Ease.outCubic) * cierre;
+
+    /* 2 · EL TIRÓN — el arco sube. `outBack6` y no `outBack`: el sobrepaso
+       por defecto de la curva es del 10,0 % y §1 corta en el 6 %. Aquí el
+       sobrepaso no es un rebote de goma, es el muelle: un arco de candado
+       está COMPRIMIDO contra su asiento y al soltarse se pasa de su tope
+       antes de asentar. Por eso arranca rápido y no hace falta anticipación.
+       El 6 % de 30 px son 1,8 px de sobrepaso — se nota como muelle y no
+       como salto. */
+    const sub = span(t, cfg.salto, 0.16, Ease.outBack6);
+
+    /* 3 · EL GIRO — empieza en el 75 % de la subida, no después.
+       `outBack6` cruza el 100 % del recorrido en p = 0,438 (t = salto+0,07),
+       así que a p = 0,75 la punta libre ya ha salido del cuerpo y el arco
+       puede bascular sin atravesar nada. Solapar las dos fases es lo que
+       hace que se lea como UN gesto y no como dos.
+       `inOutCubic` y no `outCubic`: al empezar el giro el arco viene de
+       frenar en lo alto de su carrera, o sea con velocidad angular CERO. Una
+       curva que arranca a toda velocidad convierte el basculeo en un corte.
+       0,32 s y no 0,26, y la razón es el reparto del segundo y tres décimas
+       que el director le da a esta capa: con 0,26 el mecanismo terminaba en
+       t=0,80 y quedaban ONCE fotogramas seguidos sin que se moviera un
+       píxel antes de que empezara la salida. `Engine.flota` no es la
+       respuesta —nada se asienta en un efecto de medio segundo— así que la
+       respuesta es que el gesto ocupe el tiempo que hay: acaba en 0,86 y el
+       reposo se queda en cinco fotogramas, que es una lectura y no un
+       parón. */
+    const rot = span(t, cfg.salto + 0.12, 0.32, Ease.inOutCubic);
+
+    /* 4 · EL CUERPO ACUSA EL TIRÓN — tercera ley, no un rebote.
+       Baja deprisa (0,05 s) y vuelve despacio (0,15 s), sin oscilar. Una
+       oscilación aquí sería exactamente el rebote elástico que §1 prohíbe;
+       un solo lóbulo es un mecanismo encajando. 7 px sobre un cuerpo de 194
+       bastan: medido a 30 pps el cuerpo recorre 820 → 824,2 → 827 → 826,8 →
+       824,9 → 821,3 → 820, o sea seis fotogramas con desplazamiento y ni un
+       cambio de signo. Por debajo de 7 px no se ve; por encima el candado
+       bota. */
+    const golpe = span(t, cfg.salto, 0.05, Ease.outCubic) -
+                  span(t, cfg.salto + 0.05, 0.15, Ease.inOutCubic);
+
+    /* --- se aplica --- */
+    const caida = (1 - ll) * -30 + (1 - cierre) * 8;
+    g.style.opacity = opa;
+    g.style.transform =
+      `translateY(${caida}px) scale(${cfg.escala * (1 - (1 - cierre) * 0.012)})`;
+
+    /* El orden importa: `rotate` primero (en el espacio local, sobre la pata
+       cautiva) y `translate` después, para que el pivote suba CON el arco.
+       Escrito al revés, el arco bascularía sobre un punto que se ha quedado
+       dentro del cuerpo. */
+    const tArco = `translate(0 ${-sub * alza}) rotate(${rot * giro} ${G.px} ${G.py})`;
+    arco.setAttribute('transform', tArco);
+    clArco.setAttribute('transform', tArco);
+
+    const dip = golpe * 7;
+    gcuerpo.setAttribute('transform', `translate(0 ${dip})`);
+    clCuerpo.setAttribute('transform', `translate(0 ${dip})`);
+
+    /* 5 · LA LUZ QUE NO SE MUEVE.
+       El degradado del arco vive en `userSpaceOnUse`, y en SVG eso significa
+       el espacio de usuario DEL ELEMENTO — o sea que se lo lleva su propia
+       transformación. Sin corregirlo, girar el arco gira también su reflejo
+       y el metal queda pintado, no iluminado. Aquí se aplica la inversa de
+       `tArco` a los dos extremos de la caja, así que el degradado se queda
+       clavado en el mundo y el reflejo RECORRE la pieza mientras bascula.
+       Es el canal que esta plantilla no tenía: antes solo animaba opacidad y
+       transformación, y por eso el bronce se leía como un plano naranja. */
+    const rad = -rot * giro * Math.PI / 180, co = Math.cos(rad), si = Math.sin(rad);
+    const mA = svg.querySelector('#metalArco');
+    for (let i = 0; i < 2; i++) {
+      const qx = G.caja[i * 2], qy = G.caja[i * 2 + 1] + sub * alza;
+      const ex = qx - G.px, ey = qy - G.py;
+      mA.setAttribute('x' + (i + 1), G.px + ex * co - ey * si);
+      mA.setAttribute('y' + (i + 1), G.py + ex * si + ey * co);
+    }
+
+    /* 6 · LA LUZ RASANTE.
+       Entra 0,16 s ANTES del salto: primero cruza el candado CERRADO —que es
+       cuando se lee que es metal y no un dibujo— y el mecanismo se dispara
+       justo cuando la franja va por él. Así el efecto es un solo gesto y no
+       «brilla, luego se abre».
+       `linear`, y esto sí está medido: con `inOutCubic` la franja recorría
+       300 px entre DOS fotogramas consecutivos a 30 pps —el eje entero mide
+       622— así que se veía en tres fotogramas y en el resto no había nada.
+       Eso es exactamente el detalle que un micro-FX no se puede permitir. A
+       velocidad constante avanza 49 px por fotograma sobre una franja de 110,
+       o sea que cada posición solapa un 55 % con la anterior: se lee como un
+       barrido y no como un parpadeo. Y es lo correcto: la fuente no gira, la
+       pieza no gira, no hay nada que justifique una aceleración.
+       Va recortada a la silueta, así que por construcción no puede ser un
+       halo: fuera del metal no hay un solo píxel encendido. */
+    const luz = span(t, cfg.salto - 0.16, 0.48, Ease.linear);
+    const s0 = -G.W + luz * (G.L + 2 * G.W);
+    franja.setAttribute('x1', G.ax + G.dx * s0);
+    franja.setAttribute('y1', G.ay + G.dy * s0);
+    franja.setAttribute('x2', G.ax + G.dx * (s0 + G.W));
+    franja.setAttribute('y2', G.ay + G.dy * (s0 + G.W));
+    /* 0,46 y no 1: la franja tiene que leerse como el brillo de una
+       superficie, no como una fuente. Con `--glass-highlight` a 0,72 de alfa
+       en carbón, el blanco efectivo sobre el bronce queda en 0,33. En un tema
+       sin metal baja a 0,20 (ver `setup`). */
+    rasante.style.opacity = (luz > 0 && luz < 1) ? G.opLuz : 0;
+  }
+});
+</script>
+</body>
+</html>

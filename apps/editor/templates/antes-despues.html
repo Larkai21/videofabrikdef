@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Antes / después con cortinilla sobre metraje</title>
+<meta name="gesto" content="revelar:cortinilla">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; overflow: hidden; }
+
+  /* La región de máscara. En la pasada de DETALLE no pinta nada —es un
+     rectángulo sin fondo—; en la de máscara sale en blanco y le dice a
+     ffmpeg qué mitad del metraje va sin grading. Ver `_tokens.css`
+     § pasada de máscara. */
+  .lado-antes {
+    position: absolute; top: 0; bottom: 0; left: 0;
+    will-change: width;
+  }
+
+  /* ---------------- el canto ---------------- */
+  /* Tres piezas, y las tres hacen falta: la línea marca el corte, el
+     degradado le da grosor óptico para que no parezca un error de
+     compresión, y el resplandor la despega del metraje cuando los dos lados
+     tienen luminancia parecida —que es lo normal en un antes/después de
+     grading, donde el corte puede caer sobre una pared lisa—. */
+  .canto {
+    position: absolute; top: 0; bottom: 0;
+    width: 3px; margin-left: -1.5px;
+    background: var(--ink);
+    box-shadow: 0 0 22px 2px var(--sombra);
+    will-change: transform, opacity;
+  }
+  .pluma {
+    position: absolute; top: 0; bottom: 0;
+    width: 44px; margin-left: -22px;
+    background: linear-gradient(90deg,
+                transparent 0%, var(--scrim) 46%,
+                var(--scrim) 54%, transparent 100%);
+    opacity: 0.42;
+    will-change: transform;
+  }
+
+  /* ---------------- el tirador ---------------- */
+  /* «Arrastrable» en vídeo no puede significar interacción: no hay ratón y
+     el fotograma se calcula, no se reacciona. Significa que se ve el AGARRE
+     —el tirador con sus dos flechas— y que el canto se mueve con la inercia
+     de una mano: sale, corre y se asienta. Sin el tirador es un barrido; con
+     él se lee como algo que alguien está arrastrando. */
+  .tirador {
+    position: absolute;
+    width: 84px; height: 84px; margin-left: -42px; margin-top: -42px;
+    border-radius: var(--r-pill);
+    background: var(--surface);
+    box-shadow: 0 0 0 2px var(--ink), 0 16px 40px -10px var(--sombra);
+    display: grid; place-items: center; grid-auto-flow: column;
+    gap: 6px;
+    will-change: transform, opacity;
+  }
+  .chev { width: 13px; height: 13px; border: 3px solid var(--ink);
+          border-left: 0; border-bottom: 0; }
+  .chev.izq { transform: rotate(-135deg); }
+  .chev.der { transform: rotate(45deg); }
+
+  /* ---------------- rótulos ---------------- */
+  .rot {
+    position: absolute;
+    font-family: var(--mono); font-size: var(--t-sm);
+    letter-spacing: var(--tr-caps-ancho); text-transform: uppercase;
+    padding: 10px 18px; border-radius: var(--r-sm);
+    background: var(--scrim); color: var(--ink);
+    white-space: nowrap;
+    will-change: opacity, transform;
+  }
+  .rot.b { color: var(--accent); }
+
+  .pie {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    font-family: var(--mono); font-size: var(--t-xs);
+    letter-spacing: var(--tr-caps); text-transform: uppercase;
+    color: var(--ink-soft);
+    padding: 8px 16px; border-radius: var(--r-sm);
+    background: var(--scrim);
+    white-space: nowrap;
+    will-change: opacity;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="lado-antes silueta" id="lado"></div>
+  <div class="pluma" id="pluma"></div>
+  <div class="canto" id="canto"></div>
+  <div class="tirador" id="tirador"><i class="chev izq"></i><i class="chev der"></i></div>
+  <div class="rot a" id="rotA"></div>
+  <div class="rot b" id="rotB"></div>
+  <div class="pie" id="pie"></div>
+</div>
+<script src="_engine.js"></script>
+<script>
+const { span, pulse, Ease, clamp } = Engine;
+
+const W = 1080, H = 1920;
+
+const lado = document.getElementById('lado');
+const canto = document.getElementById('canto');
+const pluma = document.getElementById('pluma');
+const tirador = document.getElementById('tirador');
+const rotA = document.getElementById('rotA');
+const rotB = document.getElementById('rotB');
+const pie = document.getElementById('pie');
+
+Engine.register({
+  duration: 4.5,
+  defaults: {
+    /* Fracciones del ancho. El canto ARRANCA en `desde`, viaja hasta
+       `hasta` y se queda. Por defecto entra desde fuera por la izquierda:
+       así el primer fotograma ya muestra el «después» completo y la
+       comparación se descubre, en vez de estar servida desde el principio. */
+    desde: 0.0,
+    hasta: 0.62,
+    /* Reposo antes de arrancar y tiempo de viaje. En `reloj.SEMANTICA`
+       `espera` es POSICIÓN y `viaje` y `vuelta` son DURACIÓN, que es lo
+       correcto: `espera` es el instante en que la mano agarra, y al comprimir
+       el reloj tiene que moverse como se mueve el habla; las otras dos son
+       cuánto dura un gesto. */
+    espera: 0.35,
+    viaje: 1.5,
+    /* Vuelta: si es > 0, el canto retrocede al final para volver a tapar.
+       Cierra el bucle en piezas que enlazan con su propio principio. */
+    vuelta: 0.0,
+    antes: 'ANTES',
+    despues: 'DESPUÉS',
+    pie: '',            // p. ej. 'MISMO CLIP · MISMA EXPOSICIÓN'
+    /* Altura del tirador y de los rótulos, en píxeles de lienzo. El defecto
+       los pone por encima del tercio de subtítulos y por debajo de la banda
+       alta de tarjetas. */
+    mango: 1180,
+    rotulos: 300,
+    entrada: 0.34,
+    salida: 0.3
+  },
+
+  setup(cfg) {
+    rotA.textContent = cfg.antes || '';
+    rotB.textContent = cfg.despues || '';
+    pie.textContent = cfg.pie || '';
+    pie.hidden = !cfg.pie;
+    tirador.style.top = Math.round(cfg.mango) + 'px';
+    rotA.style.top = rotB.style.top = Math.round(cfg.rotulos) + 'px';
+    /* El pie va bajo los RÓTULOS y no bajo el tirador. Debajo del tirador
+       está centrado en el lienzo mientras el tirador no lo está, así que se
+       lee como una etiqueta del tirador que se ha desplazado sola. Debajo de
+       los rótulos se lee como lo que es: una nota sobre la comparación. */
+    pie.style.top = Math.round(cfg.rotulos + 74) + 'px';
+    /* El rótulo del «antes» se ancla por la izquierda y el del «después»
+       por la derecha, para que ninguno de los dos se mueva con el canto:
+       si siguieran al canto, la palabra saldría del lado que nombra. */
+    rotA.style.left = '54px';
+    rotB.style.right = '54px';
+  },
+
+  anclas(cfg) {
+    /* La caja del canto en el instante actual, para que una anotación pueda
+       señalarlo sin recalcular la curva. `x` es el centro, como en todas. */
+    const x = Number(canto.dataset.x || 0);
+    return {
+      canto:   { x: x, y: H / 2, w: 3, h: H },
+      tirador: { x: x, y: cfg.mango, w: 84, h: 84 },
+      antes:   { x: x / 2, y: cfg.rotulos, w: Math.max(0, x), h: 60 },
+      despues: { x: (x + W) / 2, y: cfg.rotulos, w: Math.max(0, W - x), h: 60 }
+    };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 4.5;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+    const ap = Engine.entra(t, cfg.entrada);
+
+    /* Curva del arrastre. `inOutCubic` y no `outCubic`: una mano que agarra
+       arranca despacio. Con `outCubic` el canto sale disparado en el primer
+       fotograma y parece un barrido automático, que es justo lo que esto no
+       es. Y NADA de `outBack` ni `outElastic` — §11 prohíbe los rebotes
+       elásticos y aquí además mentirían: un tirador no rebota. */
+    let p = span(t, cfg.espera, cfg.viaje, Ease.inOutCubic);
+
+    /* La vuelta se resta al final, para cerrar el bucle. Se mide desde el
+       FIN de la capa y no desde el fin del viaje: así cambiar `viaje` no
+       descoloca el retroceso. */
+    if (cfg.vuelta > 0) {
+      const v = span(t, fin - cfg.salida - cfg.vuelta, cfg.vuelta,
+                     Ease.inOutCubic);
+      p = p * (1 - v);
+    }
+
+    const x = (cfg.desde + (cfg.hasta - cfg.desde) * p) * W;
+    canto.dataset.x = x.toFixed(2);
+
+    /* El ancho de la máscara se redondea al píxel: en fracciones ffmpeg
+       recibiría un canal alfa con un borde a medio tono y el canto se vería
+       doble, una línea nítida junto a una difusa de un píxel. */
+    lado.style.width = Math.round(clamp(x, 0, W)) + 'px';
+
+    /* El canto llega a `hasta` y se queda: a partir de ahí la capa era una
+       imagen fija el 22 % de su duración. Una mano que sujeta un tirador no
+       se queda de piedra —tiembla—, así que el agarre deriva con §10 y el
+       canto lo sigue. Amplitud pequeña y periodo corto: es un pulso, no un
+       balanceo. */
+    const fl = Engine.flota(t, 1, { amp: 2.6, periodo: 4.4, semilla: 23 });
+    const xt = x + fl.x;
+    canto.style.transform = `translateX(${xt.toFixed(2)}px)`;
+    pluma.style.transform = `translateX(${xt.toFixed(2)}px)`;
+    tirador.style.transform =
+      `translate(${xt.toFixed(2)}px, ${fl.y.toFixed(2)}px)`;
+    lado.style.width = Math.round(clamp(xt, 0, W)) + 'px';
+
+    canto.style.opacity = ap * cierre;
+    tirador.style.opacity = ap * cierre;
+
+    /* Cada rótulo se desvanece cuando su lado se queda sin sitio para él.
+       El umbral es el ancho real del rótulo más su margen, medido, no un
+       porcentaje: con «DESPUÉS» y «ANTES» el ancho es distinto y un
+       porcentaje único deja uno de los dos pisando el canto. */
+    const anA = rotA.getBoundingClientRect().width + 78;
+    const anB = rotB.getBoundingClientRect().width + 78;
+    rotA.style.opacity = ap * cierre * clamp((x - anA) / 60, 0, 1);
+    rotB.style.opacity = ap * cierre * clamp((W - x - anB) / 60, 0, 1);
+    rotA.style.transform = `translateY(${(1 - ap) * -12}px)`;
+    rotB.style.transform = `translateY(${(1 - ap) * -12}px)`;
+    pie.style.opacity = ap * cierre * clamp(p * 2, 0, 1);
+  }
+});
+</script>
+</body>
+</html>

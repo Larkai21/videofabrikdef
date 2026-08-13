@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Contador de odómetro</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; display: grid; place-items: center; }
+  .bloque { text-align: center; will-change: transform, opacity; }
+
+  .rotulo {
+    font-family: var(--mono); font-size: var(--t-sm);
+    letter-spacing: 0.26em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: var(--s-3);
+  }
+
+  .cifra {
+    display: flex; align-items: stretch; justify-content: center;
+    font-family: var(--display); font-weight: 800;
+    letter-spacing: -0.04em;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Cada columna es una ventana de UN dígito de alto sobre una tira
+     vertical con 0…9 y un 0 extra al final. El 0 repetido es lo que
+     permite que el acarreo salga por abajo sin dar un salto. */
+  .col { overflow: hidden; position: relative; }
+  .tira { position: absolute; left: 0; right: 0; top: 0;
+          will-change: transform; }
+  .tira > span { display: block; text-align: center; }
+
+  /* separador de millares y símbolos: no ruedan */
+  .fijo { display: flex; align-items: center; }
+
+  .sufijo { color: var(--accent); }
+
+  /* Los dígitos se desvanecen por arriba y por abajo; sin eso las
+     columnas se ven como listas recortadas y no como tambores que siguen
+     girando fuera de cuadro.
+
+     Se hace con MÁSCARA, no con un degradado de color de fondo. Sobre una
+     capa transparente, un degradado que va de `--bg` a transparente no
+     funde con nada: PINTA ese color, y deja una caja clara alrededor de
+     la cifra al componer sobre el vídeo. La máscara ataca el alfa, que es
+     lo que realmente hay que desvanecer. */
+  .col {
+    -webkit-mask-image: linear-gradient(to bottom,
+      transparent 0%, #000 24%, #000 76%, transparent 100%);
+    mask-image: linear-gradient(to bottom,
+      transparent 0%, #000 24%, #000 76%, transparent 100%);
+  }
+
+  .pie {
+    font-family: var(--subs); font-size: var(--t-lg);
+    color: var(--ink-soft); margin-top: var(--s-3);
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="bloque" id="bloque">
+    <div class="rotulo" id="rotulo"></div>
+    <div class="cifra" id="cifra"></div>
+    <div class="pie" id="pie"></div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const bloque = document.getElementById('bloque');
+const cifra = document.getElementById('cifra');
+let columnas = [];   // [{ tira, peso }] de más significativa a menos
+let alto = 0;
+
+Engine.register({
+  duration: 5,
+  defaults: {
+    rotulo: 'FOTOGRAMAS COMPUESTOS',
+    desde: 0,
+    valor: 34500,
+    sufijo: '',
+    /* VACÍO por el mismo motivo que `hero-stat.nota`: es una ranura
+       decorativa y opcional, el plan casi nunca la escribe, y la frase de
+       una pieza —«en una sola pasada de ffmpeg»— acababa bajo la cifra de
+       otra sin que nada lo dijera. */
+    pie: '',
+    tam: 190,
+    separador: '.',      // millares; '' para ninguno
+    rigidez: 0.82,       // 0 = todas las columnas ruedan a la vez
+    subida: 1.9,         // segundos que tarda en llegar al valor
+    entrada: 0.5,
+    salida: 0.45
+  },
+
+  setup(cfg) {
+    document.getElementById('rotulo').textContent = cfg.rotulo || '';
+    document.getElementById('pie').textContent = cfg.pie || '';
+
+    cifra.style.fontSize = cfg.tam + 'px';
+    alto = Math.round(cfg.tam * 1.06);
+
+    const digitos = String(Math.floor(Math.abs(cfg.valor))).length;
+    cifra.innerHTML = '';
+    columnas = [];
+
+    for (let i = 0; i < digitos; i++) {
+      const peso = digitos - 1 - i;      // 0 = unidades
+
+      const col = document.createElement('div');
+      col.className = 'col';
+      col.style.height = alto + 'px';
+      /* El ancho se fija con un dígito de referencia en lugar de
+         estimarlo: con `tabular-nums` todos miden igual, pero el valor
+         exacto depende de la fuente y del tamaño. */
+      col.style.width = '0.62em';
+
+      const tira = document.createElement('div');
+      tira.className = 'tira';
+      for (let d = 0; d <= 10; d++) {     // 0..9 + 0 de cierre
+        const s = document.createElement('span');
+        s.textContent = d % 10;
+        s.style.height = alto + 'px';
+        s.style.lineHeight = alto + 'px';
+        tira.appendChild(s);
+      }
+      col.appendChild(tira);
+      cifra.appendChild(col);
+      columnas.push({ tira, peso });
+
+      /* separador de millares entre columnas, nunca al final */
+      const restantes = peso;
+      if (cfg.separador && restantes > 0 && restantes % 3 === 0) {
+        const sep = document.createElement('div');
+        sep.className = 'fijo';
+        sep.style.height = alto + 'px';
+        sep.textContent = cfg.separador;
+        cifra.appendChild(sep);
+      }
+    }
+
+    if (cfg.sufijo) {
+      const suf = document.createElement('div');
+      suf.className = 'fijo sufijo';
+      suf.style.height = alto + 'px';
+      suf.textContent = cfg.sufijo;
+      cifra.appendChild(suf);
+    }
+
+    /* --- señales de sonido ---------------------------------------------
+       Sonorizar CADA acarreo sería inútil: subir a 34.500 son 34.500
+       acarreos en las unidades, o sea un zumbido. Lo que se oye —y lo que
+       cuenta— es cuándo cada columna SE PARA. Los tambores se detienen del
+       más significativo al menos, así que el resultado es una secuencia
+       que se cierra con el último tic justo al fijarse la cifra.
+
+       Se calcula muestreando la misma función que dibuja `draw`, no una
+       copia de su fórmula: si cambia la curva, las señales la siguen. */
+    if (cfg.sinSonido) return;
+
+    {
+      const paso = 1 / 120;
+      const finT = cfg.duration || 5;
+      const posicion = (t) => {
+        const p = Engine.span(t, 0.25, cfg.subida, Ease.outCubic);
+        return cfg.desde + (cfg.valor - cfg.desde) * p;
+      };
+      const cues = [];
+      columnas.forEach(({ peso }) => {
+        const objetivo = Math.floor(Math.abs(cfg.valor) / Math.pow(10, peso)) % 10;
+        let ultimoCambio = null;
+        for (let t = 0; t <= finT; t += paso) {
+          const d = Math.floor(Math.abs(posicion(t)) / Math.pow(10, peso)) % 10;
+          if (d !== objetivo) ultimoCambio = t;
+        }
+        if (ultimoCambio !== null) {
+          /* La columna queda fija justo DESPUÉS del último cambio */
+          cues.push({ at: +(ultimoCambio + paso).toFixed(3), sfx: 'tic',
+                      /* las columnas altas pesan más: son las que llevan
+                         la cifra que el espectador está leyendo */
+                      gain: 0.55 + 0.09 * peso });
+        }
+      });
+      cues.sort((a, b) => a.at - b.at);
+
+      /* Varias columnas pueden pararse en el mismo instante: con un valor
+         acabado en ceros, la rampa termina y todos los tambores se
+         detienen a la vez. Es correcto físicamente, pero tres tics
+         apilados no se oyen como tres — se oyen como uno más fuerte, y
+         sumados pueden saturar. Se funden en uno solo, algo más recio. */
+      const MIN_SEP = 0.05;
+      const fundidas = [];
+      cues.forEach(c => {
+        const ult = fundidas[fundidas.length - 1];
+        if (ult && c.at - ult.at < MIN_SEP) {
+          ult.gain = Math.min(1.35, Math.max(ult.gain, c.gain) + 0.12);
+        } else {
+          fundidas.push(c);
+        }
+      });
+      return { cues: fundidas };
+    }
+  },
+
+  anclas() {
+    const b = cifra.getBoundingClientRect();
+    return { cifra: { x: Math.round(b.left + b.width / 2),
+                      y: Math.round(b.top + b.height / 2),
+                      w: Math.round(b.width), h: Math.round(b.height) } };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 5;
+    const ap = span(t, 0, cfg.entrada, Ease.outCubic);
+    const cierre = 1 - span(t, fin - cfg.salida, cfg.salida, Ease.outCubic);
+    bloque.style.opacity = ap * cierre;
+    bloque.style.transform = `translateY(${(1 - ap) * 24}px)`;
+
+    const p = span(t, 0.25, cfg.subida, Ease.outCubic);
+    const valor = cfg.desde + (cfg.valor - cfg.desde) * p;
+
+    columnas.forEach(({ tira, peso }) => {
+      /* Posición CONTINUA de la columna: valor / 10^peso, módulo 10. Al
+         ser continua, cuando las unidades pasan de 9 a 0 la columna de
+         las decenas ya está girando — que es de donde sale la sensación
+         de acarreo mecánico. Con un dígito discreto por columna, cada
+         una saltaría por su cuenta y parecería un marcador digital. */
+      const pos = (valor / Math.pow(10, peso)) % 10;
+      let d = Math.floor(pos);
+      let f = pos - d;
+
+      /* La rigidez concentra el giro en el tramo final del dígito: la
+         columna se queda quieta y rueda de golpe al acarrear. A 0 todas
+         giran a la vez y parece una noria; a 1 sería un salto seco. */
+      const r = clamp(cfg.rigidez, 0, 0.98);
+      if (r > 0) {
+        const u = clamp((f - r) / (1 - r), 0, 1);
+        f = Ease.inOutCubic(u);
+      }
+      /* negativo: la tira sube y el dígito siguiente entra por abajo */
+      tira.style.transform = `translateY(${-(d + f) * alto}px)`;
+    });
+  }
+});
+</script>
+</body>
+</html>

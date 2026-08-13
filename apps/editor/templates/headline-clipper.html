@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Recorte de prensa</title>
+<link rel="stylesheet" href="_tokens.css">
+<meta name="gesto" content="revelar:recorte">
+<style>
+  /* ======================================================================
+     QUÉ ERA Y QUÉ ES
+
+     Era una TARJETA DE TITULAR. Un rectángulo blanco con una fila de
+     cabecera, un titular en la misma grotesca que usan las otras 55
+     plantillas y un dientecillo de sierra pegado al borde inferior. Se
+     caía con un giro de 1,6° y ahí se acababa todo: `draw` escribía
+     `opacity` y `transform`, y desde t=0,55 hasta el final no cambiaba un
+     solo píxel. El diagnóstico decía CONGELA y era literal.
+
+     Y llevaba SIETE hexadecimales a pelo (#16181D dos veces, #6B7280 tres,
+     #3A3F4A, y los #000 de las dos máscaras). No era descuido: eran la
+     tinta y el gris del tema `paper` copiados a mano, porque el objeto es
+     PAPEL y el papel no cambia con el grado del vídeo. El fichero
+     necesitaba tinta clara sobre papel dentro de un documento en carbón y
+     no tenía de dónde sacarla. Se resuelve abajo sin tocar `_tokens.css`.
+
+     Ahora es un RECORTE: un trozo de periódico cortado con tijera, sellado
+     por el gabinete de prensa y marcado a mano. Tres actos, tres verbos,
+     tres curvas, y ninguno de los tres es «aparecer».
+
+       1 · SE CORTA   la tijera avanza y el canto que deja ES el borde
+                      derecho definitivo del recorte (`clip-path`).
+       2 · SE SELLA   el cuño del gabinete cae encima con el nombre del
+                      medio, la sección y la fecha, y la tinta se ABRE al
+                      apretar (eje `wght` del mono variable).
+       3 · SE MARCA   el rotulador cruza las palabras de `resaltar`.
+
+     Lo que está IMPRESO —filete, titular, entradilla, firma— no se anima
+     por separado, y es una decisión y no una omisión: ya estaba impreso
+     cuando alguien cogió las tijeras. Todo lo impreso lo descubre el corte.
+     Lo que se anima después es lo que una PERSONA le hace al recorte una
+     vez cortado. Esa regla es la que impide que esto vuelva a ser una
+     tarjeta con seis entradas escalonadas.
+     ====================================================================== */
+
+  .stage { position: absolute; inset: 0; }
+
+  /* ----------------------------------------------------------------------
+     LA TINTA Y EL PAPEL
+
+     Los dos únicos colores FÍSICOS del sistema son `--velo-claro` y
+     `--velo-oscuro`, y `_tokens.css` los declara idénticos en los dos temas
+     a propósito: nombran un material, no un rol. Un recorte de prensa es
+     exactamente eso —papel y tinta—, así que aquí son los tokens correctos
+     y no hace falta ni un hexadecimal ni una variable nueva. Los grises
+     intermedios salen de mezclar los dos en `oklab`, que es la mezcla que
+     hace una tinta rebajada de verdad; en sRGB el mismo 52 % pasa por un
+     malva sucio.
+
+     El TEMA sigue teniendo trabajo, y se ve: el papel se tiñe un 9 % con el
+     cromo del tema (gris de periódico en carbón, crema en papel), el cuño
+     va en tinta de acento y la sombra proyectada es `--sombra`, que en
+     carbón es negra al 55 % y en papel cálida al 16 %. O sea que el objeto
+     es el mismo y la LUZ que lo baña cambia, que es justo lo que tiene que
+     pasar cuando lo que se compone encima es metraje graduado. */
+  .recorte {
+    position: relative;
+    --papel:       color-mix(in oklab, var(--velo-claro) 91%, var(--chrome-2));
+    --tinta:       var(--velo-oscuro);
+    /* 58 % y no 52 %, y el número sale de medirlo: al 52 % la entradilla
+       daba 4,23:1 sobre el papel de carbón, o sea por debajo del 4,5 que
+       necesita un texto que se lee. Al 58 % sube a 5,15:1 en carbón y
+       5,53:1 en papel, y sigue siendo un gris y no tinta plena. */
+    --tinta-2:     color-mix(in oklab, var(--velo-oscuro) 58%, var(--papel));
+    --tinta-3:     color-mix(in oklab, var(--velo-oscuro) 26%, var(--papel));
+    --tinta-sello: color-mix(in oklab, var(--accent) 58%, var(--velo-oscuro));
+    --trama-tinta: color-mix(in oklab, var(--velo-oscuro) 22%, transparent);
+    --grano-op: 0.38;
+    transform-origin: 50% 42%;
+    /* La sombra va en `filter` y NO en `box-shadow`, y es obligatorio: el
+       canto lo recorta un `clip-path`, y `clip-path` se lleva por delante
+       cualquier `box-shadow` del mismo elemento. `drop-shadow` se calcula
+       sobre el ALFA ya recortado, así que la sombra tiene la forma del
+       recorte —con sus mordidas— en vez de la del rectángulo que no existe. */
+    will-change: transform, opacity, filter;
+  }
+
+  /* La hoja. `isolation: isolate` para que el grano, que multiplica, no
+     busque backdrop más allá del papel: multiplicar contra alfa 0 devuelve
+     el gris de la teja, o sea un rectángulo gris flotando sobre el vídeo. */
+  .hoja {
+    position: relative;
+    isolation: isolate;
+    background: var(--papel);
+    padding: var(--s-6) var(--s-6) var(--s-5);
+    will-change: clip-path;
+  }
+
+  /* TRAMA DE PRENSA: la retícula de semitono. Dos rejillas de puntos
+     desplazadas media celda dan la roseta a 45° que deja el offset sobre
+     papel de periódico; una sola rejilla se lee como un patrón de fondo de
+     web.
+
+     El PUNTO tiene que ser pequeño respecto al paso, y esto costó una
+     pasada: con radio 1,5 px sobre paso de 7 los puntos de las dos rejillas
+     casi se tocaban —33 % de cobertura— y el resultado no era papel de
+     periódico sino TELA. Se veía a simple vista en el fotograma y no habría
+     salido de leer el CSS. Con radio 0,9 sobre paso de 6 la cobertura baja
+     al 16 % y vuelve a ser una trama de imprenta.
+
+     Y va floja a propósito —el 22 % de la tinta por 0,55 de capa, o sea un
+     2 % de oscurecimiento medio—: la hoja flota, así que el patrón se
+     desplaza fracciones de píxel entre fotogramas y una alta frecuencia a
+     plena opacidad centellea al remuestrear a la salida. Es la misma
+     corrección que llevaba el rayado de `tweet-card`. */
+  .trama-prensa {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      radial-gradient(circle at 50% 50%, var(--trama-tinta) 0 0.9px, transparent 1.15px),
+      radial-gradient(circle at 50% 50%, var(--trama-tinta) 0 0.9px, transparent 1.15px);
+    background-size: 6px 6px, 6px 6px;
+    background-position: 0 0, 3px 3px;
+    opacity: 0.55;
+  }
+
+  /* El contenido crea su propia capa apilada para quedar por ENCIMA de las
+     dos texturas —que son hermanos posicionados y se pintarían encima del
+     texto en flujo— y para que el rotulador, que va a `z-index: -1`, quede
+     por debajo del titular y por encima del papel. */
+  .contenido { position: relative; z-index: 1; }
+
+  /* ---------------------------------------------------------------------
+     EL CUÑO DEL GABINETE
+
+     Un recorte de prensa no lleva mancheta: la mancheta se queda en la
+     página. Lo que lleva es el SELLO que le pone el gabinete al recortarlo,
+     con el medio, la sección y la fecha —que son exactamente los tres
+     campos que esta plantilla ya tenía sueltos en una fila de cabecera—.
+     Mono en caja alta con el tracking de sello de §3, encerrado en un
+     rectángulo de 2 px, y torcido: un cuño se aplica a mano.
+
+     La tinta del cuño es acento MEZCLADO CON TINTA y no acento a secas, y
+     el número es la razón. Medido sobre el papel ya teñido de cada tema
+     —resolviendo el `color-mix` en un canvas, porque `getComputedStyle`
+     devuelve el `oklab()` sin resolver y las cuentas a mano salen mal—:
+
+       acento puro   2,39:1 en carbón · 4,64:1 en papel
+       al 58 %       5,74:1 en carbón · 9,12:1 en papel
+
+     O sea que el bronce a secas ni se acerca al 4,5 que necesita un rótulo
+     de 16 px, y mezclado sí. Y conserva el matiz, así que el cuño sigue
+     distinguiendo los dos temas: bronce en carbón, naranja quemado en
+     papel. De referencia, el titular queda en 14,8:1 y 17,5:1. */
+  .sello-fila { display: flex; }
+  .sello {
+    display: inline-flex; flex-direction: column;
+    margin-left: -6px;
+    padding: var(--s-2) var(--s-3);
+    border: 2px solid var(--tinta-sello);
+    color: var(--tinta-sello);
+    transform-origin: 18% 50%;
+    will-change: transform, opacity;
+  }
+  .sello-medio {
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    font-weight: var(--w-fuerte);
+    letter-spacing: var(--tr-caps-ancho);
+    text-transform: uppercase;
+    line-height: 1.1;
+    will-change: font-variation-settings;
+  }
+  .sello-meta {
+    margin-top: var(--s-1);
+    padding-top: var(--s-1);
+    border-top: var(--hairline) solid color-mix(in oklab, var(--tinta-sello) 46%, transparent);
+    font-family: var(--mono);
+    font-size: var(--t-2xs);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps);
+    text-transform: uppercase;
+    line-height: 1.1;
+  }
+
+  /* FILETE GRUESO-FINO. Es el divisor de sección de un periódico: una regla
+     de 3 px, aire, y una de 1 px. Dibujado con un solo degradado de paradas
+     duras, no con dos elementos — y desde luego no con un `▬` ni con un
+     `border-bottom` de tarjeta. */
+  .filete {
+    height: 6px;
+    margin: var(--s-5) 0 var(--s-5);
+    background-image: linear-gradient(var(--tinta) 0 3px,
+      transparent 3px 5px, var(--tinta) 5px 6px);
+  }
+
+  /* ---------------------------------------------------------------------
+     EL TITULAR, EN DIDONE
+
+     `--editorial` es Playfair Display, VARIABLE de 400 a 900, y tenía CERO
+     usos en las 56 plantillas del catálogo: la única voz tipográfica del
+     sistema que nadie había usado nunca. Medido en el mismo Chromium que
+     rasteriza los PNG —ancho de «Handgloves 0123» a 96 px, eje `wght` de
+     200 a 900—: 706,09 · 706,09 · 706,09 · 715,91 · 725,72 · 735,52 ·
+     745,33 · 755,14. O sea que el eje responde de 400 arriba y por debajo
+     satura; de ahí que los dos extremos de esta plantilla sean 400 y 900 y
+     no 300 y 900.
+
+     Un titular de periódico se compone en didone de alto contraste. Es la
+     decisión que hace que esto no se parezca a ninguna otra ficha del
+     catálogo, todas en la misma grotesca geométrica, y no cuesta una sola
+     línea de CSS extra: el rol ya existía.
+
+     La jerarquía va DENTRO DE LA LÍNEA con un salto de 500 puntos de peso
+     —400 el titular, 900 lo que marca `resaltar`—, que es lo que pide §3.
+     No se sube el cuerpo ni se enciende un color. */
+  .titular {
+    font-family: var(--editorial);
+    font-size: var(--t-2xl);
+    font-weight: var(--w-libro);
+    font-variation-settings: "wght" 400;
+    line-height: 1.06;
+    letter-spacing: var(--tr-display);
+    color: var(--tinta);
+    text-wrap: balance;
+  }
+  /* La medida se ajusta al TEXTO. Los tres escalones son los de la escala,
+     con su tracking correspondiente en la curva de §3: a más cuerpo, más
+     negativo. Un titular de 3-5 palabras —lo que produce `dirigir.py`— cae
+     en el escalón grande; uno de dos líneas largas, en el pequeño. */
+  .titular[data-medida="corta"] { font-size: var(--t-3xl); letter-spacing: var(--tr-hero); }
+  .titular[data-medida="larga"] { font-size: var(--t-xl); }
+
+  .subr {
+    position: relative;
+    font-weight: var(--w-solido);
+    font-variation-settings: "wght" 900;
+  }
+
+  /* EL ROTULADOR. Dos pasadas de la misma tinta y no una: un fieltro deja
+     el trazo desigual y más denso donde vuelve sobre sí mismo, y ese doble
+     paso es lo que separa una marca hecha a mano de un `background-color`.
+     Va detrás del texto (`z-index: -1`), así que la tinta negra se lee
+     entera encima: no hace falta `mix-blend-mode: multiply` —que además no
+     sobreviviría al grupo aislado del contenido— porque una tinta
+     translúcida sobre papel claro compuesta en alfa normal da el mismo
+     resultado que multiplicar. `--rotu-1` es el token que existe para esto:
+     la tinta principal del rotulador. */
+  /* Los DOS extremos van en degradado y no a canto vivo. Un fieltro entra y
+     sale del papel apoyando poco a poco, así que un rectángulo con los
+     bordes verticales duros se lee como un `background-color` — que es
+     exactamente lo que se veía en el primer fotograma que miré: la banda
+     terminaba en una línea recta perfecta justo detrás de la «o».
+     La altura y el `bottom` también salen del fotograma y no del cálculo:
+     con `bottom: 0.015em` la banda caía casi hasta el fondo de la caja em,
+     o sea 0,2 em POR DEBAJO de la línea base, y parecía un subrayado
+     grueso. A 0,13 em queda apoyada en la base, que es donde se para un
+     rotulador. */
+  .tinta-rotu {
+    position: absolute; z-index: -1;
+    left: -0.10em; right: -0.13em; bottom: 0.13em; height: 0.55em;
+    transform: rotate(-0.55deg);
+    background-repeat: no-repeat;
+    background-image:
+      linear-gradient(90deg,
+        color-mix(in oklab, var(--rotu-1) 22%, transparent) 0%,
+        var(--rotu-1) 6%, var(--rotu-1) 91%,
+        color-mix(in oklab, var(--rotu-1) 14%, transparent) 100%),
+      linear-gradient(90deg,
+        color-mix(in oklab, var(--rotu-1) 18%, transparent) 0%,
+        var(--rotu-1) 10%, var(--rotu-1) 86%,
+        color-mix(in oklab, var(--rotu-1) 8%, transparent) 100%);
+    background-size: 100% 100%, 94% 58%;
+    background-position: 0 0, 3% 76%;
+    will-change: mask-image;
+  }
+
+  /* La entradilla en dos columnas CON CORONDEL cuando hay texto para
+     llenarlas. El corondel es lo que hace que dos columnas se lean como
+     periódico y no como un `column-count` puesto por defecto; y con una
+     entradilla corta las dos columnas dejan tres palabras solas en la
+     segunda, que se lee como un fallo de maquetación. Lo decide `setup`. */
+  .entradilla {
+    font-family: var(--subs);
+    font-size: var(--t-sm);
+    font-weight: var(--w-libro);
+    line-height: 1.42;
+    letter-spacing: var(--tr-cuerpo);
+    color: var(--tinta-2);
+    column-gap: var(--s-6);
+  }
+  .entradilla.dos {
+    column-count: 2;
+    column-rule: var(--hairline) solid var(--tinta-3);
+  }
+
+  /* La firma, con su filete corto delante. Un filete de 26 px cuesta lo
+     mismo que un «—» y es de esta marca. */
+  .firma {
+    display: flex; align-items: center; gap: var(--s-2);
+    margin-top: var(--s-5);
+    font-family: var(--mono);
+    font-size: var(--t-2xs);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps);
+    text-transform: uppercase;
+    color: var(--tinta-2);
+  }
+  .firma-raya { display: block; width: 26px; height: 2px; background: var(--tinta-2); }
+</style></head>
+<body>
+<div class="stage">
+  <div class="tarjeta recorte" id="recorte">
+    <div class="hoja" id="hoja">
+      <i class="trama-prensa"></i>
+      <div class="contenido">
+        <div class="sello-fila" id="selloFila">
+          <div class="sello" id="sello">
+            <span class="sello-medio" id="med"></span>
+            <span class="sello-meta" id="meta"></span>
+          </div>
+        </div>
+        <div class="filete"></div>
+        <h1 class="titular" id="tit"></h1>
+        <div class="entradilla" id="ent"></div>
+        <div class="firma" id="fir"><i class="firma-raya"></i><span id="firTxt"></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp, noise } = Engine;
+
+const recorte  = document.getElementById('recorte');
+const hoja     = document.getElementById('hoja');
+const selloFila= document.getElementById('selloFila');
+const sello    = document.getElementById('sello');
+const med      = document.getElementById('med');
+const meta     = document.getElementById('meta');
+const tit      = document.getElementById('tit');
+const ent      = document.getElementById('ent');
+const fir      = document.getElementById('fir');
+const firTxt   = document.getElementById('firTxt');
+
+let tinta = null;          /* la banda del rotulador, si hay algo que marcar */
+
+/* ======================================================================
+   EL CANTO CORTADO
+
+   Un recorte no tiene `border-radius`: tiene un canto que dejó una tijera.
+   El fichero anterior lo intentaba con `repeating-linear-gradient` de 9 px
+   —un diente de sierra regular, o sea una PERFORACIÓN— y solo en el borde
+   de abajo. Un troquel y unas tijeras no se parecen en nada.
+
+   Esto es un perfil continuo: tres armónicos con fase determinista, uno
+   largo (1,1 ciclos por lado), uno medio (2,7) y uno corto (6,3). Ese
+   reparto no es decorativo — unas tijeras describen arcos largos con algún
+   tirón, no ruido blanco: con armónicos altos sale papel RASGADO, que es
+   otro objeto. Las amplitudes de arriba y abajo son mayores que las de los
+   lados porque un recorte se corta a lo largo de la columna y se arranca a
+   lo ancho.
+
+   La mordida es siempre HACIA DENTRO (0..amp y nunca negativa). Un punto
+   del `clip-path` fuera de la caja no dibuja nada —ahí no hay fondo que
+   recortar—, así que un canto que sobresaliera se vería recto justo donde
+   se pretendía que fuese irregular. */
+const CANTO = { arriba: 9, abajo: 13, lado: 6 };
+
+function onda(u, s) {
+  const TAU = Math.PI * 2;
+  return 0.55 * Math.sin(u * TAU * 1.1 + noise(1, s) * TAU)
+       + 0.29 * Math.sin(u * TAU * 2.7 + noise(2, s) * TAU)
+       + 0.16 * Math.sin(u * TAU * 6.3 + noise(3, s) * TAU);
+}
+function mordida(u, s, amp) { return amp * (0.5 + 0.5 * onda(u, s)); }
+
+let _cachePoli = '';
+let _claveCache = '';
+
+/* El polígono del recorte en el instante en que la tijera lleva `p`.
+
+   La clave está en que el FRENTE DE CORTE y el canto derecho definitivo son
+   la MISMA curva: `frente(v)` interpola de canto izquierdo a canto derecho,
+   así que en p=1 aterriza exacto sobre el borde derecho. No se ve un corte
+   y luego aparece un borde: se ve cómo se hace ese borde.
+
+   El SESGO es lo que impide que se lea como un barrido de vídeo. La hoja de
+   la tijera está más oblicua a mitad del corte y alineada con el canto al
+   principio y al final —de ahí el `sin(pi·p)`, que vale 0 en los dos
+   extremos y garantiza el aterrizaje—. Sin él, un frente vertical que
+   avanza es exactamente un wipe. */
+function poligono(w, h, p, sem) {
+  const xIzq = v => mordida(v, sem + 3, CANTO.lado);
+  const xDer = v => w - mordida(v, sem + 4, CANTO.lado);
+  const yArr = x => mordida(x / w, sem + 1, CANTO.arriba);
+  const yAba = x => h - mordida(x / w, sem + 2, CANTO.abajo);
+  const sesgo = 108 * Math.sin(Math.PI * p);
+  const frente = v => {
+    const a = xIzq(v), b = xDer(v);
+    return clamp(a + p * (b - a) + sesgo * (v - 0.5), a + 1.5, b);
+  };
+
+  const pts = [];
+  const meter = (x, y) =>
+    pts.push((x / w * 100).toFixed(3) + '% ' + (y / h * 100).toFixed(3) + '%');
+
+  /* Arriba, de izquierda al frente. El parámetro de la onda es x/w y no el
+     índice: así el trozo ya cortado NO se remueve cuando avanza el corte. */
+  const x0 = xIzq(0), x1 = frente(0);
+  const nA = Math.max(4, Math.round(30 * (x1 - x0) / w));
+  for (let i = 0; i <= nA; i++) {
+    const x = x0 + (x1 - x0) * i / nA;
+    meter(x, yArr(x));
+  }
+  /* El frente, de arriba abajo. La y se interpola entre los dos cantos
+     medidos EN ESA x, así que las cuatro esquinas cierran exactas y no
+     queda una muesca de 9 px donde se juntan dos bordes. */
+  for (let i = 0; i <= 20; i++) {
+    const v = i / 20, x = frente(v);
+    meter(x, yArr(x) + v * (yAba(x) - yArr(x)));
+  }
+  /* Abajo, de vuelta a la izquierda. */
+  const xb0 = xIzq(1), xb1 = frente(1);
+  const nB = Math.max(4, Math.round(30 * (xb1 - xb0) / w));
+  for (let i = nB; i >= 0; i--) {
+    const x = xb0 + (xb1 - xb0) * i / nB;
+    meter(x, yAba(x));
+  }
+  /* El canto izquierdo, de abajo arriba. */
+  for (let i = 20; i >= 0; i--) {
+    const v = i / 20, x = xIzq(v);
+    meter(x, yArr(x) + v * (yAba(x) - yArr(x)));
+  }
+  return 'polygon(' + pts.join(',') + ')';
+}
+
+/* Los instantes de la pieza, en UN sitio. `setup` los usa para publicar la
+   señal de sonido y `draw` para animar: si salieran de dos expresiones, el
+   día que se mueva el gesto el sonido se queda donde estaba. */
+function tiempos(cfg) {
+  const corte = Math.max(0.20, cfg.entrada === undefined ? 0.62 : cfg.entrada);
+  const pop   = Math.max(0.08, cfg.pop === undefined ? 0.26 : cfg.pop);
+  const trazo = Math.max(0.12, cfg.trazo === undefined ? 0.52 : cfg.trazo);
+  const sello = corte + 0.14;
+  return { corte, pop, trazo, sello, marca: sello + pop + 0.18 };
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+
+Engine.register({
+  duration: 5.0,
+  defaults: {
+    medio: 'El Medio', seccion: 'Tecnología', fecha: '',
+    titular: 'El valor se desplaza hacia la capa de aplicación',
+    resaltar: '',
+    entradilla: 'El coste de entrenar cae y el de distribuir sube. Los márgenes se mueven con él.',
+    firma: 'Redacción',
+    giro: -1.6, entrada: 0.62, salida: 0.4,
+    /* AÑADIDAS con defecto, ninguna sustituye a nada. `pop` y `trazo` ya
+       están clasificadas como duración en `reloj.SEMANTICA`, así que
+       `silencios.py` las remapea sin tocar nada. `semilla` no es tiempo:
+       elige QUÉ corte de tijera sale, para que dos recortes en la misma
+       pieza no tengan el mismo canto. */
+    pop: 0.26, trazo: 0.52, semilla: 7
+  },
+
+  setup(cfg) {
+    /* El cuño solo existe si hay medio que sellar. `dirigir.py` manda
+       `fecha: ''` y a veces `seccion` vacía: sin esto quedaba un « · »
+       colgando, que es la clase de basura que solo se ve en el fotograma. */
+    const medio = String(cfg.medio || '').trim();
+    const partes = [cfg.seccion, cfg.fecha].map(x => String(x || '').trim()).filter(Boolean);
+    med.textContent = medio;
+    meta.textContent = partes.join(' · ');
+    meta.style.display = partes.length ? '' : 'none';
+    selloFila.style.display = medio ? '' : 'none';
+
+    /* Tres escalones de cuerpo por longitud. En la columna útil (≈832 px)
+       la didone a 82 px da unos 24 caracteres por línea: 42 son dos líneas
+       justas, que es un titular de portada. Por encima de 78 el titular se
+       va a cuatro líneas y deja de ser titular. */
+    const texto = String(cfg.titular || '');
+    tit.dataset.medida = texto.length <= 42 ? 'corta'
+                       : texto.length <= 78 ? 'media' : 'larga';
+
+    /* `resaltar` se busca por RANGO de caracteres, no palabra a palabra:
+       puede ser una frase, y comparando palabra suelta se marcaría también
+       cualquier repetición de una de ellas en otro sitio del titular. */
+    const res = String(cfg.resaltar || '').trim();
+    const i = res ? texto.toLowerCase().indexOf(res.toLowerCase()) : -1;
+    if (i >= 0) {
+      tit.innerHTML = esc(texto.slice(0, i)) +
+        '<span class="subr"><i class="tinta-rotu" id="tintaRotu"></i>' +
+        esc(texto.slice(i, i + res.length)) + '</span>' +
+        esc(texto.slice(i + res.length));
+      tinta = document.getElementById('tintaRotu');
+    } else {
+      tit.textContent = texto;
+      tinta = null;
+    }
+
+    const entradilla = String(cfg.entradilla || '');
+    ent.textContent = entradilla;
+    ent.style.display = entradilla ? '' : 'none';
+    ent.style.marginTop = entradilla ? 'var(--s-5)' : '';
+    ent.classList.toggle('dos', entradilla.length > 150);
+
+    const firma = String(cfg.firma || '');
+    firTxt.textContent = firma;
+    fir.style.display = firma ? '' : 'none';
+
+    /* Grano de papel. Va como PRIMER hijo y no donde lo deja el helper: la
+       capa multiplica, y colgando al final se pintaría encima del titular y
+       lo ensuciaría un 20 % en vez de ensuciar solo el papel. Es el mismo
+       reparto que hace `tweet-card` con su plancha, resuelto aquí moviendo
+       el nodo porque la superficie y el contenido comparten caja.
+       La opacidad se deja en CSS (`--grano-op`) por si un tema la cambia:
+       un estilo en línea no puede depender del tema. */
+    const capa = Engine.grano(hoja, { px: 256, semilla: 31 });
+    hoja.insertBefore(capa, hoja.firstChild);
+    capa.style.opacity = 'var(--grano-op)';
+
+    _claveCache = '';
+
+    /* UNA señal y no tres. El sonido de la ENTRADA de la capa ya lo declara
+       el director (`dirigir.SFX_POR_PLANTILLA['headline-clipper'] =
+       ('deslizar', 0.85)`) y `plan_codex.py` lo repite a mano, así que
+       publicar aquí el corte lo duplicaría — es lo mismo que decidió
+       `tweet-card` y por la misma razón. El cuño sí es un evento propio,
+       cae 0,76 s después del principio de la capa y suena a lo que es: un
+       golpe seco sobre papel. El rotulador no lleva señal: un fieltro sobre
+       papel no se oye, y meterle un `barrido` sería sonorizar la animación
+       en vez del objeto. */
+    const T = tiempos(cfg);
+    return cfg.sinSonido || !medio ? null
+      : { cues: [{ at: +T.sello.toFixed(3), sfx: 'impacto', gain: 0.45 }] };
+  },
+
+  anclas() {
+    const b = recorte.getBoundingClientRect();
+    return { recorte: { x: Math.round(b.left + b.width / 2),
+                        y: Math.round(b.top + b.height / 2),
+                        w: Math.round(b.width), h: Math.round(b.height) } };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 5.0;
+    const T = tiempos(cfg);
+    const cierre = Engine.sale(t, fin, cfg.salida);
+
+    /* 1 · SE CORTA.
+       `inOutCubic` y NO `outCubic`: una mano que empieza a cortar arranca
+       parada, coge velocidad y frena al llegar al final del canto. Con
+       `outCubic` —la curva del 93 % del catálogo— la tijera sale disparada
+       en el primer fotograma y recorre el 70 % del recorte en el primer
+       tercio del tiempo, que es exactamente el aspecto de un barrido
+       automático y justo lo que esto no es. */
+    const corte = span(t, 0, T.corte, Ease.inOutCubic);
+    const w = hoja.offsetWidth, h = hoja.offsetHeight;
+    if (w > 0 && h > 0) {
+      /* El polígono de p=1 es el mismo en todos los fotogramas posteriores
+         al corte, que son la mayoría: se cachea. La clave incluye la caja
+         porque el alto depende del contenido. */
+      const fija = corte >= 1;
+      const clave = fija ? w + 'x' + h + ':' + cfg.semilla : '';
+      if (fija && clave === _claveCache) {
+        hoja.style.clipPath = _cachePoli;
+      } else {
+        const poli = poligono(w, h, corte, Number(cfg.semilla) || 0);
+        hoja.style.clipPath = poli;
+        if (fija) { _cachePoli = poli; _claveCache = clave; }
+      }
+    }
+
+    /* El recorte se suelta cuando la tijera va por la mitad y se asienta.
+       `outBack6` es el único sobrepaso que §1 permite —6 %, calibrado en el
+       motor— y aquí describe algo real: una hoja de papel que se suelta
+       pasa un poco de su ángulo de reposo antes de quedarse. */
+    const asiento = span(t, T.corte * 0.55, 0.46, Ease.outBack6);
+
+    /* §10: flotación de reposo. Esta plantilla estaba marcada como CONGELA
+       y era literal —dos de los tres fotogramas de muestra idénticos byte a
+       byte—, porque después de 0,55 s no cambiaba nada. Amplitud 2,2 px y
+       0,2° de cabeceo: papel sobre una mesa, no una tarjeta levitando. El
+       periodo (9,1 s) es más largo que cualquier capa de este tipo en una
+       pieza, así que nunca se ve el ciclo cerrarse y no se lee como bucle. */
+    const f = Engine.flota(t, 0, { amp: 2.2, periodo: 9.1, semilla: 23, giro: 0.2 });
+    const salida = 1 - cierre;
+    const giro = cfg.giro * (1 + 0.85 * (1 - asiento)) + f.r * asiento;
+    recorte.style.opacity = cierre.toFixed(3);
+    recorte.style.transform =
+      'translate(' + (f.x * asiento).toFixed(2) + 'px, ' +
+      ((1 - asiento) * 7 + f.y * asiento - salida * 12).toFixed(2) + 'px) ' +
+      'rotate(' + giro.toFixed(3) + 'deg)';
+
+    /* La sombra CUENTA la altura. Mientras se corta el recorte todavía
+       cuelga de la página y la sombra es grande y blanda; al posarse se
+       cierra a 10/16 px. Al salir vuelve a abrirse: alguien lo levanta de
+       la mesa. Es un canal de animación que no es ni opacidad ni transform
+       y que además dice algo —dónde está el objeto—, en vez de decorarlo. */
+    const alza = clamp((1 - asiento) + salida, 0, 1);
+    recorte.style.filter = 'drop-shadow(0 ' + (10 + 26 * alza).toFixed(1) +
+      'px ' + (16 + 32 * alza).toFixed(1) + 'px var(--sombra))';
+
+    /* 2 · SE SELLA.
+       `outExpo` y no `outBack6`: un cuño de caucho NO rebota. Llega, apoya
+       y se queda; toda la velocidad está en los dos primeros fotogramas.
+       Y la opacidad va por delante de la escala (×2,6) porque un sello
+       tampoco aparece fundido: o está o no está. Lo que sí hace la tinta al
+       apretar es ABRIRSE, y eso es el eje `wght` del mono variable de 300 a
+       640. Ojo: la sonda de anchos de `humo_plantillas.js` no puede ver ese
+       eje en una monoespaciada —el avance es fijo por definición, así que
+       los ocho pesos miden 864 px exactos—; comparando PÍXELES sí se ve,
+       que es como se ha comprobado aquí: 200/400/700/900 dan cuatro hashes
+       distintos. */
+    const ps = span(t, T.sello, T.pop, Ease.outExpo);
+    sello.style.opacity = Math.min(1, ps * 2.6).toFixed(3);
+    sello.style.transform = 'rotate(' + (-1.5 - 3.4 * (1 - ps)).toFixed(2) +
+      'deg) scale(' + (1 + 0.30 * (1 - ps)).toFixed(3) + ')';
+    Engine.peso(med, Math.round(300 + 340 * ps));
+
+    /* 3 · SE MARCA.
+       El trazo se descubre con una máscara de borde blando, igual que lo
+       haría un fieltro: el papel se moja donde ya pasó y hay un frente
+       húmedo de unos tres caracteres. `inOutCubic` otra vez, y por la misma
+       razón que el corte —es la misma mano—: arranca, cruza y para.
+       El degradado de la máscara va en `rgba(0,0,0,·)` a propósito: una
+       máscara es CANAL ALFA, no color; no se ve, no cambia con el tema y
+       por eso no le toca ningún token de paleta. */
+    if (tinta) {
+      const p = span(t, T.marca, T.trazo, Ease.inOutCubic);
+      const borde = p * 116 - 16;
+      const m = 'linear-gradient(92deg, rgba(0,0,0,1) ' + borde.toFixed(2) +
+                '%, rgba(0,0,0,0) ' + (borde + 16).toFixed(2) + '%)';
+      tinta.style.webkitMaskImage = m;
+      tinta.style.maskImage = m;
+    }
+  }
+});
+</script></body></html>

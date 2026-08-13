@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Cursor tap — el puntero que toca</title>
+<!-- El gesto no es «aparecer»: es TOCAR. `golpear` porque lo que tiene
+     destino acelera hasta el contacto; el nombre libre dice lo que se hace. -->
+<meta name="gesto" content="golpear:tocar">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* Existe porque un guion real lo pidió y el pipeline no lo tenía: el de
+     Codex ancló `cursor-tap` a la palabra «perfil» («pulsa aquí») y
+     `leer_guion.py` lo traducía a None — «no existe equivalente; se informa
+     y se omite». El alias documentado en §15 —«cursor-tap → el puntero de
+     `cierre-cta`»— no sirve para esto: aquel puntero está soldado a SU tecla
+     y no puede tocar un x/y arbitrario del plano.
+
+     El puntero se DIBUJA en SVG con los tokens de marca, nunca un emoji ni
+     un dingbat del sistema: es la misma decisión que tomó `cierre-cta` al
+     quitar su U+2713 —«ni es de esta marca ni existe en todas las
+     máquinas»— y media razón de que `glass-dock` se leyera barato. */
+  .stage { position: absolute; inset: 0; }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%;
+        overflow: visible; }
+
+  /* Cuerpo de grafito con CANTO de bronce, no al revés. La lección está
+     medida en `cierre-cta`: relleno de bronce, el puntero desaparecía justo
+     sobre la tapa de bronce en el instante que importa. Con el cuerpo oscuro
+     se recorta sobre metraje claro y el canto metálico lo separa del oscuro.
+     El `stroke` lo inyecta `Engine.gradienteMetal` en `setup`. */
+  .cuerpo { fill: color-mix(in oklab, var(--chrome-2) 60%, var(--velo-oscuro));
+            stroke-width: 2.2; stroke-linejoin: round; }
+  .filo-luz { fill: none; stroke: var(--glass-highlight); stroke-width: 1.2;
+              opacity: 0.5; }
+
+  /* UNA onda y no tres en bucle: tres anillos repitiéndose son el «ripple»
+     de Material, la plantilla por defecto de la que este catálogo sale
+     (`cierre-cta` lo deja escrito). Y cada anillo se dibuja DOS veces —surco
+     ancho en `--scrim` debajo, filo encima—, que es el truco de `target-hud`
+     para que un trazo de 2 px no desaparezca sobre metraje de su mismo
+     valor. */
+  .onda-surco { fill: none; stroke: var(--scrim); stroke-width: 7; }
+  .onda-filo  { fill: none; stroke: var(--accent-line); }
+
+  /* La etiqueta con el velo detrás del trazo, no encima: `paint-order:
+     stroke` es la versión SVG del scrim, copiada de la leyenda grabada de
+     `target-hud` — y el color es `--scrim`, nunca el acento: un halo de
+     acento es justo lo que §1 prohíbe. */
+  .legenda {
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps-ancho);
+    text-transform: uppercase;
+    fill: var(--ink);
+    paint-order: stroke;
+    stroke: var(--scrim);
+    stroke-width: 7px;
+    stroke-linejoin: round;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <svg id="svg" viewBox="0 0 1080 1920">
+    <!-- La onda va DEBAJO del puntero: el choque se propaga por el plano,
+         no por encima del dedo que lo causa. -->
+    <g id="onda">
+      <circle class="onda-surco" id="surco"></circle>
+      <circle class="onda-filo" id="filo"></circle>
+    </g>
+    <text class="legenda" id="etq" text-anchor="middle"></text>
+    <g id="cur">
+      <!-- La misma pieza que el puntero de `cierre-cta` (viewBox 34x40,
+           punta en 4,2): un cursor de esta marca ya existe y dibujar OTRO
+           sería tener dos punteros distintos en la misma pieza. -->
+      <path class="cuerpo" id="cuerpo"
+            d="M4 2 L28.5 20.5 L17.4 22 L23.2 33.6 L18.1 36.2 L12.3 24.4 L4 31.2 Z"/>
+      <path class="filo-luz" d="M5.4 4.6 L5.4 27.6"/>
+    </g>
+  </svg>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const svg = document.getElementById('svg');
+const cur = document.getElementById('cur');
+const cuerpo = document.getElementById('cuerpo');
+const surco = document.getElementById('surco');
+const filo = document.getElementById('filo');
+const etq = document.getElementById('etq');
+
+/* El compás del dedo, en constantes con nombre: `cierre-cta` documenta por
+   qué la caída es más corta que el retorno —un dedo empuja en seco y el
+   muelle devuelve despacio—. */
+const CAIDA = 0.07;      /* s hasta el fondo de la pulsación */
+const RETORNO = 0.22;    /* s que tarda en soltar */
+const APOYO = 0.24;      /* s que el dedo se queda apoyado tras tocar */
+const ONDA = 0.55;       /* s de vida de la onda */
+
+const M = {};            /* geometría de la pasada actual */
+
+/* Los instantes en UNA función, por la misma razón que `target-hud.ritmo`:
+   si algún día una tabla de sonido necesita el golpe, el instante es
+   `tiempos().contacto`, no una copia de esta fórmula. */
+function tiempos(cfg, fin) {
+  const contacto = clamp(Number(cfg.pulsacion) || 0.55, 0.15, fin - 0.2);
+  const viaje = Math.min(Number(cfg.viaje) || 0.42, contacto);
+  return { contacto, viaje,
+           llegada: contacto - viaje,
+           suelta: contacto + APOYO };
+}
+
+Engine.register({
+  duration: 1.3,
+  defaults: {
+    x: 540, y: 960,       /* el punto que se toca, en px de lienzo */
+    escala: 1,            /* tamaño del puntero y de la onda */
+    texto: '',            /* etiqueta bajo el punto; vacía no pinta nada */
+    /* `pulsacion` y no un nombre nuevo: es la clave que `reloj.SEMANTICA`
+       ya clasifica como posición —«cierre-cta, search-bar: el clic del
+       puntero»—, así que `silencios.py` la remapea y `comprobar_relojes.py`
+       no tiene que aprender nada. Una clave de tiempo con nombre nuevo es
+       invisible para el barrido y alguien la tendría que clasificar a mano. */
+    pulsacion: 0.55,      /* instante del contacto, relativo a la capa */
+    viaje: 0.42,          /* aproximación del puntero */
+    entrada: 0.16,
+    salida: 0.28,
+    giro: -10             /* inclinación con la que viene la mano */
+  },
+
+  setup(cfg) {
+    const esc = clamp(Number(cfg.escala) || 1, 0.5, 3);
+    Object.assign(M, { x: Number(cfg.x) || 0, y: Number(cfg.y) || 0, esc });
+
+    surco.setAttribute('cx', M.x); surco.setAttribute('cy', M.y);
+    filo.setAttribute('cx', M.x);  filo.setAttribute('cy', M.y);
+
+    etq.textContent = String(cfg.texto || '');
+    etq.setAttribute('x', M.x);
+    /* La etiqueta va bajo el punto, y ARRIBA solo si abajo no cabe: un
+       micro-FX no conoce el rostro —eso lo afina `colocar.py`—, pero
+       salirse del lienzo sí lo sabe evitar solo. */
+    M.yEtq = M.y + 128 * esc > 1880 ? M.y - 108 * esc : M.y + 128 * esc;
+
+    /* Se tira el degradado que hubiera antes de volver a pedirlo: el motor
+       llama a `setup({})` en DOMContentLoaded con tema carbon, y la guarda
+       de `gradienteMetal` conservaría esos stops al llegar el tema real.
+       Es el parche que `target-hud` documenta con la sonda medida. */
+    const viejo = svg.querySelector('#metal');
+    if (viejo) viejo.remove();
+    /* La caja va en coordenadas LOCALES del puntero (viewBox 34x40): una
+       lámina y una luz para el canto entero. `draw` la desplaza. */
+    cuerpo.setAttribute('stroke',
+      'url(#' + Engine.gradienteMetal(svg, 'metal', [2, 0, 30, 38]) + ')');
+
+    return {};
+    /* Sin `cues` a propósito, como `target-hud`: el clic lo pone la tabla
+       del director (`SFX_MICRO`) o el cue del guion —`mouse_click.wav` ya
+       traduce a `clic` en `leer_guion.SFX`—, y publicar aquí el golpe
+       sonorizaría dos veces el mismo contacto. Si algún día hace falta, el
+       instante es `tiempos(cfg, dur).contacto`. */
+  },
+
+  /* El punto que se toca, para que una anotación se cuelgue sin repetir
+     coordenadas: el diámetro es el de la onda ya abierta. */
+  anclas(cfg) {
+    const esc = clamp(Number(cfg.escala) || 1, 0.5, 3);
+    return { punto: { x: Number(cfg.x) || 0, y: Number(cfg.y) || 0,
+                      w: 190 * esc, h: 190 * esc } };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 1.3;
+    const T = tiempos(cfg, fin);
+    const esc = M.esc;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+
+    /* --- llega la mano ---
+       `outBack6` —el sobrepaso calibrado al 6 %—: una mano con masa no clava
+       el destino, se pasa un poco y corrige. `outBack` a secas se pasa el
+       10 % y está fuera de §10 desde siempre. */
+    const lleg = span(t, T.llegada, T.viaje, Ease.outBack6);
+    const ret = span(t, fin - (cfg.salida || 0), cfg.salida || 0, Ease.inOutCubic);
+
+    /* --- pulsa ---
+       `inCubic` a la caída: un dedo ACELERA hasta el tope y ahí se para en
+       seco; `outCubic` frenaría antes de tocar, que es lo que hace un
+       muelle, no un dedo. La vuelta sí es un muelle: `outExpo`. */
+    const caida = span(t, T.contacto, CAIDA, Ease.inCubic);
+    const vuelta = span(t, T.suelta, RETORNO, Ease.outExpo);
+    const press = caida * (1 - vuelta);
+
+    /* Temblor de mano mientras se acerca, ANULADO al apoyar: un dedo sobre
+       un botón no tiembla, el botón lo sujeta (`cierre-cta`). */
+    const apo = clamp((t - T.contacto + 0.06) / 0.12, 0, 1) * (1 - ret);
+    const tem = Engine.flota(t, 1, { amp: 2.6, periodo: 1.9, semilla: 5 });
+
+    /* SEGUNDO TIEMPO: el dedo apoyado se ASIENTA —1,8 px de hundimiento
+       lento— en vez de congelarse. Es lo que pasa DESPUÉS de llegar, que es
+       exactamente para lo que existe `Engine.reposo`. */
+    const conf = Engine.reposo(t, T.contacto + 0.12, fin, cfg.salida);
+
+    const dx = (1 - lleg) * 112 * esc + ret * 66 * esc + tem.x * (1 - apo);
+    const dy = (1 - lleg) * 136 * esc + ret * 92 * esc + tem.y * (1 - apo)
+             + 1.8 * conf;
+    /* El giro es alrededor de la PUNTA —el `translate(-4 -2)` del final la
+       lleva al origen—, que es el único punto en contacto: girar por el
+       centro hace patinar la pieza (`cierre-cta`). */
+    const giro = (1 - lleg) * (Number(cfg.giro) || 0) - ret * 6 + 2.5 * press;
+    const k = 1.9 * esc * (1 - 0.07 * press);
+    cur.setAttribute('transform',
+      `translate(${(M.x + dx).toFixed(2)} ${(M.y + dy).toFixed(2)}) ` +
+      `rotate(${giro.toFixed(2)}) scale(${k.toFixed(4)}) translate(-4 -2)`);
+
+    const a = Engine.entra(t, cfg.entrada);
+    cur.style.opacity = (a * (1 - ret) * cierre).toFixed(3);
+
+    /* La sombra de contacto dice a qué altura va la pieza: lejos al venir,
+       pegada al pulsar, y se abre otra vez al retirarse. Con una sombra fija
+       el puntero es una calcomanía sobre el plano. */
+    const alto = (1 - lleg) * 22 + 3 - 2.4 * press + ret * 18;
+    cur.style.filter =
+      `drop-shadow(0 ${(alto * 0.5).toFixed(1)}px ${(3 + alto * 0.8).toFixed(1)}px var(--sombra))`;
+
+    /* --- la onda ---
+       Gated en `t >= contacto` y no solo por su span: es la lección de los
+       casquetes de `target-hud` — un resto de trazo antes del contacto se ve
+       en el fotograma compuesto y en ningún diff. El radio sale disparado
+       (`outExpo`: un frente de onda no acelera) y la opacidad muere LINEAL,
+       para que el desvanecimiento siga vivo hasta el final en vez de
+       agotarse en tres fotogramas. */
+    const qr = span(t, T.contacto, ONDA, Ease.outExpo);
+    const qo = span(t, T.contacto, ONDA, Ease.linear);
+    if (t < T.contacto || qo >= 1) {
+      surco.style.opacity = 0;
+      filo.style.opacity = 0;
+    } else {
+      const r = esc * (16 + 74 * qr);
+      surco.setAttribute('r', r.toFixed(1));
+      filo.setAttribute('r', r.toFixed(1));
+      /* El filo se afina al abrirse: la energía se reparte por el frente. */
+      filo.style.strokeWidth = (2.8 - 1.4 * qr).toFixed(2);
+      surco.style.opacity = ((1 - qo) * 0.7 * cierre).toFixed(3);
+      filo.style.opacity = ((1 - qo) * 0.9 * cierre).toFixed(3);
+    }
+
+    /* --- la etiqueta ---
+       Entra 120 ms después del contacto: lo que tarda una interfaz real en
+       confirmar (§14, el botón de seguir). Se abre de tracking entre DOS
+       tokens de la escala —nunca un `em` suelto, §7— y el peso se asienta
+       con `Engine.peso`, que es la única forma portable de que el eje
+       variable se vea (el porqué, medido, está en `_engine.js`). */
+    const pL = span(t, T.contacto + 0.12, 0.32, Ease.outCubic);
+    etq.setAttribute('y', (M.yEtq + (1 - pL) * 14).toFixed(1));
+    etq.style.opacity = (pL * cierre).toFixed(3);
+    etq.style.letterSpacing =
+      `calc(var(--tr-caps) + (var(--tr-caps-ancho) - var(--tr-caps)) * ${pL.toFixed(3)})`;
+    Engine.peso(etq, Math.round(500 + 200 * conf));
+
+    /* --- luz rasante sobre el canto ---
+       Periodo 1,7 s: más largo que la capa para que el reflejo no cierre el
+       bucle, y no tanto que la lámina quede clavada — la misma calibración
+       que dejó escrita `target-hud` al bajar de 2,7 a 1,55. El desplazamiento
+       va en coordenadas locales del puntero, que es donde vive su lámina. */
+    const luz = 7 * Math.sin(2 * Math.PI * t / 1.7);
+    Engine.gradienteMetal(svg, 'metal', [2 + luz, 0, 30 + luz, 38]);
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Módulo de pantalla — marco de navegador y de móvil</title>
+<meta name="gesto" content="revelar:encender">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* ======================================================================
+     QUÉ ERA · el cromo de otras dos empresas.
+
+     La variante de navegador dibujaba tres luces de semáforo y una píldora
+     de URL: la barra de título de macOS y la omnibox de Chrome. La de móvil
+     dibujaba una MUESCA de 118×34 con radio de píldora, un indicador de
+     inicio de 150×6 y una barra de estado que ponía «9:41» —la hora exacta
+     de los anuncios de Apple— junto a dos dingbats del sistema, `▮▮▮ ⌁`.
+     Quitando el texto, esto no era un marco de esta marca: era hardware
+     ajeno con nuestro contenido dentro.
+
+     Y no se movía. La ficha `marcos(movil)` pasa `url: ''`, así que el
+     tecleado no escribía nada, y `desplazamiento` cae a 0 por defecto, así
+     que el contenido tampoco se desplazaba: los tres instantes que captura
+     `humo_plantillas.js` daban EL MISMO fotograma byte a byte. Media
+     pantalla ocupada por una imagen pegada encima del vídeo.
+
+     QUÉ ES · un MÓDULO DE PANTALLA montado en un bisel mecanizado.
+
+     El objeto ya no es «un teléfono» ni «un navegador» sino un panel de
+     instrumento: una placa de metal fresado con su veta, su grano de
+     fundición y un chaflán de bronce recién cortado alrededor del hueco;
+     dentro, un panel que ENCIENDE; encima, un cristal que refleja. Las dos
+     variantes son el mismo objeto en dos proporciones —apaisada y de
+     mano—, con el mismo vocabulario de piezas, que es lo que antes no
+     pasaba: eran dos cromos distintos copiados de dos sitios distintos.
+
+     Las tres piezas que sustituyen a lo copiado:
+
+       · el semáforo y la omnibox -> la DIRECCIÓN GRABADA en la barbilla
+         del bisel, como el nombre de modelo fresado en el marco de un
+         monitor. Sacarla de dentro de la pantalla es lo que mata de un
+         golpe la lectura «esto es un navegador».
+       · la muesca -> una RANURA FRESADA y un sensor, los dos DENTRO del
+         bisel. Una muesca es hardware de una empresa concreta; una ranura
+         mecanizada en el marco es cómo se hacía y se hace un auricular.
+       · la barra de estado de iOS -> dos campos y ni un icono: el origen a
+         700 y la lectura viva a 200, o sea 500 puntos de peso dentro de la
+         misma línea. No imita a nadie porque no hay nada que imitar: son
+         datos.
+
+     La sombra también estaba fuera de norma. §1 pone el límite del
+     difuminado en ~48 px y la carcasa llevaba `0 44px 90px`: el doble.
+     Ahora son 44 px y 18 px, las dos por debajo.
+     ====================================================================== */
+
+  /* La perspectiva vive en el escenario y no en el módulo: `rotateX` sin un
+     ancestro con `perspective` es una transformación ortográfica, o sea que
+     el panel se ACHATA en vez de inclinarse. Sin error y sin aviso. */
+  .stage { position: absolute; inset: 0; display: grid; place-items: center;
+           perspective: 1500px; }
+
+  /* --- el módulo -------------------------------------------------------
+     Solo posiciona y anima. Todo el material vive en `.placa`, que es una
+     capa aparte: `Engine.grano` añade su teja como ÚLTIMO hijo del elemento
+     al que se la pides, así que engranar el módulo entero habría dejado el
+     grano multiplicando por encima de la pantalla y del cristal. */
+  .modulo {
+    position: relative;
+    border-radius: var(--r-lg);
+    will-change: transform, opacity;
+    transform-style: preserve-3d;
+    /* Sombra de contacto + sombra lejana, las dos por debajo de los 48 px
+       que permite §1, y el filete de luz superior que §10 pide para que algo
+       parezca un objeto y no un rectángulo. */
+    box-shadow: 0 26px 44px -16px var(--sombra),
+                0 8px 18px -8px var(--sombra),
+                inset 0 1px 0 var(--glass-highlight);
+  }
+
+  /* La placa mecanizada: degradado de laminado, veta de fresado y grano.
+     `--chrome-*` y no un HEX: el bisel de antes iba clavado en `#1B1C21`
+     «porque un teléfono no cambia de color con el tema». Un teléfono no,
+     pero un instrumento de ESTA marca sí — y los tres tokens de cromo
+     existen exactamente para el marco que rodea al contenido. */
+  .placa {
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    overflow: hidden;            /* `border-radius` NO recorta hijos */
+    isolation: isolate;          /* el grano multiplica dentro, no fuera */
+    background-image: linear-gradient(var(--metal-ang),
+      var(--chrome-3) 0%, var(--chrome) 28%, var(--chrome-2) 52%,
+      var(--chrome) 74%, var(--chrome-3) 100%);
+  }
+  /* Marcas de fresado. `.trama` es un rayado de 1 px cada 3 en el mismo
+     ángulo que el laminado, así que la luz del degradado y la herramienta
+     coinciden: es lo que separa «metal» de «gris con degradado». */
+  .veta { position: absolute; inset: 0; }
+
+  /* --- la ranura y el sensor, fresados en el bisel --------------------- */
+  .ranura {
+    position: absolute; top: calc(var(--arriba) / 2 - 2px);
+    height: 4px; border-radius: var(--r-pill);
+    background: var(--chrome-3);
+    box-shadow: inset 0 1px 2px var(--sombra),
+                0 1px 0 var(--glass-highlight);
+  }
+  .sensor {
+    position: absolute; top: calc(var(--arriba) / 2 - 3px);
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--chrome-3);
+    border: var(--hairline) solid var(--metal-4);
+    box-shadow: inset 0 1px 1px var(--sombra);
+  }
+
+  /* --- la pantalla ------------------------------------------------------
+     El filtro de encendido se aplica AQUÍ y el reflejo es un HERMANO, no un
+     hijo: el brillo del panel es emisión y el reflejo es luz de la sala.
+     Con el reflejo dentro, atenuar el panel apagado habría atenuado también
+     su reflejo, que es justo al revés de lo que pasa —un panel apagado es
+     un espejo—. */
+  .pantalla {
+    position: absolute;
+    left: var(--lado); right: var(--lado);
+    top: var(--arriba); bottom: var(--chin);
+    border-radius: var(--r-sm);
+    background: var(--bg);
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px var(--sombra);
+    will-change: filter;
+  }
+  .contenido { position: absolute; inset: 0; will-change: transform; }
+
+  /* --- barra de estado: dos campos y ningún icono ---------------------- */
+  .estado {
+    position: absolute; left: 0; right: 0; top: 0;
+    height: var(--strip);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 var(--s-4);
+    background: var(--bg);
+    border-bottom: var(--hairline) solid var(--rule);
+    font-family: var(--mono); font-size: var(--t-2xs);
+  }
+  /* Los dos campos comparten tinta y se distinguen SOLO por peso: 700
+     contra 200. Es §1 al pie de la letra —jerarquía por peso, nunca por
+     luz— y además arregla un contraste: la lectura iba en `--ink-faint`,
+     que sobre el papel da 2,4:1 y no llega ni de lejos al 4,5 de la AA.
+     Con `--ink-soft` sube a 4,9:1 en papel y 6,5:1 en carbón. */
+  .origen  { font-weight: var(--w-fuerte); letter-spacing: var(--tr-caps-ancho);
+             color: var(--ink-soft); }
+  .lectura { font-weight: var(--w-fino);  letter-spacing: var(--tr-cuerpo);
+             color: var(--ink-soft); }
+
+  /* --- el cristal -------------------------------------------------------
+     Dos capas: la fija —cielo arriba, hundido abajo— y la que barre.
+
+     El barrido lleva un canto CLARO y otro OSCURO pegados, y no solo un
+     brillo: un reflejo real es un objeto de la sala, así que tiene un lado
+     iluminado y una masa detrás. Es además lo que hace que el reflejo se
+     vea en los DOS temas — sobre el papel casi blanco un barrido blanco no
+     existe (0,7 % de diferencia medida), y el canto de `--vineta`, que es
+     oscuro en carbón y pardo cálido en papel, sí. */
+  .vidrio {
+    position: absolute;
+    left: var(--lado); right: var(--lado);
+    top: var(--arriba); bottom: var(--chin);
+    border-radius: var(--r-sm);
+    overflow: hidden; pointer-events: none;
+    background:
+      linear-gradient(178deg, var(--glass-reflection) 0%,
+                      transparent 18%, transparent 84%, var(--vineta) 100%);
+    will-change: opacity;
+  }
+  /* El 55 % está MEDIDO, no elegido: con el barrido a opacidad plena el
+     canto claro llegaba a 0,32 de blanco sobre el panel encendido y borraba
+     el titular —se leía «en tu máquina» a través de una banda—. Un reflejo
+     que tapa lo que hay debajo deja de ser material y pasa a ser un efecto.
+     Ahora el blanco máximo sobre el panel encendido es 0,09. */
+  .destello {
+    position: absolute; top: -40%; bottom: -40%;
+    opacity: 0.55;
+    background: linear-gradient(96deg,
+      transparent 0%, var(--glass-glare) 30%, transparent 48%,
+      var(--vineta) 60%, transparent 88%);
+    will-change: transform;
+  }
+
+  /* El chaflán: el canto recién cortado del hueco. Es un `stroke` de SVG y
+     no un `border`, porque el bronce tiene que ser un degradado real
+     (`Engine.gradienteMetal`) y porque así se puede TRAZAR con
+     `strokeDashoffset` mientras el módulo aterriza. */
+  .chaflan { position: absolute; inset: 0; overflow: visible;
+             pointer-events: none; }
+  /* 1,5 px y no 2: a 2 px el contorno dejaba de leerse como el canto de un
+     fresado y pasaba a leerse como un BORDE de bronce alrededor de la
+     pantalla, que es el filete plano que §2 prohíbe. La diferencia es de
+     medio píxel y cambia el objeto entero. La opacidad la pone `draw`. */
+  .chaflan path { fill: none; stroke-width: 1.5; stroke-linecap: butt;
+                  will-change: stroke-dashoffset; }
+
+  /* --- la barbilla: la dirección GRABADA en el metal -------------------- */
+  .chin {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    height: var(--chin);
+    display: flex; align-items: center; gap: var(--s-3);
+    padding: 0 var(--s-5);
+  }
+  /* El filete de bronce de 20×2 que el catálogo ya usa como marca de «aquí
+     viene un valor». Sustituye al `⌾` del candado, que era un glifo de la
+     fuente del sistema: un dingbat es la firma de que nadie dibujó nada.
+
+     Las cuatro piezas de bronce de esta plantilla —esta marca, el índice,
+     el kicker y el filete de las fichas— llevan la clase `.brushed` y no un
+     `linear-gradient` copiado cuatro veces. §2 lo pide desde el principio
+     («el bronce nunca es un plano naranja: usa `.brushed`») y estaba medido
+     en 2 usos de 108: no era desobediencia, era que cada plantilla se
+     reescribía el degradado a mano. Aquí son cuatro usos más y una sola
+     definición, la del sistema. */
+  .marca { width: 20px; height: 2px; flex: none; }
+  /* Grabado, no impreso: el filete de luz va DEBAJO del texto, que es donde
+     la luz rasante pega en el canto inferior de un surco fresado. */
+  .dir {
+    font-family: var(--mono); font-size: var(--t-2xs);
+    font-weight: var(--w-medio); letter-spacing: var(--tr-cuerpo);
+    color: var(--ink-soft);
+    text-shadow: 0 1px 0 var(--glass-highlight);
+    white-space: nowrap; overflow: hidden;
+  }
+  .caret { width: 2px; height: 15px; flex: none; }
+
+  /* --- lo que se ve en la pantalla -------------------------------------
+     Sigue siendo geometría generada y no una captura: no habría de quién.
+     Pero deja de ser un wireframe gris —barra, barra, caja— y se estructura
+     como una interfaz de verdad: un kicker de bronce, un titular con la
+     jerarquía DENTRO de la línea, y fichas con su miniatura y su filete. */
+  /* La cabecera NO se desplaza, y no es una comodidad de maquetación.
+     Con el titular dentro del contenido, `desplazamiento: 160` —lo que pasa
+     la ficha de la hoja de contactos— lo metía por debajo de la barra de
+     estado y dejaba la primera línea cortada por la mitad durante los
+     últimos cuatro segundos de la capa. O sea: el copy de la pieza,
+     ilegible, y ningún control lo dice. Fijándola, lo que se desplaza es la
+     lista, que es lo que se desplaza en cualquier interfaz de verdad. */
+  .masthead {
+    position: absolute; left: 0; right: 0; top: var(--strip);
+    background: var(--bg);
+    box-shadow: 0 10px 14px -10px var(--sombra);
+  }
+  .kicker { border-radius: var(--r-pill); }
+  .titular {
+    font-family: var(--display);
+    font-weight: var(--w-claro);
+    letter-spacing: var(--tr-display);
+    line-height: 1.06;
+    color: var(--ink);
+  }
+  .movil .titular { font-size: var(--t-lg); }
+  .web   .titular { font-size: var(--t-xl); }
+  /* La palabra que carga. Su peso lo escribe `draw`: es el ENCENDIDO del
+     panel —de 300 a 800 mientras sube el retroiluminado—, un gesto que solo
+     existe con ejes variables y que no se puede imitar con dos ficheros. */
+  .cae { font-weight: var(--w-negro); }
+
+  .fila { position: absolute; border-radius: var(--r-sm);
+          background: var(--ink-ghost); }
+  /* `--surface` y no `--surface-2`: sobre `--bg` la segunda superficie da
+     1,1:1 de contraste en carbón —#17171B contra #121212—, o sea que las
+     fichas eran cajas invisibles con un filete. La primera da 1,6:1 y con
+     el `--stroke` encima se leen como piezas. */
+  .ficha { position: absolute; border-radius: var(--r-md);
+           background: var(--surface);
+           border: var(--hairline) solid var(--stroke);
+           will-change: transform; }
+  .mini  { position: absolute; border-radius: var(--r-sm);
+           background: var(--surface-2);
+           border: var(--hairline) solid var(--stroke); }
+  .filete { position: absolute; height: 2px; border-radius: 1px; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="modulo" id="modulo">
+    <div class="placa" id="placa"><i class="veta trama"></i></div>
+    <div class="ranura" id="ranura"></div>
+    <div class="sensor" id="sensor"></div>
+
+    <div class="pantalla" id="pantalla">
+      <div class="contenido" id="contenido"></div>
+      <div class="masthead" id="masthead"></div>
+      <div class="estado" id="estado">
+        <span class="origen" id="origen"></span>
+        <span class="lectura tnum" id="lectura"></span>
+      </div>
+    </div>
+
+    <div class="vidrio" id="vidrio"><i class="destello" id="destello"></i></div>
+
+    <svg class="chaflan" id="chaflan"><path id="corte"></path></svg>
+
+    <div class="chin" id="chin">
+      <i class="marca brushed" id="marca"></i>
+      <span class="dir" id="dir"></span>
+      <i class="caret brushed" id="caret"></i>
+    </div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+/* Caja de un elemento en coordenadas del lienzo, con el punto en su
+   CENTRO. Otra capa la pide con `{sobre: 'capa.clave'}` en vez de copiar
+   coordenadas, que es lo que se desincroniza al cambiar el texto. */
+function ancla(el) {
+  const b = el.getBoundingClientRect();
+  return { x: Math.round(b.left + b.width / 2),
+           y: Math.round(b.top + b.height / 2),
+           w: Math.round(b.width), h: Math.round(b.height) };
+}
+
+const { Ease, span, clamp, noise } = Engine;
+
+/* Las proporciones del chasis, que es lo único que distingue a las dos
+   variantes. La barbilla es más alta que la frente en las dos —un panel
+   montado se sujeta por abajo— y en la de mano la diferencia es mayor. */
+const CHASIS = {
+  navegador: { lado: 14, arriba: 22, chin: 52, strip: 34, margen: 56, ranura: 0.16 },
+  movil:     { lado: 16, arriba: 26, chin: 48, strip: 30, margen: 34, ranura: 0.26 }
+};
+
+const modulo   = document.getElementById('modulo');
+const placa    = document.getElementById('placa');
+const ranura   = document.getElementById('ranura');
+const sensor   = document.getElementById('sensor');
+const pantalla = document.getElementById('pantalla');
+const contenido= document.getElementById('contenido');
+const masthead = document.getElementById('masthead');
+const elOrigen = document.getElementById('origen');
+const elLectura= document.getElementById('lectura');
+const vidrio   = document.getElementById('vidrio');
+const destello = document.getElementById('destello');
+const chaflan  = document.getElementById('chaflan');
+const corte    = document.getElementById('corte');
+const marca    = document.getElementById('marca');
+const elDir    = document.getElementById('dir');
+const caret    = document.getElementById('caret');
+
+let texto = '', desplazable = 0, largoCorte = 1, granoPlaca = null;
+let piezas = [];                 // lo que flota dentro de la pantalla
+/* Los tres instantes del guion. Se calculan UNA vez en `setup` y los usan
+   tanto `draw` como los `cues`: copiar la fórmula en las señales de sonido
+   es exactamente como se desincronizan de la animación que anuncian. */
+let T_ENC = 0, T_DIR = 0, T_FIN_DIR = 0;
+
+/* Contorno de rectángulo redondeado que EMPIEZA en el centro del borde
+   superior y va en sentido horario. El punto de partida importa: el chaflán
+   se traza como una sola pasada de fresa y tiene que cerrar donde empezó,
+   arriba y en el eje, que es donde menos se nota la costura. */
+function contorno(x, y, w, h, r) {
+  const x2 = x + w, y2 = y + h, cx = x + w / 2;
+  return `M ${cx} ${y} L ${x2 - r} ${y} A ${r} ${r} 0 0 1 ${x2} ${y + r}` +
+         ` L ${x2} ${y2 - r} A ${r} ${r} 0 0 1 ${x2 - r} ${y2}` +
+         ` L ${x + r} ${y2} A ${r} ${r} 0 0 1 ${x} ${y2 - r}` +
+         ` L ${x} ${y + r} A ${r} ${r} 0 0 1 ${x + r} ${y} Z`;
+}
+
+Engine.register({
+  duration: 7,
+  defaults: {
+    tipo: 'navegador',        // 'navegador' | 'movil'
+    url: 'localhost:5173/editor',
+    origen: 'LOCAL',          /* rótulo izquierdo de la barra de estado. Es
+                                 la única clave NUEVA y trae defecto, así
+                                 que ningún plan existente cambia. */
+    ancho: 880,
+    alto: 560,
+    titular: 'Todo el montaje,\nen tu máquina',
+    cps: 26,                  // velocidad de grabado de la dirección
+    desplazamiento: 0,        // px que recorre el contenido
+    entrada: 0.7,
+    salida: 0.5
+  },
+
+  setup(cfg) {
+    const movil = cfg.tipo === 'movil';
+    const C = CHASIS[movil ? 'movil' : 'navegador'];
+    const W = Math.round(cfg.ancho), H = Math.round(cfg.alto);
+    const MW = W + C.lado * 2, MH = H + C.arriba + C.chin;
+
+    modulo.className = 'modulo ' + (movil ? 'movil' : 'web');
+    modulo.style.width = MW + 'px';
+    modulo.style.height = MH + 'px';
+    /* Las cuatro medidas del chasis viajan como propiedades CSS y el resto
+       de la maquetación sale de ellas. Escribir `left`, `top`, `width` y
+       `height` de cada pieza desde JS es lo que dejaba a `.vidrio` y a
+       `.pantalla` desalineados en cuanto se tocaba una: aquí solo hay una
+       fuente de la geometría. */
+    modulo.style.setProperty('--lado', C.lado + 'px');
+    modulo.style.setProperty('--arriba', C.arriba + 'px');
+    modulo.style.setProperty('--chin', C.chin + 'px');
+    modulo.style.setProperty('--strip', C.strip + 'px');
+
+    /* Grano de fundición sobre la placa. Es legal aquí y solo aquí: §lección
+       de la tanda anterior — `Engine.grano` pinta con `multiply`, y
+       multiplicar contra alfa 0 devuelve el gris de la teja, o sea un
+       rectángulo visible sobre el vídeo. `.placa` tiene fondo opaco propio,
+       `overflow: hidden` y `isolation: isolate`. */
+    granoPlaca = Engine.grano(placa, { px: 256, semilla: 19, op: 0.22 });
+
+    /* La ranura crece con el ancho del chasis pero no sin límite: en la
+       variante apaisada una ranura proporcional cruzaría media frente. */
+    const anchoRanura = Math.round(Math.min(132, MW * C.ranura));
+    ranura.style.width = anchoRanura + 'px';
+    ranura.style.left = Math.round(MW / 2 - anchoRanura / 2 - 9) + 'px';
+    sensor.style.left = Math.round(MW / 2 + anchoRanura / 2 + 3) + 'px';
+
+    /* El chaflán. `gradienteMetal` cachea el `<defs>` por id, así que al
+       reconfigurar la misma página con OTRO tema los stops se quedarían con
+       los del tema anterior —el bronce de carbón sobre el papel—. Se borra
+       primero: cuesta una línea y es un fallo que no da ningún error. */
+    const viejo = chaflan.querySelector('#metal');
+    if (viejo) viejo.remove();
+    chaflan.setAttribute('width', MW);
+    chaflan.setAttribute('height', MH);
+    chaflan.setAttribute('viewBox', `0 0 ${MW} ${MH}`);
+    /* La caja es obligatoria: sin ella el degradado usa `objectBoundingBox`
+       y un trazo sin área no se dibuja. Aquí el contorno sí tiene área, pero
+       con la caja las cuatro aristas comparten UNA lámina de bronce con una
+       sola luz, en vez de que cada lado lleve su propio reflejo. */
+    const id = Engine.gradienteMetal(chaflan, 'metal', [0, 0, MW, MH]);
+    corte.setAttribute('stroke', `url(#${id})`);
+    corte.setAttribute('d', contorno(C.lado, C.arriba, W, H, 8));
+    largoCorte = corte.getTotalLength();
+    corte.style.strokeDasharray = largoCorte;
+
+    /* El barrido del reflejo mide el 46 % del hueco y va inclinado: un
+       reflejo vertical se lee como una barra de brillo de plantilla. */
+    destello.style.width = Math.round(W * 0.46) + 'px';
+
+    texto = String(cfg.url || '');
+    elDir.textContent = '';
+    /* Sin dirección la barbilla se queda de metal desnudo, que es lo que es
+       la barbilla de un aparato de mano. Antes la variante de móvil llenaba
+       ese hueco con la barra de estado de iOS. */
+    marca.style.display = texto ? 'block' : 'none';
+    caret.style.display = texto ? 'block' : 'none';
+    elOrigen.textContent = String(cfg.origen || '');
+
+    // ---- lo que se ve en la pantalla ----------------------------------
+    contenido.innerHTML = '';
+    masthead.innerHTML = '';
+    const mar = C.margen;
+    const util = W - mar * 2;
+    /* Coloca una caja DENTRO de un padre, en coordenadas de ese padre. Antes
+       todo colgaba de `.contenido` con coordenadas absolutas de pantalla, y
+       eso impedía que una ficha se moviera: su miniatura y sus renglones
+       eran hermanos suyos, no hijos, así que al desplazarla se quedaban
+       atrás. Anidarlas es lo que hace posible la flotación de §10. */
+    const caja = (padre, cls, x, y, w, h) => {
+      const d = document.createElement('div');
+      d.className = cls;
+      Object.assign(d.style, { left: Math.round(x) + 'px', top: Math.round(y) + 'px',
+                               width: Math.round(w) + 'px', height: Math.round(h) + 'px' });
+      padre.appendChild(d);
+      return d;
+    };
+
+    // --- cabecera fija: kicker + titular ---
+    masthead.style.padding =
+      `${movil ? 30 : 34}px ${mar}px ${movil ? 22 : 26}px`;
+    const kick = document.createElement('div');
+    kick.className = 'kicker brushed';
+    kick.style.width = (movil ? 78 : 96) + 'px';
+    kick.style.height = (movil ? 8 : 10) + 'px';
+    kick.style.marginBottom = (movil ? 22 : 26) + 'px';
+    masthead.appendChild(kick);
+
+    /* Jerarquía DENTRO de la línea (§1): la última línea del titular carga y
+       el resto calla. 300 contra 800 son 500 puntos, por encima de los 400
+       que la norma exige, y ni el cuerpo ni el color cambian. */
+    const lineas = String(cfg.titular).split(/\r?\n|\\n/);
+    const tit = document.createElement('div');
+    tit.className = 'titular';
+    if (lineas.length > 1) {
+      tit.innerHTML = lineas.slice(0, -1).join('<br>') +
+                      '<br><span class="cae">' + lineas[lineas.length - 1] + '</span>';
+    } else {
+      const p = lineas[0].split(' ');
+      const corta = Math.max(1, p.length - 2);
+      tit.innerHTML = p.slice(0, corta).join(' ') +
+                      ' <span class="cae">' + p.slice(corta).join(' ') + '</span>';
+    }
+    masthead.appendChild(tit);
+    /* La altura se MIDE y no se estima: depende de cuántas líneas ocupe el
+       titular con la fuente real y con el ancho real de ESTA variante.
+       `offsetHeight` fuerza la maquetación ahora mismo, así que el primer
+       fotograma ya sale colocado —esperar a un `requestAnimationFrame`
+       dejaría el primero con la lista pisando la cabecera—. */
+    let y = C.strip + masthead.offsetHeight + (movil ? 6 : 8);
+
+    [0.94, 0.80, 0.88].forEach(f => {
+      caja(contenido, 'fila', mar, y, util * f, movil ? 11 : 13);
+      y += movil ? 26 : 30;
+    });
+    y += movil ? 22 : 26;
+
+    /* Se rellena hasta cubrir el alto MÁS el desplazamiento: si el contenido
+       terminara en el borde inferior, desplazarlo dejaría medio panel en
+       blanco justo cuando se mira. */
+    const fondo = H + (cfg.desplazamiento || 0) + 40;
+    const gap = 18;
+    if (movil) {
+      /* En vertical, fichas con miniatura: una caja gris sola es un
+         wireframe, y una caja con su miniatura y sus dos renglones se lee
+         como una lista de verdad. */
+      while (y < fondo) {
+        const f = caja(contenido, 'ficha', mar, y, util, 112);
+        caja(f, 'mini', 16, 16, 80, 80);
+        caja(f, 'filete brushed', 112, 26, 42, 2);
+        caja(f, 'fila', 112, 44, util - 128, 11);
+        caja(f, 'fila', 112, 66, (util - 128) * 0.66, 11);
+        y += 112 + gap;
+      }
+    } else {
+      const cols = 3;
+      const anchoB = (util - gap * (cols - 1)) / cols;
+      while (y < fondo) {
+        for (let i = 0; i < cols; i++) {
+          const f = caja(contenido, 'ficha', mar + i * (anchoB + gap), y, anchoB, 168);
+          caja(f, 'filete brushed', 20, 24, 34, 2);
+          caja(f, 'fila', 20, 44, anchoB - 40, 12);
+          caja(f, 'fila', 20, 68, (anchoB - 40) * 0.62, 12);
+          caja(f, 'mini', 20, 96, anchoB - 40, 52);
+        }
+        y += 168 + gap;
+      }
+    }
+    desplazable = cfg.desplazamiento || 0;
+
+    /* Las piezas que respiran (§10). NO flota el módulo entero y ya: un
+       panel atornillado no cabecea, pero lo que hay DENTRO del cristal sí
+       se mueve —es una pantalla, no una lámina—. Así el chasis queda
+       rígido, que es lo que dice que es metal, y la imagen queda viva.
+       La cabecera se queda quieta a propósito: es la parte clavada. */
+    piezas = [...contenido.querySelectorAll('.ficha')].slice(0, 6);
+
+    /* --- señales de sonido -------------------------------------------
+       Tres eventos y no uno por elemento: el módulo asienta en su montura,
+       el panel enciende, y el grabado de la dirección termina. Los tres
+       instantes salen de las MISMAS variables que usa `draw`. */
+    T_ENC = cfg.entrada * 0.55;
+    T_DIR = T_ENC + 0.45;
+    /* El mismo respaldo que aplica `Engine.typed` por dentro (`cps || 28`).
+       Escribir aquí `Math.max(1, cfg.cps)` parecía más defensivo y era peor:
+       con `cps: 0` el sonido del final del grabado se colocaba a 22 s y el
+       texto tardaba 0,8 s en escribirse. Dos fórmulas para el mismo hecho
+       siempre acaban discrepando. */
+    T_FIN_DIR = T_DIR + texto.length / (cfg.cps || 28);
+    const cues = [
+      { at: +(cfg.entrada * 0.34).toFixed(3), sfx: 'clic', gain: 0.5 },
+      { at: +T_ENC.toFixed(3), sfx: 'aparicion', gain: 0.4 }
+    ];
+    if (texto) cues.push({ at: +T_FIN_DIR.toFixed(3), sfx: 'tic', gain: 0.38 });
+    return { cues: cfg.sinSonido ? [] : cues };
+  },
+
+  anclas() {
+    return { pantalla: ancla(pantalla), marco: ancla(modulo) };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 7;
+
+    /* `outExpo` para la llegada y no `outCubic`: el módulo tiene masa y se
+       mete en su montura de golpe, luego se asienta durante mucho rato.
+       Medido sobre `cfg.entrada = 0.7`, el 90 % del recorrido está hecho a
+       los 0,16 s con `outExpo` y a los 0,35 s con `outCubic`; lo que queda
+       después es el amortiguamiento, que es lo que se lee como peso. */
+    const ap = Engine.entra(t, cfg.entrada, Ease.outExpo);
+    const cierre = Engine.sale(t, fin, cfg.salida);
+
+    /* Flotación de reposo (§10), repartida: el chasis deriva 1,6 px y las
+       piezas de dentro hasta 3,4. Sin esto la ficha `marcos(movil)` daba
+       los TRES instantes del humo idénticos byte a byte —no había tecleo,
+       porque su `url` va vacía, ni desplazamiento, porque cae a 0—. */
+    const fl = Engine.flota(t, 0, { amp: 1.6, periodo: 9.4, semilla: 4, giro: 0.1 });
+    modulo.style.opacity = ap * cierre;
+    modulo.style.transform =
+      `translate(${fl.x.toFixed(2)}px, ${((1 - ap) * 30 + fl.y).toFixed(2)}px)` +
+      ` rotateX(${((1 - ap) * 5.5).toFixed(2)}deg)` +
+      ` rotate(${fl.r.toFixed(3)}deg)` +
+      ` scale(${(0.972 + 0.028 * ap).toFixed(4)})`;
+
+    /* El chaflán se traza mientras el módulo cae: el hueco se acaba de
+       fresar. `inOutCubic` porque una fresa entra despacio, corta y sale
+       despacio; con `outCubic` el canto salía disparado en el primer
+       fotograma y parecía un barrido automático. */
+    const cor = span(t, cfg.entrada * 0.18, cfg.entrada * 1.15, Ease.inOutCubic);
+    corte.style.strokeDashoffset = (largoCorte * (1 - cor)).toFixed(2);
+    /* 0,62 y no 1: en `paper` los cinco stops del metal se colapsan al
+       acento —lo dice `_tokens.css`: un degradado de bronce sobre papel se
+       ve sucio—, así que ahí el chaflán es un trazo PLANO de terracota y a
+       plena opacidad rodea la pantalla como un borde de selección. Al 62 %
+       sigue siendo el canto del fresado en carbón y una regla fina en
+       papel. Es el mismo trazo, no dos.
+       Sin `cierre`: el chaflán vive DENTRO de `.modulo`, que ya se va con
+       `ap * cierre`. Multiplicarlo otra vez aquí lo apagaba al doble de
+       velocidad que la pieza que corta. */
+    corte.style.opacity = 0.62;
+
+    /* --- el encendido --------------------------------------------------
+       Un panel LCD no aparece: sube el retroiluminado y con él el contraste
+       y la saturación, en ese orden. Es la razón de que esto NO se anime con
+       `opacity`: un panel apagado no es transparente, es oscuro y plano.
+       `filter` es además el canal que le faltaba a esta plantilla — hasta
+       hoy solo animaba `opacity` y `transform`, como 42 de las 56. */
+    const enc = span(t, T_ENC, 0.9, Ease.outExpo);
+    pantalla.style.filter =
+      `brightness(${(0.26 + 0.74 * enc).toFixed(3)})` +
+      ` contrast(${(0.58 + 0.42 * enc).toFixed(3)})` +
+      ` saturate(${(0.18 + 0.82 * enc).toFixed(3)})`;
+
+    /* El titular gana peso con el retroiluminado: 300 -> 800. El panel no
+       revela el texto, lo RESUELVE. */
+    const cae = masthead.querySelector('.cae');
+    if (cae) Engine.peso(cae, Math.round(300 + 500 * enc));
+
+    /* --- el cristal ----------------------------------------------------
+       Un panel apagado es un espejo y uno encendido casi no refleja: la
+       intensidad baja del 100 % al 38 % conforme sube el retroiluminado.
+       Es la observación que justifica que el reflejo exista —no es un
+       brillo decorativo, es lo que hace un cristal delante de un panel— y
+       de paso hace que el encendido se lea aunque el contenido esté quieto.
+       Tampoco lleva `cierre`, por lo mismo que el chaflán. */
+    vidrio.style.opacity = (1 - 0.62 * enc).toFixed(3);
+    /* Una sola pasada del barrido en los 9,2 s del periodo: dentro de una
+       capa de 7 s nunca vuelve al principio, así que no hay salto. */
+    const paso = (t / 9.2) % 1;
+    destello.style.transform =
+      `translateX(${(-70 + 210 * paso).toFixed(2)}%) rotate(-7deg)`;
+
+    /* --- la dirección, grabada carácter a carácter ---------------------- */
+    if (texto) {
+      elDir.textContent = Engine.typed(texto, t, T_DIR, cfg.cps);
+      /* El índice no parpadea en cuadrado: a 25 fps un parpadeo duro produce
+         fotogramas alternos idénticos y aliasing estroboscópico. Un latido
+         suave de 0,9 s se lee igual y no bate. */
+      const vivo = t > T_FIN_DIR + 0.5 ? 0 : 1;
+      caret.style.opacity =
+        (vivo * (0.3 + 0.7 * (0.5 + 0.5 * Math.cos(2 * Math.PI * t / 0.9)))).toFixed(3);
+      marca.style.opacity = clamp((t - T_DIR + 0.3) * 3, 0, 1).toFixed(3);
+    }
+
+    /* --- la lectura viva de la barra de estado --------------------------
+       Escalones de un cuarto de segundo y no una sinusoide: una medida real
+       salta, no ondula. `noise` con el índice del escalón es puro —mismo t,
+       mismo número— así que sigue siendo reproducible fotograma a fotograma.
+       Y es lo único que se mueve en la pantalla cuando `desplazamiento` es
+       0, que es el caso de la variante de mano. */
+    const esc = Math.floor(Math.max(0, t) * 4);
+    elLectura.textContent =
+      (11.4 + 3.6 * noise(esc, 21)).toFixed(1) + ' ms';
+    elLectura.style.opacity = enc.toFixed(3);
+    elOrigen.style.opacity = enc.toFixed(3);
+
+    /* --- el contenido se desplaza cuando ya hay dirección --------------- */
+    const t0 = texto ? T_FIN_DIR + 0.35 : T_ENC + 0.6;
+    const s = span(t, t0, Math.max(0.6, fin - t0 - cfg.salida - 0.3),
+                   Ease.inOutCubic);
+    contenido.style.transform = `translateY(${(-s * desplazable).toFixed(2)}px)`;
+
+    /* Cada pieza deriva con su propio periodo. Va DENTRO del cristal, así
+       que el chasis sigue rígido —es metal— y la imagen no se queda muerta.
+       Se aplica a las seis primeras: más allá el coste crece y ya no se ven. */
+    piezas.forEach((el, i) => {
+      const f = Engine.flota(t, i + 1, { amp: 3.4, periodo: 8.2, semilla: 12 });
+      el.style.transform = `translate(${f.x.toFixed(2)}px, ${f.y.toFixed(2)}px)`;
+    });
+
+    /* El grano de la placa respira con la entrada: al aterrizar el módulo la
+       textura entra con él en vez de estar ya puesta sobre un objeto que
+       todavía no existe. */
+    if (granoPlaca) granoPlaca.style.opacity = (0.22 * ap).toFixed(3);
+  }
+});
+</script>
+</body>
+</html>

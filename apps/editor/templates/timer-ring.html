@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Cuenta atrás circular</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  #base { fill: none; stroke: var(--stroke); stroke-width: 14; opacity: 0.5; }
+  #arco { fill: none; stroke: var(--accent); stroke-width: 14;
+          stroke-linecap: round;
+          filter: drop-shadow(0 0 14px rgba(205,127,50,0.55)); }
+  .num { position: absolute; left: 0; right: 0; margin-inline: auto;
+         width: fit-content; font-family: var(--mono); font-weight: 700;
+         color: var(--ink); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <svg id="svg" viewBox="0 0 1080 1920">
+    <circle id="base"></circle>
+    <circle id="arco"></circle>
+    <!-- El SELLO: el anillo exterior que se traza cuando la cuenta llega a
+         cero. No es un adorno, es lo que un cronómetro hace al terminar. -->
+    <circle id="marco"></circle>
+  </svg>
+  <div class="num" id="num"></div></div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp, noise } = Engine;
+
+const base=document.getElementById('base'), arco=document.getElementById('arco');
+const marco=document.getElementById('marco');
+const num=document.getElementById('num');
+let L=1, LM=1;
+
+Engine.register({
+  duration: 1.4,
+  defaults: { x: 540, y: 840, r: 120, desde: 3, tam: 96, vaciado: 1.0 },
+
+  setup(cfg) {
+    [base,arco].forEach(c=>{ c.setAttribute('cx',cfg.x); c.setAttribute('cy',cfg.y);
+                             c.setAttribute('r',cfg.r); });
+    L=2*Math.PI*cfg.r;
+    /* El sello va 16 px por fuera del arco: si compartiera radio se sumaría al
+       trazo y se leería como un engrosamiento, no como otra pieza. */
+    const rm=cfg.r+16;
+    marco.setAttribute('cx',cfg.x); marco.setAttribute('cy',cfg.y);
+    marco.setAttribute('r',rm);
+    LM=2*Math.PI*rm;
+    marco.style.fill='none';
+    marco.style.stroke='var(--metal-3)';
+    marco.style.strokeWidth='2';
+    marco.style.strokeDasharray=LM;
+    marco.style.strokeDashoffset=LM;
+    marco.style.transform=`rotate(-90deg)`;
+    marco.style.transformOrigin=`${cfg.x}px ${cfg.y}px`;
+    arco.style.strokeDasharray=L;
+    /* Sentido horario desde arriba: es como se lee un reloj. Por defecto
+       SVG empieza a las 3 y va al revés. */
+    arco.style.transformOrigin=`${cfg.x}px ${cfg.y}px`;
+    arco.style.transform='rotate(-90deg) scaleX(-1)';
+    num.style.fontSize=cfg.tam+'px';
+    num.style.top=(cfg.y-cfg.tam*0.62)+'px';
+  },
+
+  draw(t, cfg) {
+    const e=span(t,0,0.2,Ease.outCubic);
+    const q=clamp((t-0.15)/cfg.vaciado,0,1);
+    arco.style.strokeDashoffset=L*q;
+    /* El número cambia por SALTOS, no interpolado: un contador que muestra
+       2.37 no es una cuenta atrás. */
+    const n=Math.max(0, Math.ceil(cfg.desde*(1-q)));
+    num.textContent=n;
+    const salto = 1 + 0.14*Math.exp(-16*((t-0.15) % (cfg.vaciado/cfg.desde)));
+    num.style.transform=`scale(${q<1?salto:1})`;
+    /* SEGUNDO TIEMPO. La cuenta llega a cero en `0.15 + vaciado` y hasta el
+       cierre no pasaba nada: siete fotogramas idénticos, el 17 % de la capa.
+       Un cronómetro que llega a cero no se queda mirando — SELLA. El anillo
+       exterior se traza una vez terminada la cuenta y el número se asienta de
+       900 al peso de reposo, que es lo que hace una aguja al pararse. */
+    const D=(cfg.duration||1.4);
+    const cero=0.15+cfg.vaciado;
+    const sello=span(t, cero, Math.max(0.12, D-0.24-cero), Ease.inOutCubic);
+    if (marco) {
+      marco.style.strokeDashoffset=(LM*(1-sello)).toFixed(1);
+      marco.style.opacity=(q>=1?1:0);
+    }
+    Engine.peso(num, Math.round(900-200*sello));
+    const fin=1-span(t,D-0.24,0.24,Ease.inOutCubic);
+    base.style.opacity=e*0.5*fin; arco.style.opacity=e*fin; num.style.opacity=e*fin;
+  }
+});
+</script>
+</body>
+</html>

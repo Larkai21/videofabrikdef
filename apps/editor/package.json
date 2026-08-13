@@ -1,0 +1,14 @@
+{
+  "name": "@fabrica/editor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Motion graphics rasterizados con Chromium headless",
+  "scripts": {
+    "render": "node scripts/render_playwright.js",
+    "postinstall": "playwright install chromium"
+  },
+  "dependencies": {
+    "gsap": "^3.15.0",
+    "playwright": "^1.49.0"
+  }
+}

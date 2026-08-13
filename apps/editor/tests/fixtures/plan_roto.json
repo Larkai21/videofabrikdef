@@ -1,0 +1,90 @@
+[
+  {
+    "_por_que": "capa 0 · plantilla que no existe en templates/",
+    "capa": "pills",
+    "template": "no-existe.html",
+    "t": 0.5,
+    "duracion": 2.0,
+    "config": {"duration": 2.0}
+  },
+  {
+    "_por_que": "capa 1 · duración cero: se renderiza un fotograma y no se ve",
+    "capa": "cita",
+    "template": "cita.html",
+    "t": 3.0,
+    "duracion": 0.0,
+    "config": {"duration": 0.0}
+  },
+  {
+    "_por_que": "capa 2 · t negativo",
+    "capa": "onda",
+    "template": "onda.html",
+    "t": -1.0,
+    "duracion": 2.0,
+    "config": {"duration": 2.0}
+  },
+  {
+    "_por_que": "capa 3 · empieza DESPUÉS del final de la locución: no se verá",
+    "capa": "cinta",
+    "template": "cinta.html",
+    "t": 99.0,
+    "duracion": 2.0,
+    "config": {"duration": 2.0}
+  },
+  {
+    "_por_que": "capa 4 · `at` es RELATIVO al inicio de la capa y aquí está escrito en absoluto; y config.duration no coincide con duracion",
+    "capa": "highlightertext",
+    "template": "highlighter-text.html",
+    "t": 6.0,
+    "duracion": 2.0,
+    "config": {"duration": 3.5, "at": 9.9, "texto": "algo que subrayar"}
+  },
+  {
+    "_por_que": "capa 5 · se ancla a una capa que no existe en el plan",
+    "capa": "anotacion",
+    "template": "anotacion.html",
+    "t": 9.0,
+    "duracion": 2.0,
+    "config": {"duration": 2.0, "sobre": "inexistente.caja"}
+  },
+  {
+    "_por_que": "capa 6 · se ancla a una capa que va DESPUÉS en el plan: las anclas se publican al renderizar",
+    "capa": "globo",
+    "template": "globo.html",
+    "t": 11.5,
+    "duracion": 2.0,
+    "config": {"duration": 2.0, "sobre": "targethud.visor"}
+  },
+  {
+    "_por_que": "capa 7 · fuera de ORDEN en composite_ffmpeg.py: se renderiza y el compositor la descarta sin decir nada. Es el fallo de `fondo`. `subtitles-showcase` es la única plantilla del catálogo que no está en ORDEN, y con razón: es la hoja de muestra de presets, no un componente de pieza.",
+    "capa": "inventada",
+    "template": "subtitles-showcase.html",
+    "t": 14.0,
+    "duracion": 2.0,
+    "config": {"duration": 2.0}
+  },
+  {
+    "_por_que": "capa 8 · primera aparición de targethud",
+    "capa": "targethud",
+    "template": "target-hud.html",
+    "t": 16.0,
+    "duracion": 1.4,
+    "config": {"duration": 1.4, "texto": "MIRA"}
+  },
+  {
+    "_por_que": "capa 9 · SOLAPA con la 8 en el mismo carril: la segunda tapa a la primera",
+    "capa": "targethud",
+    "template": "target-hud.html",
+    "t": 16.5,
+    "duracion": 1.4,
+    "config": {"duration": 1.4, "texto": "OTRA"}
+  },
+  {
+    "_por_que": "capa 10 · nombre DUPLICADO sin solaparse en el tiempo. El renderizador vacía y reescribe el mismo directorio y el manifiesto indexa por nombre: este gráfico desaparece sin rastro. El solape de arriba NO lo detecta porque no coinciden.",
+    "capa": "cita",
+    "template": "cita.html",
+    "t": 25.0,
+    "duracion": 2.0,
+    "config": {"duration": 2.0}
+  }
+]

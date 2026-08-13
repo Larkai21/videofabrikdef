@@ -1,0 +1,14 @@
+#!/bin/sh
+# El nivel rápido entero antes de publicar: lint, unitarias y contratos.
+# 6,1 s medidos en esta máquina.
+#
+# Va aquí y no en pre-commit por el presupuesto: quien empuja ya espera una
+# pausa y quien commitea no, así que este es el sitio donde seis segundos se
+# pagan sin que nadie aprenda a escribir --no-verify.
+#
+# Es EXACTAMENTE `make rapido` y no una lista de comandos repetida: el día
+# que el nivel rápido gane una comprobación, este hook la corre sin que haya
+# que acordarse de tocarlo. Los niveles `render` y `lento` no entran —35 s y
+# 40 s— y para eso está el CI, que además corre sobre un clon limpio.
+set -e
+exec make rapido

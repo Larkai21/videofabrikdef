@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Mapa de calor / rejilla de datos</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; display: grid; place-items: center; }
+
+  .bloque { will-change: transform, opacity; }
+
+  .titulo {
+    font-family: var(--display); font-weight: 700;
+    font-size: var(--t-xl); letter-spacing: var(--tr-display);
+    color: var(--ink); margin-bottom: var(--s-2);
+  }
+  .sub {
+    font-family: var(--mono); font-size: var(--t-sm);
+    letter-spacing: var(--tr-caps); text-transform: uppercase;
+    color: var(--ink-soft); margin-bottom: var(--s-5);
+  }
+
+  .rejilla { display: grid; gap: 8px; }
+
+  .celda {
+    position: relative;
+    border-radius: var(--r-sm);
+    display: grid; place-items: center;
+    will-change: transform, opacity;
+  }
+  /* El valor NO se codifica en opacidad, y ese es el cambio.
+     ---------------------------------------------------------------------
+     Antes era `background: var(--accent)` con `opacity = pow(v, 0.75)`: un
+     mapa de calor MONOCROMO, que es un mapa de calor a medias. Es también,
+     literalmente, la rejilla de contribuciones de GitHub — celdas cuadradas
+     con `--r-sm` y hueco de 8 px, un solo tono a distintas opacidades.
+
+     Ahora el valor se codifica en MATERIAL: en esta marca, un mapa de calor
+     es una plancha de bronce con pátina. Los valores bajos son bronce
+     oxidado y frío —cardenillo—, los altos bronce pulido y caliente. No
+     importa ningún color: es lo que le pasa al bronce con el calor y con el
+     tiempo, que es el mismo argumento con el que §7 justifica el cardenillo
+     como segundo acento.
+
+     La interpolación va en **oklab y no en sRGB**, y no es un detalle:
+     medido sobre esta misma rampa, en sRGB la saturación cae a 0,15 en el
+     centro —el gris barro— mientras que en oklab no baja de 0,83. Un factor
+     de 5,5 justo donde el gráfico tiene que ser legible.
+
+     Y el valor se codifica DOS VECES: además del tono, la densidad de la
+     trama. Así el mapa se lee en escala de grises y por alguien que no
+     distinga estos tonos — y de paso la celda parece una plancha grabada en
+     vez de un `<div>` con opacidad. */
+  .tinte { position: absolute; inset: 0; border-radius: inherit; }
+  .rayado {
+    position: absolute; inset: 0; border-radius: inherit;
+    mix-blend-mode: overlay; opacity: 0.5;
+  }
+  .borde { position: absolute; inset: 0; border-radius: inherit;
+           box-shadow: inset 0 0 0 var(--hairline) var(--stroke); }
+
+  .val {
+    position: relative;
+    font-family: var(--mono); font-size: var(--t-sm);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    /* El PESO lo anima `draw` con el eje variable a medida que la celda se
+       calienta. Es un gesto que solo existe con fuentes variables: no se
+       puede imitar con dos ficheros estáticos, y por eso no lo tiene ningún
+       catálogo de plantillas. */
+    will-change: font-variation-settings;
+  }
+  /* El color del número lo decide `setup` midiendo el contraste real
+     contra el color mezclado de la celda. Un umbral sobre el valor no
+     sirve: en tema claro la celda se OSCURECE al subir el valor y en
+     oscuro se ACLARA, así que el mismo umbral acierta en uno y falla en
+     el otro. */
+
+  /* rótulos */
+  .rot-col, .rot-fila {
+    font-family: var(--mono); font-size: var(--t-xs);
+    letter-spacing: var(--tr-caps); text-transform: uppercase;
+    color: var(--ink-faint);
+    display: grid; place-items: center;
+  }
+  .rot-fila { justify-content: end; padding-right: var(--s-2); }
+
+  /* foco: anillo sobre la celda destacada */
+  .foco {
+    position: absolute; border-radius: var(--r-sm);
+    box-shadow: 0 0 0 3px var(--accent-2), 0 10px 30px -8px var(--sombra);
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
+  .nota {
+    position: absolute; white-space: nowrap;
+    font-family: var(--subs); font-size: var(--t-md); font-weight: 600;
+    color: var(--bg); background: var(--accent-2);
+    padding: 6px 12px; border-radius: var(--r-sm);
+    will-change: transform, opacity;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="bloque" id="bloque">
+    <div class="titulo" id="titulo"></div>
+    <div class="sub" id="sub"></div>
+    <div style="position: relative;">
+      <div class="rejilla" id="rejilla"></div>
+      <div class="foco" id="foco" style="opacity:0"></div>
+      <div class="nota" id="nota" style="opacity:0"></div>
+    </div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+/* --- contraste --- */
+function aRGB(css) {
+  css = css.trim();
+  if (css[0] === '#') {
+    const h = css.length === 4
+      ? css.slice(1).split('').map(c => c + c).join('')
+      : css.slice(1, 7);
+    return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+  }
+  const m = css.match(/[\d.]+/g) || [0, 0, 0];
+  return m.slice(0, 3).map(Number);
+}
+/* luminancia relativa de la WCAG: el canal se linealiza antes de pesar */
+function lum(rgb) {
+  const c = rgb.map(v => {
+    v /= 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+function ratio(a, b) {
+  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+function mezcla(frente, fondo, alfa) {
+  return frente.map((c, i) => Math.round(c * alfa + fondo[i] * (1 - alfa)));
+}
+
+/* Resuelve CUALQUIER color CSS a RGB, incluidos los `color-mix(in oklab, …)`
+   que devuelve la rampa. `getComputedStyle` los devuelve como `oklab(...)` y
+   parsear eso a mano sería reimplementar la conversión de espacio; un canvas
+   de 1x1 la hace el navegador, que es quien manda. Se cachea porque hay una
+   consulta por celda y el color se repite. */
+const _lienzo = document.createElement('canvas');
+_lienzo.width = _lienzo.height = 1;
+const _ctx = _lienzo.getContext('2d', { willReadFrequently: true });
+const _cache = new Map();
+function aRGBreal(css) {
+  if (_cache.has(css)) return _cache.get(css);
+  _ctx.clearRect(0, 0, 1, 1);
+  _ctx.fillStyle = '#000';
+  _ctx.fillStyle = css;
+  _ctx.fillRect(0, 0, 1, 1);
+  const d = _ctx.getImageData(0, 0, 1, 1).data;
+  const v = [d[0], d[1], d[2]];
+  _cache.set(css, v);
+  return v;
+}
+
+/* La rampa de material: cardenillo -> bronce -> bronce pulido.
+   ---------------------------------------------------------------------
+   DOS tramos y no uno, porque el bronce está en el medio: es el color de
+   marca y tiene que caer donde cae el valor medio, no en un extremo.
+
+   `in oklab` NO es opcional. Medido sobre esta misma rampa, interpolando en
+   sRGB la saturación cae a 0,15 en el centro —el gris barro— mientras que en
+   oklab no baja de 0,83. Un factor de 5,5 justo en la mitad de la escala, que
+   es donde un mapa de calor tiene que ser legible. */
+function rampa(p) {
+  return p <= 0.5
+    ? `color-mix(in oklab, var(--accent) ${(p * 200).toFixed(1)}%, var(--accent-2))`
+    : `color-mix(in oklab, var(--metal-3) ${((p - 0.5) * 200).toFixed(1)}%, var(--accent))`;
+}
+
+const bloque = document.getElementById('bloque');
+const rejilla = document.getElementById('rejilla');
+const foco = document.getElementById('foco');
+const nota = document.getElementById('nota');
+let celdas = [], maxDiag = 1;
+
+Engine.register({
+  duration: 7,
+  defaults: {
+    titulo: 'Coste por minuto montado',
+    sub: 'Medido en un M4, siete pasadas',
+    columnas: ['1080p', '1440p', '4K'],
+    filas: ['Corte', 'Color', 'Mezcla'],
+    /* valores 0..1, fila por fila */
+    valores: [[0.15, 0.28, 0.55],
+              [0.30, 0.52, 0.86],
+              [0.10, 0.18, 0.34]],
+    /* texto que se pinta dentro; si falta, se usa el valor en % */
+    etiquetas: null,
+    celda: 132,
+    foco: null,        // { f: 1, c: 2, txt: 'el cuello de botella' }
+    escalonado: 0.055,
+    entrada: 0.5,
+    salida: 0.45
+  },
+
+  setup(cfg) {
+    document.getElementById('titulo').textContent = cfg.titulo || '';
+    document.getElementById('sub').textContent = cfg.sub || '';
+
+    const nf = cfg.filas.length, nc = cfg.columnas.length;
+    const lado = cfg.celda;
+
+    const est = getComputedStyle(document.documentElement);
+    /* La celda se pinta sobre una capa transparente, así que su fondo
+       real es el metraje y no se puede conocer. Se asume `--surface`, que
+       es el fondo de marca: la decisión solo cambiaría en celdas de valor
+       muy bajo, donde ambos colores contrastan de sobra. */
+    const FONDO  = aRGB(est.getPropertyValue('--surface') ||
+                        est.getPropertyValue('--bg'));
+    const TINTA  = aRGB(est.getPropertyValue('--ink'));
+    const CLARO  = aRGB(est.getPropertyValue('--bg'));
+
+    /* Una columna extra a la izquierda para los rótulos de fila y una
+       fila extra arriba para los de columna. Se resuelve con el propio
+       grid en vez de con posicionamiento absoluto: así los rótulos siguen
+       alineados aunque cambie el tamaño de celda. */
+    rejilla.style.gridTemplateColumns = '110px repeat(' + nc + ', ' + lado + 'px)';
+    rejilla.style.gridTemplateRows = '34px repeat(' + nf + ', ' + lado + 'px)';
+    rejilla.innerHTML = '';
+
+    rejilla.appendChild(document.createElement('div'));  // esquina vacía
+    cfg.columnas.forEach(c => {
+      const el = document.createElement('div');
+      el.className = 'rot-col'; el.textContent = c;
+      rejilla.appendChild(el);
+    });
+
+    celdas = [];
+    maxDiag = (nf - 1) + (nc - 1) || 1;
+    cfg.filas.forEach((f, i) => {
+      const rf = document.createElement('div');
+      rf.className = 'rot-fila'; rf.textContent = f;
+      rejilla.appendChild(rf);
+
+      cfg.columnas.forEach((_, j) => {
+        const v = clamp((cfg.valores[i] || [])[j] || 0, 0, 1);
+        const el = document.createElement('div');
+        el.className = 'celda';
+        const tinte = document.createElement('div');
+        tinte.className = 'tinte';
+        /* La curva no es lineal: una raíz aplana el tramo bajo, donde el ojo
+           distingue peor, y deja más recorrido en el alto. Se conserva del
+           diseño anterior porque el argumento sigue siendo bueno; lo que
+           cambia es QUÉ modula. */
+        const p = Math.pow(v, 0.75);
+        tinte.style.background = rampa(p);
+        /* Segunda codificación: la densidad del rayado. `overlay` sobre el
+           tono, no encima: un rayado opaco taparía el material. */
+        const rayado = document.createElement('div');
+        rayado.className = 'rayado trama';
+        rayado.dataset.densidad = p > 0.66 ? 'alta' : p > 0.33 ? '' : 'baja';
+        const borde = document.createElement('div');
+        borde.className = 'borde';
+        const val = document.createElement('div');
+        val.className = 'val';
+        /* El color del número se elige midiendo el contraste REAL contra el
+           color de su celda ya resuelto, no con un umbral sobre el valor. Un
+           umbral acierta en un tema y falla en el otro, porque en claro la
+           celda se oscurece al subir y en oscuro se aclara. Con la rampa de
+           material eso sigue siendo cierto y encima la celda ya no es una
+           mezcla de dos colores que se pueda calcular a mano: hay que
+           preguntárselo al navegador. */
+        const celdaRGB = aRGBreal(rampa(p));
+        val.style.color = ratio(celdaRGB, TINTA) >= ratio(celdaRGB, CLARO)
+          ? 'var(--ink)' : 'var(--bg)';
+        val.textContent = (cfg.etiquetas && cfg.etiquetas[i] && cfg.etiquetas[i][j])
+          || Math.round(v * 100);
+        el.append(tinte, rayado, borde, val);
+        rejilla.appendChild(el);
+        celdas.push({ el, tinte, val, i, j, v: p, d: i + j });
+      });
+    });
+
+    /* El foco se coloca midiendo la celda real. Calcular su posición a
+       partir de índices y tamaños obliga a replicar los huecos del grid y
+       se desalinea en cuanto cambia el gap. */
+    if (cfg.foco) {
+      const c = celdas.find(x => x.i === cfg.foco.f && x.j === cfg.foco.c);
+      if (c) {
+        const r = c.el.getBoundingClientRect();
+        const base = rejilla.getBoundingClientRect();
+        foco.style.left = (r.left - base.left - 4) + 'px';
+        foco.style.top = (r.top - base.top - 4) + 'px';
+        foco.style.width = (r.width + 8) + 'px';
+        foco.style.height = (r.height + 8) + 'px';
+        nota.textContent = cfg.foco.txt || '';
+        nota.style.left = (r.left - base.left + r.width + 18) + 'px';
+        nota.style.top = (r.top - base.top + r.height / 2 - 18) + 'px';
+      }
+    }
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 7;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+    const ap = span(t, 0, 0.45, Ease.outCubic);
+    bloque.style.opacity = ap * cierre;
+    bloque.style.transform = `translateY(${(1 - ap) * 26}px)`;
+
+    /* Onda diagonal: las celdas entran por diagonales, no por filas. Una
+       entrada fila a fila se lee como una lista; la diagonal se lee como
+       una superficie, que es lo que un mapa de calor es. */
+    celdas.forEach(({ el, tinte, val, v, d }, i) => {
+      const p = span(t, 0.2 + (d / maxDiag) * 0.55, cfg.entrada, Ease.outCubic);
+      el.style.opacity = p;
+      /* La celda ya no ENTRA: se LLENA. El tinte se revela con `clip-path`
+         desde abajo, así que la plancha se calienta diagonal a diagonal como
+         metal fundido en vez de aparecer escalando. `scale + opacity` es la
+         receta que 45 de 56 plantillas comparten, y aquí sobraba: una celda
+         de un mapa de calor no llega de ningún sitio.
+
+         Se conserva un `scale` mínimo —de 0,94, no de 0,72— porque sin nada
+         de escala la rejilla se lee como una imagen fija que se enciende. */
+      /* Flotación de reposo (§10): sin ella la rejilla se queda muerta en
+         cuanto la última celda termina de llenarse, y en un mapa de calor eso
+         es la mayor parte del plano. Cada celda deriva con su propio periodo,
+         así que la plancha respira sin latir a la vez. */
+      const fl = Engine.flota(t, i, { amp: 1.6, periodo: 11.2, semilla: 8 });
+      el.style.transform =
+        `translate(${fl.x.toFixed(2)}px, ${fl.y.toFixed(2)}px) ` +
+        `scale(${(0.94 + 0.06 * p).toFixed(3)})`;
+      tinte.style.clipPath = `inset(${((1 - p) * 100).toFixed(1)}% 0 0 0)`;
+
+      /* Y el número GANA PESO mientras su celda se calienta: 300 en frío,
+         hasta 700 en la más alta. Es la jerarquía dentro de la línea que pide
+         §1 —contraste y peso, nunca luz— y un gesto que solo existe con
+         fuentes variables. Se limpia al final del recorrido para no dejar el
+         eje clavado: `font-variation-settings` ANULA `font-weight`. */
+      const w = Math.round(300 + 400 * v * p);
+      Engine.peso(val, w);
+    });
+
+    const tFoco = 0.2 + 0.55 + cfg.entrada + 0.15;
+    foco.hidden = !cfg.foco;
+    const f = span(t, tFoco, 0.45, Ease.outCubic);
+    foco.style.opacity = f * cierre;
+    foco.style.transform = `scale(${1.12 - 0.12 * f})`;
+    /* Sin `foco` la nota no tiene texto, pero SÍ tiene fondo y relleno: una
+       pastilla de cardenillo vacía flotando en una esquina. Se veía en el
+       fotograma y en ningún log — el humo la cuenta como cobertura de alfa
+       legítima. Se oculta por contenido, no por opacidad, para que tampoco
+       ocupe sitio en la maquetación. */
+    nota.hidden = !nota.textContent;
+    nota.style.opacity = span(t, tFoco + 0.18, 0.4, Ease.outCubic) * cierre;
+    nota.style.transform =
+      `translateX(${(1 - span(t, tFoco + 0.18, 0.4, Ease.outCubic)) * -14}px)`;
+  }
+});
+</script>
+</body>
+</html>

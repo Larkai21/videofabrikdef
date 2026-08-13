@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Fondo — pliego entintado</title>
+<!-- Esta capa es la BASE: cubre el lienzo a propósito y por eso sale sin
+     canal alfa. Declararlo aquí calla el aviso del renderizador, que
+     existe para cazar el caso accidental. -->
+<meta name="capa-opaca" content="1">
+<!-- `trazar` porque lo que entra es TINTA: sale del ataque y se agota
+     (`outExpo`). La plancha toca el pliego, suelta lo que lleva y ya no
+     puede soltar más. No «llega y se posa», que sería `asentar`. -->
+<meta name="gesto" content="trazar:impresion">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* =====================================================================
+     EL PLIEGO ENTINTADO
+     ---------------------------------------------------------------------
+     Fondo para piezas SIN A-Roll. A diferencia del resto de plantillas
+     este no es un overlay: es opaco y va debajo de todo.
+
+     Antes eran tres círculos de color con `filter: blur(90px)`, una rejilla
+     técnica de 48 px y ruido blanco por encima: el fondo de cualquier
+     landing de 2021, y además el fotograma más caro del catálogo. Ahora es
+     un pliego IMPRESO: dos tintas planas tramadas —bronce y cardenillo—,
+     sus escalones de separación, el punto que engorda al mojar y la pauta
+     del rodillo.
+
+     No es una decisión de gusto. En un impreso el tono no lo hace la luz:
+     lo hace la COBERTURA de tinta, y la tinta es maciza o no está. Eso
+     quita del fotograma todos los degradados grandes, que es justo lo que
+     lo hacía caro.
+
+     --- lo que cuesta el fotograma, medido ---
+
+     Con la configuración que escribe `dirigir.py:1533` (blobs 0.85, grano
+     0.55, 5 fps, pieza de 24 s), capturando como captura el renderizador
+     (1080x1920, `omitBackground`):
+
+                            antes        ahora
+         carbon, fotograma  2 180 KB      148 KB     14,8x
+         paper,  fotograma  3 482 KB      190 KB     18,3x
+         carbon, la capa      255 MB     17,3 MB
+         paper,  la capa      408 MB     22,3 MB
+         carbon, por fotog.    365 ms      266 ms
+         paper,  por fotog.    237 ms      288 ms
+
+     El tiempo de captura NO baja en paper: sube un 22 %. Ocho elementos con
+     dos máscaras cada uno cuestan pintarlos. Se acepta a cambio de leer 18
+     veces menos disco en cada composición, que es lo que se paga en cada
+     montaje y no solo al renderizar.
+
+     --- de dónde salía cada megabyte, y de dónde sale ahora ---
+
+         ruido blanco 1:1              1 106 KB (carbon)  1 894 KB (paper)
+         manchas con blur(90px)          399 KB             464 KB
+         dos veladuras radiales          520 KB             434 KB
+         viñeta ancha sobre trama        460 KB             938 KB
+         trama de línea a 115°           255 KB
+         trama de línea a 45°            129 KB
+         trama de línea a 0° / 90°        39 KB
+         trama BINARIA a 45° (sin alfa)   65 KB
+       ahora:
+         las dos planchas enteras        126 KB             145 KB
+         pauta del papel                  37 KB              51 KB
+         viñeta desde el 74 %             19 KB              45 KB
+
+     Dos reglas salen de ahí y gobiernan todo el fichero:
+
+     1) **Lo periódico es casi gratis; lo aleatorio se paga entero.** PNG
+        comprime por repetición y el ruido blanco no repite nada. Un
+        degradado enorme y poco profundo tampoco es gratis: Skia lo DITHERA
+        para que no haga bandas, y ese dither es ruido con otro nombre — de
+        ahí los 520 KB de dos veladuras que parecían un plano de color.
+     2) **Un degradado suave encima de una trama la vuelve cara.** Modula
+        cada línea con un valor distinto y le quita la repetición que la
+        hacía barata. Por eso aquí las tintas son BINARIAS: tinta o papel,
+        sin alfa intermedio. La misma trama pasa de 129 KB a 65 KB solo con
+        quitarle el degradado de encima.
+
+     El ángulo también se paga: la trama a 45° cuesta la mitad que a 115°
+     porque cada fila es la anterior desplazada un número ENTERO de píxeles
+     y el compresor sí puede casarla. Y da la casualidad de que 45° es el
+     ángulo de trama clásico —el que menos se ve— y que 45/135 son los 90°
+     de separación de un trabajo a dos tintas. No se usa `--metal-ang`
+     porque ese token es el ángulo del CEPILLADO del metal, que es otra cosa:
+     un ángulo de trama se elige para que la trama NO se vea.
+
+     --- lo que NO está aquí, y por qué ---
+
+     No hay ni un píxel de ruido. Se probaron cuatro formas de conservar la
+     fibra del papel y las cuatro se cayeron POR NÚMEROS, no por gusto:
+
+         teja 1:1                        +854 KB (carbon)  +946 KB (paper)
+         teja x8 sin interpolar          +854 / +946
+         teja x16                        +547 / +584
+         teja x32                        +287 / +300
+         teja x32 interpolada            +642 / +705   (peor: inventa valores)
+         moteado de la tinta (máscara)   +786 / +968, y 895 ms por fotograma
+
+     Y la única variante asequible —la teja a x32— se ve como lo que es: una
+     cuadrícula de bloques de 32x32 px. Miré el fotograma a 1:1 antes de
+     decidir. Un fondo cuya textura es un artefacto no es una textura.
+
+     Y una advertencia sobre el contador, porque el número correcto lo da por
+     el motivo equivocado: `auditar_estilo.js` sigue marcando esta ficha CON
+     textura, pero no porque haya medido nada — busca la cadena `.grano`,
+     `.trama`, `.brushed` o una llamada a `Engine.grano/tejaGrano`, y aquí lo
+     que encuentra es `s.trama`, o sea el NOMBRE de la propiedad que guarda el
+     ángulo de plancha. La plantilla es textura de borde a borde y el contador
+     acierta de rebote: renombrar esa propiedad lo pondría en falso sin que
+     cambiara un solo píxel. Un semitono hecho con `mask-composite` no lo ve.
+     No toco `auditar_estilo.js` porque es compartido; queda dicho.
+
+     Tampoco hay banda de luz cruzando el pliego. La probé —un pliego sale
+     ondulado del rodillo y la luz lo recorre— y costaba 270 KB en carbon y
+     308 KB en paper por la regla 2: un degradado suave encima de la trama.
+     Es la mitad del presupuesto entero para un gesto que ya dan la deriva de
+     las planchas y la ganancia de punto. Fuera.
+     ===================================================================== */
+  html, body { background: var(--bg); }
+
+  /* `isolation: isolate` no es adorno: la segunda tinta sobreimprime con
+     `mix-blend-mode`, y sin un contexto de apilamiento propio se mezclaría
+     con lo que haya detrás del body — que al capturar con `omitBackground`
+     es la nada. */
+  .pliego {
+    position: absolute; inset: 0; overflow: hidden;
+    background: var(--bg);
+    isolation: isolate;
+  }
+
+  /* --- la pauta del pliego ---------------------------------------------
+     Era una rejilla de 48x48. Una rejilla cuadrada es la firma visual de
+     «fondo de tecnología» y no dice nada del material. Un pliego sí tiene
+     estructura, y es de UNA dirección: la pauta que deja el rodillo, con
+     una marca más fuerte cada cinco. `celda` la sigue gobernando para no
+     romper ningún plan que la pase. */
+  .verjura {
+    position: absolute; inset: 0;
+    background-image:
+      repeating-linear-gradient(0deg,
+        var(--stroke) 0 1px, transparent 1px var(--pauta, 48px)),
+      repeating-linear-gradient(0deg,
+        var(--stroke) 0 1px, transparent 1px var(--pliegue, 240px));
+    /* la opacidad la pone `grano` desde el JS */
+  }
+
+  /* --- las planchas -----------------------------------------------------
+     Cada plancha lleva CUATRO escalones de separación. Cada escalón es un
+     elemento con la tinta a plena opacidad recortado por dos máscaras que
+     se cruzan (`mask-composite: intersect`):
+
+       1) su banda del recorrido tonal — dónde imprime este escalón
+       2) la trama de línea de la plancha, con SU ancho de filete
+
+     El tono sale del ancho del filete, o sea de la cobertura, que es como
+     funciona un semitono de verdad. Hacerlo con alfa —una sola trama y
+     cuatro opacidades— se ve casi igual y cuesta el doble: 1 276 KB frente
+     a los ~130 KB de las dos planchas binarias.
+
+     Ojo con el prefijo: escribir a la vez `-webkit-mask-composite:
+     source-in` y el estándar deja la capa VACÍA — el modelo antiguo compone
+     la primera máscara contra un destino vacío. Pasó al probarlo y no dice
+     nada en consola: la tinta sencillamente no estaba. Solo el estándar. */
+  .plancha { position: absolute; inset: -6%; }
+  .plancha i {
+    position: absolute; inset: 0; display: block;
+    mask-composite: intersect;
+    mask-repeat: no-repeat, repeat;
+    mask-size: 100% 100%, auto;
+  }
+  .bronce i { background: var(--accent); }
+  /* La segunda tinta SOBREIMPRIME, y cómo lo hace depende del sustrato:
+     sobre papel resta luz (`multiply`), sobre cartulina negra la suma
+     (`screen`). Es exactamente lo que decide `--rotu-mezcla`, que existe
+     para el rotulador por la misma razón física. Sin esto, en carbon el
+     cardenillo TAPABA el bronce donde se cruzan en vez de mezclarse, y el
+     cruce de dos tramas es lo que hace que dos tintas parezcan impresas y
+     no dos capas de Figma. */
+  .cardenillo { mix-blend-mode: var(--rotu-mezcla); }
+  .cardenillo i { background: var(--accent-2); }
+
+  /* --- la sombra del canto ----------------------------------------------
+     La viñeta de antes empezaba a hundir en el 40 % del radio: un degradado
+     suave sobre el 60 % del cuadro. Medido aquí, sobre las planchas ya
+     tramadas, costaba 460 KB en carbon y 938 KB en paper — el segundo
+     apartado más caro del fichero, por la regla 2 de arriba: modula cada
+     línea de la trama con un valor distinto y le quita la repetición.
+
+     Empezando en el 74 % cuesta 19 KB y 45 KB, y hace el mismo trabajo:
+     hundir el CANTO. Un pliego no se oscurece hacia el centro; lo que se
+     oscurece es el borde que no está apoyado del todo. La viñeta ancha era
+     una convención fotográfica, no una propiedad del material. */
+  .vineta {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 92% 78% at 50% 46%,
+                transparent 74%, var(--vineta) 100%);
+  }
+</style>
+</head>
+<body>
+<div class="pliego" id="pliego">
+  <div class="verjura" id="verjura"></div>
+  <div class="plancha bronce" id="pb"><i></i><i></i><i></i><i></i></div>
+  <div class="plancha cardenillo" id="pc"><i></i><i></i><i></i><i></i></div>
+  <div class="vineta"></div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const verjura = document.getElementById('verjura');
+const planchas = ['pb', 'pc'].map(id => [...document.getElementById(id).children]);
+
+/* Las dos separaciones.
+
+   `pasos` es el reparto tonal: [cobertura, hasta % del recorrido]. La
+   cobertura es la fracción del papel que moja esa banda, o sea el ancho del
+   filete dividido por el paso de trama. Cuatro escalones y no un degradado
+   porque una separación real no tiene medias tintas, y porque un degradado
+   de 2 400 px y 12 % de profundidad lo dithera Skia: 520 KB por fotograma
+   en las dos veladuras de la versión anterior.
+
+   `tono` es la dirección del recorrido y `trama` el ángulo de la plancha.
+   Las dos tintas entran por esquinas opuestas y se cruzan en una banda: el
+   centro-bajo del cuadro se queda casi sin tinta a propósito, que es por
+   donde pasan los subtítulos y las tarjetas.
+
+   `amp` y `periodo` son la deriva de cada plancha, y van a `Engine.flota`,
+   que reparte periodos inconmensurables entre sí a partir de `noise`. La
+   versión anterior movía sus tres manchas con un ÚNICO `f = (t % dur)/dur`:
+   con un solo periodo el pliego entero respira como un bloque, que se lee
+   tan artificial como no moverse. */
+const SEPARACION = [
+  { pasos: [[0.62, 13], [0.44, 25], [0.28, 36], [0.14, 46]],
+    tono: '135deg', trama: '45deg', amp: 56, periodo: 12, semilla: 5, carga: 0.42 },
+  { pasos: [[0.50, 10], [0.34, 20], [0.20, 30], [0.09, 38]],
+    tono: '315deg', trama: '135deg', amp: 42, periodo: 9, semilla: 11, carga: 0.34 },
+];
+
+/* Rampa del canto de cada banda, en % del recorrido (unos 7 px). No es
+   antialiasing por gusto: con el canto a pelo el borde de la separación es
+   una línea de 1 px que al derivar salta de píxel en píxel y se ve. Y las
+   bandas contiguas se cruzan dentro de la rampa, así que no dejan costura. */
+const RAMPA = 0.3;
+
+function banda(ang, desde, hasta) {
+  return `linear-gradient(${ang},` +
+         ` rgba(0,0,0,0) 0 ${desde.toFixed(2)}%,` +
+         ` rgba(0,0,0,1) ${(desde + RAMPA).toFixed(2)}% ${hasta.toFixed(2)}%,` +
+         ` rgba(0,0,0,0) ${(hasta + RAMPA).toFixed(2)}%)`;
+}
+
+/* La trama de línea. `ancho` es el filete de tinta y `paso` la distancia
+   entre filetes; la cobertura es su cociente. Los 0,4 px de rampa a cada
+   lado son el antialiasing del filete: sin ellos la línea diagonal sale
+   dentada y, peor, la dentadura CAMBIA de fila en fila, que es ruido y se
+   paga como ruido. */
+function trama(ang, ancho, paso) {
+  return `repeating-linear-gradient(${ang},` +
+         ` rgba(0,0,0,0) 0 0.4px,` +
+         ` rgba(0,0,0,1) 1px ${ancho.toFixed(2)}px,` +
+         ` rgba(0,0,0,0) ${(ancho + 0.6).toFixed(2)}px ${paso.toFixed(2)}px)`;
+}
+
+Engine.register({
+  duration: 4,
+  /* `celda`, `blobs` y `grano` conservan el nombre porque `dirigir.py:1533`
+     los escribe en el plan: quitar una clave no da error, deja el valor en
+     su defecto y el fondo sale con otra intensidad sin que nada lo diga.
+     Lo que significan ahora:
+       celda · la pauta del pliego, y de ella sale el paso de trama
+       blobs · cuánta tinta lleva la plancha (era la opacidad de las manchas)
+       grano · cuánto se ve la textura del papel, o sea la pauta. Ya no hay
+               ruido que graduar: ver el bloque de arriba.
+     `entrada` es nueva y ya existe en `reloj.SEMANTICA` como duración, así
+     que `silencios.py` la remapea sin tocar nada. */
+  defaults: { celda: 48, duration: 4, blobs: 0.34, grano: 0.42, entrada: 0.9 },
+
+  setup(cfg) {
+    /* Todo lo que NO depende de `t` se escribe UNA vez. La lección más cara
+       de este repo vivía justo aquí: el grano era un `feTurbulence` de tres
+       octavas recalculado en CADA fotograma —2-3 s cada uno— para producir
+       siempre la misma imagen. */
+    verjura.style.setProperty('--pauta', cfg.celda + 'px');
+    verjura.style.setProperty('--pliegue', (cfg.celda * 5) + 'px');
+    verjura.style.opacity = cfg.grano.toFixed(3);
+  },
+
+  draw(t, cfg) {
+    const dur = cfg.duration || 4;
+
+    /* LA IMPRESIÓN. `Engine.entra` toma la curva de la familia declarada
+       arriba (`trazar` -> `outExpo`): la tinta sale de golpe con el contacto
+       y se agota. A 0,3 s ha soltado ya el 87 % de lo que va a soltar. */
+    const e = Engine.entra(t, cfg.entrada);
+
+    /* EL SEGUNDO TIEMPO. Lo que pasa DESPUÉS de imprimir es que la tinta
+       sigue mojando: el punto engorda un 20 % —el extremo alto de lo que
+       gana un impreso real— y la mancha gana un poco de papel. No es el mismo gesto otra
+       vez: el tono ya no cambia, lo que crece es la cobertura.
+
+       Con la tinta binaria esto se ve mucho más de lo que parece: el canto
+       de cada filete es un píxel que pasa de tinta a papel, así que una
+       décima de píxel de engorde ya mueve varios niveles de 255. Un
+       degradado que respira necesita mover diez veces eso para llegar ahí.
+
+       Va LINEAL y no con el `inOutCubic` por defecto, y eso lo decidió una
+       medida: con la curva por defecto la ganancia se frena al final de la
+       permanencia —derivada cero— y `comprobar_movimiento.js` marcaba 18
+       fotogramas muertos (15 % de la capa) desde t=3,4 s. El papel no deja
+       de absorber tinta porque se acabe el plano; absorbe a ritmo constante.
+       Una curva que se para es una curva que apaga la capa. */
+    const r = Engine.reposo(t, cfg.entrada, dur, 0, Engine.Ease.linear);
+
+    /* El paso de trama sale de `celda`: 12 px con el valor por defecto, y no
+       se baja de ahí a propósito. La pieza se maqueta a 1080 de ancho pero se
+       ve a unos 480 en un teléfono: un paso de 12 px queda en 5,3 px de
+       pantalla, y bajar a 8 lo dejaría en 3,5 —tan cerca del muestreo de la
+       pantalla de quien mira que la trama moirearía allí, donde no hay forma
+       de comprobarlo—. */
+    const paso = Math.max(8, cfg.celda * 0.25);
+
+    /* EL PLIEGO CORRE. Esto es una prensa, no una hoja quieta encima de una
+       mesa: el papel pasa por debajo de la forma a velocidad constante, y con
+       él pasan su pauta y la trama que ya lleva impresa. Lo que se queda es
+       la FORMA —el reparto tonal—, que está en la plancha y no en el papel.
+
+       Cinco píxeles por segundo, y el número no es de gusto:
+
+       · a los 5 fps a los que `dirigir.py` renderiza esta capa son 1 px por
+         fotograma, o sea el 8 % del paso de trama: se arrastra. Media trama
+         por fotograma —unos 30 px/s— sería un estroboscopio, que es lo que
+         hace que una retícula fina «vibre» en vez de moverse;
+       · y a los 30 fps a los que mide `comprobar_movimiento.js` son 0,83 px
+         por sexto de segundo, pero de CADA canto de filete de la imagen a la
+         vez, no de un borde suelto. Medido con esa herramienta: la mediana a
+         un sexto de segundo pasa de 6 a 12 niveles de 255 en carbon y a 13 en
+         paper —el umbral está en 6—, y desaparecen los 18 fotogramas muertos
+         que quedaban al final de la capa. La capa entera está viva en todo
+         instante, no solo donde hay un borde.
+
+       Cuesta CERO: desplazar un patrón periódico no cambia el coste del PNG,
+       son los mismos píxeles en otro sitio. Comparado con la banda de
+       luz que se descartó —270 KB por fotograma— es el mismo movimiento por
+       nada. Se toma módulo el periodo del patrón para que `t` no crezca sin
+       fin: la trama a 45° repite cada `paso·√2` en vertical. */
+    const av = t * 5;
+    const avTrama = av % (paso * 1.4143);
+    verjura.style.backgroundPosition =
+      `0 ${(av % (cfg.celda * 5)).toFixed(1)}px, 0 ${(av % (cfg.celda * 5)).toFixed(1)}px`;
+
+    planchas.forEach((escalones, i) => {
+      const s = SEPARACION[i];
+      /* Cuánta tinta lleva la plancha, UNIFORME para toda ella. Una opacidad
+         constante no le quita la repetición a la trama —todas las líneas se
+         escalan igual—, así que sigue costando lo que costaba; lo que la
+         encarece es modular cada línea con un valor distinto, que es lo que
+         hacía la versión de cuatro alfas. Aquí sirve para lo que hace falta:
+         un semitono a plena tinta es un grabado, y esto es un FONDO. */
+      escalones[0].parentNode.style.opacity = (s.carga * cfg.blobs).toFixed(3);
+      /* La deriva de la plancha: el registro, que en una máquina real vaga
+         y vuelve. Periodos base distintos (12 s y 9 s) y semillas distintas;
+         `Engine.flota` los reparte por `noise`, así que ni las dos tintas ni
+         los ejes x/y de cada una vuelven a coincidir dentro de una pieza. */
+      const d = Engine.flota(t, i, s);
+      /* La mancha entra un 6 % más cerrada y se abre al imprimir; después el
+         reposo la extiende otro 1,5 %, que es la tinta ganando papel. */
+      const ancho = 0.94 + 0.06 * e + 0.015 * r;
+      let desde = 0;
+      escalones.forEach((el, k) => {
+        const [cobertura, hasta] = s.pasos[k];
+        /* La entrada y la ganancia de punto viajan las dos en el ANCHO del
+           filete, no en la opacidad: la tinta no es transparente, es poca. */
+        const filete = paso * cobertura * e * (1 + 0.20 * r);
+        el.style.maskImage = banda(s.tono, desde, hasta * ancho) + ',' +
+                             trama(s.trama, Math.max(0.6, filete), paso);
+        /* Dos velocidades distintas en la misma máscara, y esa es toda la
+           idea: la BANDA lleva la deriva de la plancha —el registro, que
+           vaga despacio y vuelve— y la TRAMA lleva el avance del papel, que
+           no vuelve nunca. Si las dos fueran a la vez, el pliego entero
+           sería una imagen desplazándose, que es un fondo de pantalla. */
+        el.style.maskPosition =
+          `${d.x.toFixed(1)}px ${d.y.toFixed(1)}px, 0 ${avTrama.toFixed(2)}px`;
+        desde = hasta * ancho;
+      });
+    });
+  }
+});
+</script>
+</body>
+</html>

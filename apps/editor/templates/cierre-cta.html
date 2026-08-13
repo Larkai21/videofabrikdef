@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Cierre: la tecla que se queda hundida</title>
+<!-- El gesto de esta plantilla no es «aparecer»: es PULSAR. Se declara para
+     que `auditar_estilo.js` lo cuente como vocabulario propio del catálogo. -->
+<meta name="gesto" content="golpear:pulsar">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+  .bloque { text-align: center; padding: var(--s-6) var(--s-6) var(--s-5);
+            will-change: transform, opacity; }
+
+  /* ---------------------------------------------------------------------
+     RÓTULO Y FILETE
+     El separador era el aire de un `margin`. Un filete de bronce de 2 px
+     cuesta lo mismo, es de esta marca y —al crecer con el reloj— convierte
+     una cabecera estática en algo que se monta.
+     --------------------------------------------------------------------- */
+  .rotulo {
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps-ancho);
+    text-transform: uppercase;
+    color: var(--accent);
+    will-change: transform, opacity;
+  }
+  .filete {
+    height: 2px; margin: var(--s-2) auto var(--s-5);
+    background-image: linear-gradient(90deg, transparent 0%,
+      var(--metal-4) 24%, var(--metal-3) 50%, var(--metal-4) 76%, transparent 100%);
+    will-change: width;
+  }
+
+  /* ---------------------------------------------------------------------
+     TITULAR
+     Antes era `font-weight: 800` en las dos líneas, que es lo que
+     `_tokens.css` llama «volumen, no jerarquía». La jerarquía se hace DENTRO
+     de la composición: la primera línea callada (300), la última con el peso
+     (800) y la palabra marcada en la didone en cursiva. Son los dos recursos
+     que §1 permite —contraste y peso, nunca luz— y el par display/editorial
+     estaba instalado con cero usos.
+     --------------------------------------------------------------------- */
+  .titular {
+    font-family: var(--display);
+    font-size: var(--t-3xl);
+    line-height: 1.04;
+    letter-spacing: var(--tr-hero);
+    color: var(--ink);
+    margin: 0 0 var(--s-4);
+  }
+  .titular .linea { overflow: hidden; }
+  .titular .linea > span { display: block; font-weight: var(--w-claro);
+                           will-change: transform, font-variation-settings; }
+  /* Playfair a igual cuerpo se ve más pequeña que Jakarta: la corrección va
+     en `em`, no en px, para no meter un tamaño suelto fuera de la escala. */
+  .titular .matiz {
+    font-family: var(--editorial);
+    font-weight: var(--w-libro);
+    font-style: italic;
+    font-size: 1.06em;
+    letter-spacing: var(--tr-texto);
+  }
+
+  .sub {
+    font-family: var(--subs);
+    font-size: var(--t-lg);
+    font-weight: var(--w-libro);
+    letter-spacing: var(--tr-texto);
+    color: var(--ink-soft);
+    margin-bottom: var(--s-7);
+    will-change: transform, opacity;
+  }
+
+  /* =====================================================================
+     LA TECLA
+     ---------------------------------------------------------------------
+     Esto era un `<div>` con `background: var(--accent)`, `border-radius:
+     999px` y una pulsación hecha con `scale(0.94)`. O sea: la pastilla por
+     defecto de cualquier framework, y un «hundimiento» que en realidad es
+     un empequeñecimiento —el truco de hover de la web, no lo que hace una
+     tecla—.
+
+     Aquí la tecla es una PIEZA con tres partes, y ninguna es decorativa:
+
+       .pozo    el hueco mecanizado en el panel. Fijo.
+       .canto   la pared lateral extruida. Su ALTO es la carrera que le
+                queda por recorrer, así que al pulsar se ve encoger.
+       .tecla   la tapa de bronce, con bisel arriba y canto oscuro abajo.
+
+     El recorrido es una traslación real en Y de 14 px, no una escala, y la
+     sombra de contacto se cierra con él. Es la diferencia entre un botón
+     que parpadea y una tecla que baja.
+     ===================================================================== */
+  .mecanismo {
+    position: relative;
+    display: inline-block;
+    /* El suelo del pozo: 18 px por debajo del reposo de la tapa. Es LA
+       carrera, y está también en JS como `CARRERA`; si se cambia uno hay
+       que cambiar el otro (el CSS no puede leer una constante de JS).
+       Empezó en 14 y se subió mirando el fotograma: entre la tecla en
+       reposo y la enclavada había 9 px de diferencia y a tamaño de móvil
+       no se distinguía cuál de los dos estados estaba en pantalla. */
+    padding-bottom: 18px;
+  }
+
+  .pozo {
+    position: absolute;
+    left: -18px; right: -18px; top: -10px; bottom: -8px;
+    border-radius: calc(var(--r-lg) + 8px);
+    background-color: color-mix(in oklab, var(--chrome-3) 76%, var(--velo-oscuro));
+    /* Sombra multicapa con brillo interior: §10 dice que es «lo que hace que
+       algo parezca un objeto». Aquí además dice de qué lado está la luz: la
+       pared alta del hueco en sombra, el canto bajo devolviendo luz. */
+    box-shadow: inset 0 5px 10px -2px var(--sombra),
+                inset 0 -2px 0 var(--glass-caustic),
+                inset 0 0 0 1px var(--stroke);
+    will-change: clip-path;
+  }
+
+  .movil { position: relative; display: block; will-change: transform; }
+
+  .canto {
+    position: absolute; left: 3px; right: 3px; top: 14px; bottom: 0;
+    z-index: 0;
+    border-radius: var(--r-lg);
+    /* La pared lateral no es el mismo bronce que la tapa: está de canto a la
+       luz, así que va mezclada con el velo oscuro. `oklab` y no sRGB porque
+       entre bronce y negro sRGB se va a un marrón sucio. */
+    background-image: linear-gradient(180deg,
+      color-mix(in oklab, var(--metal-4) 74%, var(--velo-oscuro)) 0%,
+      color-mix(in oklab, var(--metal-1) 44%, var(--velo-oscuro)) 100%);
+    will-change: bottom, box-shadow;
+  }
+
+  .tecla {
+    position: relative; z-index: 1;
+    /* La tapa NO se dimensiona por su contenido: `setup` le clava ancho y
+       alto medidos una vez. Es lo que la hace una pieza y no una caja de
+       texto, y no es una manía: con el contenido en flujo, la apertura de
+       tracking de la leyenda ENSANCHABA la tecla de 374 a 434 px —un 16 %—
+       en el fotograma de la pulsación. Medido, no supuesto; en el fotograma
+       suelto no se ve, y a 30 pps la pieza respira. El `padding` se conserva
+       porque es lo que `setup` suma para calcular esas medidas. */
+    padding: var(--s-5) var(--s-7);
+    border-radius: var(--r-lg);
+    /* `overflow` + `isolation` no son adorno: `border-radius` NO recorta a
+       los hijos, así que sin esto la teja de grano y la trama se salen por
+       las esquinas y el especular pinta un rectángulo fuera de la pieza. */
+    overflow: hidden;
+    isolation: isolate;
+    box-shadow: inset 0 2px 0 var(--glass-highlight),
+                inset 0 -3px 4px -2px var(--sombra),
+                inset 0 0 0 1px color-mix(in oklab, var(--metal-1) 68%, var(--velo-oscuro));
+    will-change: transform;
+  }
+  .tecla > .rayado { position: absolute; inset: 0; z-index: 0; opacity: 0.55;
+                     pointer-events: none; }
+  /* Especular que recorre el metal. Va DENTRO del canto de la tecla y
+     recortado por su `overflow`: es un reflejo, no el halo que §1 prohíbe.
+     Un metal que no cambia con el tiempo se lee como plástico pintado. */
+  .brillo {
+    position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    /* El realce va REBAJADO con `color-mix`, no a `--glass-highlight` puro.
+       En `paper` ese token es blanco al 95 % y el barrido dejaba la mitad de
+       la tecla en blanco: se comía el bisel y la leyenda. Se vio en el
+       fotograma compuesto, no en el código. */
+    background-image: linear-gradient(100deg,
+      transparent 38%,
+      color-mix(in oklab, var(--glass-highlight) 55%, transparent) 50%,
+      transparent 62%);
+    background-size: 260% 100%;
+    will-change: background-position, opacity;
+  }
+
+  /* La leyenda va FUERA del flujo, centrada sobre la tapa. Así puede abrirse
+     de tracking sin arrastrar el tamaño de la pieza. */
+  .etiqueta {
+    position: absolute; left: 50%; top: 50%; z-index: 2;
+    transform: translate(-50%, -50%);
+    display: flex; align-items: center; gap: var(--s-3);
+    white-space: nowrap;
+  }
+
+  .legenda {
+    font-family: var(--mono);
+    font-size: var(--t-md);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps);
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--bg);
+    /* Incisión: la luz cae en el fondo del surco, o sea justo debajo del
+       trazo. Es lo que separa una leyenda GRABADA de un texto encima. */
+    text-shadow: 0 1px 0 var(--glass-highlight);
+    will-change: letter-spacing, font-variation-settings, opacity;
+  }
+  /* En `paper` los cinco stops del metal se colapsan al acento quemado, que
+     es oscuro, así que la leyenda va en claro: entonces la incisión no se
+     lee y lo correcto es el relieve —sombra debajo, no luz—. */
+  :root[data-tema="paper"] .legenda { text-shadow: 0 1px 0 var(--sombra); }
+
+  /* El glifo se DIBUJA. Era `ico: '+'` e `icoHecho` con el CARÁCTER de visto
+     (U+2713) escrito a pelo: un dingbat de la fuente del sistema, que ni es
+     de esta marca ni existe en todas las máquinas. No se cita aquí el glifo
+     por lo mismo que no está en `defaults`. Aquí son dos trazos que se inscriben y se borran con
+     `stroke-dashoffset`, que además es un canal de animación que no es ni
+     opacidad ni transform. La ranura tiene ancho FIJO para que el cambio de
+     estado no mueva la leyenda de sitio. */
+  .glifo { width: 30px; height: 30px; flex: none; display: block; }
+  .glifo path { fill: none; stroke: var(--bg); stroke-width: 3.4;
+                stroke-linecap: round; stroke-linejoin: round;
+                will-change: stroke-dashoffset; }
+  .ico-txt { font-family: var(--mono);
+             font-size: var(--t-md); font-weight: var(--w-medio);
+             color: var(--bg); }
+
+  /* Rebaba: el destello de las aristas mecanizadas al tope. Son filetes
+     RADIALES de 2 px, no discos: un estallido de bolitas es confeti, y lo
+     que suelta un canto de metal contra su asiento es luz en las aristas.
+     Salen del PERÍMETRO de la tapa —de una elipse con su tamaño—, no de su
+     centro, que es de donde saldrían si esto fuera una partícula. */
+  .rebabas { position: absolute; left: 50%; top: 50%; width: 0; height: 0;
+             z-index: 0; pointer-events: none; }
+  .rebaba {
+    position: absolute; left: 0; top: 0;
+    width: 2px; height: 18px; margin: -9px 0 0 -1px;
+    border-radius: 1px;
+    background-image: linear-gradient(180deg, var(--metal-3) 0%, transparent 100%);
+    will-change: transform, opacity;
+  }
+
+  /* UNA onda y no tres en bucle. Tres anillos concéntricos repitiéndose es
+     el «ripple» de Material Design, que es exactamente la plantilla por
+     defecto de la que hay que salir. Esta arranca con la silueta EXACTA de
+     la tecla —por eso es un rectángulo redondeado y no un círculo—, se abre
+     una vez por el panel y muere. Es el choque propagándose, no un adorno
+     cíclico. */
+  .onda {
+    position: absolute; left: 50%; top: 50%; z-index: 0;
+    transform: translate(-50%, -50%);
+    border: 2px solid var(--accent-line);
+    border-radius: var(--r-lg);
+    pointer-events: none;
+    will-change: width, height, opacity;
+  }
+
+  /* ---------------------------------------------------------------------
+     EL PUNTERO
+     Deja de ser una silueta plana rellena de `currentColor` y pasa a ser una
+     pieza: bronce con el degradado del tema inyectado por
+     `Engine.gradienteMetal`, filo de luz en la arista que mira arriba y
+     contorno oscuro para que se recorte sobre cualquier metraje.
+     `left/top` explícitos: sin ellos se coloca en su posición de flujo
+     —detrás de la tecla— y el translate lo aleja aún más.
+     --------------------------------------------------------------------- */
+  .puntero {
+    position: absolute; left: 0; top: 0; z-index: 5;
+    width: 58px; height: 68px;
+    /* El giro es alrededor de la PUNTA, que es el único punto de la pieza
+       que está en contacto. Girar por el centro la hace patinar. */
+    transform-origin: 11.8% 5%;
+    pointer-events: none;
+    will-change: transform, opacity, filter;
+  }
+  .puntero svg { width: 100%; height: 100%; display: block; }
+  /* Cuerpo de grafito con CANTO de bronce, y no al revés. La primera versión
+     lo rellenó de bronce y el fotograma lo desmintió: en el instante que
+     importa el puntero está encima de la tapa, que también es bronce, y la
+     pieza desaparecía justo cuando hay que verla. Con el cuerpo oscuro se
+     recorta sobre la tapa, y el canto metálico lo separa del metraje oscuro.
+     El `stroke` sale de `Engine.gradienteMetal`, que es exactamente para lo
+     que se escribió el ayudante. */
+  .puntero .cuerpo {
+    fill: color-mix(in oklab, var(--chrome-2) 60%, var(--velo-oscuro));
+    stroke-width: 2.2; stroke-linejoin: round;
+  }
+  .puntero .luz { fill: none; stroke: var(--glass-highlight);
+                  stroke-width: 1.2; opacity: 0.5; }
+
+  .marca {
+    margin-top: var(--s-7);
+    font-family: var(--mono); font-size: var(--t-xs);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps); text-transform: uppercase;
+    color: var(--ink-faint);
+    will-change: opacity;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="bloque tarjeta vidrio-apple" id="bloque">
+    <div class="rotulo" id="rotulo"></div>
+    <div class="filete" id="filete"></div>
+    <div class="titular" id="titular"></div>
+    <div class="sub" id="sub"></div>
+
+    <div class="mecanismo" id="mecanismo">
+      <div class="pozo trama" data-densidad="baja" id="pozo"></div>
+      <div class="movil" id="movil">
+        <div class="canto" id="canto"></div>
+        <div class="onda" id="onda"></div>
+        <div class="rebabas" id="rebabas"></div>
+        <div class="tecla brushed" id="tecla">
+          <i class="rayado trama" data-densidad="alta" aria-hidden="true"></i>
+          <i class="brillo" id="brillo" aria-hidden="true"></i>
+          <span class="etiqueta" id="etiqueta">
+            <svg class="glifo" id="glifo" viewBox="0 0 32 32">
+              <path id="gPre"  pathLength="1" d="M11 6 L23 16 L11 26"/>
+              <path id="gPost" pathLength="1" d="M6 17 L13 24 L26 8"/>
+            </svg>
+            <span class="ico-txt" id="icoTxt"></span>
+            <span class="legenda" id="btxt"></span>
+          </span>
+        </div>
+      </div>
+
+      <div class="puntero" id="puntero">
+        <svg viewBox="0 0 34 40" id="svgPuntero">
+          <path class="cuerpo" id="cuerpoPuntero"
+                d="M4 2 L28.5 20.5 L17.4 22 L23.2 33.6 L18.1 36.2 L12.3 24.4 L4 31.2 Z"/>
+          <path class="luz" d="M5.4 4.6 L5.4 27.6"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="marca" id="marca"></div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const bloque = document.getElementById('bloque');
+const rotulo = document.getElementById('rotulo');
+const filete = document.getElementById('filete');
+const titular = document.getElementById('titular');
+const sub = document.getElementById('sub');
+const mecanismo = document.getElementById('mecanismo');
+const pozo = document.getElementById('pozo');
+const movil = document.getElementById('movil');
+const canto = document.getElementById('canto');
+const tecla = document.getElementById('tecla');
+const etiqueta = document.getElementById('etiqueta');
+const brillo = document.getElementById('brillo');
+const legenda = document.getElementById('btxt');
+const icoTxt = document.getElementById('icoTxt');
+const glifo = document.getElementById('glifo');
+const gPre = document.getElementById('gPre');
+const gPost = document.getElementById('gPost');
+const puntero = document.getElementById('puntero');
+const svgPuntero = document.getElementById('svgPuntero');
+const cuerpoPuntero = document.getElementById('cuerpoPuntero');
+const onda = document.getElementById('onda');
+const rebabasCont = document.getElementById('rebabas');
+const marca = document.getElementById('marca');
+
+/* --- la mecánica, en números ---------------------------------------------
+   CARRERA está DUPLICADA en el CSS (`.mecanismo { padding-bottom }`), que es
+   quien reserva el suelo del pozo. No hay forma de que el CSS lea una
+   constante de JS y no merece un `setProperty` por fotograma: se anota y ya. */
+const CARRERA = 18;        /* px que sobresale la tapa en reposo */
+const DETENTE = 0.28;      /* fracción de carrera a la que se QUEDA enclavada */
+const CAIDA = 0.075;       /* s que tarda en tocar fondo, empujada */
+const RETORNO = 0.30;      /* s que tarda el muelle en llevarla al detente */
+const EXTRUSION = 0.5;     /* s que tarda en salir del pozo al montarse */
+const RETIRADA = 0.45;     /* s que tarda el puntero en salir de cuadro */
+
+let lineas = [], rebabas = [];
+let destX = 0, destY = 0, anchoTecla = 0, altoTecla = 0, rx = 0, ry = 0;
+let trBase = 0;
+
+/* Los instantes, en UN sitio. `setup` publica el cue de sonido desde aquí y
+   `draw` anima desde aquí: si se calcularan por separado, tocar `pulsacion`
+   desincronizaría el sonido de la imagen sin que nada diera error. */
+function tiempos(cfg, fin) {
+  const contacto = Number(cfg.pulsacion) || 0;
+  const viaje = Number(cfg.viaje) || 0.8;
+  /* `silencios.py` comprime el reloj, y una capa de 6 s se queda en 2,68 en
+     los propios fixtures del repo. Con anclas fijas el rótulo entraba después
+     del final y la tecla no llegaba a montarse antes de que la pulsaran. Todo
+     el preámbulo se escala con la duración real. */
+  const esc = clamp(fin / 6, 0.4, 1);
+  const montaje = clamp(contacto - viaje - 0.25, 0.30 * esc, 0.90 * esc);
+  return {
+    esc,
+    montaje,
+    extrusion: clamp(contacto - montaje, 0.12, EXTRUSION),
+    llegada: Math.max(0, contacto - viaje),
+    viaje,
+    contacto,
+    /* el dedo se queda apoyado: una pulsación real tiene permanencia */
+    suelta: contacto + (Number(cfg.permanencia) || 0.45),
+  };
+}
+
+/* Altura de la tapa sobre el suelo del pozo, en px. Función PURA de t: sube
+   al montarse, cae al contacto y vuelve solo hasta el DETENTE, no hasta
+   arriba. Esa es toda la confirmación: la tecla se queda hundida.
+
+   El estado «hecho» era `background: transparent` + un contorno de 2 px, o
+   sea el botón de seguir de una red social calcado. Una tecla enclavada dice
+   lo mismo sin imitar a nadie, y además lo dice con geometría, que sobrevive
+   a cualquier tema. */
+function alturaTapa(t, T) {
+  const ext = span(t, T.montaje, T.extrusion, Ease.outExpo);
+  /* `inCubic` y no `outCubic`: una tecla empujada ACELERA hasta el tope y ahí
+     se para en seco. Con `outCubic` frenaría antes de tocar, que es lo que
+     hace un muelle, no un dedo. */
+  const caida = span(t, T.contacto, CAIDA, Ease.inCubic);
+  const vuelta = span(t, T.suelta, RETORNO, Ease.outExpo);
+  return CARRERA * (ext * (1 - caida) + vuelta * DETENTE);
+}
+
+/* Posición del puntero. Se aísla en una función pura para poder DERIVARLA por
+   diferencias centradas más abajo: la inclinación tiene que salir de la misma
+   trayectoria que se dibuja, no de una copia a ojo que se desfase al tocarla. */
+function trayectoria(t, T) {
+  /* `outBack6` —el sobrepaso CALIBRADO al 6 %—: una mano con masa no clava el
+     destino, se pasa un poco y corrige. Antes era `outBack` a secas, que se
+     pasa el 10,0 % y está fuera de §1 desde siempre. Sobre 150 px de
+     aproximación, 6 % son 9 px: se ve como peso, no como rebote. */
+  const lleg = span(t, T.llegada, T.viaje, Ease.outBack6);
+  const ret = span(t, T.suelta, RETIRADA, Ease.inOutCubic);
+  return {
+    lleg, ret,
+    x: destX + (1 - lleg) * 150 + ret * 78,
+    y: destY + (1 - lleg) * 128 + ret * 92,
+  };
+}
+
+function pintaLinea(cont, txt, matiz) {
+  const i = matiz ? txt.toLowerCase().indexOf(String(matiz).toLowerCase()) : -1;
+  if (i < 0) { cont.appendChild(document.createTextNode(txt)); return; }
+  if (i > 0) cont.appendChild(document.createTextNode(txt.slice(0, i)));
+  const em = document.createElement('em');
+  em.className = 'matiz';
+  em.textContent = txt.slice(i, i + String(matiz).length);
+  cont.appendChild(em);
+  const resto = txt.slice(i + String(matiz).length);
+  if (resto) cont.appendChild(document.createTextNode(resto));
+}
+
+Engine.register({
+  duration: 6,
+  defaults: {
+    rotulo: 'Si has llegado hasta aquí',
+    titular: 'Móntalo\nen tu máquina',
+    /* Las palabras que cambian de VOZ dentro del titular. Si no aparecen en
+       el texto no pasa nada: la línea se compone entera en display. */
+    matiz: 'Móntalo',
+    sub: 'El repo, los guiones y las plantillas',
+    boton: 'Ver el repo',
+    /* `true` = dibuja el glifo. Un string sigue valiendo y se compone como
+       texto, que es lo que hacían los planes anteriores. Lo que NO vuelve es
+       el carácter de visto (U+2713) de antes: un dingbat en `defaults` es
+       una invitación a recomponerlo como texto aunque hoy no llegue al DOM,
+       y por eso tampoco se escribe en este comentario. */
+    ico: true,
+    botonHecho: 'Siguiendo',
+    icoHecho: true,
+    marca: '@editor-youtube',
+    nChispas: 9,
+    pulsacion: 2.6,      // instante en que el puntero toca la tecla
+    viaje: 0.8,          // lo que tarda el puntero en llegar
+    permanencia: 0.45,   // lo que el puntero se queda apoyado
+    entrada: 0.55,
+    salida: 0.5
+  },
+
+  setup(cfg) {
+    rotulo.textContent = cfg.rotulo || '';
+    sub.textContent = cfg.sub || '';
+    marca.textContent = cfg.marca || '';
+
+    titular.innerHTML = '';
+    const textos = String(cfg.titular).split(/\r?\n|\\n/);
+    lineas = textos.map((txt, i) => {
+      const cont = document.createElement('div');
+      cont.className = 'linea';
+      const inner = document.createElement('span');
+      pintaLinea(inner, txt, cfg.matiz);
+      cont.appendChild(inner);
+      titular.appendChild(cont);
+      /* La ÚLTIMA línea carga el peso; las de arriba se quedan calladas. Es
+         el salto de 500 puntos que `_tokens.css` pide, y funciona con
+         cualquier titular: no depende de qué palabras trae. */
+      inner.dataset.peso = (i === textos.length - 1) ? 'fuerte' : 'claro';
+      return inner;
+    });
+
+    /* Medidas FIJAS de la tapa, del mayor de los dos estados. Una tecla que
+       cambia de tamaño al pulsarla no es una tecla: el salto de «Ver el
+       repo» a «Siguiendo» la encogía 40 px de un fotograma al siguiente.
+       Se compone cada estado, se mide la etiqueta y se le suma el `padding`.
+
+       La HOLGURA de 36 px es para que la apertura de tracking de la
+       inscripción quepa dentro sin que la tapa —que tiene `overflow:
+       hidden`— corte las letras por los cantos. Sale de la cuenta: 2,6 px
+       por carácter sobre once caracteres son 29 px repartidos entre los dos
+       lados de la etiqueta, que está centrada. */
+    const HOLGURA = 36;
+    const textoIco = typeof cfg.ico === 'string' ? cfg.ico : '';
+    const textoIcoHecho = typeof cfg.icoHecho === 'string' ? cfg.icoHecho : '';
+    icoTxt.textContent = textoIco || textoIcoHecho;
+    glifo.style.display = (textoIco || textoIcoHecho) ? 'none' : 'block';
+    tecla.style.width = tecla.style.height = '';
+    legenda.textContent = cfg.boton || '';
+    const cajaA = etiqueta.getBoundingClientRect();
+    legenda.textContent = cfg.botonHecho || cfg.boton || '';
+    const cajaB = etiqueta.getBoundingClientRect();
+    const cs = getComputedStyle(tecla);
+    const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    tecla.style.width =
+      Math.ceil(Math.max(cajaA.width, cajaB.width) + padX + HOLGURA) + 'px';
+    tecla.style.height =
+      Math.ceil(Math.max(cajaA.height, cajaB.height) + padY) + 'px';
+    legenda.textContent = cfg.boton || '';
+    icoTxt.textContent = textoIco;
+
+    /* El tracking base sale del TOKEN, no de un número escrito aquí: se lee
+       ya computado y la animación se mueve alrededor de él. Así el gesto de
+       «volver a grabar la leyenda» no reintroduce un `letter-spacing` suelto,
+       que es lo que §7 prohíbe. Se lee una sola vez, antes de que `draw`
+       escriba nada en el estilo en línea. */
+    trBase = parseFloat(getComputedStyle(legenda).letterSpacing) || 0;
+
+    /* Grano de impresión SOLO aquí: la tapa es la única superficie con fondo
+       propio y opaco. Sobre la tarjeta de vidrio —alfa 0,65— el `multiply` de
+       la teja devolvería su gris sobre lo transparente y saldría un
+       rectángulo sucio. La tapa además tiene `overflow: hidden`, sin el cual
+       la teja se saldría por las esquinas redondeadas. */
+    Engine.grano(tecla, { px: 128, semilla: 11, op: 0.26 });
+
+    /* Bronce del tema para el puntero. La caja está en unidades del viewBox:
+       con ella todo el puntero comparte UNA lámina y UNA luz, en vez de que
+       cada trazo lleve su propio reflejo —que es lo que delata que son
+       piezas pegadas—. */
+    cuerpoPuntero.setAttribute(
+      'stroke', 'url(#' + Engine.gradienteMetal(svgPuntero, 'metalPuntero',
+                                                [2, 0, 30, 38]) + ')');
+
+    /* Geometría de la pieza, medida y no calculada: la tecla cambia de tamaño
+       con el texto y con el tema. */
+    const rt = tecla.getBoundingClientRect();
+    const rm = mecanismo.getBoundingClientRect();
+    anchoTecla = rt.width; altoTecla = rt.height;
+    rx = rt.width / 2; ry = rt.height / 2;
+    /* Destino: la PUNTA de la flecha —no la esquina del elemento— sobre el
+       centro de la tapa. La punta está en (4,2) del viewBox de 34x40, y la
+       proporción se aplica al tamaño REAL del elemento en vez de escribir el
+       píxel resultante: la versión anterior lo tenía clavado en (10,6) para
+       un puntero de 46 px, así que al cambiarle el tamaño la punta habría
+       dejado de apuntar a la tecla sin que nada lo dijera. */
+    destX = (rt.left + rt.width / 2) - rm.left - (4 / 34) * puntero.offsetWidth;
+    destY = (rt.top + rt.height / 2) - rm.top - (2 / 40) * puntero.offsetHeight;
+
+    onda.style.width = anchoTecla + 'px';
+    onda.style.height = altoTecla + 'px';
+
+    rebabasCont.innerHTML = '';
+    rebabas = Array.from({ length: Math.max(0, cfg.nChispas | 0) }, () => {
+      const el = document.createElement('div');
+      el.className = 'rebaba';
+      rebabasCont.appendChild(el);
+      return el;
+    });
+
+    /* El sonido lo declara la plantilla, no el plan: es la única que sabe en
+       qué segundo cae la pulsación, y `tiempos()` es la MISMA expresión que
+       usa `draw`. `at` es RELATIVO al inicio de la capa; el renderizador le
+       suma `capa.t`, y con `t` absoluto el cue salía nulo.
+
+       Ganancia alta a propósito: el golpe cae sobre la locución y a 0,9
+       quedaba por debajo de una fricativa de la voz.
+
+       Va UNA señal, no dos. El enclavamiento —cuando el puntero se levanta y
+       la tecla se queda abajo— pide la suya, pero `tests/fixtures/oro/
+       anclas.json` congela `cues: 1` para esta plantilla y el arnés no puede
+       regenerarse desde aquí. Queda anotado. */
+    const T = tiempos(cfg, cfg.duration || 6);
+    return { cues: [{ at: T.contacto, sfx: 'suscribir', gain: 1.8 }] };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 6;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+    const T = tiempos(cfg, fin);
+    const e = T.esc;
+
+    /* --- el bloque ------------------------------------------------------ */
+    const a = Engine.entra(t, cfg.entrada);
+    /* §10: «cada elemento deriva con su propio periodo; sin ella una fila
+       parece una captura fija». 2,4 px sobre 1080 es deriva, no efecto. */
+    const fl = Engine.flota(t, 0, { amp: 2.4, periodo: 8.2, semilla: 4 });
+    bloque.style.opacity = cierre;
+    bloque.style.transform =
+      `translate(${fl.x.toFixed(2)}px, ${((1 - a) * 18 + fl.y).toFixed(2)}px)`;
+
+    rotulo.style.opacity = a * cierre;
+    rotulo.style.transform = `translateY(${((1 - a) * 14).toFixed(2)}px)`;
+    /* El filete se TRAZA: crece en ancho, no aparece con opacidad. */
+    filete.style.width = (span(t, 0.18 * e, 0.5, Ease.outCubic) * 118).toFixed(1) + 'px';
+    filete.style.opacity = cierre;
+
+    lineas.forEach((el, i) => {
+      const p = span(t, (0.2 + i * 0.13) * e, 0.55, Ease.outCubic);
+      el.style.transform = `translateY(${((1 - p) * 110).toFixed(2)}%)`;
+      /* El peso se ASIENTA. Las fuentes de marca son variables y animar el
+         eje es un gesto que no se puede imitar con dos ficheros estáticos:
+         la línea llega ligera y gana cuerpo al pararse. */
+      if (el.dataset.peso === 'fuerte') {
+        const w = Math.round(380 + 420 * p);
+        Engine.peso(el, w);
+        el.style.fontWeight = w;
+      }
+    });
+
+    const s = span(t, 0.55 * e, 0.5, Ease.outCubic);
+    sub.style.opacity = s * cierre;
+    sub.style.transform = `translateY(${((1 - s) * 14).toFixed(2)}px)`;
+
+    /* --- el pozo se mecaniza -------------------------------------------- */
+    /* `clip-path` y no opacidad: el hueco se abre desde el eje hacia los dos
+       cantos, como una fresa que recorre la pieza. Una opacidad diría
+       «aparece»; esto dice «se ha hecho». */
+    const pz = span(t, Math.max(0, T.montaje - 0.30), 0.42, Ease.outCubic);
+    pozo.style.clipPath =
+      `inset(0 ${((1 - pz) * 50).toFixed(2)}% 0 ${((1 - pz) * 50).toFixed(2)}% round 24px)`;
+    pozo.style.opacity = cierre;
+    /* La tapa NO existe antes que su hueco. Sin esta línea la tecla estaba en
+       pantalla desde el fotograma 0 —opaca, sin sombra y sin pozo debajo—,
+       flotando sobre la tarjeta, y solo a los 0,9 s aparecía el asiento a su
+       alrededor. Lo delató el fotograma de t=0,5; ningún control lo dice,
+       porque técnicamente todo estaba dibujado. */
+    movil.style.opacity = (pz * cierre).toFixed(3);
+
+    /* --- la tecla -------------------------------------------------------- */
+    const h = alturaTapa(t, T);
+    const hundido = CARRERA - h;
+    movil.style.transform = `translateY(${hundido.toFixed(2)}px)`;
+    /* La pared lateral es lo que ENCOGE. Es la prueba de que baja: una escala
+       habría hecho la pieza más pequeña, que es otra cosa. */
+    canto.style.bottom = (-h).toFixed(2) + 'px';
+    /* La sombra de contacto se cierra con la carrera. Un objeto que baja
+       aprieta su sombra; si se queda igual, flota. */
+    canto.style.boxShadow =
+      `0 ${(2 + h * 0.6).toFixed(2)}px ${(6 + h * 1.5).toFixed(2)}px -2px var(--sombra)`;
+    /* La tapa, la onda y las rebabas NO multiplican por `cierre`: cuelgan de
+       `.movil`, que ya lo lleva. Multiplicarlo dos veces les daba una salida
+       al cubo y desaparecían medio segundo antes que el resto de la tarjeta. */
+
+    /* Especular lento recorriendo el bronce. El módulo se calcula con
+       `Math.floor` y no con `%`: en JS el resto de un negativo es negativo, y
+       antes de `montaje` el barrido saltaba al otro extremo. */
+    const u = (t - T.montaje) / 4.4;
+    const ciclo = u - Math.floor(u);
+    brillo.style.backgroundPosition = (170 - 240 * ciclo).toFixed(1) + '% 0%';
+    /* Destello corto al tope: es el único momento en que el metal devuelve
+       toda la luz. `Engine.pulse` tenía CERO usos en las 56. */
+    const destello = Engine.pulse(t, T.contacto, T.contacto + 0.5, 0.07, 0.34,
+                                  Ease.outCubic);
+    brillo.style.opacity = (0.30 + 0.42 * destello).toFixed(3);
+
+    /* --- la leyenda se vuelve a grabar ---------------------------------- */
+    const hecho = t >= T.contacto + 0.12;
+    legenda.textContent = hecho ? (cfg.botonHecho || cfg.boton || '')
+                                : (cfg.boton || '');
+    if (typeof cfg.ico === 'string' || typeof cfg.icoHecho === 'string') {
+      icoTxt.textContent = hecho ? (typeof cfg.icoHecho === 'string' ? cfg.icoHecho : '')
+                                 : (typeof cfg.ico === 'string' ? cfg.ico : '');
+    }
+    /* El cambio de estado entra 120 ms después del contacto: el tiempo que
+       tarda una interfaz real en confirmar. Y no es un corte seco: la
+       leyenda se abre de tracking y se apaga a la mitad mientras cambia, como
+       una inscripción que se rehace. `letter-spacing` animado es además un
+       canal que no es opacidad ni transform. */
+    const recorte = Engine.pulse(t, T.contacto + 0.02, T.contacto + 0.44,
+                                 0.10, 0.30, Ease.outCubic);
+    /* El delta se interpola entre DOS TOKENS de la escala óptica, no con un
+       número mágico en píxeles. Con `+2.6px` sobre un cuerpo de 27 px el
+       gesto valía 0,0963em —el 69 % del tracking base— pero como iba en
+       píxeles fijos, cambiar el rótulo de token de tamaño le cambiaba la
+       proporción sin que nada avisara. La diferencia entre
+       `--tr-caps-ancho` (0,24em) y `--tr-caps` (0,14em) es 0,10em: casi
+       exactamente el mismo gesto, y ahora escala con el cuerpo.
+       Mismo patrón que `pip-frame`. */
+    legenda.style.letterSpacing =
+      `calc(var(--tr-caps) + (var(--tr-caps-ancho) - var(--tr-caps)) * ${recorte.toFixed(3)})`;
+    legenda.style.opacity = (1 - 0.55 * recorte).toFixed(3);
+    const asienta = span(t, T.contacto + 0.12, 0.32, Ease.outCubic);
+    Engine.peso(legenda, Math.round(500 + 200 * asienta));
+
+    /* El galón se BORRA y el visto se INSCRIBE, los dos con el trazo. */
+    const entraGalon = span(t, T.montaje + 0.12, 0.34, Ease.outCubic);
+    const borraGalon = span(t, T.contacto, 0.16, Ease.inOutCubic);
+    gPre.style.strokeDasharray = '1';
+    gPost.style.strokeDasharray = '1';
+    gPre.style.strokeDashoffset = (1 - entraGalon * (1 - borraGalon)).toFixed(4);
+    gPost.style.strokeDashoffset =
+      (1 - span(t, T.contacto + 0.14, 0.30, Ease.outCubic)).toFixed(4);
+
+    /* --- rebaba y onda del choque --------------------------------------- */
+    const q = clamp((t - T.contacto) / 0.42, 0, 1);
+    rebabas.forEach((el, i) => {
+      if (t < T.contacto || q >= 1) { el.style.opacity = 0; return; }
+      const ang = (i + 0.5) / rebabas.length * Math.PI * 2;
+      /* `outExpo`: casi todo el recorrido pasa en los primeros 80 ms. A
+         velocidad constante parecería una animación de carga, no una
+         reacción. La longitud varía por elemento con `Engine.noise` —nunca
+         `Math.random`, que rompería la reproducibilidad—. */
+      const r = 1 + Ease.outExpo(q) * (0.09 + 0.13 * Engine.noise(i, 7));
+      const x = rx * Math.cos(ang) * r, y = ry * Math.sin(ang) * r;
+      const gir = ang * 180 / Math.PI + 90;   /* de canto, no de plano */
+      el.style.opacity = ((1 - q) * 0.85).toFixed(3);
+      el.style.transform =
+        `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) rotate(${gir.toFixed(1)}deg) ` +
+        `scaleY(${(0.45 + 0.85 * (1 - q)).toFixed(3)})`;
+    });
+
+    const o = clamp((t - T.contacto) / 0.55, 0, 1);
+    if (t < T.contacto || o >= 1) {
+      onda.style.opacity = 0;
+    } else {
+      const ee = Ease.outExpo(o);
+      /* Crecía 300x190 px y el anillo se comía la línea de la marca antes de
+         apagarse. Peor: a esa distancia de la tecla dejaba de leerse como el
+         choque propagándose y se leía como un MARCO de selección alrededor
+         del botón, que es el mismo tópico de interfaz del que esto sale.
+         Pegado al canto —96x54— vuelve a ser lo que es. Los dos números
+         salen de mirar el fotograma compuesto, no el código. */
+      onda.style.width = (anchoTecla + ee * 96).toFixed(1) + 'px';
+      onda.style.height = (altoTecla + ee * 54).toFixed(1) + 'px';
+      onda.style.opacity = ((1 - o) * 0.75).toFixed(3);
+    }
+
+    /* --- el puntero ------------------------------------------------------ */
+    const p = trayectoria(t, T);
+    /* Velocidad por diferencias centradas de la MISMA función que dibuja.
+       Derivar a mano una composición por tramos es donde se cuela el error
+       que nadie ve; una diferencia de la propia trayectoria no puede
+       desfasarse, y sigue siendo función pura de t —no acumula nada—. */
+    const dt = 0.012;
+    const vx = (trayectoria(t + dt, T).x - trayectoria(t - dt, T).x) / (2 * dt);
+    /* Una masa arrastrada no va derecha: el cuerpo se queda atrás y la punta
+       tira. Como el giro es alrededor de la punta, el signo es el contrario
+       al de la velocidad. Tope de 14° para que sea peso y no una pirueta. */
+    let giro = clamp(-vx * 0.05, -14, 14);
+    /* Retroceso al golpear: la tecla devuelve. No es un rebote elástico —§1
+       lo prohíbe— sino una caída amortiguada que no cruza el cero. */
+    const golpe = Engine.pulse(t, T.contacto, T.contacto + 0.3, 0.04, 0.26,
+                               Ease.outCubic);
+    giro += 3.4 * golpe;
+    /* Temblor de mano mientras se acerca, ANULADO cuando está apoyada: un
+       dedo sobre una tecla no tiembla, la tecla lo sujeta. */
+    const apoyo = clamp((t - T.contacto + 0.06) / 0.12, 0, 1) * (1 - p.ret);
+    const tem = Engine.flota(t, 2, { amp: 3.0, periodo: 1.7, semilla: 9 });
+    /* Y baja CON la tecla mientras la empuja. Antes solo se encogía un 12 %:
+       el puntero se quedaba flotando en el aire mientras el botón se movía
+       solo, que es la señal de que son dos animaciones y no un gesto. */
+    const sigue = hundido * clamp(p.lleg, 0, 1) * (1 - p.ret);
+    const x = p.x + tem.x * (1 - apoyo);
+    const y = p.y + tem.y * (1 - apoyo) + sigue;
+    puntero.style.opacity = (clamp(p.lleg, 0, 1) * (1 - p.ret) * cierre).toFixed(3);
+    puntero.style.transform =
+      `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) rotate(${giro.toFixed(2)}deg) ` +
+      `scale(${(1 - 0.05 * golpe).toFixed(3)})`;
+    /* La sombra de contacto se cierra al aterrizar. Es lo que dice a qué
+       altura está una pieza sobre otra; con una sombra fija el puntero es una
+       calcomanía pegada al plano. */
+    const alto = (1 - clamp(p.lleg, 0, 1)) * 26 + p.ret * 22 + 3;
+    puntero.style.filter =
+      `drop-shadow(0 ${(alto * 0.5).toFixed(1)}px ${(4 + alto * 0.9).toFixed(1)}px var(--sombra))`;
+
+    const m = span(t, 1.5 * e, 0.6, Ease.outCubic);
+    marca.style.opacity = (m * 0.9 * cierre).toFixed(3);
+  }
+});
+</script>
+</body>
+</html>

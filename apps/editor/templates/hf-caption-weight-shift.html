@@ -1,0 +1,1002 @@
+<!doctype html>
+<html lang="en">
+  <head>
+<!-- /* PALETA-AJENA: inicio */ -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Weight Shift</title>
+    <script src="_gsap.min.js"></script>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        margin: 0;
+        overflow: hidden;
+        background: transparent;
+        font-family: "Montserrat", Arial, sans-serif;
+      }
+
+      #weight-shift {
+        pointer-events: none;
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: transparent;
+      }
+
+      .caption-layer {
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        pointer-events: none;
+        transform: translateZ(0);
+      }
+
+      .safe-zone {
+        position: absolute;
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 1400px;
+        height: 278px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .caption-group {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 1400px;
+        height: 278px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transform-origin: 50% 50%;
+        will-change: transform;
+        backface-visibility: hidden;
+      }
+
+      .caption-copy {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        max-width: 1400px;
+        text-align: center;
+      }
+
+      .caption-line {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        width: max-content;
+        max-width: 1400px;
+        line-height: 1.1;
+        white-space: nowrap;
+        color: var(--hf-caption-primary, #ffffff);
+        font-family: "Montserrat", Arial, sans-serif;
+        font-weight: 300;
+        font-size: 72px;
+        letter-spacing: -0.03em;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        text-transform: lowercase;
+      }
+    </style>
+    <link rel="stylesheet" href="_tokens.css">
+  <script src="_engine.js"></script>
+</head>
+  <body>
+    <div
+      id="weight-shift"
+      data-composition-id="caption-weight-shift"
+      data-timeline-locked
+      data-start="0"
+      data-duration="8"
+      data-fps="30"
+      data-width="1080"
+      data-height="1920"
+    >
+      <div class="caption-layer" aria-hidden="true">
+        <div id="caption-stage" class="safe-zone"></div>
+      </div>
+    </div>
+
+    <script>
+      // IIFE: keep every template's runtime private to itself so two caption
+      // components pasted into one composition document can't clobber each
+      // other's hfAttach/hfBuild via shared script-scope names (boot is async,
+      // so collisions surface AFTER all scripts have executed).
+      (function () {
+        var HF_COMPOSITION_ID = "caption-weight-shift";
+        var HF_ROOT_ID = "weight-shift";
+        var HF_GROUP_SELECTOR = ".caption-group";
+
+        var HF_DEMO_DATA = {
+          version: 1,
+          segments: [
+            {
+              start: 0,
+              text: "Every great video starts with a single frame. HyperFrames lets you write HTML and render professional video. No timeline. No drag and drop. Just code that becomes cinema.",
+              words: [
+                { text: "Every", start: 0.0, end: 0.3 },
+                { text: "great", start: 0.3, end: 0.55 },
+                { text: "video", start: 0.55, end: 0.85 },
+                { text: "starts", start: 0.85, end: 1.1 },
+                { text: "with", start: 1.1, end: 1.25 },
+                { text: "a", start: 1.25, end: 1.35 },
+                { text: "single", start: 1.35, end: 1.65 },
+                { text: "frame.", start: 1.65, end: 2.0 },
+                { text: "HyperFrames", start: 2.1, end: 2.65 },
+                { text: "lets", start: 2.65, end: 2.85 },
+                { text: "you", start: 2.85, end: 2.95 },
+                { text: "write", start: 2.95, end: 3.15 },
+                { text: "HTML", start: 3.15, end: 3.55 },
+                { text: "and", start: 3.55, end: 3.65 },
+                { text: "render", start: 3.65, end: 3.95 },
+                { text: "professional", start: 3.95, end: 4.45 },
+                { text: "video.", start: 4.45, end: 4.8 },
+                { text: "No", start: 4.9, end: 5.05 },
+                { text: "timeline.", start: 5.05, end: 5.45 },
+                { text: "No", start: 5.5, end: 5.65 },
+                { text: "drag", start: 5.65, end: 5.85 },
+                { text: "and", start: 5.85, end: 5.95 },
+                { text: "drop.", start: 5.95, end: 6.25 },
+                { text: "Just", start: 6.35, end: 6.55 },
+                { text: "code", start: 6.55, end: 6.8 },
+                { text: "that", start: 6.8, end: 6.95 },
+                { text: "becomes", start: 6.95, end: 7.3 },
+                { text: "cinema.", start: 7.3, end: 7.7 },
+              ],
+            },
+          ],
+        };
+
+        /* ── HyperFrames caption-data runtime (shared across caption templates) ── */
+        var HF_CONTRACT_VERSION = 1;
+        /* El lienzo de ESTE repo. Y no basta con cambiar `data-width` en el
+           HTML: `hfApplyStageConfig` reescribe ese atributo en el arranque,
+           así que el puente lo volvía a leer como 1920x1080 y escalaba al
+           56 %. La resolución por defecto es el único sitio donde el dato
+           manda. */
+        var HF_DEFAULT_RESOLUTION = { width: 1080, height: 1920 };
+
+        function hfFlattenSegments(segments) {
+          var out = [];
+          (segments || []).forEach(function (seg) {
+            ((seg && seg.words) || []).forEach(function (w) {
+              var start = Math.max(0, Number(w.start) || 0);
+              out.push({
+                text: String(w.word || w.text || "").trim(),
+                start: start,
+                end: Math.max(start, Number(w.end) || 0),
+              });
+            });
+          });
+          out.sort(function (a, b) {
+            return a.start - b.start;
+          });
+          return out.filter(function (w) {
+            return w.text.length > 0;
+          });
+        }
+
+        function hfDeriveDuration(words) {
+          var end = 0;
+          words.forEach(function (w) {
+            if (w.end > end) end = w.end;
+          });
+          return end;
+        }
+
+        function hfValidate(data) {
+          if (!data || typeof data !== "object") return { ok: false, reason: "not-an-object" };
+          if (data.version != null) {
+            // Number("v2") is NaN and NaN > x is always false — an explicit
+            // finite check keeps malformed versions from slipping past the gate.
+            var hfVersion = Number(data.version);
+            if (!Number.isFinite(hfVersion) || Math.floor(hfVersion) > HF_CONTRACT_VERSION) {
+              return { ok: false, reason: "unsupported-version" };
+            }
+          }
+          if (!Array.isArray(data.segments) || data.segments.length === 0) {
+            return { ok: false, reason: "no-segments" };
+          }
+          if (data.displayMode != null && data.displayMode !== "full") {
+            return { ok: false, reason: "unsupported-displayMode" };
+          }
+          var words = hfFlattenSegments(data.segments);
+          if (words.length === 0) return { ok: false, reason: "no-words" };
+          return { ok: true, words: words, durationS: hfDeriveDuration(words) };
+        }
+
+        function hfApplyStageConfig(data, durationS) {
+          var res = (data && data.resolution) || HF_DEFAULT_RESOLUTION;
+          // Mirror the published validator's <=8192 bound defensively — the
+          // validator is an optional pre-flight, and an unbounded stage size
+          // would OOM render workers.
+          var W = Math.min(
+            8192,
+            Math.max(1, Math.round(Number(res.width) || HF_DEFAULT_RESOLUTION.width)),
+          );
+          var H = Math.min(
+            8192,
+            Math.max(1, Math.round(Number(res.height) || HF_DEFAULT_RESOLUTION.height)),
+          );
+          var root = document.getElementById(HF_ROOT_ID);
+          [document.documentElement, document.body, root].forEach(function (el) {
+            el.style.width = W + "px";
+            el.style.height = H + "px";
+          });
+          root.setAttribute("data-width", String(W));
+          root.setAttribute("data-height", String(H));
+          root.setAttribute("data-duration", String(durationS));
+          var brand = (data && data.brand) || {};
+          if (typeof brand.primaryColor === "string" && brand.primaryColor) {
+            root.style.setProperty("--hf-caption-primary", brand.primaryColor);
+          } else {
+            root.style.removeProperty("--hf-caption-primary");
+          }
+          if (typeof brand.accentColor === "string" && brand.accentColor) {
+            root.style.setProperty("--hf-caption-accent", brand.accentColor);
+          } else {
+            root.style.removeProperty("--hf-caption-accent");
+          }
+          return {
+            W: W,
+            H: H,
+            scaleX: W / 1920,
+            scaleY: H / 1080,
+            fontScale: Math.min(W, H) / 1080,
+          };
+        }
+
+        function hfPublishStatus(status) {
+          window.__HF_CAPTION_STATUS = status;
+          document
+            .getElementById(HF_ROOT_ID)
+            .setAttribute("data-caption-status", status.ok ? "ok" : "failed");
+        }
+
+        function hfRunGate(words, durationS, failReason) {
+          if (failReason) {
+            hfPublishStatus({
+              ok: false,
+              present: false,
+              contained: false,
+              reason: failReason,
+              version: HF_CONTRACT_VERSION,
+              durationS: durationS || 0,
+            });
+            return;
+          }
+          var root = document.getElementById(HF_ROOT_ID);
+          var rootRect = root.getBoundingClientRect();
+          var groups = root.querySelectorAll(HF_GROUP_SELECTOR);
+          var present = false;
+          var contained = true;
+          var tokens = [];
+          words.forEach(function (w) {
+            var t = w.text.toLowerCase().replace(/[^a-z0-9]/g, "");
+            if (t) tokens.push(t);
+          });
+          groups.forEach(function (el) {
+            var prevOpacity = el.style.opacity;
+            var prevVisibility = el.style.visibility;
+            el.style.opacity = "1";
+            el.style.visibility = "visible";
+            var r = el.getBoundingClientRect();
+            if (r.width > 0 && r.height > 0) {
+              var text = (el.textContent || "").toLowerCase();
+              for (var i = 0; i < tokens.length; i++) {
+                if (text.indexOf(tokens[i]) !== -1) {
+                  present = true;
+                  break;
+                }
+              }
+              if (
+                r.left < rootRect.left - 1 ||
+                r.right > rootRect.right + 1 ||
+                r.top < rootRect.top - 1 ||
+                r.bottom > rootRect.bottom + 1
+              ) {
+                contained = false;
+              }
+            }
+            el.style.opacity = prevOpacity;
+            el.style.visibility = prevVisibility;
+          });
+          hfPublishStatus({
+            ok: present && contained,
+            present: present,
+            contained: contained,
+            version: HF_CONTRACT_VERSION,
+            durationS: durationS,
+          });
+        }
+
+        var SAFE_ZONE_WIDTH, MAX_LINE_WIDTH, CAPTION_FONT_SIZE, DURATION;
+        var LINE_MIN_SIZE, LINE_MAX_SIZE;
+        var MAX_WORDS_PER_GROUP = 4;
+        var WORD_SPACING_DESIGN = 12;
+        var WORD_SPACING;
+        var PAUSE_THRESHOLD = 0.1;
+        var ENTRY_DURATION = 100 / 1000;
+        var WEIGHT_TRANSITION = 100 / 1000;
+        var FONT_WIDTH_SAFETY = 1.14;
+        var FONT_WEIGHT_LIGHT = 300;
+        var FONT_WEIGHT_BOLD = 700;
+
+        function normalizeWords(rawWords) {
+          return rawWords
+            .map(function (item) {
+              return {
+                text: String(item.word || item.text || "").trim(),
+                start: Math.max(0, Number(item.start) || 0),
+                end: Math.min(DURATION, Math.max(Number(item.start) || 0, Number(item.end) || 0)),
+              };
+            })
+            .filter(function (word) {
+              return word.text.length > 0;
+            });
+        }
+
+        var _fitCanvas = document.createElement("canvas");
+        var _fitCtx = _fitCanvas.getContext("2d");
+        function fitFontSize(text, baseFontSize, fontWeight, fontFamily, maxWidth) {
+          var size = baseFontSize;
+          var minSize = Math.floor(baseFontSize * 0.45);
+          // minSize is a hard floor returned unverified below — self-heal
+          // accepts residual overflow at the floor (clipped by the stage)
+          // rather than shrinking below legibility.
+          while (size > minSize) {
+            _fitCtx.font = fontWeight + " " + size + "px " + fontFamily;
+            if (_fitCtx.measureText(text).width <= maxWidth) return size;
+            size -= 2;
+          }
+          return minSize;
+        }
+
+        /* AJUSTAR HACIA ARRIBA, que es lo que faltaba. `fitFontSize` solo sabe
+           encoger desde una base, y eso vale en apaisado —donde casi cualquier
+           línea entra a tamaño completo— pero no en 9:16: aquí un grupo de dos
+           palabras se parte en dos líneas de una, «great» se quedaba a 200 px
+           y dejaba el 54 % del ancho vacío a los lados. El ancho es el recurso
+           escaso del vertical, así que la línea MÁS ANCHA del grupo se lleva la
+           caja entera y la otra la acompaña.
+           Determinista: solo depende del texto y de los límites. */
+        function fitLineToWidth(text, fontWeight, fontFamily, maxWidth, minSize, maxSize) {
+          var elegido = minSize;
+          for (var size = minSize; size <= maxSize; size += 2) {
+            _fitCtx.font = fontWeight + " " + size + "px " + fontFamily;
+            if (_fitCtx.measureText(text).width > maxWidth) break;
+            elegido = size;
+          }
+          return elegido;
+        }
+
+        var measureCanvas = document.createElement("canvas");
+        var measureContext = measureCanvas.getContext("2d");
+
+        function measureWord(word) {
+          return measureContext.measureText(word.text.toLowerCase()).width * FONT_WIDTH_SAFETY;
+        }
+
+        function measureLineWidth(words) {
+          return words.reduce(function (total, word, index) {
+            return total + measureWord(word) + (index ? WORD_SPACING : 0);
+          }, 0);
+        }
+
+        function fitsInTwoLines(words) {
+          return measureLineWidth(words) <= MAX_LINE_WIDTH * 1.8;
+        }
+
+        function splitLines(words) {
+          if (words.length < 2) {
+            return [{ words: words, startIndex: 0 }];
+          }
+          var bestSplit = Math.ceil(words.length / 2);
+          var bestDiff = Infinity;
+          for (var s = 1; s < words.length; s++) {
+            var w1 = measureLineWidth(words.slice(0, s));
+            var w2 = measureLineWidth(words.slice(s));
+            if (w1 <= MAX_LINE_WIDTH && w2 <= MAX_LINE_WIDTH) {
+              var diff = Math.abs(w1 - w2);
+              if (diff < bestDiff) {
+                bestDiff = diff;
+                bestSplit = s;
+              }
+            }
+          }
+          var result = [];
+          var line1 = words.slice(0, bestSplit);
+          var line2 = words.slice(bestSplit);
+          if (line1.length) result.push({ words: line1, startIndex: 0 });
+          if (line2.length) result.push({ words: line2, startIndex: line1.length });
+          return result;
+        }
+
+        function avoidSingleWordGroups(groups) {
+          var out = [];
+          groups.forEach(function (group) {
+            if (
+              group.words.length === 1 &&
+              out.length > 0 &&
+              out[out.length - 1].words.length < MAX_WORDS_PER_GROUP &&
+              // makeGroups guards every addition with fitsInTwoLines; this
+              // second-pass merge must too, or it can produce a group that
+              // splitLines cannot fit within MAX_LINE_WIDTH.
+              fitsInTwoLines(out[out.length - 1].words.concat(group.words))
+            ) {
+              out[out.length - 1] = makeGroup(out[out.length - 1].words.concat(group.words));
+            } else {
+              out.push(group);
+            }
+          });
+
+          for (var i = 0; i < out.length; i++) {
+            if (out[i].words.length !== 1) continue;
+            if (
+              i + 1 < out.length &&
+              out[i + 1].words.length < MAX_WORDS_PER_GROUP &&
+              fitsInTwoLines(out[i].words.concat(out[i + 1].words))
+            ) {
+              out[i] = makeGroup(out[i].words.concat(out[i + 1].words));
+              out.splice(i + 1, 1);
+            } else if (
+              i > 0 &&
+              out[i - 1].words.length < MAX_WORDS_PER_GROUP &&
+              fitsInTwoLines(out[i - 1].words.concat(out[i].words))
+            ) {
+              out[i - 1] = makeGroup(out[i - 1].words.concat(out[i].words));
+              out.splice(i, 1);
+              i--;
+            }
+          }
+
+          return out;
+        }
+
+        function makeGroups(words) {
+          var groups = [];
+          var current = [];
+          words.forEach(function (word, index) {
+            var nextWord = words[index + 1];
+            var testGroup = current.concat([word]);
+            if (testGroup.length > MAX_WORDS_PER_GROUP || !fitsInTwoLines(testGroup)) {
+              if (current.length) groups.push(makeGroup(current));
+              current = [word];
+              return;
+            }
+            current.push(word);
+            var punctuation = /[,.:!?]$/.test(word.text);
+            var pause = nextWord ? nextWord.start - word.end : 0;
+            if (
+              !nextWord ||
+              punctuation ||
+              pause >= PAUSE_THRESHOLD ||
+              current.length >= MAX_WORDS_PER_GROUP
+            ) {
+              groups.push(makeGroup(current));
+              current = [];
+            }
+          });
+          if (current.length) groups.push(makeGroup(current));
+          return avoidSingleWordGroups(groups);
+        }
+
+        function makeGroup(words) {
+          return {
+            words: words.slice(),
+            lines: splitLines(words),
+            start: words[0].start,
+            end: words[words.length - 1].end,
+          };
+        }
+
+        function buildCaptions(groups) {
+          var stage = document.getElementById("caption-stage");
+          groups.forEach(function (group, groupIndex) {
+            // Fit the WIDEST split line, not the joined group text: the group
+            // renders across up to two lines, so sizing against the joined
+            // string shrank two-line groups that already fit at full size.
+            var widestLineText = "";
+            var widestLineWidth = -1;
+            group.lines.forEach(function (line) {
+              var lineWidth = measureLineWidth(line.words);
+              if (lineWidth > widestLineWidth) {
+                widestLineWidth = lineWidth;
+                widestLineText = line.words
+                  .map(function (w) {
+                    return w.text.toLowerCase();
+                  })
+                  .join(" ");
+              }
+            });
+            var computedSize = fitLineToWidth(
+              widestLineText,
+              "700",
+              "'Plus Jakarta Sans'",
+              MAX_LINE_WIDTH,
+              LINE_MIN_SIZE,
+              LINE_MAX_SIZE,
+            );
+            var groupEl = document.createElement("div");
+            var copyEl = document.createElement("div");
+            groupEl.id = "caption-group-" + groupIndex;
+            groupEl.className = "caption-group";
+            copyEl.className = "caption-copy";
+            group.lines.forEach(function (line, lineIndex) {
+              var lineEl = document.createElement("div");
+              lineEl.className = "caption-line";
+              lineEl.id = "caption-group-" + groupIndex + "-line-" + lineIndex;
+              lineEl.style.fontWeight = lineIndex === 0 ? FONT_WEIGHT_BOLD : FONT_WEIGHT_LIGHT;
+              lineEl.style.fontSize = computedSize + "px";
+              lineEl.style.maxWidth = SAFE_ZONE_WIDTH + "px";
+              line.words.forEach(function (word, wordIndex) {
+                var wordEl = document.createElement("span");
+                wordEl.textContent = word.text.toLowerCase();
+                wordEl.style.display = "inline-block";
+                lineEl.appendChild(wordEl);
+              });
+              copyEl.appendChild(lineEl);
+            });
+            groupEl.appendChild(copyEl);
+            stage.appendChild(groupEl);
+          });
+        }
+
+        function hfTeardown() {
+          document.getElementById("caption-stage").innerHTML = "";
+        }
+
+        function hfBuild(words, layout, durationS) {
+          DURATION = durationS;
+          /* ==================================================================
+             VERTICAL. Estas cuatro medidas eran fracciones de un lienzo de
+             1920x1080 reescaladas con `layout.scaleX / fontScale`: en
+             1080x1920 daban una caja de 788 px (el 73 % del ancho) con el
+             texto a 72 px, y `100 * scaleY` plantaba la franja a 178 px del
+             borde inferior, o sea DEBAJO del caption y el CTA que pinta la
+             app (BRAND_RULES §18 reserva de y=1459 hacia abajo). Salen ya del
+             ancho y del alto REALES.
+
+             `CAPTION_FONT_SIZE` ya NO es el cuerpo con el que se pinta —de eso
+             se encarga `fitLineToWidth`, que ajusta cada grupo a la caja—: es
+             solo el cuerpo con el que se MIDE para decidir cuántas palabras
+             caben en un grupo y por dónde parte en dos líneas. Y por eso baja
+             en vez de subir: `splitLines` PARTE SIEMPRE que el grupo tenga dos
+             palabras o más, así que un grupo de dos daba dos líneas de una
+             palabra —«with» sobre «a»—, que no es un subtítulo. Midiendo a
+             0,095 W caben cuatro palabras por grupo y la partición sale 2 + 2,
+             que es lo que este bloque necesita para lo único que hace: mover
+             la negrita de la primera línea a la segunda cuando le toca.
+             ================================================================== */
+          CAPTION_FONT_SIZE = Math.round(layout.W * 0.095);        /* 103 px */
+          SAFE_ZONE_WIDTH = Math.round(layout.W * 0.97);           /* 1048 px */
+          MAX_LINE_WIDTH = SAFE_ZONE_WIDTH - Math.round(layout.W * 0.018);
+          WORD_SPACING = Math.round(layout.W * 0.024);             /*  26 px */
+          /* Los topes del ajuste. El de abajo es el suelo de legibilidad; el
+             de arriba evita que un grupo de dos palabras cortas —«no / drag»—
+             pida 350 px y desborde el alto de la franja. */
+          LINE_MIN_SIZE = Math.round(layout.W * 0.075);            /*  81 px */
+          LINE_MAX_SIZE = Math.round(layout.W * 0.185);            /* 200 px */
+
+          var stage = document.getElementById("caption-stage");
+          var stageHeight = Math.round(CAPTION_FONT_SIZE * 2.6);
+          stage.style.width = SAFE_ZONE_WIDTH + "px";
+          stage.style.height = stageHeight + "px";
+          /* Se APOYA sobre la banda de la plataforma: 0,253 H = 486 px en
+             1920, o sea el borde inferior del bloque a 1434. */
+          stage.style.bottom = Math.round(layout.H * 0.253) + "px";
+
+          /* Se mide con la familia que se PINTA. La hoja del final pone
+             `var(--display)`; midiendo en Montserrat, el reparto en líneas
+             era el de otra fuente. */
+          measureContext.font = "700 " + CAPTION_FONT_SIZE + "px 'Plus Jakarta Sans'";
+
+          var WORDS = normalizeWords(words);
+          var GROUPS = makeGroups(WORDS);
+          buildCaptions(GROUPS);
+          // set per-group sizing to match the runtime stage
+          GROUPS.forEach(function (_, i) {
+            var el = document.getElementById("caption-group-" + i);
+            el.style.width = SAFE_ZONE_WIDTH + "px";
+            el.style.height = stageHeight + "px";
+          });
+
+          var tl = gsap.timeline({ paused: true });
+
+          var visibleStarts = GROUPS.map(function (group, groupIndex) {
+            var prev = GROUPS[groupIndex - 1];
+            var availableGap = prev ? Math.max(0, group.start - prev.end) : ENTRY_DURATION;
+            var entryLead = Math.min(ENTRY_DURATION, availableGap);
+            return Math.max(0, group.start - entryLead);
+          });
+
+          var allGroupEls = GROUPS.map(function (_, i) {
+            return document.getElementById("caption-group-" + i);
+          });
+
+          GROUPS.forEach(function (group, groupIndex) {
+            var groupEl = allGroupEls[groupIndex];
+            var visibleStart = visibleStarts[groupIndex];
+            var visibleEnd =
+              groupIndex < GROUPS.length - 1 ? visibleStarts[groupIndex + 1] : DURATION;
+
+            // Each group already owns its full opacity lifecycle (set 0 at its
+            // own visibleStart, animated to 1, then set back to 0 at its own
+            // visibleEnd below), and groups occupy non-overlapping windows, so
+            // explicitly hiding every OTHER group here was redundant and made
+            // timeline construction O(groups^2) — this collapsed under dense
+            // stress transcripts (many short groups). Removed; behavior is
+            // unchanged (verified against templates.test.ts).
+
+            tl.set(groupEl, { opacity: 0, scale: 0.85 }, visibleStart);
+            tl.to(
+              groupEl,
+              { opacity: 1, scale: 1, duration: ENTRY_DURATION, ease: "power3.out", force3D: true },
+              visibleStart,
+            );
+
+            if (group.lines.length === 2) {
+              var line1El = document.getElementById("caption-group-" + groupIndex + "-line-0");
+              var line2El = document.getElementById("caption-group-" + groupIndex + "-line-1");
+              var line2FirstWord = group.lines[1].words[0];
+              var switchTime = line2FirstWord.start;
+
+              tl.to(
+                line1El,
+                { fontWeight: FONT_WEIGHT_LIGHT, duration: WEIGHT_TRANSITION, ease: "power2.out" },
+                switchTime,
+              );
+              tl.to(
+                line2El,
+                { fontWeight: FONT_WEIGHT_BOLD, duration: WEIGHT_TRANSITION, ease: "power2.out" },
+                switchTime,
+              );
+            }
+
+            tl.set(groupEl, { opacity: 0 }, visibleEnd);
+          });
+
+          return tl;
+        }
+
+        var hfCurrentTimeline = null;
+
+        function hfAttach(data) {
+          var v = hfValidate(data);
+          if (!v.ok) {
+            hfRunGate([], 0, v.reason);
+            return;
+          }
+          if (hfCurrentTimeline) {
+            hfCurrentTimeline.kill();
+            hfCurrentTimeline = null;
+          }
+          hfTeardown();
+          var layout = hfApplyStageConfig(data, v.durationS);
+          var tl = hfBuild(v.words, layout, v.durationS);
+          tl.set({}, {}, v.durationS); // pin timeline length to the data-derived duration
+          // GSAP quirk (confirmed 3.14.2): a fresh timeline already reports position 0,
+          // so seek(0) is treated as a no-op and skips rendering .set() calls scheduled
+          // at t=0 — the first frame would show pre-timeline CSS defaults (usually
+          // hidden). render(time, suppressEvents, force) with force=true bypasses that.
+          tl.render(0, true, true);
+          hfCurrentTimeline = tl;
+          window.__timelines = window.__timelines || {};
+          window.__timelines[HF_COMPOSITION_ID] = tl;
+          hfRunGate(v.words, v.durationS, null);
+        }
+        window.__HF_CAPTION_ATTACH__ = hfAttach;
+
+        (function hfBoot() {
+          function start(data) {
+            var ready =
+              document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+            ready.then(function () {
+              // A manual window.__HF_CAPTION_ATTACH__ call that lands while the
+              // sibling fetch / fonts.ready are still pending must win — never
+              // clobber it with the late-arriving boot payload.
+              if (hfCurrentTimeline) return;
+              hfAttach(data);
+            });
+          }
+          if (window.__HF_CAPTION__) {
+            start(window.__HF_CAPTION__);
+            return;
+          }
+          /* El `fetch` NO se intenta bajo `file:`. Este repo abre las
+             plantillas siempre por `file://` —Playwright las rasteriza así— y
+             ahí ningún navegador deja leer un fichero hermano: el `.catch`
+             recogía el fallo, sí, pero el navegador ya había escrito
+             «Fetch API cannot load … URL scheme "file" is not supported» en la
+             consola, y eso sale como ERROR en el informe de
+             `ver_plantilla.js` en cada pasada. Un error permanente que no
+             significa nada es peor que ninguno: enseña a no leerlos.
+             Servido por http(s) el comportamiento es exactamente el de antes.
+             Y los datos de una pieza real no llegan por aquí de todas formas,
+             sino por `window.__HF_CAPTION__`, que se mira más arriba. */
+          if (location.protocol === "file:") {
+            start(HF_DEMO_DATA);
+            return;
+          }
+          fetch("./caption-data.json")
+            .then(function (r) {
+              return r.ok ? r.json() : null;
+            })
+            .catch(function () {
+              return null;
+            })
+            .then(function (json) {
+              start(json || HF_DEMO_DATA);
+            });
+        })();
+      })();
+    </script>
+  
+
+<!-- /* PALETA-AJENA: fin */ -->
+
+
+
+
+
+
+
+
+<!-- PUENTE:inicio · generado por scripts/importar_bloque.js -->
+<style>
+  /* El lienzo de este repo, y la raíz TRANSPARENTE: si el fondo llega opaco,
+     omitBackground no lo recorta y los PNG salen sin alfa — el compositor
+     los pega como un rectángulo y tapa el metraje. */
+  html, body { width: 1080px; height: 1920px; margin: 0;
+               background: transparent !important; overflow: hidden; }
+  [data-composition-id="caption-weight-shift"] { transform-origin: 50% 50%; }
+  /* El PLAFÓN DE AUTO-PREVISUALIZACIÓN. Varias piezas del catálogo traen un
+     fondo propio para poder mirarse solas —hf-hw-callout-circle lo llama
+     literalmente «self-preview scene» y es un degradado verde— y sobre
+     nuestro metraje eso no es un fondo: es una mancha que tapa el plano.
+     Se quita el relleno y se deja el contenido, que es lo que se quería. */
+  [id$="-scene"] { background: none !important; }
+</style>
+<script>
+(function () {
+  var ID = "caption-weight-shift";
+  var RANURAS = {};
+  var raiz = document.querySelector('[data-composition-id="' + ID + '"]');
+  var tl = (window.__timelines || {})[ID] || null;
+
+  /* Maqueta a 1920x1080 y aquí el lienzo es 1080x1920: se escala al ancho y
+     se centra. Es un APAÑO declarado, no una solución — la buena es rehacer
+     la maqueta en vertical. config.encaje:false lo desactiva y
+     config.escala lo fuerza.
+     La medida sale de data-width/data-height y NO de offsetWidth: la raíz de
+     varios bloques mide 0x0 —es un ancla para hijos posicionados, no una
+     caja— y con la medida del DOM el encaje la mandaba a left:-420, fuera
+     del cuadro. Fotograma transparente, cero errores, y el humo diciendo
+     «no se mueve» porque no había nada que moviera. Por eso se envuelve en
+     una caja del tamaño DECLARADO: así los hijos absolutos tienen un
+     contenedor de verdad y la escala se aplica a algo con dimensiones. */
+  var caja = null;
+  function encaja(cfg) {
+    if (!raiz || cfg.encaje === false) return;
+    var w = +raiz.dataset.width || raiz.offsetWidth || 1920;
+    var h = +raiz.dataset.height || raiz.offsetHeight || 1080;
+    if (!caja) {
+      caja = document.createElement('div');
+      raiz.parentNode.insertBefore(caja, raiz);
+      caja.appendChild(raiz);
+    }
+    caja.style.cssText = 'position:absolute;left:0;top:0;width:' + w
+                       + 'px;height:' + h + 'px;transform-origin:0 0;';
+    raiz.style.position = 'absolute';
+    raiz.style.left = '0'; raiz.style.top = '0';
+    raiz.style.width = w + 'px'; raiz.style.height = h + 'px';
+    var k = cfg.escala || Math.min(1080 / w, 1920 / h);
+    /* DÓNDE, y no solo cuánto. Centrado es lo razonable por defecto, pero un
+       rótulo inferior centrado en un lienzo vertical queda en mitad de la
+       cara; y §18 dice que la banda de abajo la pinta la app. zona mueve la
+       caja ya escalada sin tocar la maqueta de dentro: arriba pega bajo la
+       banda superior (230 px), abajo se apoya sobre la inferior (1459 px). */
+    var alto = h * k;
+    var y = (1920 - alto) / 2;
+    if (cfg.zona === 'arriba') y = 230 + 40;
+    else if (cfg.zona === 'abajo') y = 1459 - 40 - alto;
+    caja.style.transform = 'translate(' + Math.round((1080 - w * k) / 2)
+      + 'px,' + Math.round(y) + 'px) scale(' + k + ')';
+  }
+
+  /* LA CAJA DE TINTA, para colocar.py.
+     Sin anclas() una capa es invisible para el colocador: no sabe cuánto
+     ocupa ni dónde, así que no puede apartarla del rostro ni avisar de que
+     cae bajo el caption de la app. Nuestras plantillas la declaran a mano
+     porque saben qué parte de sí mismas importa; un bloque importado no
+     puede saberlo, así que se MIDE: unión de los rectángulos visibles, ya en
+     coordenadas de lienzo —getBoundingClientRect incluye la transformación
+     del encaje—, descartando los contenedores que cubren casi todo.
+     Se llama después de seek, así que la caja es la del instante que se
+     esté mirando y no la del reposo. */
+  function tinta() {
+    if (!raiz) return null;
+    /* Dos pasadas. La primera descarta los contenedores que cubren casi todo
+       —si no, la caja de cualquier plantilla sería el lienzo entero y el dato
+       no diría nada—. Pero en las de dibujo a mano el contenido ES un <svg> a
+       pantalla completa y sus <path> devuelven cajas de cero: con el filtro
+       puesto, veintisiete plantillas se quedaban sin ancla. Si la primera
+       pasada no deja nada, se repite SIN filtro: una caja grande de más es
+       peor que ninguna, pero ninguna es peor que las dos. */
+    function une(filtra) {
+      var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      var todos = raiz.querySelectorAll('*');
+      for (var i = 0; i < todos.length; i++) {
+        var e = todos[i], s = getComputedStyle(e);
+        if (s.display === 'none' || s.visibility === 'hidden' ||
+            parseFloat(s.opacity) < 0.05) continue;
+        var r = e.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        if (filtra && r.width * r.height > 0.92 * 1080 * 1920) continue;
+        if (r.left < x0) x0 = r.left;
+        if (r.top < y0) y0 = r.top;
+        if (r.right > x1) x1 = r.right;
+        if (r.bottom > y1) y1 = r.bottom;
+      }
+      return x1 < x0 ? null : [x0, y0, x1, y1];
+    }
+    var c = une(true) || une(false);
+    if (!c) return null;
+    var x0 = c[0], y0 = c[1], x1 = c[2], y1 = c[3];
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0);
+    x1 = Math.min(1080, x1); y1 = Math.min(1920, y1);
+    return { bloque: { x: Math.round((x0 + x1) / 2), y: Math.round((y0 + y1) / 2),
+                       w: Math.round(x1 - x0), h: Math.round(y1 - y0) } };
+  }
+
+  /* LA SALIDA, que sus bloques no tienen: entran y se quedan puestos hasta
+     que la composición acaba. Aquí una capa vive dentro de su ventana y
+     tiene que irse, y no es cosmética — es lo que humo_plantillas.js
+     comprueba cuando muestrea tres instantes y exige que no sean el mismo
+     fotograma. Medido: x-post y macos-notification animan su entrada y dan
+     tres capturas idénticas después.
+     Es una salida GENÉRICA —se va bajando y encogiendo un pelo— y por eso
+     se puede apagar con config.salida:false cuando el bloque tenga la suya
+     propia. Determinista: solo depende de t. */
+  var SALIDA = 0.42;
+  /* La duración del GESTO, medida al importar. La sustituye el importador;
+     el valor de aquí es el de respaldo para quien abra el fichero suelto.
+     Va en una variable y no en dos sitios a propósito: la salida tiene que
+     caer dentro de la MISMA ventana que registra la plantilla, y cuando eran
+     dos números —la declarada por la timeline y la registrada— la salida se
+     programaba fuera del tramo que nadie llega a ver. */
+  /* El copy que el plan pide, repartido por orden sobre las ranuras que
+     declara TEXTOS. Lo que sobra se ignora; lo que falta se queda con lo que
+     el bloque traía.
+     Se aplica en CADA fotograma y no solo al montar, y no es por comodidad:
+     varios bloques animan su propio texto —un contador que sube, un
+     tecleado— así que su timeline reescribe el nodo en cada seek y el copy
+     del plan duraba un fotograma. Medido: la tarjeta pedía «−12» y salía el
+     «22» de la demo. */
+  function copia(cfg) {
+    for (var k in RANURAS) {
+      if (!cfg || !cfg[k] || !cfg[k].length) continue;
+      var nodos = document.querySelectorAll(RANURAS[k]);
+      for (var i = 0; i < nodos.length && i < cfg[k].length; i++) {
+        if (nodos[i].textContent !== cfg[k][i]) nodos[i].textContent = cfg[k][i];
+      }
+    }
+  }
+
+  var DUR = 7.70;   /* MEDIDO al importar */
+  var vida = DUR;
+
+  Engine.register({
+    duration: DUR,
+    /* Las ranuras se escriben LITERALES en los defaults, no con un
+       Object.assign: lint_config.py lee ese bloque con una expresión regular
+       —no ejecuta la plantilla— así que una clave calculada no existe para
+       él y el plan que la usa aborta por «clave que la plantilla no lee».
+       Las ranuras entran aquí porque lint_config.py --estricto
+       comprueba que toda clave del plan la lea de verdad su plantilla: sin
+       declararlas, pedir el copy por config es una clave muerta y el paso
+       aborta. */
+    defaults: { encaje: true, escala: null, zona: 'centro', salida: true,
+                tema: 'carbon', cue: null, cueGain: null },
+    setup: function (cfg) {
+      encaja(cfg);
+      vida = cfg.duration || DUR;
+      copia(cfg);
+      /* EL SONIDO: NINGUNO por defecto, y esto es una vuelta atrás.
+         Se publicaba un «aparicion» genérico en cada bloque importado para
+         que no entraran mudos. Sobre la pieza montada suena a lo que es: el
+         mismo golpe blando en 126 sitios, puesto por una regla que no sabe
+         qué está entrando. Un sonido que no significa nada es peor que el
+         silencio, porque el oído lo cuenta igual.
+         Quien sabe qué suena una capa es el guion —sfx en la capa— o la
+         tabla del director para las plantillas que conoce. Con cue en la
+         config se puede pedir uno a mano. */
+      return { cues: (!cfg.sinSonido && cfg.cue)
+                     ? [{ at: 0.04, sfx: cfg.cue, gain: cfg.cueGain || 0.5 }]
+                     : [] };
+    },
+    anclas: function () { return tinta(); },
+    /* El puente entero. Los dos motores hacen lo mismo —posicionar una
+       animación en el segundo t, sin tocar el reloj del navegador—, así que
+       no hay nada que traducir. */
+    /* La salida va en la raíz y el encaje en la caja que la envuelve: dos
+       transformaciones en dos nodos, para que no se pisen. */
+    draw: function (t, cfg) {
+      if (tl) tl.time(Math.max(0, Math.min(t, tl.duration())));
+      copia(cfg);
+      if (!raiz) return;
+      if (cfg && cfg.salida !== false && vida > SALIDA) {
+        var d = (t - (vida - SALIDA)) / SALIDA;
+        if (d > 0) {
+          var e = 1 - Math.min(1, d);
+          e = e * e * (3 - 2 * e);              /* suavizado, sin rebote */
+          raiz.style.opacity = e;
+          raiz.style.transform = 'translateY(' + ((1 - e) * -26).toFixed(2)
+                               + 'px) scale(' + (0.985 + 0.015 * e).toFixed(4) + ')';
+          return;
+        }
+      }
+      raiz.style.opacity = '';
+      raiz.style.transform = '';
+    }
+  });
+})();
+</script>
+<!-- PUENTE:fin -->
+
+
+
+
+
+
+<style>
+  /* ======================================================================
+     VERTICAL. Con la resolución por defecto ya en 1080x1920 el puente no
+     escala (k = 1) y el runtime coloca la franja desde `layout.W/H`. Aquí
+     queda lo que vive en CSS: la tipografía y el hueco entre palabras.
+     ====================================================================== */
+
+  /* El puente envuelve la raíz y le aplica `translate(...) scale(k)` según
+     `config.zona`. Con la maqueta a lienzo completo eso solo puede sacarla
+     del cuadro, así que se anula. */
+  body > div:has(> [data-composition-id="caption-weight-shift"]) {
+    transform: none !important;
+  }
+
+  .caption-line {
+    font-family: var(--display) !important;
+    /* El hueco iba en `12px` fijos: correcto bajo un texto de 72 px, invisible
+       bajo uno de 200. En `em` escala con el cuerpo, y aquí el `em` SÍ es el
+       del texto porque `.caption-line` lleva su propio `font-size` inline. */
+    gap: 0.26em !important;
+    letter-spacing: var(--tr-hero) !important;
+    line-height: 1.08 !important;
+  }
+  .caption-copy { max-width: none !important; }
+
+  /* Anclado por ABAJO. El runtime centra el grupo en una franja de alto fijo,
+     así que el borde inferior de un grupo de una línea y el de uno de dos no
+     coincidían: el subtítulo SALTABA entre grupo y grupo, y a 30 fotogramas
+     eso se lee como un error de montaje. Con el pie común, lo que crece
+     crece hacia arriba, que es donde hay lienzo. */
+  #caption-stage, .caption-group { align-items: flex-end !important; }
+</style>
+
+</body>
+</html>

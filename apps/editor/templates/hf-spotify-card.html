@@ -1,0 +1,562 @@
+<!-- hyperframes-registry-item: spotify-card -->
+<!doctype html>
+<html lang="en">
+  <head>
+<!-- /* PALETA-AJENA: inicio */ -->
+    <meta charset="UTF-8" />
+    <script src="_gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        background: transparent;
+        overflow: hidden;
+      }
+      body {
+        width: 1080px;
+        height: 1920px;
+        font-family: "Inter", sans-serif;
+      }
+
+      [data-composition-id="spotify-card"] .card {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        margin-top: -495px;
+        margin-left: -390px;
+        width: 780px;
+        background: linear-gradient(
+          165deg,
+          rgba(140, 155, 170, 0.42) 0%,
+          rgba(100, 115, 130, 0.35) 30%,
+          rgba(75, 88, 105, 0.38) 60%,
+          rgba(60, 72, 88, 0.44) 100%
+        );
+        border-radius: 28px;
+        padding: 36px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        box-shadow:
+          0 24px 48px rgba(0, 0, 0, 0.3),
+          0 2px 6px rgba(0, 0, 0, 0.12),
+          inset 0 1px 0 rgba(255, 255, 255, 0.32),
+          inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+        backdrop-filter: blur(40px) saturate(180%);
+        -webkit-backdrop-filter: blur(40px) saturate(180%);
+        overflow: hidden;
+      }
+
+      /* Specular highlight — light refraction across top */
+      [data-composition-id="spotify-card"] .card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 55%;
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.18) 0%,
+          rgba(255, 255, 255, 0.07) 35%,
+          transparent 100%
+        );
+        border-radius: 28px 28px 0 0;
+        pointer-events: none;
+      }
+
+      /* Edge shine — bottom rim catch light */
+      [data-composition-id="spotify-card"] .card::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 20px;
+        right: 20px;
+        height: 1px;
+        background: linear-gradient(
+          90deg,
+          transparent 0%,
+          rgba(255, 255, 255, 0.08) 30%,
+          rgba(255, 255, 255, 0.12) 50%,
+          rgba(255, 255, 255, 0.08) 70%,
+          transparent 100%
+        );
+        pointer-events: none;
+      }
+
+      /* Album Art */
+      [data-composition-id="spotify-card"] .album-art {
+        width: 708px;
+        height: 708px;
+        border-radius: 16px;
+        overflow: hidden;
+        position: relative;
+        z-index: 1;
+        background: linear-gradient(145deg, #1db954 0%, #17a34a 30%, #0f7234 60%, #191414 100%);
+        margin-bottom: 36px;
+      }
+
+      [data-composition-id="spotify-card"] .album-art-icon {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        opacity: 0.2;
+      }
+
+      /* Track Info */
+      [data-composition-id="spotify-card"] .track-info {
+        position: relative;
+        z-index: 1;
+        margin-bottom: 28px;
+        padding: 0 8px;
+      }
+
+      [data-composition-id="spotify-card"] .track-name {
+        font-size: 52px;
+        font-weight: 700;
+        color: #ffffff;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+        margin-bottom: 8px;
+      }
+
+      [data-composition-id="spotify-card"] .artist-name {
+        font-size: 34px;
+        font-weight: 400;
+        color: rgba(255, 255, 255, 0.7);
+        line-height: 1.3;
+      }
+
+      /* Spotify Branding */
+      [data-composition-id="spotify-card"] .spotify-brand {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 8px;
+      }
+
+      [data-composition-id="spotify-card"] .spotify-logo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      [data-composition-id="spotify-card"] .spotify-brand-text {
+        font-size: 26px;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.55);
+        letter-spacing: 0.01em;
+      }
+    </style>
+    <link rel="stylesheet" href="_tokens.css">
+  <script src="_engine.js"></script>
+</head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="spotify-card"
+      data-width="1080"
+      data-height="1920"
+      data-start="0"
+      data-duration="5"
+    >
+      <div id="card" class="clip card" data-start="0" data-duration="5" data-track-index="0">
+        <!-- Album Art -->
+        <div id="album-art" class="album-art">
+          <svg class="album-art-icon" width="200" height="200" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M9 18V5l12-2v13"
+              stroke="rgba(255,255,255,0.7)"
+              stroke-width="1"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <circle cx="6" cy="18" r="3" stroke="rgba(255,255,255,0.7)" stroke-width="1" />
+            <circle cx="18" cy="16" r="3" stroke="rgba(255,255,255,0.7)" stroke-width="1" />
+          </svg>
+        </div>
+
+        <!-- Track Info -->
+        <div class="track-info">
+          <div id="track-name" class="track-name">HyperFrames</div>
+          <div id="artist-name" class="artist-name">HeyGen</div>
+        </div>
+
+        <!-- Spotify Branding -->
+        <div id="spotify-brand" class="spotify-brand">
+          <div class="spotify-logo">
+            <svg width="32" height="32" viewBox="0 0 16 16" fill="rgba(255,255,255,0.55)">
+              <path
+                d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0m3.669 11.538a.5.5 0 0 1-.686.165c-1.879-1.147-4.243-1.407-7.028-.77a.499.499 0 0 1-.222-.973c3.048-.696 5.662-.397 7.77.892a.5.5 0 0 1 .166.686m.979-2.178a.624.624 0 0 1-.858.205c-2.15-1.321-5.428-1.704-7.972-.932a.625.625 0 0 1-.362-1.194c2.905-.881 6.517-.454 8.986 1.063a.624.624 0 0 1 .206.858m.084-2.268C10.154 5.56 5.9 5.419 3.438 6.166a.748.748 0 1 1-.434-1.432c2.825-.857 7.523-.692 10.492 1.07a.747.747 0 1 1-.764 1.288"
+              />
+            </svg>
+          </div>
+          <span class="spotify-brand-text">Spotify</span>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+
+      var tl = gsap.timeline({ paused: true });
+
+      var card = document.getElementById("card");
+      var albumArt = document.getElementById("album-art");
+      var trackName = document.getElementById("track-name");
+      var artistName = document.getElementById("artist-name");
+      var spotifyBrand = document.getElementById("spotify-brand");
+
+      // Start state
+      gsap.set(card, { y: 60, opacity: 0, scale: 0.94 });
+      gsap.set(trackName, { y: 20, opacity: 0 });
+      gsap.set(artistName, { y: 16, opacity: 0 });
+      gsap.set(spotifyBrand, { y: 12, opacity: 0 });
+
+      // ── Card entrance ────────────────────────────────────────
+      tl.to(
+        card,
+        {
+          y: 0,
+          opacity: 1,
+          scale: 1,
+          duration: 0.7,
+          ease: "power3.out",
+        },
+        0.1,
+      );
+
+      // ── Text stagger in ─────────────────────────────────────
+      tl.to(
+        trackName,
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.5,
+          ease: "power2.out",
+        },
+        0.55,
+      );
+
+      tl.to(
+        artistName,
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.45,
+          ease: "power2.out",
+        },
+        0.7,
+      );
+
+      tl.to(
+        spotifyBrand,
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.4,
+          ease: "power2.out",
+        },
+        0.85,
+      );
+
+      // ── Subtle album art breathe ────────────────────────────
+      tl.to(
+        albumArt,
+        {
+          scale: 1.015,
+          duration: 1.5,
+          ease: "power1.inOut",
+          yoyo: true,
+          repeat: 1,
+        },
+        1.2,
+      );
+
+      // ── Card exit ────────────────────────────────────────────
+      tl.to(
+        card,
+        {
+          y: -40,
+          opacity: 0,
+          scale: 0.96,
+          duration: 0.5,
+          ease: "power2.in",
+        },
+        4.2,
+      );
+
+      window.__timelines["spotify-card"] = tl;
+    </script>
+  
+
+<!-- /* PALETA-AJENA: fin */ -->
+
+
+
+
+
+
+
+
+<!-- PUENTE:inicio · generado por scripts/importar_bloque.js -->
+<style>
+  /* El lienzo de este repo, y la raíz TRANSPARENTE: si el fondo llega opaco,
+     omitBackground no lo recorta y los PNG salen sin alfa — el compositor
+     los pega como un rectángulo y tapa el metraje. */
+  html, body { width: 1080px; height: 1920px; margin: 0;
+               background: transparent !important; overflow: hidden; }
+  [data-composition-id="spotify-card"] { transform-origin: 50% 50%; }
+  /* El PLAFÓN DE AUTO-PREVISUALIZACIÓN. Varias piezas del catálogo traen un
+     fondo propio para poder mirarse solas —hf-hw-callout-circle lo llama
+     literalmente «self-preview scene» y es un degradado verde— y sobre
+     nuestro metraje eso no es un fondo: es una mancha que tapa el plano.
+     Se quita el relleno y se deja el contenido, que es lo que se quería. */
+  [id$="-scene"] { background: none !important; }
+</style>
+<script>
+(function () {
+  var ID = "spotify-card";
+  var RANURAS = {};
+  var raiz = document.querySelector('[data-composition-id="' + ID + '"]');
+  var tl = (window.__timelines || {})[ID] || null;
+
+  /* Maqueta a 1920x1080 y aquí el lienzo es 1080x1920: se escala al ancho y
+     se centra. Es un APAÑO declarado, no una solución — la buena es rehacer
+     la maqueta en vertical. config.encaje:false lo desactiva y
+     config.escala lo fuerza.
+     La medida sale de data-width/data-height y NO de offsetWidth: la raíz de
+     varios bloques mide 0x0 —es un ancla para hijos posicionados, no una
+     caja— y con la medida del DOM el encaje la mandaba a left:-420, fuera
+     del cuadro. Fotograma transparente, cero errores, y el humo diciendo
+     «no se mueve» porque no había nada que moviera. Por eso se envuelve en
+     una caja del tamaño DECLARADO: así los hijos absolutos tienen un
+     contenedor de verdad y la escala se aplica a algo con dimensiones. */
+  var caja = null;
+  function encaja(cfg) {
+    if (!raiz || cfg.encaje === false) return;
+    var w = +raiz.dataset.width || raiz.offsetWidth || 1920;
+    var h = +raiz.dataset.height || raiz.offsetHeight || 1080;
+    if (!caja) {
+      caja = document.createElement('div');
+      raiz.parentNode.insertBefore(caja, raiz);
+      caja.appendChild(raiz);
+    }
+    caja.style.cssText = 'position:absolute;left:0;top:0;width:' + w
+                       + 'px;height:' + h + 'px;transform-origin:0 0;';
+    raiz.style.position = 'absolute';
+    raiz.style.left = '0'; raiz.style.top = '0';
+    raiz.style.width = w + 'px'; raiz.style.height = h + 'px';
+    var k = cfg.escala || Math.min(1080 / w, 1920 / h);
+    /* DÓNDE, y no solo cuánto. Centrado es lo razonable por defecto, pero un
+       rótulo inferior centrado en un lienzo vertical queda en mitad de la
+       cara; y §18 dice que la banda de abajo la pinta la app. zona mueve la
+       caja ya escalada sin tocar la maqueta de dentro: arriba pega bajo la
+       banda superior (230 px), abajo se apoya sobre la inferior (1459 px). */
+    var alto = h * k;
+    var y = (1920 - alto) / 2;
+    if (cfg.zona === 'arriba') y = 230 + 40;
+    else if (cfg.zona === 'abajo') y = 1459 - 40 - alto;
+    caja.style.transform = 'translate(' + Math.round((1080 - w * k) / 2)
+      + 'px,' + Math.round(y) + 'px) scale(' + k + ')';
+  }
+
+  /* LA CAJA DE TINTA, para colocar.py.
+     Sin anclas() una capa es invisible para el colocador: no sabe cuánto
+     ocupa ni dónde, así que no puede apartarla del rostro ni avisar de que
+     cae bajo el caption de la app. Nuestras plantillas la declaran a mano
+     porque saben qué parte de sí mismas importa; un bloque importado no
+     puede saberlo, así que se MIDE: unión de los rectángulos visibles, ya en
+     coordenadas de lienzo —getBoundingClientRect incluye la transformación
+     del encaje—, descartando los contenedores que cubren casi todo.
+     Se llama después de seek, así que la caja es la del instante que se
+     esté mirando y no la del reposo. */
+  function tinta() {
+    if (!raiz) return null;
+    /* Dos pasadas. La primera descarta los contenedores que cubren casi todo
+       —si no, la caja de cualquier plantilla sería el lienzo entero y el dato
+       no diría nada—. Pero en las de dibujo a mano el contenido ES un <svg> a
+       pantalla completa y sus <path> devuelven cajas de cero: con el filtro
+       puesto, veintisiete plantillas se quedaban sin ancla. Si la primera
+       pasada no deja nada, se repite SIN filtro: una caja grande de más es
+       peor que ninguna, pero ninguna es peor que las dos. */
+    function une(filtra) {
+      var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      var todos = raiz.querySelectorAll('*');
+      for (var i = 0; i < todos.length; i++) {
+        var e = todos[i], s = getComputedStyle(e);
+        if (s.display === 'none' || s.visibility === 'hidden' ||
+            parseFloat(s.opacity) < 0.05) continue;
+        var r = e.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        if (filtra && r.width * r.height > 0.92 * 1080 * 1920) continue;
+        if (r.left < x0) x0 = r.left;
+        if (r.top < y0) y0 = r.top;
+        if (r.right > x1) x1 = r.right;
+        if (r.bottom > y1) y1 = r.bottom;
+      }
+      return x1 < x0 ? null : [x0, y0, x1, y1];
+    }
+    var c = une(true) || une(false);
+    if (!c) return null;
+    var x0 = c[0], y0 = c[1], x1 = c[2], y1 = c[3];
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0);
+    x1 = Math.min(1080, x1); y1 = Math.min(1920, y1);
+    return { bloque: { x: Math.round((x0 + x1) / 2), y: Math.round((y0 + y1) / 2),
+                       w: Math.round(x1 - x0), h: Math.round(y1 - y0) } };
+  }
+
+  /* LA SALIDA, que sus bloques no tienen: entran y se quedan puestos hasta
+     que la composición acaba. Aquí una capa vive dentro de su ventana y
+     tiene que irse, y no es cosmética — es lo que humo_plantillas.js
+     comprueba cuando muestrea tres instantes y exige que no sean el mismo
+     fotograma. Medido: x-post y macos-notification animan su entrada y dan
+     tres capturas idénticas después.
+     Es una salida GENÉRICA —se va bajando y encogiendo un pelo— y por eso
+     se puede apagar con config.salida:false cuando el bloque tenga la suya
+     propia. Determinista: solo depende de t. */
+  var SALIDA = 0.42;
+  /* La duración del GESTO, medida al importar. La sustituye el importador;
+     el valor de aquí es el de respaldo para quien abra el fichero suelto.
+     Va en una variable y no en dos sitios a propósito: la salida tiene que
+     caer dentro de la MISMA ventana que registra la plantilla, y cuando eran
+     dos números —la declarada por la timeline y la registrada— la salida se
+     programaba fuera del tramo que nadie llega a ver. */
+  /* El copy que el plan pide, repartido por orden sobre las ranuras que
+     declara TEXTOS. Lo que sobra se ignora; lo que falta se queda con lo que
+     el bloque traía.
+     Se aplica en CADA fotograma y no solo al montar, y no es por comodidad:
+     varios bloques animan su propio texto —un contador que sube, un
+     tecleado— así que su timeline reescribe el nodo en cada seek y el copy
+     del plan duraba un fotograma. Medido: la tarjeta pedía «−12» y salía el
+     «22» de la demo. */
+  function copia(cfg) {
+    for (var k in RANURAS) {
+      if (!cfg || !cfg[k] || !cfg[k].length) continue;
+      var nodos = document.querySelectorAll(RANURAS[k]);
+      for (var i = 0; i < nodos.length && i < cfg[k].length; i++) {
+        if (nodos[i].textContent !== cfg[k][i]) nodos[i].textContent = cfg[k][i];
+      }
+    }
+  }
+
+  var DUR = 4.70;   /* MEDIDO al importar */
+  var vida = DUR;
+
+  Engine.register({
+    duration: DUR,
+    /* Las ranuras se escriben LITERALES en los defaults, no con un
+       Object.assign: lint_config.py lee ese bloque con una expresión regular
+       —no ejecuta la plantilla— así que una clave calculada no existe para
+       él y el plan que la usa aborta por «clave que la plantilla no lee».
+       Las ranuras entran aquí porque lint_config.py --estricto
+       comprueba que toda clave del plan la lea de verdad su plantilla: sin
+       declararlas, pedir el copy por config es una clave muerta y el paso
+       aborta. */
+    defaults: { encaje: true, escala: null, zona: 'centro', salida: true,
+                tema: 'carbon', cue: null, cueGain: null },
+    setup: function (cfg) {
+      encaja(cfg);
+      vida = cfg.duration || DUR;
+      copia(cfg);
+      /* EL SONIDO: NINGUNO por defecto, y esto es una vuelta atrás.
+         Se publicaba un «aparicion» genérico en cada bloque importado para
+         que no entraran mudos. Sobre la pieza montada suena a lo que es: el
+         mismo golpe blando en 126 sitios, puesto por una regla que no sabe
+         qué está entrando. Un sonido que no significa nada es peor que el
+         silencio, porque el oído lo cuenta igual.
+         Quien sabe qué suena una capa es el guion —sfx en la capa— o la
+         tabla del director para las plantillas que conoce. Con cue en la
+         config se puede pedir uno a mano. */
+      return { cues: (!cfg.sinSonido && cfg.cue)
+                     ? [{ at: 0.04, sfx: cfg.cue, gain: cfg.cueGain || 0.5 }]
+                     : [] };
+    },
+    anclas: function () { return tinta(); },
+    /* El puente entero. Los dos motores hacen lo mismo —posicionar una
+       animación en el segundo t, sin tocar el reloj del navegador—, así que
+       no hay nada que traducir. */
+    /* La salida va en la raíz y el encaje en la caja que la envuelve: dos
+       transformaciones en dos nodos, para que no se pisen. */
+    draw: function (t, cfg) {
+      if (tl) tl.time(Math.max(0, Math.min(t, tl.duration())));
+      copia(cfg);
+      if (!raiz) return;
+      if (cfg && cfg.salida !== false && vida > SALIDA) {
+        var d = (t - (vida - SALIDA)) / SALIDA;
+        if (d > 0) {
+          var e = 1 - Math.min(1, d);
+          e = e * e * (3 - 2 * e);              /* suavizado, sin rebote */
+          raiz.style.opacity = e;
+          raiz.style.transform = 'translateY(' + ((1 - e) * -26).toFixed(2)
+                               + 'px) scale(' + (0.985 + 0.015 * e).toFixed(4) + ')';
+          return;
+        }
+      }
+      raiz.style.opacity = '';
+      raiz.style.transform = '';
+    }
+  });
+})();
+</script>
+<!-- PUENTE:fin -->
+
+
+
+
+
+
+<style>
+  /* VERTICAL DE VERDAD.
+     Este bloque ya declaraba 1080x1920, así que el puente nunca lo escaló: el
+     74 % venía de que la tarjeta está fijada a 780 px, una medida heredada del
+     lienzo ancho. Es la única de las cinco sociales que ya nacía casi bien, y
+     aun así el «Spotify» del pie y el nombre del artista se quedaban cortos.
+
+     950 px —el 88 %— y todo lo de dentro por ese mismo 950/780. La portada es
+     CUADRADA y manda: al crecer la tarjeta crece ella, y con ella el alto
+     total, que es lo que hay que vigilar aquí y no el ancho. */
+  [data-composition-id="spotify-card"] .card {
+    width: 950px;
+    margin-left: -475px;
+    padding: 40px;
+    border-radius: var(--s-6);
+    /* Alto medido: ~1200 px. La zona segura de Reels va de y≈225 a y≈1430
+       (11,7 % arriba, 25,5 % abajo), o sea 1205 px de sitio. Se ancla arriba
+       en vez de centrarse para que el pie con la marca no se meta bajo el
+       caption de la app. El transform lo lleva GSAP; aquí solo el margen. */
+    margin-top: -734px;
+  }
+  [data-composition-id="spotify-card"] .card::before { border-radius: var(--s-6) var(--s-6) 0 0; }
+
+  /* La portada: cuadrada, a sangre dentro de la tarjeta */
+  [data-composition-id="spotify-card"] .album-art {
+    width: 870px;
+    height: 870px;
+    border-radius: 20px;
+    margin-bottom: 40px;
+  }
+  [data-composition-id="spotify-card"] .album-art-icon svg,
+  [data-composition-id="spotify-card"] svg.album-art-icon { width: 244px; height: 244px; }
+
+  /* El título y el artista, que es lo que se lee */
+  [data-composition-id="spotify-card"] .track-info { margin-bottom: 30px; padding: 0 var(--s-2); }
+  [data-composition-id="spotify-card"] .track-name {
+    font-size: var(--t-2xl);
+    margin-bottom: var(--s-2);
+  }
+  [data-composition-id="spotify-card"] .artist-name { font-size: var(--t-xl); }
+
+  /* El pie de marca */
+  [data-composition-id="spotify-card"] .spotify-brand { gap: var(--s-3); padding: 0 var(--s-2); }
+  [data-composition-id="spotify-card"] .spotify-logo svg { width: 39px; height: 39px; }
+  [data-composition-id="spotify-card"] .spotify-brand-text { font-size: var(--t-lg); }
+</style>
+
+</body>
+</html>

@@ -1,0 +1,528 @@
+<!-- hyperframes-registry-item: hw-text-cloud -->
+<!doctype html>
+<html lang="en">
+  <head>
+<!-- /* PALETA-AJENA: inicio */ -->
+    <meta charset="utf-8" />
+    <script src="_gsap.min.js"></script>
+    <style>
+      /* Fuera el @font-face: apuntaba a `assets/fonts/Caveat-700-latin.woff2`,
+         que no existe en este repo, y cada render soltaba un
+         ERR_FILE_NOT_FOUND mientras el texto caía a `cursive`. Caveat está
+         instalada en la máquina y se resuelve por familia local. */
+      *,
+      *::before,
+      *::after {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: transparent;
+        overflow: hidden;
+      }
+      #hw-tc-root {
+        /* ---- hw tokens ---- */
+        --hw-font-print: "Caveat", cursive;
+        --hw-font-script: "Caveat", cursive;
+        --hw-ink: var(--ink);
+        --hw-ink-dark: #26241f;
+
+        position: relative;
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        background: transparent; /* overlays footage */
+        font-family: var(--hw-font-print, "Caveat", cursive);
+      }
+      #hw-tc-wrap {
+        position: absolute;
+        pointer-events: none;
+      }
+      #hw-tc-wrap svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+      #hw-tc-fill {
+        fill: var(--hw-ink);
+        opacity: 0;
+      }
+      #hw-tc-stroke {
+        fill: none;
+        stroke: var(--hw-ink-dark);
+        stroke-width: 4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      #hw-tc-text {
+        position: absolute;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-weight: 700;
+        color: var(--hw-ink-dark);
+        line-height: 1.05;
+      }
+      #hw-tc-text .ch {
+        opacity: 0;
+      }
+    </style>
+    <link rel="stylesheet" href="_tokens.css">
+  <script src="_engine.js"></script>
+</head>
+  <body>
+    <div
+      id="hw-tc-root"
+      data-composition-id="hw-text-cloud"
+      data-start="0"
+      data-duration="6"
+      data-width="1080"
+      data-height="1920"
+    >
+      <div id="hw-tc-wrap">
+        <svg id="hw-tc-svg">
+          <path id="hw-tc-fill"></path>
+          <path id="hw-tc-stroke"></path>
+        </svg>
+        <div id="hw-tc-text"></div>
+      </div>
+      <div
+        id="hw-tc-drv"
+        class="clip"
+        data-start="0"
+        data-duration="6"
+        data-track-index="0"
+        style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none"
+      ></div>
+    </div>
+    <script>
+      (function () {
+        window.__timelines = window.__timelines || {};
+
+        /* ---- published parameters ----
+           Speech bubble with a movable tip (pointable at any subject): wobbled
+           cloud, draw-on outline, paper fill, per-char handwritten text. */
+        /* Medidas de LIENZO VERTICAL (1080x1920). La maqueta original era una
+           viñeta de 560x300 en una esquina de un 1920x1080: traída aquí a
+           escala ocupaba el 29 % del ancho y se leía como una pegatina.
+           El globo pasa a 960 px —el 89 %— y se sienta en el tercio alto,
+           con el rabo apuntando hacia abajo, que es donde está la cara. */
+        var CONFIG = {
+          text: "what are you looking at?",
+          x: 45, // wrapper left
+          y: 420, // wrapper top
+          w: 990,
+          h: 560,
+          fontSize: 132,
+          tip: { side: "bottom-left", len: 150 }, // "bottom-left"|"bottom-right"
+          seed: 6,
+          boil: { enabled: true, amp: 1.6, rot: 0.4, frameDrop: 3 },
+          typeCharDelay: 0.03,
+          animationIn: true,
+          animationOut: true,
+        };
+
+        var DUR = 6;
+        function clamp(v, lo, hi) {
+          return Math.min(hi, Math.max(lo, v));
+        }
+        var OUT = clamp(DUR * 0.06, 0.25, 0.6);
+
+        /* hw family runtime */
+        window.hwOnUpdate = function (tl, fn) {
+          if (!tl.__hwRenders) {
+            tl.__hwRenders = [];
+            tl.eventCallback("onUpdate", function () {
+              for (var i = 0; i < tl.__hwRenders.length; i++) tl.__hwRenders[i]();
+            });
+          }
+          tl.__hwRenders.push(fn);
+          fn();
+        };
+        window.hwHash = function (n, seed) {
+          var x = Math.sin(n * 127.1 + (seed || 1) * 311.7) * 43758.5453;
+          return (x - Math.floor(x)) * 2 - 1;
+        };
+        window.hwBoil = function (tl, target, opts) {
+          opts = opts || {};
+          var amp = opts.amp !== undefined ? opts.amp : 1.6;
+          var rot = opts.rot !== undefined ? opts.rot : 0.5;
+          var fps = opts.fps || 30;
+          var drop = opts.frameDrop || 3;
+          var seed = opts.seed || 1;
+          var els = gsap.utils.toArray(target);
+          window.hwOnUpdate(tl, function () {
+            var step = Math.floor((tl.time() * fps) / drop);
+            for (var i = 0; i < els.length; i++) {
+              gsap.set(els[i], {
+                x: window.hwHash(step * 3 + i * 97, seed) * amp,
+                y: window.hwHash(step * 3 + 1 + i * 97, seed) * amp,
+                rotation: (opts.baseRot || 0) + window.hwHash(step * 3 + 2 + i * 97, seed) * rot,
+              });
+            }
+          });
+        };
+
+        /* wobbled cloud with a tail tip */
+        function cloudPath(W, H, tip, seed) {
+          var cx = W / 2,
+            cy = H / 2 - 14,
+            rx = W / 2 - 12,
+            ry = H / 2 - 34;
+          var N = 16,
+            pts = [];
+          for (var i = 0; i < N; i++) {
+            var a = (i / N) * Math.PI * 2;
+            var wr = 1 + window.hwHash(i * 11 + 3, seed) * 0.06;
+            pts.push([cx + Math.cos(a) * rx * wr, cy + Math.sin(a) * ry * wr]);
+          }
+          var mx = (pts[0][0] + pts[N - 1][0]) / 2,
+            my = (pts[0][1] + pts[N - 1][1]) / 2;
+          var d = "M" + mx.toFixed(1) + " " + my.toFixed(1);
+          for (var j = 0; j < N; j++) {
+            var p = pts[j],
+              q = pts[(j + 1) % N];
+            d +=
+              " Q" +
+              p[0].toFixed(1) +
+              " " +
+              p[1].toFixed(1) +
+              " " +
+              ((p[0] + q[0]) / 2).toFixed(1) +
+              " " +
+              ((p[1] + q[1]) / 2).toFixed(1);
+          }
+          d += "Z";
+          /* tail */
+          var left = tip.side !== "bottom-right";
+          var bx = cx + (left ? -rx * 0.45 : rx * 0.45),
+            by = cy + ry * 0.92;
+          var tx = bx + (left ? -tip.len * 0.5 : tip.len * 0.5),
+            ty = by + tip.len;
+          d +=
+            " M " +
+            (bx - 26).toFixed(1) +
+            " " +
+            (by - 6).toFixed(1) +
+            " Q " +
+            (bx - 8 + window.hwHash(31, seed) * 6).toFixed(1) +
+            " " +
+            ((by + ty) / 2).toFixed(1) +
+            " " +
+            tx.toFixed(1) +
+            " " +
+            ty.toFixed(1) +
+            " Q " +
+            (bx + 18).toFixed(1) +
+            " " +
+            ((by + ty) / 2).toFixed(1) +
+            " " +
+            (bx + 30).toFixed(1) +
+            " " +
+            (by - 2).toFixed(1);
+          return d;
+        }
+
+        var wrap = document.getElementById("hw-tc-wrap");
+        wrap.style.left = CONFIG.x + "px";
+        wrap.style.top = CONFIG.y + "px";
+        wrap.style.width = CONFIG.w + "px";
+        wrap.style.height = CONFIG.h + "px";
+        var svg = document.getElementById("hw-tc-svg");
+        svg.setAttribute("viewBox", "0 0 " + CONFIG.w + " " + CONFIG.h);
+        var d = cloudPath(CONFIG.w, CONFIG.h, CONFIG.tip, CONFIG.seed);
+        document.getElementById("hw-tc-fill").setAttribute("d", d);
+        document.getElementById("hw-tc-stroke").setAttribute("d", d);
+
+        var text = document.getElementById("hw-tc-text");
+        text.style.left = CONFIG.w * 0.1 + "px";
+        /* La caja de texto se centra sobre el CENTRO DEL ÓVALO (cy = h/2-14),
+           no sobre la caja del envoltorio: el rabo cuelga por debajo y con el
+           reparto antiguo el texto quedaba alto dentro del globo. */
+        text.style.top = CONFIG.h * 0.5 - 14 - CONFIG.h * 0.31 + "px";
+        text.style.width = CONFIG.w * 0.8 + "px";
+        text.style.height = CONFIG.h * 0.62 + "px";
+        text.style.fontSize = CONFIG.fontSize + "px";
+        var inner = document.createElement("div");
+        Array.from(CONFIG.text).forEach(function (ch) {
+          var s = document.createElement("span");
+          s.className = "ch";
+          s.textContent = ch;
+          inner.appendChild(s);
+        });
+        text.appendChild(inner);
+
+        var tl = gsap.timeline({ paused: true });
+
+        /* draw outline, fade fill, type text */
+        var stroke = document.getElementById("hw-tc-stroke");
+        var len = stroke.getTotalLength();
+        gsap.set(stroke, { strokeDasharray: len, strokeDashoffset: len });
+        var t0 = CONFIG.animationIn ? 0.3 : 0;
+        if (CONFIG.animationIn) {
+          tl.to(stroke, { strokeDashoffset: 0, duration: 0.8, ease: "power2.inOut" }, t0);
+          tl.to("#hw-tc-fill", { opacity: 0.94, duration: 0.4, ease: "power2.out" }, t0 + 0.55);
+        } else {
+          gsap.set(stroke, { strokeDashoffset: 0 });
+          gsap.set("#hw-tc-fill", { opacity: 0.94 });
+        }
+        var chars = text.querySelectorAll(".ch");
+        var delay = Math.min(CONFIG.typeCharDelay, 1.8 / Math.max(1, chars.length));
+        tl.to(chars, { opacity: 1, duration: 0.02, stagger: delay, ease: "none" }, t0 + 0.9);
+
+        if (CONFIG.boil.enabled) {
+          window.hwBoil(tl, "#hw-tc-wrap", {
+            amp: CONFIG.boil.amp,
+            rot: CONFIG.boil.rot,
+            frameDrop: CONFIG.boil.frameDrop,
+            seed: CONFIG.seed,
+          });
+        }
+
+        if (CONFIG.animationOut) {
+          tl.to(wrap, { opacity: 0, duration: OUT, ease: "power2.in" }, DUR - OUT - 0.05);
+        }
+        tl.set("#hw-tc-root", { visibility: "hidden" }, DUR - 0.02);
+
+        window.__timelines["hw-text-cloud"] = tl;
+      })();
+    </script>
+  
+
+<!-- /* PALETA-AJENA: fin */ -->
+
+
+
+
+
+
+
+
+<!-- PUENTE:inicio · generado por scripts/importar_bloque.js -->
+<style>
+  /* El lienzo de este repo, y la raíz TRANSPARENTE: si el fondo llega opaco,
+     omitBackground no lo recorta y los PNG salen sin alfa — el compositor
+     los pega como un rectángulo y tapa el metraje. */
+  html, body { width: 1080px; height: 1920px; margin: 0;
+               background: transparent !important; overflow: hidden; }
+  [data-composition-id="hw-text-cloud"] { transform-origin: 50% 50%; }
+  /* El PLAFÓN DE AUTO-PREVISUALIZACIÓN. Varias piezas del catálogo traen un
+     fondo propio para poder mirarse solas —hf-hw-callout-circle lo llama
+     literalmente «self-preview scene» y es un degradado verde— y sobre
+     nuestro metraje eso no es un fondo: es una mancha que tapa el plano.
+     Se quita el relleno y se deja el contenido, que es lo que se quería. */
+  [id$="-scene"] { background: none !important; }
+</style>
+<script>
+(function () {
+  var ID = "hw-text-cloud";
+  var RANURAS = {};
+  var raiz = document.querySelector('[data-composition-id="' + ID + '"]');
+  var tl = (window.__timelines || {})[ID] || null;
+
+  /* Maqueta a 1920x1080 y aquí el lienzo es 1080x1920: se escala al ancho y
+     se centra. Es un APAÑO declarado, no una solución — la buena es rehacer
+     la maqueta en vertical. config.encaje:false lo desactiva y
+     config.escala lo fuerza.
+     La medida sale de data-width/data-height y NO de offsetWidth: la raíz de
+     varios bloques mide 0x0 —es un ancla para hijos posicionados, no una
+     caja— y con la medida del DOM el encaje la mandaba a left:-420, fuera
+     del cuadro. Fotograma transparente, cero errores, y el humo diciendo
+     «no se mueve» porque no había nada que moviera. Por eso se envuelve en
+     una caja del tamaño DECLARADO: así los hijos absolutos tienen un
+     contenedor de verdad y la escala se aplica a algo con dimensiones. */
+  var caja = null;
+  function encaja(cfg) {
+    if (!raiz || cfg.encaje === false) return;
+    var w = +raiz.dataset.width || raiz.offsetWidth || 1920;
+    var h = +raiz.dataset.height || raiz.offsetHeight || 1080;
+    if (!caja) {
+      caja = document.createElement('div');
+      raiz.parentNode.insertBefore(caja, raiz);
+      caja.appendChild(raiz);
+    }
+    caja.style.cssText = 'position:absolute;left:0;top:0;width:' + w
+                       + 'px;height:' + h + 'px;transform-origin:0 0;';
+    raiz.style.position = 'absolute';
+    raiz.style.left = '0'; raiz.style.top = '0';
+    raiz.style.width = w + 'px'; raiz.style.height = h + 'px';
+    var k = cfg.escala || Math.min(1080 / w, 1920 / h);
+    /* DÓNDE, y no solo cuánto. Centrado es lo razonable por defecto, pero un
+       rótulo inferior centrado en un lienzo vertical queda en mitad de la
+       cara; y §18 dice que la banda de abajo la pinta la app. zona mueve la
+       caja ya escalada sin tocar la maqueta de dentro: arriba pega bajo la
+       banda superior (230 px), abajo se apoya sobre la inferior (1459 px). */
+    var alto = h * k;
+    var y = (1920 - alto) / 2;
+    if (cfg.zona === 'arriba') y = 230 + 40;
+    else if (cfg.zona === 'abajo') y = 1459 - 40 - alto;
+    caja.style.transform = 'translate(' + Math.round((1080 - w * k) / 2)
+      + 'px,' + Math.round(y) + 'px) scale(' + k + ')';
+  }
+
+  /* LA CAJA DE TINTA, para colocar.py.
+     Sin anclas() una capa es invisible para el colocador: no sabe cuánto
+     ocupa ni dónde, así que no puede apartarla del rostro ni avisar de que
+     cae bajo el caption de la app. Nuestras plantillas la declaran a mano
+     porque saben qué parte de sí mismas importa; un bloque importado no
+     puede saberlo, así que se MIDE: unión de los rectángulos visibles, ya en
+     coordenadas de lienzo —getBoundingClientRect incluye la transformación
+     del encaje—, descartando los contenedores que cubren casi todo.
+     Se llama después de seek, así que la caja es la del instante que se
+     esté mirando y no la del reposo. */
+  function tinta() {
+    if (!raiz) return null;
+    /* Dos pasadas. La primera descarta los contenedores que cubren casi todo
+       —si no, la caja de cualquier plantilla sería el lienzo entero y el dato
+       no diría nada—. Pero en las de dibujo a mano el contenido ES un <svg> a
+       pantalla completa y sus <path> devuelven cajas de cero: con el filtro
+       puesto, veintisiete plantillas se quedaban sin ancla. Si la primera
+       pasada no deja nada, se repite SIN filtro: una caja grande de más es
+       peor que ninguna, pero ninguna es peor que las dos. */
+    function une(filtra) {
+      var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      var todos = raiz.querySelectorAll('*');
+      for (var i = 0; i < todos.length; i++) {
+        var e = todos[i], s = getComputedStyle(e);
+        if (s.display === 'none' || s.visibility === 'hidden' ||
+            parseFloat(s.opacity) < 0.05) continue;
+        var r = e.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        if (filtra && r.width * r.height > 0.92 * 1080 * 1920) continue;
+        if (r.left < x0) x0 = r.left;
+        if (r.top < y0) y0 = r.top;
+        if (r.right > x1) x1 = r.right;
+        if (r.bottom > y1) y1 = r.bottom;
+      }
+      return x1 < x0 ? null : [x0, y0, x1, y1];
+    }
+    var c = une(true) || une(false);
+    if (!c) return null;
+    var x0 = c[0], y0 = c[1], x1 = c[2], y1 = c[3];
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0);
+    x1 = Math.min(1080, x1); y1 = Math.min(1920, y1);
+    return { bloque: { x: Math.round((x0 + x1) / 2), y: Math.round((y0 + y1) / 2),
+                       w: Math.round(x1 - x0), h: Math.round(y1 - y0) } };
+  }
+
+  /* LA SALIDA, que sus bloques no tienen: entran y se quedan puestos hasta
+     que la composición acaba. Aquí una capa vive dentro de su ventana y
+     tiene que irse, y no es cosmética — es lo que humo_plantillas.js
+     comprueba cuando muestrea tres instantes y exige que no sean el mismo
+     fotograma. Medido: x-post y macos-notification animan su entrada y dan
+     tres capturas idénticas después.
+     Es una salida GENÉRICA —se va bajando y encogiendo un pelo— y por eso
+     se puede apagar con config.salida:false cuando el bloque tenga la suya
+     propia. Determinista: solo depende de t. */
+  var SALIDA = 0.42;
+  /* La duración del GESTO, medida al importar. La sustituye el importador;
+     el valor de aquí es el de respaldo para quien abra el fichero suelto.
+     Va en una variable y no en dos sitios a propósito: la salida tiene que
+     caer dentro de la MISMA ventana que registra la plantilla, y cuando eran
+     dos números —la declarada por la timeline y la registrada— la salida se
+     programaba fuera del tramo que nadie llega a ver. */
+  /* El copy que el plan pide, repartido por orden sobre las ranuras que
+     declara TEXTOS. Lo que sobra se ignora; lo que falta se queda con lo que
+     el bloque traía.
+     Se aplica en CADA fotograma y no solo al montar, y no es por comodidad:
+     varios bloques animan su propio texto —un contador que sube, un
+     tecleado— así que su timeline reescribe el nodo en cada seek y el copy
+     del plan duraba un fotograma. Medido: la tarjeta pedía «−12» y salía el
+     «22» de la demo. */
+  function copia(cfg) {
+    for (var k in RANURAS) {
+      if (!cfg || !cfg[k] || !cfg[k].length) continue;
+      var nodos = document.querySelectorAll(RANURAS[k]);
+      for (var i = 0; i < nodos.length && i < cfg[k].length; i++) {
+        if (nodos[i].textContent !== cfg[k][i]) nodos[i].textContent = cfg[k][i];
+      }
+    }
+  }
+
+  var DUR = 6;   /* MEDIDO al importar */
+  var vida = DUR;
+
+  Engine.register({
+    duration: DUR,
+    /* Las ranuras se escriben LITERALES en los defaults, no con un
+       Object.assign: lint_config.py lee ese bloque con una expresión regular
+       —no ejecuta la plantilla— así que una clave calculada no existe para
+       él y el plan que la usa aborta por «clave que la plantilla no lee».
+       Las ranuras entran aquí porque lint_config.py --estricto
+       comprueba que toda clave del plan la lea de verdad su plantilla: sin
+       declararlas, pedir el copy por config es una clave muerta y el paso
+       aborta. */
+    defaults: { encaje: true, escala: null, zona: 'centro', salida: true,
+                tema: 'carbon', cue: null, cueGain: null },
+    setup: function (cfg) {
+      encaja(cfg);
+      vida = cfg.duration || DUR;
+      copia(cfg);
+      /* EL SONIDO: NINGUNO por defecto, y esto es una vuelta atrás.
+         Se publicaba un «aparicion» genérico en cada bloque importado para
+         que no entraran mudos. Sobre la pieza montada suena a lo que es: el
+         mismo golpe blando en 126 sitios, puesto por una regla que no sabe
+         qué está entrando. Un sonido que no significa nada es peor que el
+         silencio, porque el oído lo cuenta igual.
+         Quien sabe qué suena una capa es el guion —sfx en la capa— o la
+         tabla del director para las plantillas que conoce. Con cue en la
+         config se puede pedir uno a mano. */
+      return { cues: (!cfg.sinSonido && cfg.cue)
+                     ? [{ at: 0.04, sfx: cfg.cue, gain: cfg.cueGain || 0.5 }]
+                     : [] };
+    },
+    anclas: function () { return tinta(); },
+    /* El puente entero. Los dos motores hacen lo mismo —posicionar una
+       animación en el segundo t, sin tocar el reloj del navegador—, así que
+       no hay nada que traducir. */
+    /* La salida va en la raíz y el encaje en la caja que la envuelve: dos
+       transformaciones en dos nodos, para que no se pisen. */
+    draw: function (t, cfg) {
+      if (tl) tl.time(Math.max(0, Math.min(t, tl.duration())));
+      copia(cfg);
+      if (!raiz) return;
+      if (cfg && cfg.salida !== false && vida > SALIDA) {
+        var d = (t - (vida - SALIDA)) / SALIDA;
+        if (d > 0) {
+          var e = 1 - Math.min(1, d);
+          e = e * e * (3 - 2 * e);              /* suavizado, sin rebote */
+          raiz.style.opacity = e;
+          raiz.style.transform = 'translateY(' + ((1 - e) * -26).toFixed(2)
+                               + 'px) scale(' + (0.985 + 0.015 * e).toFixed(4) + ')';
+          return;
+        }
+      }
+      raiz.style.opacity = '';
+      raiz.style.transform = '';
+    }
+  });
+})();
+</script>
+<!-- PUENTE:fin -->
+
+
+
+
+
+
+<style>
+  /* VERTICAL. La raíz ya declara 1080x1920 y el globo se maqueta en esas
+     coordenadas desde CONFIG, así que aquí solo queda el GROSOR: un contorno
+     de 4 px alrededor de un globo de 960 px se lee como un pelo, y el que
+     dibujaba a 560 px ocupaba proporcionalmente casi el doble. */
+  #hw-tc-stroke {
+    stroke-width: 7;
+  }
+  /* El texto manuscrito respira dentro del globo: sin esto, dos renglones a
+     132 px se pegan y el cuerpo del globo parece lleno. */
+  #hw-tc-text {
+    line-height: 1.15;
+  }
+</style>
+
+</body>
+</html>

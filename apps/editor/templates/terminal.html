@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Terminal · registro de ejecución sobre eje de tiempo</title>
+<!-- El gesto de la plantilla, para el inventario de `auditar_estilo.js`: la
+     banda de un registrador. El papel corre por debajo y la cabeza escribe;
+     no es «aparecer», que es lo que hacían las tarjetas. -->
+<meta name="gesto" content="correr:banda">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* =====================================================================
+     QUÉ ES ESTE OBJETO
+     ---------------------------------------------------------------------
+     Antes era una VENTANA DE ESCRITORIO: rectángulo translúcido, borde de
+     1 px y los tres puntos de semáforo de macOS arriba a la izquierda. Dos
+     problemas, y ninguno es de gusto:
+
+       · los tres puntos son la barra de título de OTRO sistema operativo.
+         Cierran, minimizan y maximizan una ventana que aquí no existe: no
+         hay ratón, no hay escritorio y el gráfico dura nueve segundos. Son
+         tres círculos de color sin función, o sea decoración prestada.
+       · un `code-mockup` y un `terminal` salían siendo el mismo objeto —una
+         placa con cabecera y texto mono— y §11 los propone para la MISMA
+         intención (`herramienta_tecnica`). Dos plantillas indistinguibles
+         para el mismo hueco no son dos plantillas.
+
+     Lo que un terminal tiene y un fichero de código no es el RELOJ. Un
+     `.py` no sabe cuánto tardó nada; una sesión sí, y es lo único que de
+     verdad se mira: cuánto ha estado la máquina trabajando. Así que esto
+     deja de ser una ventana y pasa a ser un REGISTRADOR DE BANDA — un eje
+     de tiempo vertical, cada línea colgada del segundo en que ocurrió, la
+     barra de bronce marcando los tramos en que la máquina estuvo ocupada y
+     una cabeza de lectura que baja sin parar.
+
+     Consecuencia medible y no cosmética: los 2,20 s que la transcripción
+     tarda en contestar son 122 px de raíl vacío. En la versión anterior
+     eran cero px —las líneas se apilaban pegadas— y la espera, que es el
+     dato, no se veía.
+     ===================================================================== */
+
+  .stage { position: absolute; inset: 0; }
+
+  /* Los `<defs>` del bronce viven en un SVG de tamaño cero y los referencian
+     TODOS los galones con `stroke="url(#…)"`. Un `<linearGradient>` no puede
+     ser una variable CSS, así que sin esto el prompt solo podía ser un plano
+     naranja — que es justo lo que §2 prohíbe. No lleva `display:none`: eso
+     puede impedir que el degradado resuelva; el idioma seguro es 0x0 con
+     `overflow:hidden`. */
+  .defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+  /* --- LA PLACA ---------------------------------------------------------
+     `.filete-metal` en vez de `border: 1px solid`: es la forma 3 del metal
+     de `_tokens.css`, un degradado real de un píxel que respeta el radio.
+     Y superficie OPACA en vez de `.vidrio-apple`: el cristal translúcido es
+     la firma de una demo de glassmorphism, no la de un instrumento, y
+     además `Engine.grano` no puede trabajar sobre alfa parcial —multiplicar
+     contra alfa 0,65 deja pasar el gris de la teja—. */
+  .placa {
+    border-radius: var(--r-lg);
+    will-change: transform, opacity;
+  }
+  .ventana {
+    position: relative;
+    overflow: hidden;              /* la teja de grano se sale por las
+                                      esquinas: `border-radius` NO recorta
+                                      hijos, solo `overflow` o `clip-path` */
+    border-radius: inherit;
+    /* §10: sombra multicapa CON brillo interior. Es lo que hace que algo
+       parezca un objeto y no un rectángulo pintado. */
+    box-shadow: 0 12px 30px var(--sombra), 0 30px 64px var(--sombra),
+                inset 0 1px 0 var(--stroke),
+                inset 0 -2px 8px -5px var(--sombra);
+  }
+  /* La textura vive en su propia capa y DEBAJO del contenido. Puesta sobre
+     `.ventana` el grano multiplicaría también el texto y lo ensuciaría. */
+  .fondo { position: absolute; inset: 0; background: var(--surface); }
+
+  /* --- CABECERA: una inscripción grabada, no una barra de título -------- */
+  .cabecera {
+    position: relative; z-index: 1;
+    display: flex; align-items: center; gap: var(--s-4);
+    padding: var(--s-3) var(--s-4);
+    /* `background-color` y NO el atajo `background`: el atajo reinicia
+       `background-image`, o sea que borraría el rayado de `.trama` sin decir
+       nada. Es el mismo fallo silencioso que documenta `Engine.grano`. */
+    background-color: var(--surface-2);
+    font-family: var(--mono);
+    font-size: var(--t-2xs);
+  }
+  /* El canto inferior es un FILETE DE BRONCE de un píxel, no una raya gris.
+     Cuesta lo mismo y es de esta marca. */
+  .canto {
+    position: absolute; left: 0; right: 0; bottom: 0; height: var(--hairline);
+    background-image: linear-gradient(90deg,
+      var(--metal-1) 0%, var(--metal-3) 30%,
+      var(--metal-4) 58%, var(--metal-5) 100%);
+  }
+
+  /* Lo que ocupa el sitio de los tres puntos: el CRONÓMETRO de la sesión.
+     Es el único indicador que un terminal tiene y una ventana no, y encima
+     es el que da la vida —cambia en todos los fotogramas, así que la capa
+     no puede quedarse congelada—. Va en una ranura hundida: es una lectura
+     de instrumento, no una etiqueta. */
+  .crono {
+    display: inline-flex; align-items: baseline; gap: var(--s-1);
+    padding: var(--s-1) var(--s-2);
+    border-radius: var(--r-sm);
+    background-color: var(--chrome-3);
+    box-shadow: inset 0 1px 2px var(--sombra), 0 1px 0 var(--stroke);
+    color: var(--ink);
+    letter-spacing: var(--tr-cuerpo);
+    font-weight: var(--w-medio);
+  }
+  /* La unidad en `--ink-soft` y no en `--ink-ghost`: sobre la ranura clara
+     de `paper` el fantasma queda a 1,1:1 de su fondo, o sea que desaparece
+     del todo. Un color que funciona en oscuro puede no existir en claro, y
+     esto solo se ve mirando el fotograma del OTRO tema. */
+  .crono u { text-decoration: none; color: var(--ink-soft);
+             font-weight: var(--w-fino); }
+
+  /* Jerarquía DENTRO de la línea, por PESO: el intérprete afirma, la ruta
+     acompaña. Nunca por tamaño ni encendiendo un color (§1). */
+  .rotulo {
+    text-transform: uppercase;
+    letter-spacing: var(--tr-caps);
+    color: var(--ink);
+    font-weight: var(--w-fuerte);
+  }
+  .ruta {
+    margin-left: auto;
+    color: var(--ink-faint);
+    letter-spacing: var(--tr-cuerpo);
+    font-weight: var(--w-claro);
+  }
+
+  /* --- CUERPO: la banda ------------------------------------------------- */
+  .cuerpo {
+    position: relative; z-index: 1;
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    line-height: 1.52;
+    /* Desvanecido arriba y abajo con MÁSCARA, no con un degradado al color
+       de fondo: sobre una capa con alfa un degradado pinta ese color y deja
+       una banda visible al componer sobre el vídeo. `black` es opacidad de
+       máscara, no un color de marca — por eso no sale de un token. */
+    -webkit-mask-image: linear-gradient(to bottom,
+      transparent 0%, black 5%, black 95%, transparent 100%);
+    mask-image: linear-gradient(to bottom,
+      transparent 0%, black 5%, black 95%, transparent 100%);
+  }
+
+  /* El raíl del eje. Fijo: el papel corre por debajo, el eje no.
+     En `--ink-ghost` y no en `--rule`: sobre el papel blanco de `paper` la
+     regla queda a 1,1:1 de la superficie y el eje sencillamente no está,
+     que es tanto como no tener eje. */
+  .carril {
+    position: absolute; left: 62px; top: 0; bottom: 0; width: 2px;
+    background-color: var(--ink-ghost);
+  }
+
+  /* La CABEZA DE LECTURA. Baja con el reloj y no se detiene nunca, que es
+     lo que §10 pide cuando dice que un gráfico que se para se lee como una
+     imagen pegada encima del vídeo. Aquí no es un adorno: es el instante
+     actual sobre el eje.
+
+     Se queda a la IZQUIERDA del raíl y no cruza el texto. La primera
+     versión medía 118 px y llegaba hasta la columna de las líneas: al caer
+     sobre un resultado lo TACHABA, y un tachado significa otra cosa. Se vio
+     en el fotograma compuesto, no en el diff. */
+  .cabeza {
+    position: absolute; left: 48px; width: 26px; height: 2px;
+    background-image: linear-gradient(90deg,
+      transparent 0%, var(--metal-4) 55%, var(--metal-3) 100%);
+    will-change: top;
+  }
+  .cabeza::before {
+    content: ''; position: absolute; left: 11px; top: -3px;
+    width: 8px; height: 8px; background-color: var(--metal-4);
+    transform: rotate(45deg);
+  }
+
+  /* El rollo: lo único que se desplaza. Va en un contenedor propio para que
+     el raíl y la cabeza se queden quietos. */
+  .rollo { position: absolute; inset: 0; will-change: transform; }
+
+  /* La ESCALA del eje: una muesca por segundo, toda la banda. Existe por lo
+     que se ve en el fotograma de t=1,2: mientras el primer comando se
+     teclea no ha pasado nada más, y sin escala los 480 px de abajo son un
+     hueco muerto —justo lo que §10 llama «una imagen pegada encima del
+     vídeo»—. Con ella ese hueco es la parte del eje que todavía no ha
+     ocurrido, que es una información y no un vacío. */
+  .tic {
+    position: absolute; left: 57px; width: 12px; height: var(--hairline);
+    background-color: var(--ink-ghost);
+  }
+
+  /* Un REGISTRO = sello de tiempo + marca en el eje + texto. */
+  .reg { position: absolute; left: 0; right: 22px; }
+
+  .sello {
+    position: absolute; left: 0; top: 0.42em; width: 46px;
+    text-align: right; line-height: 1;
+    font-size: var(--t-2xs);
+    color: var(--ink-ghost);
+    letter-spacing: var(--tr-cuerpo);
+    font-weight: var(--w-fino);
+  }
+
+  /* Las marcas del eje se DIBUJAN con filetes de 2,5 px. Nada de `✓` ni de
+     `✗`: §8 los prohíbe y además un dingbat cambia de forma con la fuente
+     que acabe resolviendo. */
+  .marca { position: absolute; left: 55px; width: 16px; height: 16px;
+           top: calc(0.76em - 8px); }
+  .m-ok::before {
+    content: ''; position: absolute; left: 2px; top: 2px;
+    width: 11px; height: 6px;
+    border-left: 2.5px solid var(--accent-2);
+    border-bottom: 2.5px solid var(--accent-2);
+    transform: rotate(-45deg);
+  }
+  .m-err::before, .m-err::after {
+    content: ''; position: absolute; left: 1px; top: 7px;
+    width: 14px; height: 2.5px; background-color: var(--accent);
+  }
+  .m-err::before { transform: rotate(45deg); }
+  .m-err::after  { transform: rotate(-45deg); }
+  .m-out::before {
+    content: ''; position: absolute; left: 3px; top: 7px;
+    width: 11px; height: 2px; background-color: var(--ink-ghost);
+  }
+
+  /* El TRAMO OCUPADO: barra de bronce sobre el eje que va del instante en
+     que empieza a teclearse el comando al instante en que termina. Es el
+     dato que la versión anterior no enseñaba en ningún sitio. */
+  .tramo {
+    position: absolute; left: 59px; width: 8px; border-radius: 4px;
+    top: calc(0.76em - 4px);
+    will-change: height;
+  }
+
+  .linea { margin-left: 84px; white-space: pre-wrap; word-break: break-word; }
+
+  /* Los cuatro registros del catálogo, separados por PESO además de por
+     color. Medido en cobertura de tinta de Geist Mono a 64 px con la misma
+     cadena: 1,63 M (300) · 2,84 M (500) · 3,47 M (700). O sea que un `ok`
+     pesa 2,1 veces lo que una línea de progreso aunque los dos sean texto
+     mono del mismo cuerpo. En escala de grises se siguen distinguiendo,
+     que es lo que el color solo no da. */
+  .linea.cmd  { color: var(--ink);
+                font-weight: var(--w-medio); }
+  .linea.out  { color: var(--ink-soft);
+                font-weight: var(--w-claro); }
+  .linea.ok   { color: var(--accent-2);
+                font-weight: var(--w-fuerte); }
+  .linea.err  { color: var(--accent);
+                font-weight: var(--w-fuerte); }
+  .linea.tenue { color: var(--ink-faint);
+                 font-weight: var(--w-fino); }
+
+  /* El galón del prompt, DIBUJADO y con el bronce de verdad. Antes era el
+     carácter `❯` en la configuración: un dingbat del sistema (§8) que
+     además obliga a la fuente a tenerlo. */
+  .chev { width: 0.66em; height: 1.06em; vertical-align: -0.19em;
+          margin-right: 0.3em; }
+  .prompt { color: var(--accent); margin-right: 0.3em; }
+
+  /* Cursor de bloque con el acabado metálico, no un plano naranja. */
+  .cursor { display: inline-block; width: 0.58em; height: 1.05em;
+            vertical-align: -0.16em; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <svg class="defs" id="defs" aria-hidden="true"><defs></defs></svg>
+
+  <div class="placa tarjeta filete-metal" id="placa">
+    <div class="ventana" id="ventana">
+      <i class="fondo" id="fondo"></i>
+
+      <header class="cabecera trama" data-densidad="baja">
+        <span class="crono tnum"><b id="crono">00.0</b><u>s</u></span>
+        <span class="rotulo" id="tit"></span>
+        <span class="ruta" id="ruta"></span>
+        <i class="canto"></i>
+      </header>
+
+      <!-- La cabeza va ANTES del rollo a propósito: sin `z-index` el orden
+           del DOM es el orden de pintado, así que la marca de un resultado
+           —el visto, la cruz— se dibuja POR ENCIMA de ella. Al revés, la
+           cabeza tapaba la marca justo en el instante en que las dos dicen
+           lo mismo, que es cuando más hace falta verla. -->
+      <div class="cuerpo" id="cuerpo">
+        <i class="carril"></i>
+        <i class="cabeza" id="cabeza"></i>
+        <div class="rollo" id="rollo"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const placa  = document.getElementById('placa');
+const ventana= document.getElementById('ventana');
+const cuerpo = document.getElementById('cuerpo');
+const rollo  = document.getElementById('rollo');
+const cabeza = document.getElementById('cabeza');
+const crono  = document.getElementById('crono');
+
+/* AIRE por encima del primer registro, PIE por debajo del último, y HUECO
+   mínimo entre dos registros. RESERVA es otra cosa: el margen que la cabeza
+   no rebasa, y a partir del cual la banda empieza a correr. */
+const AIRE = 46, PIE = 88, RESERVA = 96, HUECO = 8;
+
+/* Un registro se COLGA del eje por el centro de su primer renglón, no por su
+   borde superior. Parece un detalle y no lo es: colgándolo por el borde, la
+   marca del suceso —que va alineada con el texto— quedaba 17,5 px por debajo
+   del punto del eje que la cabeza señala, o sea que la cabeza y el visto de
+   un `ok` no coincidían nunca aunque los dos digan lo mismo. Se vio en el
+   fotograma con una línea `err`; el JSON era correcto. 0,76 em es el centro
+   óptico del primer renglón con `line-height: 1.52`. */
+const CUELGUE = 0.76;
+
+let lineas = [], altoCuerpo = 0, angBase = 115;
+let Ts = [], Ys = [], finEje = 0, PESO = {};
+
+/* El eje: tiempo -> píxel. Interpolación lineal por tramos entre los
+   instantes de los registros, así que la cabeza cae EXACTAMENTE sobre la
+   línea que le toca aunque el eje se haya tenido que estirar para que dos
+   sucesos muy juntos no se solapen. Función pura de `t`. */
+function yDe(t) {
+  const x = clamp(t, Ts[0], Ts[Ts.length - 1]);
+  for (let i = 1; i < Ts.length; i++) {
+    if (x <= Ts[i]) {
+      const d = Ts[i] - Ts[i - 1];
+      const p = d > 0 ? (x - Ts[i - 1]) / d : 1;
+      return Ys[i - 1] + (Ys[i] - Ys[i - 1]) * p;
+    }
+  }
+  return Ys[Ys.length - 1];
+}
+
+Engine.register({
+  duration: 9,
+  defaults: {
+    titulo: 'zsh',
+    ruta: '~/editor-youtube',
+    ancho: 900,
+    alto: 620,
+    /* `tam` en NULO y no en 26: un cuerpo en píxeles escrito en `defaults`
+       es un tamaño fuera de la escala tipográfica aunque se vea bien. El
+       valor real sale de `--t-sm` por CSS; un número explícito sigue
+       valiendo como anulación porque los planes que ya existen lo pasan. */
+    tam: null,
+    /* `true` = se dibuja el galón. Antes era `'❯'`, un dingbat. Se acepta
+       una cadena por compatibilidad con planes que la pasen, pero la marca
+       ya no invita a componerlo como texto. */
+    prompt: true,
+    cps: 26,            // pulsaciones por segundo al teclear un comando
+    /* Píxeles por segundo del eje. Nulo = derivado del alto y la duración,
+       que es lo que hace que la sesión entre entera sin scroll. */
+    eje: null,
+    lineas: [
+      { tipo: 'cmd', txt: 'python3 scripts/transcribe_mlx.py --input toma.mov', at: 0.25 },
+      { tipo: 'out', txt: 'cargando large-v3 en la GPU del M4…', at: 2.45 },
+      { tipo: 'ok',  txt: '1 342 palabras · 4.8x tiempo real', at: 3.30 },
+      { tipo: 'cmd', txt: 'node scripts/render_playwright.js', at: 4.10 },
+      { tipo: 'out', txt: 'renderizando 10 capas…', at: 5.60 },
+      { tipo: 'ok',  txt: '2 993 fotogramas con alfa', at: 6.20 },
+      { tipo: 'cmd', txt: 'python3 scripts/composite_ffmpeg.py', at: 6.85 },
+      { tipo: 'ok',  txt: 'renders/final.mp4 · 23.6 s · 10.7 MB', at: 8.30 }
+    ],
+    entrada: 0.6,
+    salida: 0.45
+  },
+
+  setup(cfg) {
+    const raiz = getComputedStyle(document.documentElement);
+    /* Los pesos se LEEN de los tokens en vez de escribirse a mano en el JS:
+       el asentado de peso tiene que salir de la misma escala que el CSS o
+       las dos se separan en cuanto alguien toque `_tokens.css`. */
+    ['fino', 'claro', 'libro', 'medio', 'fuerte'].forEach(
+      k => PESO[k] = parseFloat(raiz.getPropertyValue('--w-' + k)) || 400);
+    angBase = parseFloat(raiz.getPropertyValue('--metal-ang')) || 115;
+
+    document.getElementById('tit').textContent = cfg.titulo || '';
+    document.getElementById('ruta').textContent = cfg.ruta || '';
+    /* `cfg.ancho` lo aplica `_engine.js` sobre el envoltorio `.tarjeta`,
+       que es quien lleva el `max-width`. Ponerlo aquí no haría nada. */
+    cuerpo.style.height = cfg.alto + 'px';
+    cuerpo.style.fontSize = cfg.tam ? cfg.tam + 'px' : '';
+    altoCuerpo = cfg.alto;
+
+    /* El bronce del galón: cinco stops del tema activo inyectados como
+       `<defs>`. La CAJA es obligatoria — sin ella el degradado usa
+       `objectBoundingBox` y un trazo sin área no se dibuja: el `<path>`
+       está en el DOM con su `d` correcto y no pinta un píxel, sin error ni
+       aviso en consola. */
+    const idm = Engine.gradienteMetal(
+      document.getElementById('defs'), 'metalPrompt', [0, 0, 12, 20]);
+
+    /* Los registros van ORDENADOS por instante: el eje es un eje, y una
+       lista desordenada lo haría retroceder. El orden del DOM da igual
+       porque cada registro se posiciona por su `top`. */
+    const fuente = (cfg.lineas || []).slice()
+      .sort((a, b) => (a.at || 0) - (b.at || 0));
+
+    rollo.innerHTML = '';
+    lineas = fuente.map(l => {
+      const reg = document.createElement('div');
+      reg.className = 'reg';
+
+      const sello = document.createElement('div');
+      sello.className = 'sello tnum';
+      sello.textContent = (l.at || 0).toFixed(1);
+      reg.appendChild(sello);
+
+      /* Un comando estuvo OCUPADO un rato: lleva barra. Una respuesta es un
+         instante: lleva marca. Es lo que distingue de un vistazo lo que se
+         escribe de lo que contesta, y ya no depende de leer el texto. */
+      let tramo = null, marca = null;
+      if (l.tipo === 'cmd') {
+        tramo = document.createElement('i');
+        tramo.className = 'tramo brushed';
+        reg.appendChild(tramo);
+      } else {
+        marca = document.createElement('i');
+        marca.className = 'marca m-' + (l.tipo === 'err' ? 'err'
+                                      : l.tipo === 'ok' ? 'ok' : 'out');
+        reg.appendChild(marca);
+      }
+
+      const el = document.createElement('div');
+      el.className = 'linea ' + (l.tipo || 'out');
+
+      let cur = null;
+      if (l.tipo === 'cmd') {
+        if (cfg.prompt === true || cfg.prompt === undefined) {
+          const g = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          g.setAttribute('viewBox', '0 0 12 20');
+          g.setAttribute('fill', 'none');
+          g.setAttribute('class', 'chev');
+          const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          p.setAttribute('d', 'M2.6 3.8 L8.9 10 L2.6 16.2');
+          p.setAttribute('stroke', 'url(#' + idm + ')');
+          p.setAttribute('stroke-width', '2.6');
+          p.setAttribute('stroke-linecap', 'round');
+          p.setAttribute('stroke-linejoin', 'round');
+          p.setAttribute('fill', 'none');
+          g.appendChild(p);
+          el.appendChild(g);
+        } else if (cfg.prompt) {
+          const p = document.createElement('span');
+          p.className = 'prompt';
+          p.textContent = String(cfg.prompt);
+          el.appendChild(p);
+        }
+      }
+      const txt = document.createElement('span');
+      el.appendChild(txt);
+      if (l.tipo === 'cmd') {
+        cur = document.createElement('i');
+        cur.className = 'cursor brushed';
+        el.appendChild(cur);
+      }
+      reg.appendChild(el);
+      rollo.appendChild(reg);
+
+      const cps = l.cps || cfg.cps || 26;
+      return { reg, el, txt, cur, tramo, marca, l,
+               at: l.at || 0, cps,
+               fin: (l.at || 0) + (l.txt || '').length / cps };
+    });
+
+    /* --- el eje ---------------------------------------------------------
+       La escala sale del alto disponible y de la duración, así que por
+       defecto la sesión entera cabe sin desplazar nada. Los registros se
+       colocan por su instante y solo se separan cuando dos caen tan juntos
+       que se pisarían: el eje es proporcional CON SUELO, no elástico. Se
+       mide la altura real de cada registro porque una línea larga envuelve
+       y ocuparía dos renglones — darlo por hecho es lo que produciría un
+       solape que ningún log delata. */
+    const dur = cfg.duration || 9;
+    /* La escala se ancla en el ÚLTIMO SUCESO y no en la duración de la capa.
+       Anclándola en la duración, una sesión que termina en 8,3 s de una capa
+       de 9 dejaba 135 px muertos abajo y 41 arriba: la placa salía cargada
+       hacia arriba sin que nada lo explicara. El suelo `dur*0.4` evita el
+       caso contrario —una sesión que acaba en el primer tercio estiraría el
+       eje hasta que dos líneas seguidas quedaran a media placa—. */
+    const atUlt = lineas.length ? lineas[lineas.length - 1].at : dur;
+    const escala = Number(cfg.eje) > 0
+      ? Number(cfg.eje)
+      : Math.max(24, (altoCuerpo - AIRE - PIE) /
+                     Math.max(atUlt, dur * 0.4, 0.1));
+
+    const cuelgue = CUELGUE * parseFloat(getComputedStyle(cuerpo).fontSize);
+    Ts = [0]; Ys = [AIRE];
+    let ultimo = AIRE, altoUlt = 0;
+    lineas.forEach(o => {
+      const h = o.reg.getBoundingClientRect().height || 34;
+      const y = Math.max(AIRE + o.at * escala,
+                         Ts.length > 1 ? ultimo + altoUlt + HUECO : AIRE);
+      o.y = y; o.h = h;
+      o.reg.style.top = (y - cuelgue).toFixed(1) + 'px';
+      /* Dos sucesos en el MISMO instante romperían la interpolación (tramo
+         de anchura cero). Se les da un épsilon para que el eje siga siendo
+         estrictamente creciente. */
+      const tt = Math.max(o.at, Ts[Ts.length - 1] + 1e-4);
+      Ts.push(tt); Ys.push(y);
+      ultimo = y; altoUlt = h;
+    });
+    finEje = ultimo + altoUlt + HUECO;
+    Ts.push(Math.max(dur, Ts[Ts.length - 1] + 1e-4));
+    Ys.push(finEje);
+
+    /* La barra de ocupación de cada comando, medida sobre el EJE y no sobre
+       el reloj: así el trazo y la posición de la línea dicen lo mismo. */
+    lineas.forEach(o => {
+      if (o.tramo) o.altoTramo = Math.max(6, yDe(o.fin) - yDe(o.at));
+    });
+
+    /* Las muescas de segundo van al PRINCIPIO del rollo para que los
+       registros se pinten encima: donde coinciden manda el suceso. */
+    for (let k = Math.floor(dur); k >= 1; k--) {
+      const tic = document.createElement('i');
+      tic.className = 'tic';
+      tic.style.top = yDe(k).toFixed(1) + 'px';
+      rollo.insertBefore(tic, rollo.firstChild);
+    }
+
+    /* Textura de impresión sobre la placa, en capa propia y por debajo del
+       contenido. 48 de 56 plantillas no tienen ninguna: un plano de color
+       con un filete de 1 px es la firma de una demo de CSS, no la de un
+       objeto impreso. */
+    Engine.grano(document.getElementById('fondo'),
+                 { px: 256, semilla: 13, op: 0.28 });
+
+    /* --- señales de sonido ----------------------------------------------
+       Una por EVENTO, no por carácter: a 26 pulsaciones por segundo una
+       línea de cuarenta caracteres son cuarenta tecleos en segundo y medio,
+       y eso no es tecleado sino un zumbido. Es el mismo razonamiento que ya
+       está escrito en `odometro.html` sobre los acarreos.
+
+       El instante del tecleo sale de LA MISMA expresión que usa `draw` para
+       decidir cuántos caracteres se ven —`at + longitud/cps`, guardada en
+       `o.fin`— y no de una copia: si mañana cambia la velocidad, la señal
+       se mueve con ella en vez de quedarse donde estaba.
+
+       Las líneas de progreso (`out`) ya NO suenan. Antes emitían un `clic`
+       cada una, y con las ocho líneas por defecto la capa publicaba OCHO
+       señales cuando el máximo del sistema son SEIS. No es un evento: es
+       continuación de algo que ya sonó al lanzarse el comando. Quitándolas
+       quedan exactamente 3 comandos + 3 resultados = 6. */
+    const MAX_CUES = 6;
+    let cues = [];
+    lineas.forEach(o => {
+      if (o.l.tipo === 'cmd') {
+        cues.push({ at: +o.fin.toFixed(3), sfx: 'tecleo', gain: 0.9, pri: 2 });
+      } else if (o.l.tipo === 'err') {
+        cues.push({ at: +o.at.toFixed(3), sfx: 'fallo', gain: 0.85, pri: 0 });
+      } else if (o.l.tipo === 'ok') {
+        cues.push({ at: +o.at.toFixed(3), sfx: 'acierto', gain: 0.7, pri: 1 });
+      }
+    });
+    /* Dos señales a menos de 60 ms no se oyen como dos: se oyen como una más
+       fuerte, y encima suman contra el limitador del máster. Mismo umbral y
+       mismo motivo que en `odometro.html`. */
+    cues.sort((a, b) => a.at - b.at);
+    const MIN_SEP = 0.06;
+    const juntas = [];
+    cues.forEach(c => {
+      const ult = juntas[juntas.length - 1];
+      if (ult && c.at - ult.at < MIN_SEP) ult.gain = Math.min(1.4, ult.gain + 0.2);
+      else juntas.push(c);
+    });
+    /* Si aun así sobran, se cae por IMPORTANCIA y no por orden de llegada:
+       un fallo se oye siempre, un resultado casi siempre, y el tecleo es lo
+       primero que se puede perder porque el comando además se VE escribirse.
+       Recortar por el final dejaría muda la mitad buena de la sesión. */
+    if (juntas.length > MAX_CUES) {
+      juntas.sort((a, b) => a.pri - b.pri || a.at - b.at);
+      juntas.length = MAX_CUES;
+      juntas.sort((a, b) => a.at - b.at);
+    }
+    juntas.forEach(c => delete c.pri);
+    return { cues: cfg.sinSonido ? [] : juntas };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 9;
+    const ap = Engine.entra(t, cfg.entrada);
+    const cierre = Engine.sale(t, fin, cfg.salida);
+
+    /* §10 pide flotación de reposo: cada elemento deriva con su propio
+       periodo. Va multiplicada por `ap` para que no pelee con la entrada —
+       una placa que ya está derivando mientras aterriza se lee como un
+       error de anclaje. */
+    const fl = Engine.flota(t, 0, { amp: 2.4, periodo: 8.6, semilla: 19 });
+    placa.style.opacity = ap * cierre;
+    placa.style.transform =
+      `translate(${(fl.x * ap).toFixed(2)}px, ` +
+      `${((1 - ap) * 26 + fl.y * ap).toFixed(2)}px) ` +
+      `scale(${(0.962 + 0.038 * ap).toFixed(4)})`;
+
+    /* El ángulo del cepillado deriva con el tiempo. `--metal-ang` es un
+       TOKEN y no una constante precisamente por esto: el metal cepillado
+       real cambia con el ángulo de visión, y un degradado clavado en 115°
+       es una calcomanía. Son ±6,5°, o sea que el bronce cambia de luz sin
+       que nada se mueva de sitio — material animado, que es lo que le
+       faltaba a una plantilla que solo animaba `opacity` y `transform`. */
+    const luz = Engine.flota(t, 1, { amp: 6.5, periodo: 11.7, semilla: 5 });
+    placa.style.setProperty('--metal-ang', (angBase + luz.y).toFixed(2) + 'deg');
+
+    crono.textContent = clamp(t, 0, fin).toFixed(1).padStart(4, '0');
+
+    /* La banda corre solo cuando la cabeza llegaría al canto inferior. Con
+       la escala derivada eso no pasa nunca con la sesión por defecto, así
+       que el desplazamiento es 0 y el papel está quieto: es un registrador
+       de banda, no un teletipo que empuja el texto hacia arriba en cada
+       línea. Antes el rollo se recolocaba midiendo el DOM en cada
+       fotograma, así que SALTABA de golpe cada vez que aparecía una línea
+       —y el salto no daba ningún error—. */
+    const yCab = yDe(t);
+    const desp = Math.max(0, yCab - (altoCuerpo - RESERVA));
+    rollo.style.transform = `translateY(${(-desp).toFixed(2)}px)`;
+    cabeza.style.top = (yCab - desp - 1).toFixed(2) + 'px';
+    cabeza.style.opacity = ap * cierre;
+
+    /* Solo el último comando que ya ha empezado lleva cursor. Una terminal
+       real tiene uno, no uno por línea escrita: dejarlos todos delata que
+       son elementos pintados y no una sesión. */
+    let ultimoCmd = -1;
+    lineas.forEach((o, i) => { if (o.l.tipo === 'cmd' && t >= o.at) ultimoCmd = i; });
+
+    lineas.forEach((o, i) => {
+      if (t < o.at) { o.reg.style.display = 'none'; return; }
+      o.reg.style.display = '';
+
+      if (o.l.tipo === 'cmd') {
+        /* Tecleado determinista: el carácter visible sale del reloj de la
+           plantilla, no de un temporizador. */
+        const n = clamp(Math.floor((t - o.at) * o.cps), 0, o.l.txt.length);
+        o.txt.textContent = o.l.txt.slice(0, n);
+
+        /* La barra de ocupación crece LINEALMENTE, no con `outCubic`: mide
+           tiempo de máquina y un reloj no acelera al final. Es la misma
+           razón por la que el eje es lineal por tramos. */
+        const p = clamp((t - o.at) / Math.max(o.fin - o.at, 1e-3), 0, 1);
+        o.tramo.style.height = (o.altoTramo * p).toFixed(2) + 'px';
+
+        /* El cursor parpadea solo cuando ya no se escribe: mientras entra
+           texto, un cursor intermitente compite con lo que hay que leer. */
+        const escribiendo = n < o.l.txt.length;
+        o.cur.style.opacity = i !== ultimoCmd ? 0
+          : escribiendo ? 1
+          : (Math.floor((t - o.at) * 2) % 2 ? 0.15 : 1);
+      } else {
+        /* La respuesta no se teclea: una máquina no escribe letra a letra y
+           fingirlo se nota. Se REVELA de izquierda a derecha en 0,11 s, que
+           es lo que hace una impresora de línea — y con `inOutCubic`, no con
+           `outCubic`: un cabezal arranca y frena. Con `outCubic` sale
+           disparado en el primer fotograma y parece un barrido automático,
+           que es justo lo que esto no es. */
+        o.txt.textContent = o.l.txt;
+        const p = span(t, o.at, 0.11, Ease.inOutCubic);
+        o.el.style.clipPath = `inset(0 ${((1 - p) * 100).toFixed(2)}% 0 0)`;
+        o.marca.style.opacity = span(t, o.at, 0.16, Ease.outCubic);
+
+        /* Y el PESO se asienta: 300 -> 700 en 0,3 s con `outExpo`, o sea
+           todo el salto en el primer tercio y luego quieto — el gesto de un
+           mecanismo que encaja. Un resultado no llega blando y engorda: se
+           afirma. Esto solo se puede hacer con una fuente variable, y Geist
+           Mono lo es (cobertura de tinta 1,63 M a 300 frente a 3,47 M a
+           700, medido): con dos ficheros estáticos habría un salto y no un
+           asentado. */
+        if (o.l.tipo === 'ok' || o.l.tipo === 'err') {
+          const w = PESO.claro +
+            (PESO.fuerte - PESO.claro) * span(t, o.at, 0.3, Ease.outExpo);
+          Engine.peso(o.el, Math.round(w));
+        }
+      }
+    });
+  },
+
+  anclas() {
+    const b = cuerpo.getBoundingClientRect();
+    const v = ventana.getBoundingClientRect();
+    const caja = e => ({ x: Math.round(e.left + e.width / 2),
+                         y: Math.round(e.top + e.height / 2),
+                         w: Math.round(e.width), h: Math.round(e.height) });
+    return { cuerpo: caja(b), ventana: caja(v) };
+  }
+});
+</script>
+</body>
+</html>

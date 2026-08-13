@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Cita a pantalla completa</title>
+<!-- El gesto en una palabra: la cita se COMPONE. Las líneas suben una a una
+     dentro de su ventana como renglones que se colocan, la comilla se empapa
+     de tinta y al final se firma. No es «impresion» —el gesto de
+     `definition-card`, donde algo se estampa de golpe— sino el anterior: el
+     texto tomando su sitio renglón a renglón. `auditar_estilo.js` cuenta
+     cuántos gestos DISTINTOS declara el catálogo, y esa es la razón de
+     distinguirlos en vez de repetir la etiqueta que ya hay. -->
+<meta name="gesto" content="revelar:composicion">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* =====================================================================
+     UNA CITA NO ES UNA TARJETA CON COMILLAS: ES UNA PÁGINA COMPUESTA.
+
+     Lo que había era el blockquote por defecto de cualquier framework: un
+     bloque de `--display` a 78 px, una comilla decorativa encima, un filete
+     de 3 px a todo lo ancho y el autor debajo, centrado en el mismo eje que
+     todo lo demás. Cambiando el texto salía la misma imagen, y cambiando la
+     marca también: no hay nada ahí que sea de esta casa.
+
+     Lo que hay ahora es una PÁGINA: un margen de verdad, una columna de
+     texto compuesta en la didone (`--editorial`, Playfair Display), la
+     comilla convertida en MARCA DE AGUA que sangra por el margen, y el
+     atribuido COLGANDO de ese margen —outdent— firmado con un filete de
+     bronce corto, no con una regla a todo lo ancho.
+
+     El margen aparece TRES veces en vertical —marca de agua, columna de
+     texto, atribuido— porque un margen que solo se usa una vez no se lee
+     como margen: se lee como un elemento descolocado.
+     ===================================================================== */
+
+  .stage {
+    position: absolute; inset: 0;
+    display: grid; place-items: center;
+    padding: 0 var(--s-7);
+
+    /* El ancho del margen de la página. Sale de la escala de espaciado y no
+       de un número redondo: 64 + 18. Todo lo que sangra o cuelga usa ESTE
+       valor, así que la página sigue cuadrando si alguien lo toca. */
+    --margen: calc(var(--s-8) + var(--s-4));
+
+    /* Opacidad base de la marca de agua, POR TEMA. En carbón el bronce sobre
+       grafito aguanta con muy poco; en papel el mismo valor desaparece —el
+       contraste del acento contra #F6F4F0 es mucho menor que contra #121212—
+       así que necesita casi el doble. Medido mirando el fotograma compuesto
+       en los dos temas, que es la única forma de saberlo. */
+    --agua-op: 0.17;
+  }
+  :root[data-tema="paper"] .stage { --agua-op: 0.26; }
+
+  .hoja {
+    position: relative;
+    width: 100%; max-width: 900px;
+    padding-left: var(--margen);
+    /* Tamaño del cuerpo de la cita. Por defecto es el token de la escala;
+       `cfg.tam` lo pisa en píxeles porque eso es lo que pasan `dirigir.py`
+       (58) y los planes escritos a mano, y romper ese contrato dejaría los
+       montajes existentes con otra maqueta. La hoja de estilo no contiene
+       ni un `font-size` en píxeles. */
+    --cita-tam: var(--t-3xl);
+  }
+
+  /* --- velo de legibilidad ------------------------------------------------
+     Esto va sobre METRAJE, no sobre un fondo controlado. Sin nada detrás, un
+     texto en tinta cae encima de una camisa clara y desaparece. La solución
+     NO es una tarjeta con borde —que es justo lo que esta plantilla deja de
+     ser— sino un lavado sin cantos: una elipse de `--scrim` que se desvanece
+     antes de llegar a ningún borde. `--scrim` ya es oscuro en carbón y CLARO
+     en papel, así que el velo hace lo correcto en los dos temas sin una sola
+     condición aquí. */
+  .velo {
+    position: absolute; inset: -16% -20%;
+    /* Tres paradas y no dos: con una sola caída a `transparent` el lavado
+       tiene un canto perceptible a media distancia y se lee como una mancha
+       de suciedad sobre el metraje. La parada intermedia alarga la cola y lo
+       convierte en algo que no se ve pero se nota. */
+    background: radial-gradient(ellipse at 42% 46%,
+                var(--scrim) 0%,
+                color-mix(in oklab, var(--scrim), transparent 52%) 38%,
+                transparent 76%);
+    will-change: opacity;
+  }
+
+  /* --- la comilla como marca de agua --------------------------------------
+     No es puntuación: es la mancha de la página. Por eso está fuera del
+     texto, sangra por el margen y va en BRONCE CON TRAMA en vez de en un
+     plano de color: el metal recortado sobre el glifo es lo que le quita el
+     aire de «icono grande y transparente».
+
+     El tamaño se deriva del tope de la escala (`--t-titan`, 194 px) en vez de
+     inventar un número: es una forma gráfica, no un cuerpo de texto, pero
+     sigue anclada al sistema.
+
+     `line-height: 1` y no menos: por debajo de 1 el medio-interlineado se
+     vuelve negativo y el glifo se descoloca respecto a su caja. */
+  .agua {
+    position: absolute;
+    /* Arriba y a la IZQUIERDA del margen, hasta rozar el borde del lienzo:
+       una marca de agua que cabe entera dentro de la caja de texto es un
+       icono; una que arranca en el canto de la página y pasa por DEBAJO de
+       las dos primeras líneas es una mancha de imprenta. Los desplazamientos
+       salen del mismo `--s-8` que el margen. */
+    /* El tamaño se deriva del CUERPO de la cita, no de una constante. Con
+       una constante, `dirigir.py` —que pide `tam: 58`— dejaba una comilla
+       del mismo tamaño sobre un texto un 30 % menor, o sea otra proporción
+       de página. Y `top`/`left` van en `em`, o sea en unidades de la propia
+       marca, para que la sangría por el margen se mantenga igual a cualquier
+       cuerpo. Con `--cita-tam` en su valor por defecto son 574 px. */
+    top: -0.23em;
+    left: -0.165em;
+    font-family: var(--editorial);
+    font-size: calc(var(--cita-tam) * 7);
+    line-height: 1;
+    font-weight: var(--w-libro);
+    transform-origin: top left;
+
+    /* Dos capas: el rayado de mecanizado encima y la lámina de bronce
+       debajo, las dos recortadas por el glifo. 48 de 56 plantillas del
+       catálogo no tienen NINGUNA textura, y `Engine.grano` no sirve aquí:
+       pinta una capa hija con `mix-blend-mode: multiply`, y sobre un lienzo
+       transparente multiplicar contra alfa 0 devuelve el propio gris del
+       grano —o sea un rectángulo gris visible—. La textura tiene que ir
+       recortada por una forma, y aquí la forma es el glifo. */
+    background-image:
+      repeating-linear-gradient(var(--metal-ang),
+        transparent 0 3px, var(--stroke) 3px 5px),
+      linear-gradient(var(--metal-ang),
+        var(--metal-1) 0%, var(--metal-4) 32%, var(--metal-3) 54%,
+        var(--metal-2) 80%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+
+    opacity: calc(var(--agua-op) * var(--vis, 1));
+
+    /* SIN `will-change`, y no por descuido. Con `will-change: transform` esta
+       marca es la ÚNICA cosa del repo que rompía «mismo t -> mismo píxel»:
+       la promoción a capa propia hace que Chromium rasterice el glifo una vez
+       y reutilice ese mapa mientras solo cambia la transformación, así que el
+       instante 3,08 s alcanzado barriendo de 0 a 6 s y alcanzado saltando
+       desde 1,0 s daban dos imágenes distintas. Medido: 7.255 píxeles de
+       2.073.600 (0,35 %), delta máximo 28 por canal, TODOS dentro del glifo y
+       sobre el rayado; el DOM era idéntico en los dos casos, así que ningún
+       control que mire estilos lo habría visto — solo comparar el PNG.
+       Bisecado en caliente: quitando `scale()` repite, quitando `will-change`
+       repite, quitando el rayado NO repite (el rayado solo lo hacía visible).
+       Se quita `will-change` y se conserva el `scale`: la marca cambia de
+       `font-variation-settings` en cada fotograma, o sea que hay que
+       re-componer el texto de todas formas y la capa cacheada no ahorra
+       nada — solo aportaba el fallo. */
+  }
+
+  /* --- la columna de texto ------------------------------------------------
+     `--editorial` y no `--display`. Playfair Display es la única didone de
+     alto contraste del sistema, es VARIABLE (400-900) y tenía cero usos en
+     las 56 plantillas. Una cita compuesta en la misma grotesca geométrica
+     que los titulares no suena distinta del titular: suena a titular. */
+  .texto {
+    font-family: var(--editorial);
+    font-weight: var(--w-libro);
+    font-size: var(--cita-tam);
+    line-height: 1.22;
+    letter-spacing: var(--tr-display);
+    color: var(--ink);
+  }
+
+  /* Cada línea es una VENTANA y el texto sube desde debajo de su borde. La
+     ventana es también lo que lleva la deriva de reposo: si la deriva fuera
+     al contenido, se colaría por el borde de la ventana y dejaría ver un
+     hueco blanco de 2-3 px en cada fotograma. Mover la ventana entera mueve
+     el recorte con ella. */
+  .linea {
+    overflow: hidden;
+    padding-bottom: 0.14em;
+    margin-bottom: -0.14em;
+    will-change: transform, opacity;
+  }
+  .linea > span { display: block; }
+  /* La palabra es un `inline-block` para poder medir su `offsetTop` y para
+     que el subrayado de bronce tenga caja propia. Va en una CLASE y no en
+     `s.style.display` desde `setup`: `auditar_estilo.js` deduce qué anima
+     una plantilla leyendo sus `.style.X`, y un `display` escrito una vez al
+     montar el texto le contaba como propiedad animada. */
+  .pal { display: inline-block; }
+
+  /* --- el énfasis, por VOZ y no por color ---------------------------------
+     Antes la palabra destacada se ponía en `--accent`. §1 es explícito:
+     jerarquía por contraste y peso tipográfico, NUNCA encendiendo un color.
+     Aquí el salto es de 400 puntos de peso (400 -> 800) más el cambio a la
+     cursiva de la didone, que en Playfair es un dibujo distinto, no una
+     inclinación mecánica: `PlayfairDisplay-Italic[wght].ttf` está instalada.
+
+     El bronce no desaparece: baja al material —el filete que se entinta bajo
+     la palabra— que es donde el metal tiene trabajo. Es un `background-size`
+     animado y no un `border-bottom` porque así se puede DIBUJAR de izquierda
+     a derecha con un solo número. */
+  .marca {
+    font-style: italic;
+    font-variation-settings: "wght" 800;
+    background-image: linear-gradient(90deg,
+      var(--metal-1) 0%, var(--metal-3) 40%,
+      var(--metal-4) 68%, var(--metal-5) 100%);
+    background-repeat: no-repeat;
+    background-position: left 86%;
+    background-size: calc(var(--sub, 0) * 100%) 2px;
+  }
+
+  /* --- el atribuido, colgando del margen ---------------------------------
+     `margin-left` negativo del ancho exacto del margen: la firma arranca en
+     el borde de la página mientras el texto está sangrado. Es el gesto que
+     convierte dos bloques apilados en una composición con eje.  */
+  .pie {
+    margin-left: calc(var(--margen) * -1);
+    margin-top: var(--s-7);
+    will-change: transform, opacity;
+  }
+
+  /* Un filete CORTO, no una regla a todo lo ancho. La regla a todo lo ancho
+     es el separador por defecto de cualquier hoja de estilo; el filete corto
+     bajo la firma es lo que lleva un pie de foto impreso. Va en bronce de
+     verdad —los cinco stops— y con la caja al 300 % para que el reflejo
+     pueda VIAJAR por él: un degradado quieto es una calcomanía. */
+  .filete {
+    height: 2px;
+    width: calc(var(--s-8) * 2);
+    margin-bottom: var(--s-4);
+    transform-origin: left center;
+    background-image: linear-gradient(90deg,
+      var(--metal-1) 0%, var(--metal-2) 16%, var(--metal-3) 38%,
+      var(--metal-4) 58%, var(--metal-2) 80%, var(--metal-5) 100%);
+    background-size: 300% 100%;
+    will-change: transform, background-position;
+  }
+
+  .firma { will-change: transform, opacity; }
+
+  /* La firma vuelve a `--display`: es el contra-canto de la didone. Los dos
+     roles juntos —una grotesca geométrica firmando una didone— son el par
+     que §1 permite para hacer jerarquía sin luz. */
+  .autor {
+    font-family: var(--display);
+    font-size: var(--t-lg);
+    font-weight: var(--w-fuerte);
+    letter-spacing: var(--tr-texto);
+    color: var(--ink);
+    will-change: font-variation-settings;
+  }
+  .cargo {
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps);
+    text-transform: uppercase;
+    /* `--ink-soft` y no `--ink-faint`: medido sobre el fotograma compuesto,
+       el fantasma en papel (#9CA3AF sobre el lavado claro) se queda en 2,1:1
+       y no se lee. `--ink-soft` da 4,6:1 en papel y 4,4:1 en carbón. */
+    color: var(--ink-soft);
+    margin-top: var(--s-2);
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="hoja" id="hoja">
+    <div class="velo" id="velo"></div>
+    <div class="agua" id="agua">&ldquo;</div>
+    <div class="texto" id="texto"></div>
+    <div class="pie" id="pie">
+      <div class="filete" id="filete"></div>
+      <div class="firma" id="firma">
+        <div class="autor" id="autor"></div>
+        <div class="cargo" id="cargo"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+/* Caja de un elemento en coordenadas del lienzo, con el punto en su
+   CENTRO. Otra capa la pide con `{sobre: 'capa.clave'}` en vez de copiar
+   coordenadas, que es lo que se desincroniza al cambiar el texto. */
+function ancla(el) {
+  const b = el.getBoundingClientRect();
+  return { x: Math.round(b.left + b.width / 2),
+           y: Math.round(b.top + b.height / 2),
+           w: Math.round(b.width), h: Math.round(b.height) };
+}
+
+const { Ease, span } = Engine;
+const TAU = Math.PI * 2;
+
+const hoja = document.getElementById('hoja');
+const velo = document.getElementById('velo');
+const agua = document.getElementById('agua');
+const texto = document.getElementById('texto');
+const filete = document.getElementById('filete');
+const pie = document.getElementById('pie');
+const firma = document.getElementById('firma');
+const autor = document.getElementById('autor');
+
+/* Cuánto espera la primera línea. Constante y no literal repetido: la usan
+   `draw` y las señales de sonido, y el manual es explícito en que el
+   instante de un cue tiene que salir de la MISMA expresión que dibuja. */
+const ARRANQUE = 0.20;
+
+/* Los cuatro instantes de la pieza, derivados del número real de líneas.
+   Se calcula una vez y lo consumen `setup` (para los cues) y `draw` (para
+   dibujar). Cuando esto estaba copiado en dos sitios, tocar `escalonado`
+   movía la imagen y dejaba el golpe donde estaba. */
+function compas(cfg, nLineas) {
+  const finLineas = ARRANQUE + nLineas * cfg.escalonado;
+  return {
+    finLineas,
+    filete: finLineas + 0.06,
+    firma: finLineas + 0.26,
+    firmaDur: 0.50
+  };
+}
+
+let lineas = [];    // [{win, inner}]
+let marcas = [];    // [{el, fila}]
+let hayFirma = true;
+
+Engine.register({
+  duration: 6,
+  defaults: {
+    cita: 'El montaje no se hace en la nube. Se hace en la máquina que tienes delante.',
+    /* palabras que cambian de VOZ (cursiva + 800) y se subrayan en bronce */
+    resaltar: ['nube'],
+    autor: 'Nota de producción',
+    cargo: 'editor-youtube',
+    /* `null` = usa el token `--t-3xl` de la escala. Un número se sigue
+       interpretando en píxeles: es lo que pasan `dirigir.py` y los planes
+       escritos a mano, y quitarlo rompería un montaje. */
+    tam: null,
+    escalonado: 0.11,   // retardo entre líneas
+    entrada: 0.55,
+    salida: 0.4,
+    sinSonido: false
+  },
+
+  setup(cfg) {
+    const tam = Number(cfg.tam);
+    if (Number.isFinite(tam) && tam > 0) {
+      hoja.style.setProperty('--cita-tam', tam + 'px');
+    } else {
+      hoja.style.removeProperty('--cita-tam');
+    }
+    autor.textContent = cfg.autor || '';
+    document.getElementById('cargo').textContent = cfg.cargo || '';
+    /* Sin atribuido no hay firma, y sin firma el filete es un palo de bronce
+       colgando de la nada. `dirigir.py:419` pasa `autor: ""` y `cargo: ""` en
+       TODAS las citas que reparte automáticamente —o sea el caso normal— así
+       que esto no es un borde raro: era el aspecto por defecto. No daba
+       ningún error; se ve en el fotograma y en ningún otro sitio.
+
+       Se apaga con `hidden` y no con `style.display`: `auditar_estilo.js`
+       cuenta las propiedades que una plantilla ANIMA leyendo los `.style.X`,
+       y `display` escrito una vez en `setup` le inflaría la cuenta con algo
+       que no se mueve. */
+    hayFirma = !!(String(cfg.autor || '').trim() || String(cfg.cargo || '').trim());
+    pie.hidden = !hayFirma;
+
+    /* Se envuelve palabra a palabra, se deja que el navegador decida los
+       saltos, y DESPUÉS se agrupan por `offsetTop`. Calcular los saltos a
+       mano obliga a medir anchos de texto, que es justo lo que el motor de
+       maquetación ya hace bien.
+
+       La clase `.marca` se pone ANTES de medir: cambia la familia a la
+       cursiva y el peso a 800, o sea el ancho de la palabra. Midiendo antes
+       se agruparían las líneas con la maqueta equivocada. */
+    const marcadas = new Set((cfg.resaltar || []).map(
+      w => String(w).toLowerCase().replace(/[.,;:!?«»"']/g, '')));
+
+    texto.innerHTML = '';
+    const palabras = String(cfg.cita).split(/\s+/).filter(Boolean).map(w => {
+      const s = document.createElement('span');
+      s.textContent = w;
+      s.className = 'pal';
+      const limpia = w.toLowerCase().replace(/[.,;:!?«»"']/g, '');
+      if (marcadas.has(limpia)) s.classList.add('marca');
+      texto.appendChild(s);
+      texto.appendChild(document.createTextNode(' '));
+      return s;
+    });
+
+    const filas = new Map();
+    palabras.forEach(s => {
+      const y = Math.round(s.offsetTop);
+      if (!filas.has(y)) filas.set(y, []);
+      filas.get(y).push(s);
+    });
+
+    /* Reconstrucción: una .linea por fila detectada, con su envoltorio
+       interior que es lo que se anima. */
+    const orden = [...filas.keys()].sort((a, b) => a - b);
+    texto.innerHTML = '';
+    marcas = [];
+    lineas = orden.map((y, fila) => {
+      const win = document.createElement('div');
+      win.className = 'linea';
+      const inner = document.createElement('span');
+      filas.get(y).forEach((s, i) => {
+        if (i) inner.appendChild(document.createTextNode(' '));
+        inner.appendChild(s);
+        /* De qué línea cuelga cada palabra marcada: su subrayado no puede
+           entintarse antes de que su línea haya terminado de subir. */
+        if (s.classList.contains('marca')) marcas.push({ el: s, fila });
+      });
+      win.appendChild(inner);
+      texto.appendChild(win);
+      return { win, inner };
+    });
+
+    if (cfg.sinSonido || !hayFirma) return null;
+
+    /* UN cue y no cuatro. La entrada de la capa ya la firma el plan con
+       `deslizar` (dirigir.py:632); lo único que aquí es un EVENTO aparte es
+       el momento en que la firma se asienta —el punto final de la cita—, y
+       eso pide un `tic` seco y bajo, no otro golpe. Si la capa es tan corta
+       que la firma no llega a asentarse, no hay evento y no hay señal. */
+    const c = compas(cfg, lineas.length);
+    const at = c.firma + c.firmaDur;
+    const dur = cfg.duration || 6;
+    return at < dur - 0.15 ? { cues: [{ at: +at.toFixed(3), sfx: 'tic', gain: 0.45 }] }
+                           : { cues: [] };
+  },
+
+  anclas() {
+    /* `firma` solo cuando existe: un ancla de caja cero es peor que ninguna
+       —quien la consuma colocaría una anotación en la esquina del lienzo—. */
+    const a = { texto: ancla(texto) };
+    if (hayFirma) a.firma = ancla(firma);
+    return a;
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 6;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+    const c = compas(cfg, lineas.length);
+
+    /* --- la marca de agua ------------------------------------------------
+       La comilla no está quieta: ENGORDA. Playfair Display es variable de
+       400 a 900 y el glifo de comilla cambia de dibujo por completo entre
+       los dos extremos —de dos gotas de rabo fino a dos manchas—, así que
+       animar el eje `wght` a lo largo de todo el plano es un gesto que dos
+       ficheros estáticos no pueden imitar. Va lento y con `inOutCubic`
+       porque lo que representa es tinta empapando papel, no una entrada.
+
+       Es además lo que arregla el diagnóstico: el humo capturaba tres
+       instantes y DOS eran idénticos byte a byte, o sea que la mitad del
+       plano era una imagen pegada encima del vídeo. Aquí ya no hay dos
+       fotogramas iguales en ningún punto del plano. */
+    const ap = Engine.entra(t, 0.9, Ease.outCubic);
+    const engorde = span(t, 0.15, Math.max(0.8, fin - 0.6), Ease.inOutCubic);
+    const dAgua = Engine.flota(t, 21, { amp: 9, periodo: 15.5, semilla: 2 });
+    Engine.peso(agua, Math.round(400 + 400 * engorde));
+    agua.style.transform =
+      'translate(' + dAgua.x.toFixed(2) + 'px, ' +
+      ((1 - ap) * 26 + dAgua.y).toFixed(2) + 'px) ' +
+      'scale(' + (1 + 0.035 * engorde).toFixed(4) + ')';
+    /* Respiración de la mancha: ±7 % sobre la opacidad del tema, con un
+       periodo primo respecto al de la deriva para que las dos no vuelvan a
+       coincidir dentro del plano. */
+    agua.style.setProperty('--vis',
+      (ap * cierre * (0.93 + 0.07 * Math.sin(TAU * t / 5.3))).toFixed(4));
+
+    /* El velo entra antes que el texto —tiene que estar puesto cuando llega
+       la primera línea, no llegar con ella— y respira muy poco: si se nota,
+       deja de ser un lavado y pasa a ser un efecto. */
+    velo.style.opacity =
+      (Engine.entra(t, 0.7, Ease.outCubic) * cierre *
+       (0.46 + 0.03 * Math.sin(TAU * t / 8.9))).toFixed(4);
+
+    /* --- las líneas ------------------------------------------------------ */
+    lineas.forEach((L, i) => {
+      const p = span(t, ARRANQUE + i * cfg.escalonado, cfg.entrada, Ease.outCubic);
+      L.inner.style.transform = 'translateY(' + ((1 - p) * 112).toFixed(2) + '%)';
+      /* Deriva de reposo, §10: cada línea con su propio periodo. Amplitud
+         2,6 px sobre 1080 — por debajo de lo que se lee como movimiento en
+         un fotograma suelto y suficiente para que la página deje de estar
+         muerta. Va en la VENTANA, no en el contenido (ver el CSS). */
+      const d = Engine.flota(t, i, { amp: 2.6, periodo: 8.4, semilla: 5 });
+      L.win.style.transform =
+        'translate(' + d.x.toFixed(2) + 'px, ' + d.y.toFixed(2) + 'px)';
+      L.win.style.opacity = cierre.toFixed(4);
+    });
+
+    /* --- el subrayado de bronce se entinta -------------------------------
+       Empieza cuando su línea lleva el 72 % de la subida, no cuando termina:
+       esperar al final deja un hueco muerto y hace que el subrayado parezca
+       una segunda animación en vez de la misma palabra asentándose. */
+    marcas.forEach((m, i) => {
+      const t0 = ARRANQUE + m.fila * cfg.escalonado + cfg.entrada * 0.72
+               + i * cfg.escalonado * 1.6;
+      m.el.style.setProperty('--sub',
+        span(t, t0, 0.42, Ease.outCubic).toFixed(4));
+    });
+
+    /* --- la firma -------------------------------------------------------- */
+    const dPie = Engine.flota(t, 9, { amp: 2.0, periodo: 9.9, semilla: 5 });
+    pie.style.opacity = cierre.toFixed(4);
+    pie.style.transform =
+      'translate(' + dPie.x.toFixed(2) + 'px, ' + dPie.y.toFixed(2) + 'px)';
+
+    const f = span(t, c.filete, 0.52, Ease.outCubic);
+    filete.style.transform = 'scaleX(' + f.toFixed(4) + ')';
+    /* El reflejo recorre el filete. No es un destello para «destacar» —eso
+       es lo que §1 prohíbe— sino lo que hace una superficie metálica cuando
+       cambia el ángulo de visión: la caja mide el 300 % del filete y lo que
+       se mueve es su posición, muy despacio. */
+    filete.style.backgroundPosition =
+      (50 + 50 * Math.sin(TAU * t / 6.7)).toFixed(2) + '% 50%';
+
+    const a = span(t, c.firma, c.firmaDur, Ease.outCubic);
+    firma.style.opacity = (a * cierre).toFixed(4);
+    firma.style.transform = 'translateY(' + ((1 - a) * 14).toFixed(2) + 'px)';
+    /* El nombre se ENTINTA: 300 -> 700 en el eje de peso de Plus Jakarta
+       Sans, que también es variable. Es un bloque suelto y alineado a la
+       izquierda, así que engordar no descoloca nada —lo mismo hecho sobre
+       una palabra dentro de la cita reflowearía la línea entera en mitad de
+       la animación—. */
+    Engine.peso(autor, Math.round(300 + 400 * a));
+  }
+});
+</script>
+</body>
+</html>

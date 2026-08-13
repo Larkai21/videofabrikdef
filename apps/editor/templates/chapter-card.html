@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Separador de capítulo</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; overflow: hidden; }
+  /* Hoja sólida a sangre: corta de verdad. Un separador translúcido no
+     da respiro, y el respiro es justo para lo que existe. */
+  .hoja { position: absolute; inset: -6%;
+          /* Metal cepillado y NO bronce plano. Es la superficie más grande
+             de todo el catálogo —una hoja a sangre— y era justo donde §2 se
+             incumplía con más metros cuadrados: «El bronce nunca es un plano
+             naranja». Con el degradado del material la hoja deja de leerse
+             como un relleno y empieza a leerse como una placa. */
+          background-image: linear-gradient(
+            var(--metal-ang), var(--metal-1) 0%, var(--metal-2) 22%,
+            var(--metal-3) 46%, var(--metal-4) 62%, var(--metal-5) 88%);
+          will-change: clip-path; }
+  /* La luz que RECORRE la placa durante la permanencia. Una lámina de bronce a
+     sangre parada es un plano de color por muy bien que esté el degradado;
+     lo que la convierte en metal es que la luz pase por ella. */
+  .raso { position: absolute; inset: 0; pointer-events: none;
+          background-image: linear-gradient(102deg,
+            transparent 34%, var(--glass-glare) 47%,
+            var(--glass-highlight) 50%, transparent 64%);
+          background-size: 260% 100%;
+          mix-blend-mode: overlay;
+          will-change: background-position, opacity; }
+  .centro { position: absolute; inset: 0; display: grid;
+            place-items: center; text-align: center; }
+  .num {
+    font-family: var(--display); font-weight: 800;
+    /* 1,55 × `--t-titan` = 300 px, que es lo que tenía a pelo.
+       El token vale 194 y su comentario en `_tokens.css` dice que es «el
+       número de chapter-card», así que la escala se diseñó para esto y la
+       plantilla nunca lo usó. Pero cambiarlo a 194 ENCOGE el número un 35 % en
+       una hoja a sangre donde el número es lo único que hay: eso es cambiar un
+       diseño para mover una métrica, que es exactamente el error contrario al
+       que la métrica persigue.
+       Con el múltiplo, no queda ni un píxel suelto —si mañana se reescala la
+       tipografía, este número se mueve con ella— y el diseño se queda como
+       estaba. Que haga falta un 1,55 dice que a la escala le falta un escalón
+       por arriba; eso se arregla en `_tokens.css`, no aquí. */
+    font-size: calc(var(--t-titan) * 1.55); line-height: 0.86;
+    letter-spacing: var(--tr-titan); color: var(--velo-claro);
+    will-change: transform, opacity;
+  }
+  .tit {
+    font-family: var(--mono); font-size: var(--t-lg);
+    letter-spacing: var(--tr-caps-ancho); text-transform: uppercase;
+    color: var(--velo-claro); opacity: 0.9; margin-top: var(--s-3);
+    will-change: transform, opacity;
+  }
+</style></head>
+<body>
+<div class="stage">
+  <div class="hoja" id="hoja"><i class="raso" id="raso"></i></div>
+  <div class="centro"><div>
+    <div class="num" id="num"></div><div class="tit" id="tit"></div>
+  </div></div>
+</div>
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+const hoja = document.getElementById('hoja');
+Engine.register({
+  duration: 0.8,
+  defaults: { n: '01', titulo: 'La idea', entrada: 0.26, salida: 0.24 },
+  setup(cfg) {
+    document.getElementById('num').textContent = cfg.n;
+    document.getElementById('tit').textContent = cfg.titulo;
+  },
+  draw(t, cfg) {
+    const fin = cfg.duration || 0.8;
+    const e = span(t, 0, cfg.entrada, Ease.inOutCubic);
+    const s = span(t, fin - cfg.salida, cfg.salida, Ease.inOutCubic);
+    /* Entra por abajo y sale por arriba: entrar y salir por el mismo lado
+       se lee como un parpadeo, no como un corte. */
+    hoja.style.clipPath = `inset(${(1 - e) * 100}% 0 ${s * 100}% 0)`;
+    const c = document.querySelector('.centro');
+    c.style.opacity = e * (1 - s);
+    c.style.transform = `translateY(${(1 - e) * 40 - s * 40}px)`;
+
+    /* SEGUNDO TIEMPO. El gesto acababa en `entrada` (0,26 s) y la salida no
+       empezaba hasta 0,56: la mitad de la capa con los fotogramas idénticos
+       byte a byte. Ahora la luz cruza la placa y el número se ASIENTA —de 700
+       a 900, el peso reservado a la cifra— durante toda la permanencia. */
+    const r = Engine.reposo(t, cfg.entrada, fin, cfg.salida, Ease.linear);
+    const raso = document.getElementById('raso');
+    if (raso) {
+      raso.style.backgroundPosition = (100 - r * 140).toFixed(1) + '% 0';
+      raso.style.opacity = (e * (1 - s) * 0.85).toFixed(3);
+    }
+    const num = document.querySelector('.num');
+    if (num) Engine.peso(num, Math.round(700 + 200 * r));
+  }
+});
+</script></body></html>

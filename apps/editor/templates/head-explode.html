@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Fractura por impacto</title>
+<meta name="gesto" content="golpear:fractura">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage  { position: absolute; inset: 0; }
+  .lamina { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  /* El SURCO es el hueco y el FILO es la luz que le entra de refilón. Van
+     siempre en pareja, desplazados un píxel y medio en diagonal: eso es lo
+     que hace que una línea se lea como un CANTO —material que se ha
+     separado— y no como un trazo pintado encima. §1 prohíbe destacar con
+     luz, y esto no destaca con luz: es la luz que ya había en la escena
+     cayendo sobre un borde que antes no existía.
+
+     El surco va en `--velo-oscuro`, que es el único token oscuro FIJO en los
+     dos temas, y tiene que serlo: la sombra de un hueco no cambia porque
+     cambie la paleta del gráfico, y el metraje de debajo es el mismo en
+     carbon y en paper.
+
+     `miter` en las uniones y `butt` en las puntas, las dos por lo mismo. Una
+     grieta cambia de dirección en ÁNGULO —en la frontera de grano donde se
+     desvió— y acaba en filo, no en canto redondeado. Con `round` los quiebros
+     se suavizan y cada rama termina en una cabeza de alfiler de 4 px de
+     radio: mirado al 200 %, la red pasaba de fractura a trazo de pincel. */
+  .surco { fill: none; stroke: var(--velo-oscuro);
+           stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 8; }
+  /* `--metal-3` es la parada CLARA del metal: en carbon el bronce que da la
+     luz y en paper el acento, porque el tema claro colapsa los cinco stops a
+     propósito. Es un color plano y NO el degradado de `Engine.gradienteMetal`,
+     y esa decisión está medida — ver la nota larga en `setup`. */
+  .filo  { fill: none; stroke: var(--metal-3);
+           stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 8; }
+  .cara  { fill: var(--velo-oscuro); stroke: none; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <!-- Sin `viewBox` a propósito: así una unidad de usuario ES un píxel CSS y
+       `cfg.x` / `cfg.y` siguen significando lo que significaban cuando esto
+       posicionaba un div con `left`/`top`. Un viewBox metería un factor de
+       escala entre la configuración y el lienzo, y con él la clase de fallo
+       que no da error: el impacto caería cerca del sitio. -->
+  <svg class="lamina" id="lamina">
+    <g id="placa">
+      <g id="grietas"></g>
+      <path id="crater" class="cara"></path>
+      <path id="craterfilo" class="filo"></path>
+      <path id="fsombra" class="surco"></path>
+      <path id="fluz" class="filo"></path>
+    </g>
+  </svg>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+/* =====================================================================
+   FRACTURA POR IMPACTO
+   ---------------------------------------------------------------------
+   Lo que había aquí era la cabeza explotando: dos anillos concéntricos
+   perfectos y 26 bolitas saliendo despedidas en abanico. Es el paquete de
+   reacción de YouTube entero en 81 líneas — el mismo dibujo que hacen la
+   flecha verde y el choque rojo, y el efecto que más lejos está de una
+   marca que dice que reacciona con MATERIAL.
+
+   Lo que significaba —«esto es más grande de lo que parecía»— sí se puede
+   sostener, pero en materia: delante del plano hay una LÁMINA, algo la
+   golpea desde dentro y la lámina no aguanta. Se ven tres cosas y en este
+   orden, que es el orden físico:
+
+     1 · el CRÁTER, el punto de contacto, en el primer fotograma;
+     2 · el FRENTE de compresión, que sale disparado y se va rompiendo en
+         arcos según se estira;
+     3 · las GRIETAS, que salen detrás del frente —más lentas, siempre— y
+         avanzan a tirones hasta pararse.
+
+   Y después la luz se va del filo antes de que se cierre el surco, que es
+   lo que hace un canto real cuando la fuente de luz deja de cogerlo.
+
+   El nombre del fichero ya no describe lo que hace, pero no se puede
+   cambiar: lo referencian `dirigir.py`, `colocar.py` y el compositor.
+
+   COSTE. Esto se renderiza a 30 pps sobre piezas enteras, así que el
+   presupuesto manda, y los números son medidos y no estimados: 37 elementos
+   con la configuración por defecto —antes eran 29, o sea que esto tiene MÁS
+   nodos, no menos— y **0,22 ms por `seek()`**. Por fotograma se rehacen dos
+   cadenas de `d` de 96 puntos (el frente), una de 18 (el cráter) y una de 7
+   (su filo), más ~89 escrituras de estilo. Cero filtros SVG y cero
+   `feTurbulence`: el precio de un `feTurbulence` por fotograma son 2-3 s, o
+   sea cuatro órdenes de magnitud más que todo esto junto. La captura del PNG
+   cuesta 33 ms, así que el trabajo de esta plantilla es el 0,7 % del
+   fotograma.
+
+   La irregularidad del frente y el trazado entero de las grietas se calculan
+   UNA vez en `setup`; el reloj solo multiplica por el radio y mueve el
+   `stroke-dashoffset`.
+   ===================================================================== */
+
+const { Ease, span, clamp, noise } = Engine;
+const TAU = Math.PI * 2;
+
+const svg    = document.getElementById('lamina');
+const placa  = document.getElementById('placa');
+const gGr    = document.getElementById('grietas');
+const crater = document.getElementById('crater');
+const cFilo  = document.getElementById('craterfilo');
+const fSomb  = document.getElementById('fsombra');
+const fLuz   = document.getElementById('fluz');
+
+/* Duración nominal del gesto. Si la capa dura menos, el guion interno se
+   comprime con ella (ver `k` en setup) en vez de quedarse cortado a media
+   fractura. */
+const NOM = 1.1;
+
+/* Dirección del golpe, en radianes. Una lámina golpeada REPICA a lo largo
+   de un eje —el del impacto—, no en círculos: un temblor isótropo es un
+   temblor de cámara, y esto no es la cámara. */
+const EJE = 2.16;
+
+/* Vértices unitarios del frente, cráter y grietas: geometría fija que solo
+   se escala o se revela con el reloj. */
+let UNI = [], CRA = [], grietas = [], S = {};
+
+/* ---------------------------------------------------------------------
+   La ley del frente.
+
+   `Ease.outCubic` —el 91 % del catálogo— es la curva equivocada para una
+   onda de choque, y no por gusto: un frente esférico real va como
+   t^(2/5) (Sedov-Taylor). La diferencia se MIDE en fotogramas útiles. Con
+   `alcance` 620 px y 0,52 s de viaje, a 30 pps:
+
+       outCubic   a mitad de camino ya ha recorrido el 87,5 %; los últimos
+                  8 fotogramas mueven el anillo 80 px en total, o sea 10 px
+                  por fotograma: se lee como un anillo parado.
+       t^(2/5)    a mitad va por el 75,8 %; esos mismos 8 fotogramas mueven
+                  148 px. El frente sigue VIAJANDO hasta que se apaga.
+
+   Y al principio pasa lo contrario: `outExpo`, que es la otra candidata, se
+   come el 59 % del recorrido en dos fotogramas y deja un anillo casi estático
+   durante el resto. Aquí el primer fotograma ya está a 224 px —el golpe es
+   instantáneo, como debe— pero la deceleración es suave.
+   --------------------------------------------------------------------- */
+const sedov = p => Math.pow(clamp(p, 0, 1), 0.4);
+
+/* ---------------------------------------------------------------------
+   El avance de una grieta NO es continuo: es stick-slip. La punta corre,
+   se clava en la frontera de grano siguiente y se para hasta que la
+   tensión vuelve a superarla. Aquí la punta avanza durante el 42 % de
+   cada escalón y se detiene el 58 % restante.
+
+   A 30 pps, con 3 escalones sobre los 0,34-0,52 s que dura una rama: 1,4 a
+   2,2 fotogramas de avance y 2 a 3 de parada. La parada SE VE, que es de lo
+   que se trata — un avance continuo sería otro barrido más de los muchos que
+   ya tiene el catálogo, y además es lo que hace un vidrio en las películas y
+   no en la realidad.
+   Cada grieta lleva su propio número de escalones (2, 3 o 4) porque si
+   todas se paran a la vez el efecto no parece frágil: parece que ha caído
+   un fotograma.
+   --------------------------------------------------------------------- */
+function fractura(p, saltos) {
+  if (p <= 0) return 0;
+  if (p >= 1) return 1;
+  const s = p * saltos, k = Math.floor(s);
+  return (k + Ease.outExpo(clamp((s - k) / 0.42, 0, 1))) / saltos;
+}
+
+/* El frente y el cráter se REDIBUJAN cada fotograma en vez de escalarse
+   con un `transform`. Cuesta cuatro cadenas de texto por fotograma y a cambio
+   el grosor del trazo y el patrón de guiones quedan en píxeles de pantalla
+   sin depender de `vector-effect`, cuyo comportamiento con `stroke-dasharray`
+   bajo escala no está definido igual en todas partes. Aquí el guion tiene
+   que medir lo mismo a radio 30 que a radio 620: es lo que hace que el
+   frente se ROMPA en más arcos según se estira, en vez de estirar los
+   mismos cuatro. */
+function traza(pts, cx, cy, r) {
+  let d = 'M';
+  for (let i = 0; i < pts.length; i++) {
+    d += (i ? 'L' : '') + (cx + pts[i].c * r).toFixed(1) + ' ' +
+                          (cy + pts[i].s * r).toFixed(1);
+  }
+  return d + 'Z';
+}
+
+Engine.register({
+  duration: NOM,
+  defaults: {
+    x: 540, y: 760,
+    /* `n` eran las PARTÍCULAS que salían despedidas; ahora son las ramas de
+       la fractura, y por eso baja de 26 a 5: veintiséis grietas saliendo de
+       un punto no son una fractura, son un sol de dibujos animados. Se sigue
+       aceptando cualquier valor porque los planes ya escritos pueden pasarlo,
+       pero se acota a [3, 9]: por debajo de 3 no hay red y por encima de 9 el
+       punto de impacto se emborrona. */
+    n: 5,
+    alcance: 620,
+    /* Repique de la lámina, en px. Era 16 y se escribía en el DOCUMENTO
+       entero; ver la nota de `draw`. */
+    sacudida: 7,
+    salida: 0.34,
+    /* Multiplicador de grosores. Existe para cuando la capa se coloca en una
+       columna estrecha o con `zoom`: un surco de 7,4 px reducido al 40 % deja
+       de leerse como un canto y pasa a ser una raya. */
+    grosor: 1
+  },
+
+  setup(cfg) {
+    const dur = cfg.duration || NOM;
+    /* Compresión del guion interno. Si la capa dura menos que lo nominal, el
+       gesto entero se encoge —frente, grietas y apertura— en vez de quedarse
+       a medio fracturar cuando se acaba el tiempo. */
+    const k = Math.min(1, dur / NOM);
+    const R = cfg.alcance;
+    S = { dur, k, x: cfg.x, y: cfg.y, R,
+          tF: 0.52 * k,
+          /* La salida no puede comerse el gesto: con `salida` mayor que la
+             mitad de la capa, el cierre empieza antes de que la fractura haya
+             terminado de propagarse y se ve desaparecer una grieta que aún
+             está creciendo. */
+          salida: clamp(cfg.salida, 0.05, dur * 0.55),
+          g: cfg.grosor };
+
+    /* --- por qué aquí NO hay `Engine.gradienteMetal` ------------------
+       Este rediseño empezó pintando todos los filos con la lámina de bronce
+       del motor —`stroke="url(#lam)"`—, que es lo que pide el catálogo y lo
+       que da la textura del metal. Se veía bien y HUBO QUE QUITARLO.
+
+       Con las 26 geometrías que hay aquí referenciando un `<linearGradient>` y
+       cambiando de `stroke-opacity`, `stroke-width` y `stroke-dashoffset` en
+       cada fotograma, la captura de Playwright compite con el repintado de lo
+       que ese paint server pinta. Medido con el patrón EXACTO del renderizador
+       —`seek(t)` + `screenshot`, siempre hacia adelante, tres pasadas
+       completas en páginas nuevas, contando fotogramas cuyo hash no coincide
+       entre pasadas—:
+
+           con el gradiente, moviéndolo         9 de 34 (carbon) · 5 (paper)
+           con el gradiente, quieto             9 de 34 (carbon) · 4 (paper)
+           con `--metal-3` plano                0 de 34
+           `timer-ring` · `notification-pop`    0 de 42 · 0 de 60
+           la versión ANTIGUA de este fichero   0 de 33
+
+       O sea que no es del entorno ni del movimiento del gradiente: es la
+       REFERENCIA al paint server. En una pieza real eso son fotogramas
+       sueltos capturados a medio repintar en mitad del efecto, y nada lo
+       delata: el PNG es válido, la capa pesa lo normal y el log sale limpio.
+       Es el fallo silencioso que este repo persigue, así que el bronce se
+       paga con un color plano.
+
+       Y la luz no se pierde, cambia de sitio: en vez de un degradado que
+       recorre el lienzo, cada canto calcula CUÁNTA luz coge —por su
+       orientación respecto a la fuente y por dónde está la banda que
+       barre— y lo aplica a la opacidad de su filo. Es element-level, se
+       invalida como cualquier otro estilo animado, y además es el modelo
+       correcto: lo que decide el brillo de un canto es su ángulo, no su
+       coordenada.
+
+       CONSECUENCIA EN LA MÉTRICA, dicha en voz alta: `auditar_estilo.js`
+       detecta «textura» buscando `Engine.gradienteMetal` en el texto del
+       fichero, así que esta plantilla pasa a contar como SIN textura aunque
+       el tratamiento de material —surco y filo emparejados, luz por ángulo,
+       banda que barre— sea mayor que el de la versión que sí lo llamaba. Es
+       el contador midiendo el fichero y no lo que se ve. No se toca
+       `auditar_estilo.js`: es compartido. */
+    S.nx = Math.cos(EJE + Math.PI / 2);
+    S.ny = Math.sin(EJE + Math.PI / 2);
+    /* Media anchura de la banda: 0,30 del alcance. Con 0,55 el barrido no se
+       veía en la tira —repartida sobre 680 px, la diferencia entre un flanco y
+       el siguiente era de un par de niveles—; a 372 px enciende y apaga ramas
+       enteras. */
+    S.B = R * 0.30;
+
+    /* --- el frente ---------------------------------------------------
+       96 vértices, y el número está calculado: la flecha entre cuerda y arco
+       a radio 620 es 620·(1−cos(π/96)) = 0,33 px, o sea que el polígono es
+       indistinguible de una circunferencia justo cuando más grande está. Con
+       48 serían 1,3 px y se vería facetado en el último tramo.
+
+       El radio no es 1: lleva dos armónicos bajos y un ruido por vértice.
+       Un frente perfectamente circular es el anillo de choque de plantilla;
+       uno con un 5 % de irregularidad de baja frecuencia es un frente que
+       atraviesa un material que no es homogéneo.
+
+       Y tampoco es isótropo: se estira un 8 % a lo largo del eje del golpe y
+       se comprime un 12 % en el perpendicular, o sea una elipse de 1,08 a
+       0,88 —relación 1,23— girada hasta `EJE`. Un golpe llega POR ALGÚN
+       SITIO, y esa es la diferencia entre un frente y el círculo concéntrico
+       que dibuja cualquier plantilla de onda. La irregularidad sola no
+       bastaba: en la tira de comprobación se seguía leyendo como un círculo
+       con el borde rizado. */
+    UNI = [];
+    const ejeC = Math.cos(EJE), ejeS = Math.sin(EJE);
+    for (let i = 0; i < 96; i++) {
+      const a = i / 96 * TAU;
+      const rr = 1 + 0.052 * Math.sin(a * 3 + 1.71)
+                   + 0.031 * Math.sin(a * 7 - 0.42)
+                   + 0.044 * (noise(i, 5) - 0.5);
+      const u = Math.cos(a) * rr * 1.08, v = Math.sin(a) * rr * 0.88;
+      UNI.push({ c: u * ejeC - v * ejeS, s: u * ejeS + v * ejeC });
+    }
+
+    /* --- el cráter ---------------------------------------------------
+       18 vértices. La primera versión sacaba el radio de `noise` puro (0,62 a
+       1,17 por vértice, sin correlación entre vecinos) y al ampliar el
+       fotograma se veía lo que era: una ESTRELLA de ocho puntas, o sea el
+       dingbat ✦ que §8 prohíbe, dibujado a mano por accidente. Un contacto no
+       deja una estrella: deja una mella. Aquí la irregularidad va en dos
+       armónicos bajos —vecinos correlacionados— y el ruido queda reducido a
+       un ±3 %, que es aspereza y no picos. */
+    CRA = [];
+    for (let i = 0; i < 18; i++) {
+      const a = i / 18 * TAU;
+      const rr = 0.80 + 0.20 * Math.sin(a * 2 + 1.10)
+                      + 0.13 * Math.sin(a * 3 - 0.60)
+                      + 0.06 * (noise(i, 41) - 0.5);
+      CRA.push({ c: Math.cos(a) * rr, s: Math.sin(a) * rr });
+    }
+
+    /* --- las grietas -------------------------------------------------
+       Cada rama es una polilínea de 5 tramos. La dirección se desvía en cada
+       tramo y luego tira un 35 % de vuelta hacia su rumbo: un paseo aleatorio
+       puro se enrosca sobre sí mismo y deja de parecer una grieta a los tres
+       tramos. Las bifurcaciones salen del tercer vértice de su madre y
+       arrancan más tarde, porque una rama no puede existir antes que el
+       tronco que la abre. */
+    gGr.innerHTML = '';
+    grietas = [];
+    const troncos = [];
+    const N = Math.round(clamp(cfg.n, 3, 9));
+    for (let j = 0; j < N; j++) {
+      const base = (j + 0.5) / N * TAU + (noise(j, 31) - 0.5) * (TAU / N) * 0.75;
+      /* Entre el 55 % y el 92 % del alcance del frente. La primera versión se
+         quedaba en 0,40-0,68 y la tira lo delató: un anillo de 620 px con un
+         garabato de 250 en el centro son dos gráficos, no uno. La grieta tiene
+         que llegar CERCA del frente —siempre por detrás, nunca lo alcanza—
+         para que se lea que es lo mismo propagándose. */
+      const L = R * (0.55 + 0.37 * noise(j, 12));
+      const pts = [{ x: 0, y: 0 }];
+      let px = 0, py = 0, a = base;
+      for (let m = 0; m < 5; m++) {
+        a += (noise(j * 11 + m, 3) - 0.5) * 0.62;
+        a += (base - a) * 0.35;
+        const paso = L / 5 * (0.70 + 0.60 * noise(j * 11 + m, 8));
+        px += Math.cos(a) * paso;
+        py += Math.sin(a) * paso;
+        pts.push({ x: px, y: py });
+      }
+      troncos.push({ pts, base, L });
+      nueva(pts, (0.02 + 0.05 * noise(j, 17)) * k,
+                 (0.34 + 0.18 * noise(j, 23)) * k,
+                 2 + Math.floor(noise(j, 61) * 3), 1);
+
+      /* Poco menos de la mitad de las ramas se bifurcan. Fijarlo por ruido y
+         no por paridad evita que la red salga simétrica, que es exactamente
+         lo que la haría parecer un icono. */
+      if (noise(j, 44) > 0.52) {
+        const v = pts[2];
+        let bx = v.x, by = v.y, ba = base + (noise(j, 77) > 0.5 ? 0.72 : -0.72);
+        const bp = [{ x: bx, y: by }];
+        for (let m = 0; m < 3; m++) {
+          ba += (noise(j * 5 + m, 19) - 0.5) * 0.5;
+          const paso = L * 0.16 * (0.7 + 0.6 * noise(j * 5 + m, 27));
+          bx += Math.cos(ba) * paso; by += Math.sin(ba) * paso;
+          bp.push({ x: bx, y: by });
+        }
+        nueva(bp, (0.14 + 0.06 * noise(j, 53)) * k,
+                  (0.20 + 0.10 * noise(j, 71)) * k,
+                  2, 0.72);
+      }
+    }
+
+    /* --- las circunferenciales ----------------------------------------
+       Una placa golpeada no se abre solo en radios: cuando deja de flectar
+       aparecen grietas CIRCUNFERENCIALES que unen dos radios contiguos, y son
+       posteriores a ellos. Sin esto la red se lee como un rayo —cinco líneas
+       divergentes desde un punto son un relámpago de dibujos animados, que es
+       justo el vecindario del que hay que salir—; con dos arcos pasa a leerse
+       como lo que es. Se miró en la tira antes y después: es el cambio que más
+       decidió la lectura de toda la pieza.
+
+       Dos como mucho, y combadas hacia fuera un 17 %: una cuerda recta entre
+       dos radios parece un puente dibujado, no un material que ha cedido. */
+    let arcos = 0;
+    for (let j = 0; j + 1 < troncos.length && arcos < 2; j++) {
+      if (noise(j, 101) < 0.42) continue;
+      const A = troncos[j].pts[2], Z = troncos[j + 1].pts[2];
+      const bp = [A];
+      for (let m = 1; m <= 3; m++) {
+        const u = m / 4;
+        const x = A.x + (Z.x - A.x) * u, y = A.y + (Z.y - A.y) * u;
+        const fuera = 1 + 0.17 * Math.sin(Math.PI * u)
+                        + (noise(j * 3 + m, 87) - 0.5) * 0.10;
+        bp.push({ x: x * fuera, y: y * fuera });
+      }
+      bp.push(Z);
+      nueva(bp, (0.26 + 0.09 * noise(j, 103)) * k, 0.17 * k, 2, 0.82);
+      arcos++;
+    }
+
+    /* --- la que cede después ------------------------------------------
+       Una rama corta que salta a los 0,50 s, cuando el frente ya se ha ido y
+       casi todas las demás están paradas. Es lo que hace de verdad un
+       material tensionado —la fractura no termina con el golpe, termina
+       cuando deja de ceder— y aquí resuelve además un problema medido: entre
+       0,55 y 0,85 s la tira compuesta no cambiaba nada, o sea diez fotogramas
+       de imagen fija pegada sobre la cara. El humo no lo caza: compara tres
+       instantes y dos ya diferían por otra cosa.
+
+       Sale de la rama más larga, que es la que ha acumulado más tensión, y va
+       hacia atrás —contra su propio rumbo— porque una grieta tardía busca el
+       camino que aún no está roto. */
+    if (troncos.length) {
+      let mejor = troncos[0];
+      for (const c of troncos) if (c.L > mejor.L) mejor = c;
+      const v = mejor.pts[3];
+      let bx = v.x, by = v.y, ba = mejor.base - 1.35;
+      const bp = [{ x: bx, y: by }];
+      for (let m = 0; m < 2; m++) {
+        ba += (noise(m, 91) - 0.5) * 0.55;
+        const paso = mejor.L * 0.19 * (0.75 + 0.5 * noise(m, 96));
+        bx += Math.cos(ba) * paso; by += Math.sin(ba) * paso;
+        bp.push({ x: bx, y: by });
+      }
+      nueva(bp, 0.50 * k, 0.13 * k, 2, 0.66);
+    }
+
+    function nueva(pts, t0, dt, saltos, escala) {
+      const d = 'M' + pts.map(p => p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join('L');
+      const surco = document.createElementNS(svg.namespaceURI, 'path');
+      const filo  = document.createElementNS(svg.namespaceURI, 'path');
+      surco.setAttribute('class', 'surco');
+      filo.setAttribute('class', 'filo');
+      [surco, filo].forEach(el => {
+        el.setAttribute('d', d);
+        /* El desplazamiento del filo es lo que convierte dos trazos en un
+           canto: el surco queda arriba-izquierda y la luz entra por
+           abajo-derecha. 1,6 px sobre un surco de 7,4 — más y se ven dos
+           líneas en vez de un canto. */
+        el.setAttribute('transform',
+          `translate(${cfg.x + (el === filo ? 1.6 : 0)},` +
+          `${cfg.y + (el === filo ? 1.6 : 0)})`);
+        gGr.appendChild(el);
+      });
+      /* Los dos datos de iluminación de esta rama, calculados UNA vez porque
+         son geometría y no reloj:
+
+         · `proy`  dónde cae sobre el eje por el que barre la banda de luz;
+         · `perp`  cuánto se le pone de canto a la fuente. Es |sin| del ángulo
+                   entre la rama y la dirección de la luz, o sea un Lambert de
+                   libro: una grieta paralela a la luz apenas coge nada y una
+                   perpendicular la coge entera. Esto es lo que sustituye al
+                   degradado de bronce y es más exacto que él — el brillo de un
+                   canto depende de su ÁNGULO, no de en qué parte del lienzo
+                   esté. */
+      const med = pts[Math.floor(pts.length / 2)];
+      const fin = pts[pts.length - 1];
+      const dx = fin.x - pts[0].x, dy = fin.y - pts[0].y;
+      const lon = Math.hypot(dx, dy) || 1;
+      grietas.push({ surco, filo, L: surco.getTotalLength(),
+                     t0, dt, saltos, e: escala,
+                     proy: med.x * S.nx + med.y * S.ny,
+                     perp: Math.abs((dx / lon) * S.ny - (dy / lon) * S.nx) });
+    }
+  },
+
+  draw(t, cfg) {
+    /* Antes de `t = 0` no ha pasado nada: el humo llama a `seek(-1)` y una
+       plantilla que ya dibuja su estado inicial ahí está diciendo que el
+       golpe ocurre antes del golpe. */
+    const cierre = t < 0 ? 0 : Engine.sale(t, S.dur, S.salida);
+    placa.style.opacity = cierre.toFixed(3);
+    if (cierre <= 0) return;
+
+    /* --- el repique --------------------------------------------------
+       La versión anterior escribía esta sacudida en `document.documentElement`
+       y su comentario afirmaba que así «se lee como un golpe de cámara». Era
+       falso y no daba ningún error: esta capa se compone ENCIMA del A-Roll
+       con un `overlay` de ffmpeg, así que mover el lienzo del PNG mueve el
+       gráfico y deja el metraje exactamente donde estaba. Lo único que
+       temblaba era el propio efecto — y siendo un anillo casi simétrico,
+       desplazarlo 16 px es indistinguible de dibujarlo 16 px más allá.
+
+       Aquí la sacudida es lo que sí puede ser: la lámina golpeada REPICA y se
+       lleva consigo el cráter y las grietas, porque están en ella. 5,4 Hz y
+       no los 8,3 Hz de antes: a 30 pps, 8,3 Hz son 3,6 fotogramas por ciclo y
+       el repique se convierte en parpadeo de submuestreo. Con 5,4 Hz son 5,5
+       fotogramas y se lee como lo que es. Se apaga en 8 fotogramas
+       (exp(−13·0,27) = 0,03). */
+    const rep = Math.exp(-13 * t) * Math.sin(34 * t) * cfg.sacudida;
+    placa.style.transform =
+      `translate(${(rep * Math.cos(EJE)).toFixed(2)}px, ` +
+      `${(rep * Math.sin(EJE) * 0.78).toFixed(2)}px)`;
+
+    /* --- la luz se va -------------------------------------------------
+       La banda de luz arranca sobre el impacto y cruza la fractura hasta
+       salirse de ella. Entre 0,63 y 0,85 s —cuando ya no queda ninguna grieta
+       creciendo— es, con la apertura de los surcos, lo único que se mueve. Y
+       es exactamente la clase de movimiento que pide §1: no se enciende nada,
+       se mueve la LUZ RASANTE sobre una superficie que ya estaba ahí, así que
+       las ramas se van encendiendo y apagando por turnos según la coge.
+
+       Sin esto ese tramo eran diez fotogramas de imagen quieta pegada sobre
+       la cara —el fallo de «congela»—, y la comprobación de humo no lo
+       delata: compara tres instantes y dos ya salían distintos por la
+       apertura del surco. Se vio mirando la tira, no leyendo el JSON.
+
+       `o` es la posición de la banda sobre el eje perpendicular al golpe.
+       Cada canto la consulta abajo; ver en `setup` por qué la banda no puede
+       ser el propio gradiente. */
+    const o = S.R * 1.15 *
+      Ease.inOutCubic(clamp((t - 0.06 * S.k) / (0.66 * S.k), 0, 1));
+
+    /* --- el frente ---------------------------------------------------- */
+    const p = clamp(t / S.tF, 0, 1);
+    if (p < 1) {
+      const r = 26 + (S.R - 26) * sedov(p);
+      /* La sombra va DELANTE de la luz, un 3,5 % más lejos: en un frente de
+         compresión lo primero que llega es el apretón —que oscurece— y la
+         relajación viene detrás. Esas dos bandas juntas son lo que hace que
+         el anillo parezca que dobla lo que cruza sin poder tocar un solo
+         píxel del metraje: la capa es un PNG con alfa y no puede refractar
+         nada, así que el desvío se DIBUJA como un par claro/oscuro. */
+      fSomb.setAttribute('d', traza(UNI, S.x, S.y, r * 1.035 + 3));
+      fLuz.setAttribute('d', traza(UNI, S.x, S.y, r));
+
+      /* Energía por unidad de longitud: el frente se estira y adelgaza. De
+         13 px a 1,8 en el trayecto. */
+      const fino = Math.pow(1 - p, 1.35);
+      fSomb.style.strokeWidth = ((13 * fino + 1.8) * S.g).toFixed(2);
+      fLuz.style.strokeWidth  = ((7.5 * Math.pow(1 - p, 1.5) + 1) * S.g).toFixed(2);
+      /* Exponente 1,3 y no 0,85. Con 0,85 el frente conservaba el 40 % de
+         opacidad a mitad de recorrido y en la tira de fotogramas SEGUIDOS se
+         veía el problema: entre los fotogramas 5 y 10 el elemento más grande
+         del cuadro era un anillo discontinuo tenue, o sea un marco de
+         selección. El frente tiene que ser un GOLPE —los cuatro primeros
+         fotogramas— y dejar el cuadro a la fractura, que es la que cuenta la
+         idea. Con 1,3 a mitad de recorrido queda en el 22 %. */
+      fSomb.style.strokeOpacity = (0.90 * Math.pow(1 - p, 1.30)).toFixed(3);
+      fLuz.style.strokeOpacity  = (0.95 * Math.pow(1 - p, 1.15)).toFixed(3);
+
+      /* El frente se ROMPE al estirarse. El guion se mide en píxeles de
+         pantalla todo el rato mientras el perímetro pasa de 165 a 3.900 px,
+         así que los arcos no se estiran: aparecen más. Y encima se acortan un
+         45 % y el hueco crece de 4 a 16 px, o sea que además de más trozos hay
+         más aire entre ellos — un frente que pierde coherencia, no un anillo
+         de puntos. Los dos trazos llevan longitudes y desfases distintos para
+         que no se rompan por el mismo sitio: son dos caras del mismo canto, no
+         dos copias. */
+      const hueco = 4 + 12 * p, corto = 1 - 0.45 * p;
+      /* El patrón tiene SEIS valores y no dos. Con `dash gap` los trozos salen
+         todos iguales y a media carrera el frente se lee como hormigas
+         marchantes — el mismo tic que `data-diagram` tuvo que quitarse—. Con
+         tres arcos de longitud distinta el frente se rompe por donde el
+         material cede, que no es cada 30 px. */
+      fSomb.style.strokeDasharray =
+        `${(104 * corto).toFixed(0)} ${hueco.toFixed(1)} ` +
+        `${(37 * corto).toFixed(0)} ${(hueco * 0.55).toFixed(1)} ` +
+        `${(68 * corto).toFixed(0)} ${(hueco * 1.6).toFixed(1)}`;
+      fLuz.style.strokeDasharray =
+        `${(71 * corto).toFixed(0)} ${(hueco * 1.2).toFixed(1)} ` +
+        `${(29 * corto).toFixed(0)} ${(hueco * 0.7).toFixed(1)} ` +
+        `${(52 * corto).toFixed(0)} ${(hueco * 1.9).toFixed(1)}`;
+      fLuz.style.strokeDashoffset = (-r * 0.35).toFixed(1);
+    } else {
+      /* Se BORRA la geometría, no basta con apagar la opacidad.
+         `seek(t)` tiene que dejar el DOM en un estado que dependa solo de `t`,
+         y dejar aquí el último `d` que se dibujó lo hace depender de por dónde
+         se haya llegado. Con `stroke-opacity: 0` no se ve nada, así que parece
+         inofensivo — y no lo es: medido, el mismo instante t = 0,80 alcanzado
+         en orden y a saltos daba 1.237 píxeles distintos (0,060 % del lienzo,
+         delta máxima 128), todos dentro de la caja del anillo viejo. Es un
+         resto de rasterizado incremental de Chromium sobre geometría que ya
+         no debería existir.
+
+         No es el 0,37 % de antialiasing de fuentes variables que la tanda
+         anterior dio por bueno: aquí no hay ni una letra, y una delta de 128
+         no es un borde suavizado. */
+      [fSomb, fLuz].forEach(el => {
+        el.removeAttribute('d');
+        el.style.strokeOpacity = 0;
+        el.style.strokeWidth = 0;
+        el.style.strokeDasharray = 'none';
+        el.style.strokeDashoffset = 0;
+      });
+    }
+
+    /* --- el cráter ----------------------------------------------------
+       Aparece en dos fotogramas y se queda: es la marca, y una marca no se
+       anima. Crece de 0,35 a 1 con `outExpo` porque el contacto no acelera,
+       llega. */
+    const pc = span(t, 0, 0.07 * S.k, Ease.outExpo);
+    const rc = 21 * (0.35 + 0.65 * pc);
+    crater.setAttribute('d', traza(CRA, S.x, S.y, rc));
+    crater.style.opacity = (0.78 * pc).toFixed(3);
+    /* El filo del cráter solo coge luz en un flanco —de 180° a 300°, o sea
+       arriba a la izquierda—. Un borde iluminado por todo su contorno es un
+       halo, y §1 lo prohíbe con razón: el objeto deja de tener volumen y pasa
+       a emitir. */
+    let dc = 'M';
+    for (let i = 9; i <= 15; i++) {
+      dc += (i > 9 ? 'L' : '') + (S.x + CRA[i].c * rc * 1.12).toFixed(1) + ' ' +
+                                 (S.y + CRA[i].s * rc * 1.12).toFixed(1);
+    }
+    cFilo.setAttribute('d', dc);
+    cFilo.style.strokeWidth = (3 * S.g).toFixed(2);
+    cFilo.style.strokeOpacity = pc.toFixed(3);
+
+    /* --- las grietas --------------------------------------------------- */
+    for (const g of grietas) {
+      const q = fractura((t - g.t0) / g.dt, g.saltos);
+      /* El filo llega 0,06 de progreso DETRÁS del surco: primero se abre el
+         hueco y un fotograma después la luz lo encuentra. Es un detalle de
+         dos fotogramas y se nota, porque es justo el que hace que la grieta
+         parezca que se abre en vez de dibujarse. */
+      const qf = fractura((t - g.t0) / g.dt - 0.06, g.saltos);
+      g.surco.style.strokeDasharray = g.L.toFixed(1);
+      g.filo.style.strokeDasharray  = g.L.toFixed(1);
+      g.surco.style.strokeDashoffset = (g.L * (1 - q)).toFixed(1);
+      g.filo.style.strokeDashoffset  = (g.L * (1 - qf)).toFixed(1);
+
+      /* La grieta SE ABRE después de pasar el frente: el surco engorda 2,6 px
+         cuando la punta ya se ha parado. Es el segundo canal animado del
+         mismo elemento y es lo que separa esto de un trazado: una línea que
+         se dibuja está terminada al llegar al final; un hueco sigue cediendo.
+         `inOutCubic` y no `outCubic` porque ceder empieza despacio. */
+      const ab = span(t, g.t0 + g.dt, 0.20 * S.k, Ease.inOutCubic);
+      /* 7,4 px de surco y no los 4,6 de la primera versión. El número sale de
+         mirar la tira compuesta sobre gris: a 4,6 px la grieta se leía como un
+         arañazo marrón y el frente se quedaba con todo el peso. La regla no es
+         «que se vea» sino que el objeto que CUENTA la idea —la fractura— pese
+         más que el objeto que la anuncia —el frente—. */
+      g.surco.style.strokeWidth = ((7.4 + 2.6 * ab) * g.e * S.g).toFixed(2);
+      g.filo.style.strokeWidth  = ((3.2 - 0.9 * ab) * g.e * S.g).toFixed(2);
+
+      /* La luz se va ANTES que el surco. Es lo que pasa cuando la fuente deja
+         de coger el canto: el reflejo desaparece y el hueco sigue ahí un
+         momento más. Al final de la capa quedan solo los surcos, más
+         apagados, y luego se cierra todo. Dos velocidades de desvanecido en
+         el mismo objeto — no una opacidad de grupo. */
+      const irse = span(t, S.dur - S.salida * 1.7, S.salida * 1.1, Ease.inCubic);
+      /* Cuánta luz coge ESTE canto ahora mismo: su ángulo (fijo) más la
+         campana de la banda que cruza (móvil). El suelo son 0,40 —un canto
+         fuera de la banda sigue teniendo su bronce, solo que apagado— porque
+         llevarlo a cero convertiría el barrido en un foco, y un foco es
+         jerarquía por luz, que es lo que §1 prohíbe. */
+      const d = (g.proy - o) / (S.B * 0.9);
+      const canto = Math.min(1, 0.40 + 0.34 * g.perp + 0.34 * Math.exp(-d * d));
+      g.filo.style.strokeOpacity  = (0.95 * canto * (1 - irse)).toFixed(3);
+      g.surco.style.strokeOpacity = (0.74 - 0.22 * irse).toFixed(3);
+    }
+  }
+});
+</script>
+</body>
+</html>

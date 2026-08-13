@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Pills — etiquetas troqueladas y remachadas</title>
+<!-- `golpear` (inCubic) y no `asentar`: lo que entra aquí no llega y se posa,
+     lo CORTA un troquel. Una prensa acelera hasta el contacto y ahí se acaba
+     el movimiento; con `outCubic` la chapa frenaba justo antes de tocar, que
+     es lo contrario de lo que hace una prensa. La familia manda sobre
+     `Engine.entra`, así que basta declararla. -->
+<meta name="gesto" content="golpear:troquel">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+
+  .fila {
+    position: absolute; left: 70px; right: 70px;
+    display: flex; flex-wrap: wrap; gap: var(--s-4);
+    /* Al CANTO, no al centro: las cuatro etiquetas están remachadas sobre la
+       misma línea. Centrarlas verticalmente con cuerpos distintos dejaba la
+       fila con los cantos desalineados, que es lo que delata que son cajas de
+       texto y no piezas fijadas a un sitio. */
+    align-items: flex-end;
+  }
+
+  /* =====================================================================
+     LA ETIQUETA
+     ---------------------------------------------------------------------
+     Antes esto era `border-radius: 999px` + `.cristal`, o sea el chip de
+     cualquier framework, y encima con el `backdrop-filter` que §8 da por
+     descartado: sobre `omitBackground` no hay píxeles detrás que muestrear.
+     Lo que se veía era una pastilla gris translúcida con un filete.
+
+     Ahora es una ETIQUETA DE CHAPA. Tres hechos físicos y ninguna decoración:
+
+       · el CANTO — la chapa tiene grosor. Se hace con el relleno inferior
+         del envoltorio —6 px y nada arriba ni a los lados— sobre el degradado
+         metálico del tema: es el truco de `.filete-metal` de `_tokens.css`
+         con el reparto asimétrico que da una pieza vista desde un poco por
+         encima. Solo abajo, porque el grosor solo se ve por donde la cara no
+         tapa; rodeando la caja sería un borde de acento, no un canto.
+       · el REMACHE — la etiqueta está FIJADA. Una cabeza de remache se FORMA
+         al golpe: por eso crece con `outBack6`, que es el 6 % de sobrepaso
+         que §10 permite, y no aparece con un fundido.
+       · el ROTULADO — el texto no está puesto, está IMPRESO por un cabezal
+         que recorre la chapa a avance constante.
+
+     La cara es OPACA a propósito. `_tokens.css` ya lo dice en `.chip`:
+     «la legibilidad la da el relleno opaco, no el borde ni la sombra», y
+     estas etiquetas viven sobre metraje arbitrario. De paso permite usar
+     `Engine.grano`, que multiplica y necesita superficie debajo. */
+  .ficha {
+    position: relative;
+    display: inline-block;
+    /* SOLO abajo. La primera versión llevaba también 1 px arriba y a los
+       lados, y mirando el fotograma se veía lo que era: un filete de bronce
+       rodeando la caja, o sea el `edge-accent` de siempre. Un canto es el
+       GROSOR de la pieza y el grosor solo se ve por donde la pieza no tapa,
+       que es abajo. Quitando el anillo la etiqueta deja de leerse como una
+       caja con borde y pasa a leerse como una chapa apoyada. */
+    padding: 0 0 6px;
+    /* El canto es metal de verdad, con los cinco stops del tema. En `paper`
+       los cinco colapsan al acento y queda un canto de color plano, que es
+       lo correcto ahí: sobre papel un degradado de bronce se ve sucio. */
+    background-image: linear-gradient(
+      var(--metal-ang), var(--metal-1) 0%, var(--metal-3) 38%,
+      var(--metal-4) 62%, var(--metal-5) 100%);
+    /* Sombra de contacto corta: la pieza está APOYADA, no flotando. §1 pone
+       el techo en ~48 px de difuminado; esto son 22. */
+    box-shadow: 0 8px 22px -12px var(--sombra);
+    will-change: clip-path, transform, opacity;
+  }
+
+  .cara {
+    position: relative;
+    display: flex; align-items: center; gap: var(--s-3);
+    padding: var(--s-3) var(--s-5) var(--s-3) var(--s-6);
+    /* Altura común derivada del cuerpo mayor, no un número suelto: si mañana
+       se reescala la tipografía, las tres variantes siguen midiendo lo mismo
+       entre sí. Las tres piezas salen de la MISMA tira, así que miden igual
+       aunque su rótulo no.
+
+       El relleno va SUMADO a propósito. `_tokens.css` pone `box-sizing:
+       border-box` para todo, así que `min-height` es la caja de borde: sin
+       sumarlo, el mínimo (38 px) quedaba por debajo de lo que ya medían las
+       tres con su relleno y no hacía absolutamente nada. Medido antes de
+       corregirlo: 72 · 61 · 65 px para cmd · stat · warn, o sea tres alturas
+       distintas donde el CSS decía que había una. */
+    min-height: calc(var(--t-lg) * 1.16 + var(--s-3) * 2);
+    background: var(--chrome);
+    border-radius: var(--r-sm);
+    /* `overflow` e `isolation` son OBLIGATORIOS aquí y no cosmética: el grano
+       se pinta con `mix-blend-mode: multiply` en una capa hija, y sin
+       `isolation` multiplicaría contra todo lo que haya debajo en la página;
+       sin `overflow` la teja se saldría por las esquinas, porque
+       `border-radius` NO recorta hijos. */
+    overflow: hidden; isolation: isolate;
+    /* La arista superior coge luz y la inferior muere en sombra: §10 pide
+       exactamente esto («inset 0 1px 0 arriba, inset 0 -2px abajo») y es lo
+       que hace que una caja se lea como un objeto. */
+    box-shadow: inset 0 1px 0 var(--glass-highlight),
+                inset 0 -2px 4px -3px var(--sombra),
+                /* Al quitar el anillo de bronce la chapa se quedaba sin
+                   perfil sobre metraje oscuro. Un filete de `--stroke` (10 %
+                   de la tinta) da el canto cortado sin volver a pintar un
+                   borde de acento. */
+                inset 0 0 0 var(--hairline) var(--stroke);
+  }
+
+  /* Mecanizado de la cara. Va en su propia capa porque `.trama` pinta con
+     `background-image` y ocuparía el sitio del fondo de la cara. La DENSIDAD
+     codifica el tipo por segunda vez —tono y trama—, así que la fila se
+     sigue leyendo en escala de grises, que es para lo que existe
+     `data-densidad` en `_tokens.css`. */
+  .rayado { position: absolute; inset: 0; opacity: 0.85; pointer-events: none; }
+
+  /* La luz que RECORRE la chapa durante la permanencia. Es el segundo tiempo:
+     no repite la entrada, cuenta lo que le pasa al metal DESPUÉS de estar
+     puesto. Mismo recurso que la placa de `chapter-card`, aquí con velocidad
+     y fase propias por etiqueta para que la fila no respire como un bloque. */
+  .raso {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image: linear-gradient(102deg,
+      transparent 32%, var(--glass-glare) 45%, var(--glass-highlight) 50%,
+      var(--glass-glare) 55%, transparent 68%);
+    background-size: 240% 100%;
+    mix-blend-mode: overlay;
+    will-change: background-position, opacity;
+  }
+
+  /* --- el remache --- */
+  .marca { position: relative; z-index: 3; width: var(--s-3); height: var(--s-3);
+           border-radius: 50%; flex: 0 0 auto; will-change: transform; }
+  /* Cabeza abombada: la luz entra por arriba a la izquierda. El `color-mix`
+     en oklab es lo que mantiene el modelado en `paper`, donde los cinco stops
+     del metal son el MISMO color: sin él el remache sería un círculo naranja
+     plano. En sRGB la mezcla pasa por un gris barro; en oklab no. */
+  .remache {
+    background-image: radial-gradient(circle at 36% 30%,
+      color-mix(in oklab, var(--metal-3) 74%, var(--velo-claro)) 0%,
+      var(--metal-4) 48%,
+      color-mix(in oklab, var(--metal-1) 78%, var(--velo-oscuro)) 100%);
+    box-shadow: 0 1px 0 var(--glass-highlight), inset 0 -1px 2px var(--sombra);
+  }
+  /* Testigo de nivel para las etiquetas de ESTADO. Un estado se LEE: sube y
+     baja como el visor de nivel de una máquina. El punto que parpadeaba antes
+     era un led, y un led es luz — §1 destaca con contraste, nunca con luz. */
+  .testigo { overflow: hidden; background: var(--chrome-3);
+             box-shadow: inset 0 0 0 var(--hairline) var(--stroke); }
+  .nivel { position: absolute; left: 0; right: 0; bottom: 0;
+           background: var(--accent-2); will-change: height; }
+
+  /* Pauta: el filete que dice de qué es la etiqueta. Un filete cuesta lo
+     mismo que un dingbat y es de esta marca.
+
+     Va PEGADA al canto izquierdo y no entre el remache y el texto, que es
+     donde estaba: ahí, con el cabezal de rotulación pasando al lado y la
+     barra del comando en bronce, salían tres trazos verticales seguidos y el
+     del medio se leía como un cursor. En el canto se lee como lo que es: el
+     código de color de la pieza. */
+  .pauta { position: absolute; z-index: 3; left: 0; top: 0; bottom: 0;
+           width: 3px; }
+
+  /* --- el rotulado --- */
+  .campo { position: relative; z-index: 3; display: inline-block; }
+  .rot {
+    display: block; white-space: nowrap; color: var(--ink);
+    line-height: 1.15;
+    /* ¡OJO! `font-weight` se queda en 300 A PROPÓSITO y el peso real lo pone
+       `font-variation-settings`. Medido en ESTE Chromium, que es el que
+       rasteriza los PNG: el eje variable solo vive si la cara que el
+       emparejado de CSS elige es el fichero variable, y las estáticas ganan
+       en los pesos que declaran. Con `font-weight: 500`, `--mono` da UNA sola
+       variante para "wght" 300/420/560/700 —gana `GeistMono-Medium.otf` y el
+       eje muere sin un solo aviso—; con 400 le pasa lo mismo a `--subs`
+       (`Geist-Regular.otf`). Con 300 las tres familias dan 4 de 4 variantes
+       distintas. O sea que declarar el peso «bien» es lo que rompe el gesto. */
+    font-weight: var(--w-claro);
+    will-change: mask-image, font-variation-settings;
+  }
+  /* Tres tipos, tres VOCES, que es la partición que `_tokens.css` ya define:
+     `--mono` MIDE (un comando es algo que se teclea), `--display` AFIRMA
+     (un estado se declara) y `--subs` NARRA (un aviso se cuenta). Antes las
+     tres iban en mono al mismo cuerpo y al mismo peso: un solo escalón. */
+  .ficha[data-tipo="cmd"] .rot {
+    font-family: var(--mono); font-size: var(--t-lg);
+    letter-spacing: var(--tr-texto); font-variation-settings: "wght" 420;
+  }
+  .ficha[data-tipo="stat"] .rot {
+    font-family: var(--display); font-size: var(--t-sm);
+    text-transform: uppercase; letter-spacing: var(--tr-caps-ancho);
+    font-variation-settings: "wght" 560;
+  }
+  .ficha[data-tipo="warn"] .rot {
+    font-family: var(--subs); font-size: var(--t-md);
+    letter-spacing: var(--tr-texto); font-variation-settings: "wght" 240;
+  }
+  /* La barra del comando carga la línea: jerarquía DENTRO del renglón, por
+     color y por peso, que es lo único que §1 permite. */
+  .barra { color: var(--accent); font-variation-settings: "wght" 700; }
+
+  /* El cabezal de rotulación: 2 px de bronce que recorren la chapa. Va FUERA
+     del elemento enmascarado; dentro, la propia máscara lo dejaría a medias
+     justo en el borde donde tiene que verse entero. */
+  .cabezal { position: absolute; top: -8%; bottom: -8%; width: 2px;
+             margin-left: -1px; background: var(--accent);
+             will-change: left, opacity; }
+
+  /* Código de pieza. Es lo que era `ico`, que se componía como TEXTO libre y
+     era una invitación a colar un dingbat (`▲`) en el rótulo — de hecho el
+     `items` por defecto traía uno. Aquí es lo que hay grabado al canto de una
+     pieza de inventario: mono pequeño y apagado, nunca protagonista. */
+  .cod { position: relative; z-index: 3; font-family: var(--mono);
+         font-size: var(--t-2xs); letter-spacing: var(--tr-caps);
+         color: var(--ink-faint); font-variation-settings: "wght" 500; }
+
+  .ficha[data-tipo="cmd"]  .pauta { background: var(--accent); }
+  .ficha[data-tipo="stat"] .pauta { background: var(--accent-2); }
+  /* `--luz-2` a pelo DESAPARECE en `paper`: el ámbar del semáforo es #D9C79A
+     y la cara del tema claro es #EDE9E2 — medido, 1,3:1 de contraste, o sea
+     invisible. Mezclado con `--ink`, que se invierte con el tema, la pauta
+     gana contraste en los DOS sentidos sin dejar de ser ámbar: en carbón se
+     aclara hacia el marfil y en papel se oscurece hacia la tinta. */
+  .ficha[data-tipo="warn"] .pauta {
+    background: color-mix(in oklab, var(--luz-2) 72%, var(--ink));
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="fila" id="fila"></div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const fila = document.getElementById('fila');
+let fichas = [];
+/* El ritmo REAL de la tanda, que no siempre es el configurado. Ver `ritmar`. */
+let ritmo = { escalonado: 0.16, entrada: 0.34, barrido: 0.42 };
+
+/* Troquelar, remachar y rotular cuatro piezas cuesta
+   `(n-1)·escalonado + entrada + barrido` segundos, y eso no depende de lo que
+   dure la capa. Con los valores por defecto son 1,24 s: el 28 % de una capa de
+   4,5 y el 83 % de una de 1,5. `dirigir.py` reparte duraciones que no conoce
+   esta plantilla, así que en una capa corta la última etiqueta se estaría
+   rotulando mientras la fila ya se va — sin dar ningún error, porque no lo es.
+   Se comprime el montaje para que quepa en el 55 % del tiempo útil y quede
+   permanencia de sobra, que es donde vive el segundo tiempo. Nunca se estira:
+   una capa larga no debe montarse más despacio, debe reposar más. */
+function ritmar(cfg, fin) {
+  const n = Math.max(1, (cfg.items || []).length);
+  const util = Math.max(0.2, fin - cfg.salida);
+  const montaje = (n - 1) * cfg.escalonado + cfg.entrada + cfg.barrido;
+  const k = Math.min(1, 0.55 * util / montaje);
+  return { escalonado: cfg.escalonado * k, entrada: cfg.entrada * k,
+           barrido: cfg.barrido * k };
+}
+
+/* Rango del eje de peso por tipo. Se anima de `w0` a `w1`: la tinta que
+   acaba de salir del cabezal está floja y se asienta. No se sale del rango
+   de ninguna de las tres familias (Plus Jakarta Sans llega a 800). */
+const PESOS = {
+  cmd:  [400, 520],
+  stat: [540, 760],
+  warn: [230, 320],
+};
+
+Engine.register({
+  duration: 4.5,
+  defaults: {
+    y: 1520,                 // altura de la fila en el lienzo 1080x1920
+    align: 'flex-start',     // flex-start | center | flex-end
+    /* 0,16 y no 0,11: cada troquelado es un GOLPE, y a 0,11 los cuatro
+       golpes caían a nueve por segundo, que el oído junta en un zumbido en
+       vez de contar cuatro piezas. */
+    escalonado: 0.16,
+    entrada: 0.34,           // lo que tarda el troquel en pasar la chapa
+    barrido: 0.42,           // lo que tarda el cabezal en rotularla
+    salida: 0.4,
+    items: [
+      { txt: '/goal',    tipo: 'cmd' },
+      { txt: '/btw',     tipo: 'cmd' },
+      { txt: '/bg',      tipo: 'cmd' },
+      /* Sin el `▲` que traía: §8 prohíbe los dingbats del sistema y un
+         defecto es donde más daño hacen, porque se copian. */
+      { txt: 'HIGH GPU', tipo: 'stat', punto: true }
+    ]
+  },
+
+  setup(cfg) {
+    ritmo = ritmar(cfg, cfg.duration || 4.5);
+    fila.style.top = cfg.y + 'px';
+    fila.style.justifyContent = cfg.align;
+
+    fila.innerHTML = '';
+    const cues = [];
+    fichas = cfg.items.map((it, i) => {
+      const tipo = it.tipo || 'cmd';
+      const el = document.createElement('span');
+      /* `.silueta` y no `.cristal`: la etiqueta ya no es vidrio, pero el plan
+         que emite `dirigir.py` sigue pidiendo `cristal: true` para esta capa
+         y sin una región de máscara la segunda pasada saldría vacía.
+         `.silueta` marca la región SIN heredar el aspecto de cristal, que es
+         justo para lo que `_tokens.css` la separó. Como la cara es opaca, la
+         refracción queda debajo y no se ve: `CRISTAL["pills"]` en
+         `dirigir.py` ya no aporta nada y debería quitarse — no lo toco
+         porque no es mi fichero. */
+      el.className = 'ficha silueta';
+      el.dataset.tipo = tipo;
+
+      const cara = document.createElement('span');
+      cara.className = 'cara';
+
+      const rayado = document.createElement('i');
+      rayado.className = 'rayado trama';
+      rayado.dataset.densidad = tipo === 'stat' ? 'alta'
+                              : tipo === 'warn' ? 'baja' : 'media';
+      cara.appendChild(rayado);
+
+      const raso = document.createElement('i');
+      raso.className = 'raso';
+      cara.appendChild(raso);
+
+      /* Remache o testigo, nunca los dos: o la pieza está fijada, o lo que
+         hay ahí es un visor que mide algo. */
+      const marca = document.createElement('i');
+      marca.className = 'marca ' + (it.punto ? 'testigo' : 'remache');
+      let nivel = null;
+      if (it.punto) {
+        nivel = document.createElement('i');
+        nivel.className = 'nivel';
+        marca.appendChild(nivel);
+      }
+      cara.appendChild(marca);
+
+      const pauta = document.createElement('i');
+      pauta.className = 'pauta';
+      cara.appendChild(pauta);
+
+      const campo = document.createElement('span');
+      campo.className = 'campo';
+      const rot = document.createElement('span');
+      rot.className = 'rot';
+      const txt = String(it.txt === undefined ? '' : it.txt);
+      /* La barra inicial de un comando se compone aparte para poder darle
+         peso y color propios. Es texto real, no un icono. */
+      if (tipo === 'cmd' && txt.charAt(0) === '/') {
+        const b = document.createElement('span');
+        b.className = 'barra'; b.textContent = '/';
+        rot.appendChild(b);
+        rot.appendChild(document.createTextNode(txt.slice(1)));
+      } else {
+        rot.textContent = txt;
+      }
+      campo.appendChild(rot);
+      const cabezal = document.createElement('i');
+      cabezal.className = 'cabezal';
+      campo.appendChild(cabezal);
+      cara.appendChild(campo);
+
+      if (it.ico) {
+        const c = document.createElement('span');
+        c.className = 'cod'; c.textContent = it.ico;
+        cara.appendChild(c);
+      }
+
+      el.appendChild(cara);
+      fila.appendChild(el);
+
+      /* Grano de impresión sobre la cara, con semilla propia: con la misma
+         teja en las cuatro, el ruido arranca igual en todas y se ve que es
+         una textura pegada. Va DENTRO de `.cara`, que tiene fondo opaco;
+         sobre una capa transparente `multiply` devuelve el gris de la teja. */
+      Engine.grano(cara, { px: 128, semilla: 7 + i, op: 0.3 });
+
+      const w = PESOS[tipo] || PESOS.cmd;
+      return { el, marca, nivel, raso, rot, cabezal, w0: w[0], w1: w[1] };
+    });
+
+    /* UNA señal por golpe de troquel, y no la del primero: `dirigir.py` ya
+       pone un `pop` al entrar la capa (`SFX_POR_PLANTILLA["pills"]`), que cae
+       exactamente sobre el primer troquelado. Emitirlo aquí sería el mismo
+       golpe sonando dos veces. El instante sale de la MISMA expresión que usa
+       `draw` para formar el remache, así que si se toca el ritmo el sonido se
+       mueve con él. */
+    if (!cfg.sinSonido) {
+      for (let i = 1; i < fichas.length && cues.length < 4; i++) {
+        cues.push({ at: +(i * ritmo.escalonado + ritmo.entrada * 0.7).toFixed(3),
+                    sfx: 'clic', gain: 0.55 });
+      }
+    }
+    return { cues };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 4.5;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+
+    fichas.forEach((p, i) => {
+      const ini = i * ritmo.escalonado;
+      const u = t - ini;
+
+      /* EL TROQUEL. El corte baja y la chapa aparece de arriba abajo. La
+         curva la pone la familia declarada en <meta>: `inCubic`, o sea
+         acelerando hasta el contacto. No hay fundido de opacidad — una pieza
+         cortada no aparece transparentándose. */
+      const e = Engine.entra(u, ritmo.entrada);
+      p.el.style.clipPath =
+        'inset(0 0 ' + ((1 - e) * 100).toFixed(2) + '% 0 round var(--r-sm))';
+
+      /* §10: cada pieza deriva con su periodo. Aquí sí lleva `giro`, que casi
+         siempre sobra: una chapa suelta remachada por UN punto cabecea, y la
+         del comentario de `Engine.flota` es justo esta excepción. */
+      const flo = Engine.flota(t, i, { amp: 2.6, periodo: 7.1, semilla: 4, giro: 0.35 });
+      const caida = (1 - cierre) * 16;          // se descuelga al salir
+      p.el.style.transform =
+        'translate(' + flo.x.toFixed(2) + 'px, ' +
+        ((1 - e) * -6 + flo.y + caida).toFixed(2) + 'px) ' +
+        'rotate(' + flo.r.toFixed(3) + 'deg)';
+      p.el.style.opacity = cierre.toFixed(3);
+
+      /* EL REMACHE SE FORMA. Una cabeza de remache no aparece: la ensancha el
+         golpe, y por eso se pasa y vuelve. `outBack6` es el 6 % exacto que
+         permite §10 —el `outBack` por defecto se pasa el 10 % y está fuera de
+         norma—. Empieza al 70 % del troquelado, que es cuando la pieza ya
+         está cortada y llega el segundo impacto. */
+      const golpe = span(u, ritmo.entrada * 0.7, 0.26, Ease.outBack6);
+      p.marca.style.transform = 'scale(' + (0.5 + 0.5 * golpe).toFixed(3) + ')';
+
+      /* EL ROTULADO, a avance CONSTANTE. `linear` y no `outCubic`: un cabezal
+         montado sobre husillo no decelera al llegar al centro de la pieza; si
+         lo hiciera, lo que se estaría viendo es un barrido de vídeo y no una
+         máquina. La máscara deja un borde de 8 % sin cortar en seco, que es
+         el ancho por el que la tinta moja. */
+      const pr = span(u, ritmo.entrada, ritmo.barrido, Ease.linear);
+      const borde = pr * 112;
+      const mascara = 'linear-gradient(90deg, #000 0 ' + (borde - 8).toFixed(1) +
+                      '%, transparent ' + borde.toFixed(1) + '%)';
+      p.rot.style.maskImage = mascara;
+      p.rot.style.webkitMaskImage = mascara;
+      p.cabezal.style.left = Math.min(100, pr * 100).toFixed(2) + '%';
+      p.cabezal.style.opacity =
+        (cierre * Math.sqrt(clamp(1 - pr, 0, 1)) * clamp(pr * 8, 0, 1)).toFixed(3);
+
+      /* SEGUNDO TIEMPO — lo que pasa DESPUÉS de llegar, no el mismo gesto
+         otra vez. Antes la entrada se agotaba en 0,38 s y la salida no
+         arrancaba hasta 4,1: casi cuatro segundos en los que solo se movía
+         una deriva escrita a mano. Ahora la permanencia entera la ocupan la
+         luz cruzando el metal y la tinta asentándose. */
+      const r = Engine.reposo(u, ritmo.entrada + ritmo.barrido, fin - ini,
+                              cfg.salida, Ease.linear);
+      const fase = Engine.noise(i, 5);
+      const vel = 130 + 70 * Engine.noise(i + 9, 5);
+      p.raso.style.backgroundPosition = (108 + 34 * fase - r * vel).toFixed(1) + '% 0';
+      /* La luz llega a su máximo a mitad de la travesía, como el reflejo real
+         de una lámina que gira despacio bajo una fuente fija. */
+      p.raso.style.opacity =
+        (cierre * (0.42 + 0.58 * Math.sin(Math.PI * clamp(r, 0, 1)))).toFixed(3);
+
+      /* LA TINTA SE ASIENTA. `outExpo` porque es tinta: sale del ataque y se
+         agota. El peso sube deprisa al terminar el rotulado y sigue
+         confirmándose muy despacio durante el resto de la permanencia — dos
+         términos, uno rápido y otro largo, para que no se acabe a mitad. */
+      const tinta = span(u, ritmo.entrada + ritmo.barrido * 0.55, 0.62, Ease.outExpo);
+      const w = p.w0 + (p.w1 - p.w0) * (0.72 * tinta + 0.28 * clamp(r, 0, 1));
+      Engine.peso(p.rot, Math.round(w));
+
+      /* El visor de nivel de las etiquetas de estado. Periodo propio por
+         índice: dos visores que suben a la vez son un latido, y un latido es
+         un efecto. */
+      if (p.nivel) {
+        const n = 0.34 + 0.42 * (0.5 + 0.5 * Math.sin(t * 1.9 + i * 2.1));
+        p.nivel.style.height = (n * 100).toFixed(1) + '%';
+      }
+    });
+  }
+});
+</script>
+</body>
+</html>

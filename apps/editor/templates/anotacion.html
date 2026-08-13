@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="gesto" content="trazar:plumilla">
+<title>Anotación a plumilla</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* ======================================================================
+     ERA un rotulador de presentación: cinco `<path>` con `stroke-width`
+     constante, `stroke-linecap: round` y un temblor de ruido blanco punto a
+     punto. Eso es exactamente lo que dibuja la herramienta «lápiz» de
+     cualquier programa de diapositivas, y en una plantilla que ANOTA SOBRE
+     EL VÍDEO es el peor sitio para parecer eso: la marca es lo único que el
+     espectador lee como hecho a mano, y salía hecha por un `for`.
+
+     Tres cosas la delataban, y las tres son geométricas, no de color:
+
+       · Ancho constante. Un instrumento real deposita más tinta donde el
+         bisel se opone al movimiento y menos donde va de canto. Con un ancho
+         fijo la marca no tiene instrumento: tiene grosor de CSS.
+       · Temblor de ruido blanco por punto. `noise(i)` y `noise(i+1)` son
+         independientes, así que el trazo salía en dientes de sierra —temblor
+         de alta frecuencia—. Una mano se desvía y VUELVE: su error es de baja
+         frecuencia. Medido sobre el subrayado por defecto y su semilla: la
+         desviación cambiaba de signo 5,4 veces cada 10 puntos; ahora, 0,5.
+       · Curva única. Todo entraba con `outCubic`, o sea a velocidad máxima
+         desde el primer fotograma: con `outCubic` el 48,8 % del trazo está
+         puesto al 20 % del tiempo. Una mano arranca parada. Con `inOutCubic`
+         ese mismo 20 % del tiempo pone el 3,2 %.
+
+     ES una PLUMILLA de bisel ancho. El ancho no lo decide una constante: lo
+     decide el ángulo entre la dirección del trazo y el bisel, que es la
+     geometría de verdad de una plumilla y por eso una elipse sale gruesa en
+     dos cuadrantes y de pelo en los otros dos. La tinta se deposita como
+     FORMA RELLENA —no como `stroke`, que no puede variar de ancho— y se
+     revela por longitud de arco con una máscara, que es lo que permite tener
+     las dos cosas a la vez: ancho variable y trazo que se dibuja.
+     ====================================================================== */
+
+  .stage { position: absolute; inset: 0; }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%;
+        overflow: visible; }
+
+  .marca { will-change: opacity, transform; }
+
+  /* La tinta. `fill` y no `stroke`: SVG no sabe variar el ancho de un trazo
+     a lo largo del recorrido, así que la cinta se construye punto a punto y
+     se rellena. El color por defecto lo escribe `setup` con la hoja de
+     bronce; estas dos clases son las variantes que ya existían en el
+     contrato (`color: 'tinta' | 'frio'`). */
+  .trazo       { fill: var(--accent); }
+  .trazo.tinta { fill: var(--ink); }
+  .trazo.frio  { fill: var(--accent-2); }
+
+  /* La tinta recién puesta es MÁS OSCURA que la seca: hasta que el soporte la
+     absorbe hay una película encima. Es la misma forma superpuesta, así que
+     solo puede oscurecer la marca —no puede pintar un rectángulo sobre el
+     metraje, que es el fallo clásico de las texturas en capas transparentes—.
+     Va en `--velo-oscuro`, que es fijo en los dos temas a propósito: `--ink`
+     aquí sería casi blanco en carbón y ACLARARÍA la tinta al mojarla. */
+  .humedo { fill: var(--velo-oscuro); }
+
+  /* Dentro de una máscara el blanco y el negro no son colores de marca: son
+     el canal de cobertura, o sea alfa escrito en luminancia. Por eso van como
+     palabras clave y no como token — un token semántico aquí significaría
+     «este trazo se ve más o menos según el tema», que es justo lo contrario
+     de lo que hace. */
+  .revela { fill: none; stroke: white;
+            stroke-linecap: butt; stroke-linejoin: round;
+            will-change: stroke-dashoffset; }
+  .veta   { fill: black; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <svg id="svg" viewBox="0 0 1080 1920" preserveAspectRatio="none"></svg>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp, noise } = Engine;
+
+const svg = document.getElementById('svg');
+const NS = 'http://www.w3.org/2000/svg';
+let marcas = [];
+let serie = 0;      /* ids de máscara únicos entre llamadas a setup */
+
+/* Cuánto se estrecha la plumilla cuando va de canto. 0,36 y no 0: con 0 el
+   trazo DESAPARECE en los tramos paralelos al bisel —una elipse quedaría
+   partida en dos arcos— y sobre metraje eso se lee como un fallo de render,
+   no como caligrafía. Con 0,36 y un grosor de 17 el mínimo son 6,1 px, que
+   sigue leyéndose a 1080 de ancho, y el contraste ancho/estrecho queda en
+   2,8:1, que es el de una plumilla italiana de verdad. */
+const CANTO = 0.36;
+
+/* Tope absoluto del semiancho de la veta. La hendidura de una plumilla mide
+   lo que mide —dos décimas de milímetro— y no crece con el trazo, así que
+   dejarla solo proporcional tenía una consecuencia que se vio MIRANDO el
+   fotograma ampliado y que ningún control habría dado: en la elipse, de 17 px
+   de trazo el surco se llevaba 4,4 y dejaba bandas de 4,9 y 7,7, que se leen
+   como un trazo hendido; en el subrayado, de 12,8 px se llevaba los MISMOS
+   4,4 y dejaba 3,2 y 5,2, que se leen como DOS RAYAS FINAS. La misma
+   hendidura, dos objetos distintos. Con 1,4 el surco baja a 2,8 px en los dos
+   y el subrayado vuelve a ser un trazo (bandas de 4,9 y 6,6). */
+const VETA_MAX = 1.4;
+
+/* --- el pulso de la mano ------------------------------------------------
+   `Engine.noise` es ruido BLANCO: cada índice es independiente del anterior.
+   Aplicado punto a punto da una sierra, que es temblor patológico y no pulso.
+   Aquí se muestrea a baja frecuencia y se interpola con smoothstep, y se
+   suman dos octavas: la deriva larga (2,7 muestras por trazo) es la mano
+   buscando la línea, y la corta (8,3) es el grano del soporte. La larga pesa
+   3,6 veces más que la corta, y esa proporción es lo que hace que se lea como
+   un pulso y no como ruido. */
+function pulso(u, semilla, escala) {
+  const x = u * escala, i = Math.floor(x), f = x - i;
+  const s = f * f * (3 - 2 * f);
+  return noise(i, semilla) * (1 - s) + noise(i + 1, semilla) * s - 0.5;
+}
+function mano(u, semilla) {
+  return pulso(u, semilla, 2.7) + pulso(u, semilla + 41, 8.3) * 0.28;
+}
+
+/* Perfil de presión a lo largo del trazo. Dos gestos distintos y ninguno es
+   simétrico: la plumilla ATERRIZA deprisa —en 26 px ya está apoyada del
+   todo— y DESPEGA despacio, arrastrando un pelo durante los últimos 70. Ese
+   remate que se afila y no cierra es lo que distingue un trazo de un
+   rectángulo redondeado.
+
+   Las dos zonas se miden en PÍXELES y no en fracción del recorrido, y esto
+   se vio mirando: con un 18 % fijo, el subrayado de 573 px dedicaba 103 px a
+   afilarse y salía con forma de hoja —gordo en el centro, en punta en los dos
+   extremos—, o sea una lente y no un subrayado. La elipse, de 1512 px, salía
+   bien con el mismo número. Un remate es un hecho físico del instrumento: no
+   escala con lo largo que sea el trazo. Ahora al subrayado le toca el 12,2 %
+   y a la elipse el 4,6 %. */
+function perfil(u, largo) {
+  const zEnt = Math.min(0.10, 26 / Math.max(largo, 1));
+  const zSal = Math.min(0.18, 70 / Math.max(largo, 1));
+  const ent = u < zEnt ? 0.30 + 0.70 * Math.pow(u / zEnt, 0.5) : 1;
+  const sal = u > 1 - zSal
+    ? 1 - 0.90 * Math.pow((u - (1 - zSal)) / zSal, 1.6) : 1;
+  return ent * sal;
+}
+
+/* Curvatura local: ángulo girado por unidad de longitud. Sirve para engordar
+   el trazo donde la mano FRENA para girar, que es donde una plumilla suelta
+   más tinta. Medido sobre las formas por defecto: en la elipse de 660x310 va
+   de 0,0014 en los costados a 0,0136 en las puntas, o sea de +2,5 % a
+   +24,4 % de ancho; en la esquina del recuadro llega a 0,0185 y se satura en
+   el +25 %. Ese tope existe porque sin él una esquina cerrada dispara el
+   ancho a varias veces el del trazo y la marca se rompe en un borrón. */
+function curvatura(p, i) {
+  const n = p.length - 1;
+  if (i <= 0 || i >= n) return 0;
+  const a1 = Math.atan2(p[i][1] - p[i - 1][1], p[i][0] - p[i - 1][0]);
+  const a2 = Math.atan2(p[i + 1][1] - p[i][1], p[i + 1][0] - p[i][0]);
+  let d = a2 - a1;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  const ds = (Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]) +
+              Math.hypot(p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1])) / 2;
+  return ds > 0.01 ? Math.abs(d) / ds : 0;
+}
+
+/* Muestrea una curva paramétrica y le suma el pulso EN LA NORMAL. En la
+   normal y no en x/y por separado: una mano se sale de la línea, no se
+   adelanta ni se retrasa sobre ella, y desviar en x un trazo horizontal solo
+   cambia el espaciado de las muestras —no se ve—. */
+function traza(f, n, semilla, amp) {
+  const base = [];
+  for (let i = 0; i <= n; i++) base.push(f(i / n));
+  const p = [];
+  for (let i = 0; i <= n; i++) {
+    const a = base[Math.max(0, i - 1)], b = base[Math.min(n, i + 1)];
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const L = Math.hypot(dx, dy) || 1;
+    const d = mano(i / n, semilla) * amp;
+    p.push([+(base[i][0] - dy / L * d).toFixed(2),
+            +(base[i][1] + dx / L * d).toFixed(2)]);
+  }
+  return p;
+}
+
+function poli(a, b) {
+  const xy = ([x, y]) => x.toFixed(2) + ' ' + y.toFixed(2);
+  return 'M ' + a.map(xy).join(' L ') + ' L ' +
+         b.slice().reverse().map(xy).join(' L ') + ' Z';
+}
+function eje(p) {
+  return 'M ' + p.map(([x, y]) => x.toFixed(2) + ' ' + y.toFixed(2)).join(' L ');
+}
+
+/* La cinta de tinta: el contorno que deja el bisel. Devuelve además el hueco
+   entre las dos púas —la veta— y el eje con su longitud, que es lo que la
+   máscara necesita para revelar por longitud de arco.
+
+   La longitud se suma AQUÍ, sobre las mismas coordenadas ya redondeadas que
+   van al atributo `d`, y no con `getTotalLength()`. Dos razones: el eje vive
+   dentro de un `<mask>`, o sea fuera del render, y apoyar el reloj de la
+   animación en una API de geometría de un nodo no renderizado es pedir un
+   cero silencioso; y con la suma propia el `stroke-dasharray` coincide con el
+   recorrido hasta la centésima de píxel. */
+function cinta(p, o) {
+  const n = p.length - 1;
+  const seg = [];
+  let largo = 0;
+  for (let i = 1; i <= n; i++) {
+    const d = Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]);
+    seg.push(d);
+    largo += d;
+  }
+  const izq = [], der = [], vIzq = [], vDer = [];
+  let acc = 0;
+  for (let i = 0; i <= n; i++) {
+    if (i) acc += seg[i - 1];
+    const u = largo > 0 ? acc / largo : 0;
+    const a = p[Math.max(0, i - 1)], b = p[Math.min(n, i + 1)];
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const L = Math.hypot(dx, dy) || 1;
+    const nx = -dy / L, ny = dx / L;
+
+    /* EL ANCHO ES LA PLUMILLA. `|sin(dirección − bisel)|`: máximo cuando el
+       trazo cruza el bisel en perpendicular, mínimo cuando lo sigue. No es
+       una decoración con forma de seno — es la proyección del filo sobre la
+       normal del movimiento, o sea la anchura de la huella. */
+    let w = o.grosor * (CANTO + (1 - CANTO) *
+                        Math.abs(Math.sin(Math.atan2(dy, dx) - o.bisel)));
+    w *= 1 + Math.min(0.25, curvatura(p, i) * 18);
+    w *= perfil(u, largo);
+    /* La presión tampoco es constante: ±14 % con el mismo pulso de baja
+       frecuencia que la trayectoria, pero con otra semilla — si compartieran
+       semilla, la marca engordaría siempre en las mismas curvas y volvería a
+       parecer una fórmula. */
+    w *= 1 + 0.14 * mano(u, o.semilla + 7);
+    w *= o.escala;
+
+    const h = Math.max(0.35, w / 2);
+    izq.push([p[i][0] + nx * h, p[i][1] + ny * h]);
+    der.push([p[i][0] - nx * h, p[i][1] - ny * h]);
+
+    /* La veta: las dos púas de una plumilla no cierran del todo y dejan un
+       surco sin tinta por dentro del trazo. Va PROPORCIONAL al ancho local
+       —entre el 5 % y el 27 % del semiancho, con el tope absoluto de arriba—
+       porque una hendidura de ancho fijo se comería los tramos de canto
+       enteros. Y se abre y se cierra con
+       el pulso, que es lo que hace que el surco se corte a trozos en vez de
+       recorrer la marca como una raya de más. Es la única textura de esta
+       plantilla y es geométrica: ni teja de ruido ni imagen. */
+    const abre = clamp(mano(u, o.semilla + 23) * 3 - 0.25, 0, 1);
+    const hv = Math.min(h * (0.05 + 0.22 * abre), VETA_MAX * o.escala);
+    const cx = p[i][0] + nx * h * 0.12, cy = p[i][1] + ny * h * 0.12;
+    vIzq.push([cx + nx * hv, cy + ny * hv]);
+    vDer.push([cx - nx * hv, cy - ny * hv]);
+  }
+  return { tinta: poli(izq, der), veta: poli(vIzq, vDer), eje: eje(p), largo };
+}
+
+/* ========================================================================
+   LAS FORMAS
+
+   `x, y` es el CENTRO de la marca y `w, h` su tamaño. Antes cada forma
+   entendía una cosa distinta —el círculo el centro, el subrayado el extremo
+   izquierdo, el recuadro la esquina— y eso rompía en silencio el único
+   mecanismo por el que esta capa tiene sentido: `sobre: "capa.clave"`.
+   `render_playwright.resolverAnclas` escribe `x, y` con el CENTRO de la caja
+   anclada y `w, h` con su tamaño, así que anclar un subrayado a un titular lo
+   dejaba medio ancho a la derecha de donde tenía que estar, sin un solo aviso
+   —la caja existía y las coordenadas eran números válidos—. Ahora las cinco
+   formas hablan el idioma de las anclas.
+
+   Cada forma devuelve trazos: `{ f(u), n, gesto, amp, escala }`. Se devuelven
+   por separado porque son GESTOS distintos y se dibujan en serie: la punta de
+   una flecha va después del asta, no a la vez.
+   ======================================================================== */
+const FORMAS = {
+  /* Subrayado: dos pasadas, como quien recalca. El trazo se comba hacia
+     arriba en el centro —la mano gira sobre el codo— y se pasa un 4 % por la
+     derecha: nadie frena justo en el borde de la palabra. */
+  subrayado(m, s) {
+    const w = m.w || 480, h = m.h || 0;
+    const xi = m.x - w / 2;
+    /* Con `h` —o sea con ancla— la línea va DEBAJO de la caja, no por su
+       centro; sin `h` va por la `y` que le den. */
+    const y = m.y + (h ? h / 2 + 14 : 0);
+    const pasada = (dy, desde, largo, comba) => u => [
+      xi + w * desde + w * largo * u,
+      y + dy - Math.sin(u * Math.PI) * comba
+    ];
+    const amp = m.temblor ?? 4.5;
+    const uno = { f: pasada(0, -0.02, 1.06, 6), n: 40, gesto: 'trazo',
+                  amp, escala: 1 };
+    if (m.pasadas === 1) return [uno];
+    /* La segunda pasada es más corta, más rápida y más ligera. Recalcar no es
+       repetir: se vuelve sobre el centro de lo subrayado, no sobre el todo, y
+       la plumilla que va deprisa suelta menos tinta. */
+    return [uno, { f: pasada(13, 0.10, 0.74, 3), n: 30, gesto: 'trazo',
+                   amp: amp * 1.25, escala: 0.78 }];
+  },
+
+  /* Elipse abierta. No cierra: se detiene 11° antes de morderse la cola, y
+     ese hueco con el remate afilado es la firma del gesto. Cerrarla —o
+     pasarse de vuelta, que era el defecto— la convierte en un óvalo dibujado,
+     y un óvalo dibujado es una forma; esto tiene que ser un movimiento.
+     Además el radio respira un 4,5 % con el pulso y el eje va ladeado 2,6°:
+     una elipse perfecta es lo que dibuja una herramienta, no una mano. */
+  circulo(m, s) {
+    const rx = (m.w || 560) / 2, ry = (m.h || 260) / 2;
+    const vueltas = m.vueltas ?? 0.97;
+    const a0 = -Math.PI * 0.58, tilt = -0.045;
+    const co = Math.cos(tilt), si = Math.sin(tilt);
+    const f = u => {
+      const a = a0 + u * Math.PI * 2 * vueltas;
+      const k = 1 + 0.045 * pulso(u, s + 3, 2.1) * 2;
+      const x = Math.cos(a) * rx * k, y = Math.sin(a) * ry * k;
+      return [m.x + x * co - y * si, m.y + x * si + y * co];
+    };
+    return [{ f, n: 84, gesto: 'trazo', amp: m.temblor ?? 5.5, escala: 1 }];
+  },
+
+  /* Flecha: `x, y` es la PUNTA —lo que se señala, que es lo que un ancla
+     sabe— y `w, h` el vector desde la cola. El asta se comba en su propia
+     perpendicular, no hacia arriba: combarla siempre en −Y hacía que una
+     flecha vertical saliera con una joroba lateral que no venía de ningún
+     gesto. Las dos barbas salen DESDE la punta hacia fuera, que es como se
+     dibuja una punta de flecha a mano y por eso se afinan hacia el final. */
+  flecha(m, s) {
+    const dx = m.w ?? -260, dy = m.h ?? -140;
+    const cx = m.x - dx, cy = m.y - dy;            // cola
+    const L = Math.hypot(dx, dy) || 1;
+    const nx = -dy / L, ny = dx / L;
+    const comba = m.curva ?? 55;
+    const asta = u => [cx + dx * u + nx * Math.sin(u * Math.PI) * comba,
+                       cy + dy * u + ny * Math.sin(u * Math.PI) * comba];
+    const fin = asta(1), prev = asta(0.88);
+    const ang = Math.atan2(fin[1] - prev[1], fin[0] - prev[0]) + Math.PI;
+    const punta = m.punta || 54;
+    const barba = g => u => [m.x + Math.cos(ang + g) * punta * u,
+                             m.y + Math.sin(ang + g) * punta * u];
+    const amp = m.temblor ?? 4;
+    return [
+      { f: asta, n: 36, gesto: 'trazo', amp, escala: 1 },
+      { f: barba(0.42), n: 7, gesto: 'flick', amp: amp * 0.4, escala: 0.85 },
+      { f: barba(-0.42), n: 7, gesto: 'flick', amp: amp * 0.4, escala: 0.85 }
+    ];
+  },
+
+  /* Recuadro de una sola pasada. Es una superelipse de exponente 5 y no
+     cuatro rectas: una plumilla no hace esquinas de 90°, las redondea porque
+     la mano no puede parar y girar en el mismo punto. Y la superelipse da esa
+     esquina con una parametrización continua, así que la curvatura —y con
+     ella el engorde de tinta del giro— sale sola en vez de haber que
+     inyectarla. Se pasa un 6 % de vuelta por donde empezó. */
+  recuadro(m, s) {
+    const rx = (m.w || 520) / 2, ry = (m.h || 300) / 2;
+    const n = 5, a0 = -Math.PI * 0.78;
+    const vueltas = m.vueltas ?? 1.06;
+    const f = u => {
+      const a = a0 + u * Math.PI * 2 * vueltas;
+      const c = Math.cos(a), t = Math.sin(a);
+      return [m.x + Math.sign(c) * Math.pow(Math.abs(c), 2 / n) * rx,
+              m.y + Math.sign(t) * Math.pow(Math.abs(t), 2 / n) * ry];
+    };
+    return [{ f, n: 104, gesto: 'trazo', amp: m.temblor ?? 5, escala: 1 }];
+  },
+
+  /* Tachón: un solo golpe rápido, y SUBIENDO. Una raya perfectamente
+     horizontal se confunde con un subrayado descolocado; la inclinación de
+     3,5° es lo que la lee como «esto se va». */
+  tachon(m, s) {
+    const w = m.w || 420;
+    const xi = m.x - w / 2;
+    const f = u => [xi - w * 0.03 + w * 1.06 * u,
+                    m.y + w * 0.065 * (0.5 - u)];
+    return [{ f, n: 26, gesto: 'flick', amp: m.temblor ?? 3.5, escala: 0.9 }];
+  }
+};
+
+Engine.register({
+  duration: 5,
+  defaults: {
+    /* [{ forma, x, y, w, h, at, dur, grosor, color, temblor, … }]
+       `x, y` = CENTRO de la marca; `w, h` = su tamaño (en la flecha, `x, y`
+       es la punta y `w, h` el vector desde la cola).
+       `grosor` es ahora el ancho MÁXIMO del trazo, el del bisel en
+       perpendicular; el mínimo es ese ancho por 0,36. Antes era el ancho
+       constante, así que un plan viejo que pase 8 verá un trazo entre 2,9 y 8
+       px en vez de 8 fijos: sigue leyéndose, pero los números de aquí subieron
+       para que la marca por defecto tenga el peso de una anotación real. */
+    marcas: [
+      { forma: 'circulo', x: 540, y: 880, w: 660, h: 310,
+        at: 0.12, dur: 1.25, grosor: 17 },
+      /* Más grueso que la elipse a propósito: la horizontal va casi de canto
+         al bisel —factor 0,75— así que el mismo `grosor` le sale un 25 % más
+         fino. El número que iguala los dos trazos en pantalla es 19 contra
+         17, no 17 contra 17. */
+      { forma: 'subrayado', x: 470, y: 1175, w: 540,
+        at: 1.35, dur: 0.80, grosor: 19 },
+      { forma: 'flecha', x: 730, y: 1215, w: -210, h: 130,
+        at: 2.10, dur: 0.85, grosor: 15, color: 'frio' }
+    ],
+    /* Ángulo del bisel, en grados. 38° es el corte de una plumilla italiana:
+       con 0° las horizontales saldrían de pelo y las verticales gordas, que
+       es una plumilla de rotulación, y con 45° el contraste se reparte a
+       partes iguales y deja de tener carácter. */
+    pluma: 38,
+    semilla: 7,
+    salida: 0.4,
+    permanece: true,   // las marcas se quedan tras dibujarse
+    sinSonido: false
+  },
+
+  setup(cfg) {
+    svg.innerHTML = '';
+    const defs = document.createElementNS(NS, 'defs');
+    svg.appendChild(defs);
+    serie++;
+
+    const bisel = (cfg.pluma ?? 38) * Math.PI / 180;
+    const base = cfg.semilla || 7;
+
+    /* Primero la geometría de todas las marcas, porque la hoja de bronce se
+       tiende sobre la caja que ocupan TODAS: una sola lámina con una sola luz.
+       Darle a cada trazo su propio degradado es lo que delata que son piezas
+       pegadas y no tinta del mismo tintero. */
+    const previa = (cfg.marcas || []).map((m, k) => {
+      const s = base + k * 17;
+      const partes = (FORMAS[m.forma] || FORMAS.subrayado)(m, s);
+      const trazos = partes.map((parte, j) => {
+        const p = traza(parte.f, parte.n, s + j * 5, parte.amp);
+        return { parte, p, c: cinta(p, { grosor: m.grosor || 13, bisel,
+                                         semilla: s + j * 5,
+                                         escala: parte.escala }) };
+      });
+      return { m, s, trazos };
+    });
+
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    previa.forEach(({ trazos }) => trazos.forEach(({ p }) => p.forEach(([x, y]) => {
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+    })));
+    if (x0 > x1) { x0 = 0; y0 = 0; x1 = 1080; y1 = 1920; }
+
+    /* La dirección del cepillado sale del token, no de un número escrito
+       aquí: `--metal-ang` existe justamente para que el bronce no vaya
+       clavado en un ángulo. Un grado CSS se mide desde arriba y en sentido
+       horario, de ahí el (sin, −cos). */
+    const grados = parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue('--metal-ang')) || 115;
+    const rad = grados * Math.PI / 180;
+    const dx = Math.sin(rad), dy = -Math.cos(rad);
+    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    const R = Math.max(120, Math.hypot(x1 - x0, y1 - y0) / 2);
+    const hoja = Engine.gradienteMetal(svg, 'hoja-' + serie,
+      [mx - dx * R, my - dy * R, mx + dx * R, my + dy * R]);
+
+    marcas = previa.map(({ m, s, trazos }, k) => {
+      const g = document.createElementNS(NS, 'g');
+      g.setAttribute('class', 'marca');
+      let sx = 0, sy = 0, cuenta = 0;
+
+      const listos = trazos.map(({ parte, p, c }, j) => {
+        const id = 'mk-' + serie + '-' + k + '-' + j;
+        const mask = document.createElementNS(NS, 'mask');
+        mask.setAttribute('id', id);
+        /* `maskUnits="userSpaceOnUse"` con caja explícita, y esto NO es un
+           detalle. Por defecto la máscara se recorta a −10 %/+120 % de la
+           CAJA DEL OBJETO, y la caja de un subrayado mide 22 px de alto: el
+           10 % son 2,2 px, mientras el trazo blanco que lo revela mide 38 px
+           de ancho. O sea que la máscara habría recortado su propio revelado
+           por arriba y por abajo y el subrayado habría salido partido a lo
+           largo —sin error, sin aviso, con el `d` correcto en el DOM—. */
+        mask.setAttribute('maskUnits', 'userSpaceOnUse');
+        mask.setAttribute('x', -260); mask.setAttribute('y', -260);
+        mask.setAttribute('width', 1600); mask.setAttribute('height', 2440);
+
+        const revela = document.createElementNS(NS, 'path');
+        revela.setAttribute('class', 'revela');
+        revela.setAttribute('d', c.eje);
+        /* El ancho del revelado es el doble del grosor máximo: tiene que
+           cubrir la cinta entera (semiancho máximo 0,71·grosor con el
+           engorde de curvatura y de presión) y no mucho más, o al acercarse
+           el final del recorrido al principio destaparía por delante lo que
+           todavía no se ha dibujado. */
+        revela.style.strokeWidth = (m.grosor || 13) * 2;
+        revela.style.strokeDasharray = c.largo.toFixed(2);
+        revela.style.strokeDashoffset = c.largo.toFixed(2);
+        mask.appendChild(revela);
+
+        const veta = document.createElementNS(NS, 'path');
+        veta.setAttribute('class', 'veta');
+        veta.setAttribute('d', c.veta);
+        mask.appendChild(veta);
+        defs.appendChild(mask);
+
+        const tinta = document.createElementNS(NS, 'path');
+        tinta.setAttribute('class', 'trazo' + (m.color ? ' ' + m.color : ''));
+        tinta.setAttribute('d', c.tinta);
+        tinta.setAttribute('mask', 'url(#' + id + ')');
+        /* El estilo en línea gana a la clase, que es lo que hace falta: el
+           bronce por defecto es un degradado y `fill: var(--accent)` de
+           `.trazo` lo taparía. Las variantes con `color` sí se quedan con su
+           token plano. */
+        if (!m.color) tinta.style.fill = 'url(#' + hoja + ')';
+        g.appendChild(tinta);
+
+        const humedo = document.createElementNS(NS, 'path');
+        humedo.setAttribute('class', 'humedo');
+        humedo.setAttribute('d', c.tinta);
+        humedo.setAttribute('mask', 'url(#' + id + ')');
+        humedo.style.opacity = 0;
+        g.appendChild(humedo);
+
+        p.forEach(([x, y]) => { sx += x; sy += y; cuenta++; });
+        return { gesto: parte.gesto, largo: c.largo, revela, humedo };
+      });
+
+      svg.appendChild(g);
+      /* El centro de giro de la flotación es el centroide de la MARCA. El
+         origen que pone CSS por defecto en un SVG es el centro del `viewBox`
+         —(540, 960)—, o sea que la marca no giraría sobre sí misma: giraría
+         el lienzo entero, y un trazo lejos del centro se desplazaría de lado
+         en vez de cabecear. Medido para una marca en (150, 250): 1,98 px de
+         deslizamiento lateral, casi tanto como toda la deriva, y en una
+         dirección que no tiene nada que ver con la marca. */
+      g.style.transformOrigin = (sx / cuenta).toFixed(1) + 'px ' +
+                                (sy / cuenta).toFixed(1) + 'px';
+
+      return { m, at: m.at || 0, dur: m.dur || 0.8, semilla: s,
+               trazos: listos, g,
+               largo: listos.reduce((a, t) => a + t.largo, 0) };
+    });
+
+    /* Una señal por MARCA, que es un gesto: el asta y las dos barbas de una
+       flecha son un solo movimiento del brazo y tres señales sonarían a
+       matraca. `deslizar` es aire filtrado por encima de 900 Hz y 0,32 s —lo
+       más cercano a una plumilla sobre papel que hay en el banco—, y la
+       ganancia sube con la longitud del recorrido porque un círculo de 1500 px
+       hace más ruido que un tachón de 400.
+       El instante sale de `mk.at`, el MISMO campo que lee `draw`. */
+    return {
+      cues: cfg.sinSonido ? [] : marcas.slice(0, 6).map(mk => ({
+        at: mk.at, sfx: 'deslizar',
+        gain: +(0.30 + 0.24 * clamp(mk.largo / 1400, 0, 1)).toFixed(2)
+      }))
+    };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 5;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+
+    marcas.forEach((mk, k) => {
+      const { at, dur, trazos, g } = mk;
+      const cacho = dur / trazos.length;
+
+      trazos.forEach((tz, i) => {
+        const t0 = at + i * cacho * 0.82;
+        /* DOS curvas, porque son dos gestos.
+           `inOutCubic` para un trazo deliberado: la mano arranca parada,
+           acelera y frena al llegar. Con la `outCubic` de antes el trazo
+           salía a velocidad máxima en el primer fotograma —el 48,8 % de la
+           longitud puesta en el 20 % del tiempo— y eso no lo hace una mano:
+           lo hace un barrido automático, que es justo lo que esta plantilla
+           no debe parecer. Con `inOutCubic` ese 20 % pone el 3,2 %.
+           `outExpo` para una barba o un tachón: un golpe seco no acelera, ya
+           llega lanzado y solo frena. Al 20 % del tiempo lleva puesto el
+           75 %, o sea justo lo contrario que el trazo deliberado. */
+        const p = span(t, t0, cacho,
+                       tz.gesto === 'flick' ? Ease.outExpo : Ease.inOutCubic);
+        tz.revela.style.strokeDashoffset = (tz.largo * (1 - p)).toFixed(2);
+      });
+
+      /* Secado. La tinta se pone oscura y se aclara al absorberse, así que la
+         marca sigue CAMBIANDO un segundo largo después de estar dibujada.
+         Empieza cuando el trazo va por la mitad —el principio ya se está
+         secando mientras el final se escribe— y dura 1,4 veces el trazo, en
+         vez de un número fijo: así se remapea solo cuando `silencios.py`
+         comprime el reloj y estira o encoge `dur`. Un secado en segundos
+         absolutos se quedaría descolgado del gesto. */
+      const secado = clamp(dur * 1.4, 0.6, 1.6);
+      const humedad = 0.30 * (1 - span(t, at + dur * 0.5, secado, Ease.outCubic));
+      trazos.forEach(tz => { tz.humedo.style.opacity = humedad.toFixed(3); });
+
+      /* §10: nada se queda quieto. Tres de estas marcas duran cinco segundos
+         y se dibujan en dos, así que sin esto la capa entrega tres segundos de
+         imagen pegada —el humo lo medía: dos de los tres instantes de muestra
+         daban el MISMO fotograma byte a byte—. 2,6 px y 0,14° es deriva de
+         soporte, no un efecto: la marca sigue encima de lo que anota. */
+      const fl = Engine.flota(t, k, { amp: 2.6, periodo: 8.4,
+                                      semilla: mk.semilla, giro: 0.14 });
+      g.style.transform = 'translate(' + fl.x.toFixed(2) + 'px,' +
+                          fl.y.toFixed(2) + 'px) rotate(' +
+                          fl.r.toFixed(3) + 'deg)';
+
+      const vivo = cfg.permanece
+        ? 1 : 1 - span(t, at + dur + 0.6, 0.4, Ease.inCubic);
+      g.style.opacity = (t >= at ? cierre * vivo : 0).toFixed(3);
+    });
+  }
+});
+</script>
+</body>
+</html>

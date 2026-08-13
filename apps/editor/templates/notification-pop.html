@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Notificación</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; overflow: hidden; }
+  .aviso {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: var(--s-3);
+    width: min(860px, 88%); padding: var(--s-3) var(--s-4);
+    background: color-mix(in srgb, var(--velo-oscuro) 82%, transparent);
+    border: var(--hairline) solid color-mix(in srgb, var(--velo-claro) 22%, transparent);
+    border-radius: 26px;
+    box-shadow: 0 24px 56px -18px rgba(0,0,0,0.7);
+    will-change: transform, opacity;
+  }
+  .icono { flex: none; width: 62px; height: 62px; border-radius: 15px;
+           display: grid; place-items: center; font-size: 30px;
+           background: var(--accent); color: var(--velo-claro); }
+  .cuerpo { min-width: 0; flex: 1; }
+  .app { font-family: var(--mono); font-size: var(--t-xs);
+         letter-spacing: 0.18em; text-transform: uppercase;
+         color: color-mix(in srgb, var(--velo-claro) 55%, transparent); }
+  .tit { font-family: var(--subs); font-weight: 700; font-size: var(--t-lg);
+         color: var(--velo-claro); margin-top: 2px; }
+  .sub { font-family: var(--subs); font-size: var(--t-md);
+         color: color-mix(in srgb, var(--velo-claro) 72%, transparent); }
+  .hora { flex: none; font-family: var(--mono); font-size: var(--t-xs);
+          color: color-mix(in srgb, var(--velo-claro) 45%, transparent); }
+</style></head>
+<body>
+<div class="stage"><div class="aviso" id="a">
+  <div class="icono" id="ico"></div>
+  <div class="cuerpo"><div class="app" id="app"></div>
+    <div class="tit" id="tit"></div><div class="sub" id="sub"></div></div>
+  <div class="hora" id="hora"></div>
+</div></div>
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+const a = document.getElementById('a');
+
+Engine.register({
+  duration: 3.2,
+  defaults: {
+    app: 'Ventas', icono: '€', titulo: 'Nueva venta: +97 €',
+    sub: 'Plan anual · España', hora: 'ahora',
+    y: 120, entrada: 0.42, permanencia: 1.9
+  },
+  setup(cfg) {
+    a.style.top = cfg.y + 'px';
+    document.getElementById('ico').textContent = cfg.icono;
+    document.getElementById('app').textContent = cfg.app;
+    document.getElementById('tit').textContent = cfg.titulo;
+    document.getElementById('sub').textContent = cfg.sub;
+    document.getElementById('hora').textContent = cfg.hora;
+    /* La notificación PIDE su propio sonido: quien sabe cuándo entra es
+       la plantilla, no el plan. Mismo contrato que los tics del odómetro. */
+    return { cues: [{ at: 0.04, sfx: 'clic', gain: 1.1 }] };
+  },
+  draw(t, cfg) {
+    const e = span(t, 0, cfg.entrada, Ease.outBack || Ease.outCubic);
+    const s = span(t, cfg.entrada + cfg.permanencia, 0.34, Ease.inOutCubic);
+    /* Entra y sale por ARRIBA. Salir por abajo la haría parecer una
+       tarjeta que se cae, no un aviso que se retira. */
+    const dy = (1 - e) * -140 - s * 140;
+    a.style.transform = `translateX(-50%) translateY(${dy}px)`;
+    a.style.opacity = clamp(e, 0, 1) * (1 - s);
+  }
+});
+</script></body></html>

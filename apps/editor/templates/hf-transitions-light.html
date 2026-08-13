@@ -1,0 +1,612 @@
+<!-- hyperframes-registry-item: transitions-light -->
+<!doctype html>
+<html lang="en">
+  <head>
+<!-- /* PALETA-AJENA: inicio */ -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Light Transitions Showcase</title>
+    <script src="_gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: #000;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      }
+
+      /* Title Card */
+      #title-card {
+        position: absolute;
+        inset: 0;
+        z-index: 10;
+        background: linear-gradient(135deg, #0d1b2a 0%, #1b263b 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        opacity: 1;
+      }
+      #title-card h1 {
+        font-size: 72px;
+        font-weight: 800;
+        color: #fff;
+        letter-spacing: -1px;
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      #title-card .subtitle {
+        font-size: 28px;
+        font-weight: 400;
+        color: rgba(255, 255, 255, 0.5);
+        margin-top: 12px;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      /* Scenes */
+      #scene1,
+      #scene2 {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      #scene1 {
+        background: #1b263b;
+        z-index: 2;
+        opacity: 0;
+      }
+      #scene2 {
+        background: #e07a5f;
+        z-index: 1;
+        opacity: 0;
+      }
+
+      .scene-number {
+        font-size: 180px;
+        font-weight: 900;
+        line-height: 1;
+        opacity: 0.12;
+        letter-spacing: -6px;
+      }
+      #scene1 .scene-number {
+        color: #fff;
+      }
+      #scene2 .scene-number {
+        color: #000;
+      }
+
+      .scene-label {
+        font-size: 48px;
+        font-weight: 700;
+        margin-top: -20px;
+      }
+      #scene1 .scene-label {
+        color: #fff;
+      }
+      #scene2 .scene-label {
+        color: #fff;
+      }
+
+      /* Info bar */
+      .info-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 80px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 48px;
+      }
+      #scene1 .info-bar {
+        background: rgba(0, 0, 0, 0.3);
+      }
+      #scene2 .info-bar {
+        background: rgba(0, 0, 0, 0.2);
+      }
+      .info-bar .label {
+        font-size: 18px;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.7);
+        text-transform: uppercase;
+        letter-spacing: 2px;
+      }
+      .info-bar .desc {
+        font-size: 16px;
+        color: rgba(255, 255, 255, 0.5);
+        font-style: italic;
+      }
+
+      /* Outro */
+      #outro {
+        position: absolute;
+        inset: 0;
+        z-index: 10;
+        background: linear-gradient(135deg, #0d1b2a 0%, #1b263b 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+      }
+      #outro h2 {
+        font-size: 56px;
+        font-weight: 800;
+        color: #fff;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      #outro .tag {
+        font-size: 22px;
+        color: rgba(255, 255, 255, 0.4);
+        margin-top: 10px;
+        opacity: 0;
+        transform: translateY(15px);
+      }
+    </style>
+    <link rel="stylesheet" href="_tokens.css">
+  <script src="_engine.js"></script>
+</head>
+  <body>
+    <div
+      id="comp"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="21"
+      data-width="1920"
+      data-height="1080"
+      style="position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #000"
+    >
+      <!-- Title Card -->
+      <div id="title-card">
+        <h1 id="title-h1">Light Transitions</h1>
+        <div class="subtitle" id="title-sub">3 transition styles</div>
+      </div>
+
+      <!-- Scene A -->
+      <div id="scene1">
+        <div class="scene-number">ONE</div>
+        <div class="scene-label">SCENE A</div>
+        <div class="info-bar">
+          <span class="label" id="info-label-a"></span>
+          <span class="desc" id="info-desc-a"></span>
+        </div>
+      </div>
+
+      <!-- Scene B -->
+      <div id="scene2">
+        <div class="scene-number">TWO</div>
+        <div class="scene-label">SCENE B</div>
+        <div class="info-bar">
+          <span class="label" id="info-label-b"></span>
+          <span class="desc" id="info-desc-b"></span>
+        </div>
+      </div>
+
+      <!-- Light Leak Overlays -->
+      <div
+        id="leak-warm"
+        style="
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(135deg, rgba(255, 165, 0, 0.6), transparent 60%);
+          z-index: 50;
+          opacity: 0;
+          pointer-events: none;
+        "
+      ></div>
+      <div
+        id="leak-1"
+        style="
+          position: absolute;
+          top: -200px;
+          left: -400px;
+          width: 2400px;
+          height: 1500px;
+          background: radial-gradient(ellipse at 30% 40%, rgba(255, 140, 0, 0.5), transparent 50%);
+          z-index: 51;
+          opacity: 0;
+          pointer-events: none;
+        "
+      ></div>
+      <div
+        id="leak-2"
+        style="
+          position: absolute;
+          top: -100px;
+          left: -200px;
+          width: 2400px;
+          height: 1400px;
+          background: radial-gradient(ellipse at 60% 50%, rgba(255, 200, 0, 0.4), transparent 50%);
+          z-index: 51;
+          opacity: 0;
+          pointer-events: none;
+        "
+      ></div>
+
+      <!-- Flash Overlay -->
+      <div
+        id="flash-overlay"
+        style="
+          position: absolute;
+          inset: 0;
+          background: #fff;
+          z-index: 50;
+          opacity: 0;
+          pointer-events: none;
+        "
+      ></div>
+
+      <!-- Film Burn Overlays -->
+      <div
+        id="burn-a"
+        style="
+          position: absolute;
+          top: -300px;
+          right: -800px;
+          width: 2400px;
+          height: 1800px;
+          background: radial-gradient(ellipse at 70% 40%, rgba(255, 100, 0, 0.5), transparent 50%);
+          z-index: 51;
+          opacity: 0;
+          pointer-events: none;
+        "
+      ></div>
+      <div
+        id="burn-b"
+        style="
+          position: absolute;
+          top: -200px;
+          right: -600px;
+          width: 2400px;
+          height: 1600px;
+          background: radial-gradient(ellipse at 80% 50%, rgba(255, 160, 0, 0.4), transparent 50%);
+          z-index: 51;
+          opacity: 0;
+          pointer-events: none;
+        "
+      ></div>
+      <div
+        id="burn-c"
+        style="
+          position: absolute;
+          top: -100px;
+          right: -500px;
+          width: 2200px;
+          height: 1400px;
+          background: radial-gradient(ellipse at 60% 60%, rgba(255, 200, 50, 0.3), transparent 50%);
+          z-index: 51;
+          opacity: 0;
+          pointer-events: none;
+        "
+      ></div>
+
+      <!-- Outro -->
+      <div id="outro">
+        <h2 id="outro-h2">Light Transitions</h2>
+        <div class="tag" id="outro-tag">End of showcase</div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        var tl = gsap.timeline({ paused: false });
+        window.__timelines = window.__timelines || {};
+        window.__timelines["main"] = tl;
+
+        // Transition demos config
+        var demos = [
+          { label: "LIGHT LEAK", desc: "Use a light leak transition with warm overlays" },
+          { label: "OVEREXPOSURE BURN", desc: "Use an overexposure burn transition" },
+          { label: "FILM BURN", desc: "Use a film burn transition with warm edge bleeds" },
+        ];
+
+        // Reset scenes helper
+        function resetScenes(t, demoIndex) {
+          tl.set("#scene1", { opacity: 1, filter: "none", scale: 1 }, t);
+          tl.set("#scene2", { opacity: 0 }, t);
+          tl.set("#info-label-a", { textContent: demos[demoIndex].label }, t);
+          tl.set("#info-desc-a", { textContent: demos[demoIndex].desc }, t);
+          tl.set("#info-label-b", { textContent: demos[demoIndex].label }, t);
+          tl.set("#info-desc-b", { textContent: demos[demoIndex].desc }, t);
+          // Reset light leak overlays
+          tl.set("#leak-warm", { opacity: 0 }, t);
+          tl.set("#leak-1", { opacity: 0, x: 0 }, t);
+          tl.set("#leak-2", { opacity: 0, x: 0 }, t);
+          // Reset flash
+          tl.set("#flash-overlay", { opacity: 0 }, t);
+          // Reset burn overlays
+          tl.set("#burn-a", { opacity: 0, x: 0 }, t);
+          tl.set("#burn-b", { opacity: 0, x: 0 }, t);
+          tl.set("#burn-c", { opacity: 0, x: 0 }, t);
+        }
+
+        // ===== TITLE CARD (0s - 3s) =====
+        tl.to("#title-h1", { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 0.3);
+        tl.to("#title-sub", { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 0.6);
+        tl.to("#title-card", { opacity: 0, duration: 0.4, ease: "power1.inOut" }, 2.5);
+
+        // ===== DEMO 1: LIGHT LEAK (3s - 8s) =====
+        var T1 = 3;
+        resetScenes(T1, 0);
+        var T = T1 + 2;
+        tl.to("#leak-warm", { opacity: 0.4, duration: 0.3, ease: "power1.in" }, T);
+        tl.to("#leak-1", { opacity: 0.9, x: 300, duration: 0.5, ease: "sine.inOut" }, T + 0.05);
+        tl.to("#leak-2", { opacity: 0.8, x: 200, duration: 0.6, ease: "sine.inOut" }, T + 0.1);
+        tl.to("#leak-warm", { opacity: 0.6, duration: 0.15, ease: "power2.in" }, T + 0.35);
+        tl.set("#scene1", { opacity: 0 }, T + 0.45);
+        tl.set("#scene2", { opacity: 1 }, T + 0.45);
+        tl.to("#leak-warm", { opacity: 0, duration: 0.4, ease: "power2.out" }, T + 0.5);
+        tl.to("#leak-1", { opacity: 0, x: 600, duration: 0.35, ease: "power1.out" }, T + 0.5);
+        tl.to("#leak-2", { opacity: 0, x: 400, duration: 0.35, ease: "power1.out" }, T + 0.55);
+
+        // ===== DEMO 2: OVEREXPOSURE BURN (8s - 13s) =====
+        var T2 = 8;
+        resetScenes(T2, 1);
+        T = T2 + 2;
+        tl.to(
+          "#scene1",
+          { filter: "brightness(1.5)", scale: 1.03, duration: 0.2, ease: "power1.in" },
+          T,
+        );
+        tl.to(
+          "#scene1",
+          { filter: "brightness(3)", scale: 1.06, duration: 0.2, ease: "power2.in" },
+          T + 0.2,
+        );
+        tl.to("#flash-overlay", { opacity: 0.5, duration: 0.25, ease: "power1.in" }, T + 0.15);
+        tl.to("#flash-overlay", { opacity: 1, duration: 0.15, ease: "power2.in" }, T + 0.4);
+        tl.set("#scene1", { opacity: 0 }, T + 0.55);
+        tl.set("#scene2", { opacity: 1 }, T + 0.55);
+        tl.set("#scene1", { filter: "none", scale: 1 }, T + 0.55);
+        tl.to("#flash-overlay", { opacity: 0, duration: 0.35, ease: "power2.out" }, T + 0.55);
+
+        // ===== DEMO 3: FILM BURN (13s - 18s) =====
+        var T3 = 13;
+        resetScenes(T3, 2);
+        T = T3 + 2;
+        tl.to("#burn-a", { opacity: 1, x: -300, duration: 0.4, ease: "power1.in" }, T);
+        tl.to("#burn-b", { opacity: 1, x: -500, duration: 0.5, ease: "power1.in" }, T + 0.05);
+        tl.to("#burn-c", { opacity: 1, x: -200, duration: 0.45, ease: "power1.in" }, T + 0.1);
+        tl.set("#scene1", { opacity: 0 }, T + 0.35);
+        tl.set("#scene2", { opacity: 1 }, T + 0.35);
+        tl.to("#burn-a", { opacity: 0, duration: 0.3, ease: "power2.out" }, T + 0.45);
+        tl.to("#burn-b", { opacity: 0, duration: 0.3, ease: "power2.out" }, T + 0.5);
+        tl.to("#burn-c", { opacity: 0, duration: 0.3, ease: "power2.out" }, T + 0.55);
+
+        // ===== OUTRO (18s - 21s) =====
+        tl.to("#scene1", { opacity: 0, duration: 0.3 }, 18);
+        tl.to("#scene2", { opacity: 0, duration: 0.3 }, 18);
+        tl.to("#outro", { opacity: 1, duration: 0.4, ease: "power1.inOut" }, 18.2);
+        tl.to("#outro-h2", { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 18.5);
+        tl.to("#outro-tag", { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, 18.8);
+      })();
+    </script>
+  
+
+<!-- /* PALETA-AJENA: fin */ -->
+
+
+
+
+
+
+
+
+<!-- PUENTE:inicio · generado por scripts/importar_bloque.js -->
+<style>
+  /* El lienzo de este repo, y la raíz TRANSPARENTE: si el fondo llega opaco,
+     omitBackground no lo recorta y los PNG salen sin alfa — el compositor
+     los pega como un rectángulo y tapa el metraje. */
+  html, body { width: 1080px; height: 1920px; margin: 0;
+               background: transparent !important; overflow: hidden; }
+  [data-composition-id="main"] { transform-origin: 50% 50%; }
+  /* El PLAFÓN DE AUTO-PREVISUALIZACIÓN. Varias piezas del catálogo traen un
+     fondo propio para poder mirarse solas —hf-hw-callout-circle lo llama
+     literalmente «self-preview scene» y es un degradado verde— y sobre
+     nuestro metraje eso no es un fondo: es una mancha que tapa el plano.
+     Se quita el relleno y se deja el contenido, que es lo que se quería. */
+  [id$="-scene"] { background: none !important; }
+</style>
+<script>
+(function () {
+  var ID = "main";
+  var RANURAS = {};
+  var raiz = document.querySelector('[data-composition-id="' + ID + '"]');
+  var tl = (window.__timelines || {})[ID] || null;
+
+  /* Maqueta a 1920x1080 y aquí el lienzo es 1080x1920: se escala al ancho y
+     se centra. Es un APAÑO declarado, no una solución — la buena es rehacer
+     la maqueta en vertical. config.encaje:false lo desactiva y
+     config.escala lo fuerza.
+     La medida sale de data-width/data-height y NO de offsetWidth: la raíz de
+     varios bloques mide 0x0 —es un ancla para hijos posicionados, no una
+     caja— y con la medida del DOM el encaje la mandaba a left:-420, fuera
+     del cuadro. Fotograma transparente, cero errores, y el humo diciendo
+     «no se mueve» porque no había nada que moviera. Por eso se envuelve en
+     una caja del tamaño DECLARADO: así los hijos absolutos tienen un
+     contenedor de verdad y la escala se aplica a algo con dimensiones. */
+  var caja = null;
+  function encaja(cfg) {
+    if (!raiz || cfg.encaje === false) return;
+    var w = +raiz.dataset.width || raiz.offsetWidth || 1920;
+    var h = +raiz.dataset.height || raiz.offsetHeight || 1080;
+    if (!caja) {
+      caja = document.createElement('div');
+      raiz.parentNode.insertBefore(caja, raiz);
+      caja.appendChild(raiz);
+    }
+    caja.style.cssText = 'position:absolute;left:0;top:0;width:' + w
+                       + 'px;height:' + h + 'px;transform-origin:0 0;';
+    raiz.style.position = 'absolute';
+    raiz.style.left = '0'; raiz.style.top = '0';
+    raiz.style.width = w + 'px'; raiz.style.height = h + 'px';
+    var k = cfg.escala || Math.min(1080 / w, 1920 / h);
+    /* DÓNDE, y no solo cuánto. Centrado es lo razonable por defecto, pero un
+       rótulo inferior centrado en un lienzo vertical queda en mitad de la
+       cara; y §18 dice que la banda de abajo la pinta la app. zona mueve la
+       caja ya escalada sin tocar la maqueta de dentro: arriba pega bajo la
+       banda superior (230 px), abajo se apoya sobre la inferior (1459 px). */
+    var alto = h * k;
+    var y = (1920 - alto) / 2;
+    if (cfg.zona === 'arriba') y = 230 + 40;
+    else if (cfg.zona === 'abajo') y = 1459 - 40 - alto;
+    caja.style.transform = 'translate(' + Math.round((1080 - w * k) / 2)
+      + 'px,' + Math.round(y) + 'px) scale(' + k + ')';
+  }
+
+  /* LA CAJA DE TINTA, para colocar.py.
+     Sin anclas() una capa es invisible para el colocador: no sabe cuánto
+     ocupa ni dónde, así que no puede apartarla del rostro ni avisar de que
+     cae bajo el caption de la app. Nuestras plantillas la declaran a mano
+     porque saben qué parte de sí mismas importa; un bloque importado no
+     puede saberlo, así que se MIDE: unión de los rectángulos visibles, ya en
+     coordenadas de lienzo —getBoundingClientRect incluye la transformación
+     del encaje—, descartando los contenedores que cubren casi todo.
+     Se llama después de seek, así que la caja es la del instante que se
+     esté mirando y no la del reposo. */
+  function tinta() {
+    if (!raiz) return null;
+    /* Dos pasadas. La primera descarta los contenedores que cubren casi todo
+       —si no, la caja de cualquier plantilla sería el lienzo entero y el dato
+       no diría nada—. Pero en las de dibujo a mano el contenido ES un <svg> a
+       pantalla completa y sus <path> devuelven cajas de cero: con el filtro
+       puesto, veintisiete plantillas se quedaban sin ancla. Si la primera
+       pasada no deja nada, se repite SIN filtro: una caja grande de más es
+       peor que ninguna, pero ninguna es peor que las dos. */
+    function une(filtra) {
+      var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      var todos = raiz.querySelectorAll('*');
+      for (var i = 0; i < todos.length; i++) {
+        var e = todos[i], s = getComputedStyle(e);
+        if (s.display === 'none' || s.visibility === 'hidden' ||
+            parseFloat(s.opacity) < 0.05) continue;
+        var r = e.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        if (filtra && r.width * r.height > 0.92 * 1080 * 1920) continue;
+        if (r.left < x0) x0 = r.left;
+        if (r.top < y0) y0 = r.top;
+        if (r.right > x1) x1 = r.right;
+        if (r.bottom > y1) y1 = r.bottom;
+      }
+      return x1 < x0 ? null : [x0, y0, x1, y1];
+    }
+    var c = une(true) || une(false);
+    if (!c) return null;
+    var x0 = c[0], y0 = c[1], x1 = c[2], y1 = c[3];
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0);
+    x1 = Math.min(1080, x1); y1 = Math.min(1920, y1);
+    return { bloque: { x: Math.round((x0 + x1) / 2), y: Math.round((y0 + y1) / 2),
+                       w: Math.round(x1 - x0), h: Math.round(y1 - y0) } };
+  }
+
+  /* LA SALIDA, que sus bloques no tienen: entran y se quedan puestos hasta
+     que la composición acaba. Aquí una capa vive dentro de su ventana y
+     tiene que irse, y no es cosmética — es lo que humo_plantillas.js
+     comprueba cuando muestrea tres instantes y exige que no sean el mismo
+     fotograma. Medido: x-post y macos-notification animan su entrada y dan
+     tres capturas idénticas después.
+     Es una salida GENÉRICA —se va bajando y encogiendo un pelo— y por eso
+     se puede apagar con config.salida:false cuando el bloque tenga la suya
+     propia. Determinista: solo depende de t. */
+  var SALIDA = 0.42;
+  /* La duración del GESTO, medida al importar. La sustituye el importador;
+     el valor de aquí es el de respaldo para quien abra el fichero suelto.
+     Va en una variable y no en dos sitios a propósito: la salida tiene que
+     caer dentro de la MISMA ventana que registra la plantilla, y cuando eran
+     dos números —la declarada por la timeline y la registrada— la salida se
+     programaba fuera del tramo que nadie llega a ver. */
+  /* El copy que el plan pide, repartido por orden sobre las ranuras que
+     declara TEXTOS. Lo que sobra se ignora; lo que falta se queda con lo que
+     el bloque traía.
+     Se aplica en CADA fotograma y no solo al montar, y no es por comodidad:
+     varios bloques animan su propio texto —un contador que sube, un
+     tecleado— así que su timeline reescribe el nodo en cada seek y el copy
+     del plan duraba un fotograma. Medido: la tarjeta pedía «−12» y salía el
+     «22» de la demo. */
+  function copia(cfg) {
+    for (var k in RANURAS) {
+      if (!cfg || !cfg[k] || !cfg[k].length) continue;
+      var nodos = document.querySelectorAll(RANURAS[k]);
+      for (var i = 0; i < nodos.length && i < cfg[k].length; i++) {
+        if (nodos[i].textContent !== cfg[k][i]) nodos[i].textContent = cfg[k][i];
+      }
+    }
+  }
+
+  var DUR = 19.20;   /* MEDIDO al importar */
+  var vida = DUR;
+
+  Engine.register({
+    duration: DUR,
+    /* Las ranuras se escriben LITERALES en los defaults, no con un
+       Object.assign: lint_config.py lee ese bloque con una expresión regular
+       —no ejecuta la plantilla— así que una clave calculada no existe para
+       él y el plan que la usa aborta por «clave que la plantilla no lee».
+       Las ranuras entran aquí porque lint_config.py --estricto
+       comprueba que toda clave del plan la lea de verdad su plantilla: sin
+       declararlas, pedir el copy por config es una clave muerta y el paso
+       aborta. */
+    defaults: { encaje: true, escala: null, zona: 'centro', salida: true,
+                tema: 'carbon', cue: null, cueGain: null },
+    setup: function (cfg) {
+      encaja(cfg);
+      vida = cfg.duration || DUR;
+      copia(cfg);
+      /* EL SONIDO: NINGUNO por defecto, y esto es una vuelta atrás.
+         Se publicaba un «aparicion» genérico en cada bloque importado para
+         que no entraran mudos. Sobre la pieza montada suena a lo que es: el
+         mismo golpe blando en 126 sitios, puesto por una regla que no sabe
+         qué está entrando. Un sonido que no significa nada es peor que el
+         silencio, porque el oído lo cuenta igual.
+         Quien sabe qué suena una capa es el guion —sfx en la capa— o la
+         tabla del director para las plantillas que conoce. Con cue en la
+         config se puede pedir uno a mano. */
+      return { cues: (!cfg.sinSonido && cfg.cue)
+                     ? [{ at: 0.04, sfx: cfg.cue, gain: cfg.cueGain || 0.5 }]
+                     : [] };
+    },
+    anclas: function () { return tinta(); },
+    /* El puente entero. Los dos motores hacen lo mismo —posicionar una
+       animación en el segundo t, sin tocar el reloj del navegador—, así que
+       no hay nada que traducir. */
+    /* La salida va en la raíz y el encaje en la caja que la envuelve: dos
+       transformaciones en dos nodos, para que no se pisen. */
+    draw: function (t, cfg) {
+      if (tl) tl.time(Math.max(0, Math.min(t, tl.duration())));
+      copia(cfg);
+      if (!raiz) return;
+      if (cfg && cfg.salida !== false && vida > SALIDA) {
+        var d = (t - (vida - SALIDA)) / SALIDA;
+        if (d > 0) {
+          var e = 1 - Math.min(1, d);
+          e = e * e * (3 - 2 * e);              /* suavizado, sin rebote */
+          raiz.style.opacity = e;
+          raiz.style.transform = 'translateY(' + ((1 - e) * -26).toFixed(2)
+                               + 'px) scale(' + (0.985 + 0.015 * e).toFixed(4) + ')';
+          return;
+        }
+      }
+      raiz.style.opacity = '';
+      raiz.style.transform = '';
+    }
+  });
+})();
+</script>
+<!-- PUENTE:fin -->
+
+
+
+
+
+</body>
+</html>

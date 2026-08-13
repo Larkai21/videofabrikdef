@@ -1,0 +1,76 @@
+# Entornos y dependencias
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+
+# Artefactos desechables: se regeneran desde los clips de A-Roll.
+# `build` sin barra a propósito: en esta máquina es un SYMLINK a
+# `build.nosync/` —iCloud no sincroniza *.nosync, y sincronizarlo creaba
+# copias de conflicto («00140 3.png», «plan.origen 2.json») que contaminaban
+# montajes enteros—, y el patrón `build/` solo casa directorios de verdad.
+build
+build/
+build.nosync/
+renders/
+out/
+
+# Material fuente. NO se versiona: `assets/aroll` son 3,1 GB de clips 4K de
+# cámara y `assets/broll` son descargas. Git no es un almacén de metraje, y
+# el repo vive en ~/Documents, donde iCloud ya sincroniza todo eso.
+assets/aroll/
+# El material de ENTRADA. `CLAUDE.md` documenta el flujo con `--input
+# input.mp4` en la raíz del repo: sin estas líneas, el primer `git add .` tras
+# una ejecución real mete un 4K de varios GB en la historia. De `.gitignore` se
+# sale con un commit; de la historia, no.
+input.mp4
+*.mp4
+*.mov
+*.MP4
+*.MOV
+# ...salvo el clip de 3 s del arnés, que es la entrada de `make lento`
+!tests/fixtures/clip3s.mp4
+!tests/fixtures/aroll_44s.m4a
+
+# Ajustes locales de permisos de Claude Code: son de la máquina, no del
+# proyecto, y a veces llevan tokens.
+.claude/settings.local.json
+
+assets/broll/*
+# ...salvo la captura que la documentación cita por su ruta (CLAUDE.md y
+# docs/como-ver-los-componentes). Una ruta citada que en un clon no existe es
+# documentación que miente el día uno, y son 75 KB. Se re-incluye con el patrón
+# `dir/*` y no `dir/`: git no puede re-incluir un fichero cuyo directorio padre
+# está excluido entero.
+!assets/broll/auditoria_antes.png
+
+# Secretos
+.env
+
+# Copias de conflicto de iCloud. El repo está en ~/Documents, sincronizado, y
+# el sincronizador crea duplicados con sufijo numérico —«00140 3.png»,
+# «composite_ffmpeg.cpython-312 2.pyc», «cierrecta 2/»— que no son ficheros
+# del proyecto. CLAUDE.md ya avisa de que arrastran a cualquier herramienta que
+# recorra un glob; aquí además evitan que se cuelen en un commit.
+* [0-9].*
+* [0-9]/
+*.icloud
+
+.DS_Store
+
+# Lo que SÍ se versiona, y por qué, para que no se quite por descuido:
+#   assets/luts/   .cube generados por make_lut.py
+#   assets/sfx/    .wav sintetizados por hacer_sfx.py
+#   assets/mapas/  mapa de refracción de mapa_desplazamiento.js
+# Son derivados y deterministas, pero pesan 5 MB en total y sin ellos un
+# `git checkout` de un sprint anterior no renderiza sin ejecutar tres
+# generadores. El objetivo de tener git aquí es poder deshacer un refactor: un
+# árbol que no arranca no sirve para eso. La deriva se cubre con el golden del
+# md5 del .cube (Sprint 4).
+
+# caché de pytest
+.pytest_cache/
+
+# Metadatos que deja `pip install -e .` (el empaquetado in situ de
+# pyproject.toml). Son derivados de la instalación, no del proyecto.
+*.egg-info/

@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Placa de datos basculante</title>
+<meta name="gesto" content="asentar:basculada">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* =====================================================================
+     QUÉ ES ESTE OBJETO
+     ---------------------------------------------------------------------
+     No es una tarjeta con perspectiva: es una PLACA DE DATOS —la chapa
+     mecanizada que va remachada en el lateral de una máquina— que bascula
+     despacio bajo una luz fija.
+
+     La diferencia no es decorativa. Una tarjeta 3D de portfolio se define
+     por lo que hace el CONTENIDO (capas que se despegan y flotan). Una
+     placa se define por lo que hace el MATERIAL:
+
+       · tiene GROSOR, y el canto se ve al girar;
+       · las seis caras reciben la MISMA luz y cada una se apaga según a
+         dónde mire su normal;
+       · el reflejo anisótropo del cepillado BARRE la cara al inclinarse;
+       · la sombra proyectada se CIZALLA y se estira con la inclinación;
+       · el texto no flota encima: está GRABADO, y el relieve del grabado
+         cambia de lado cuando la placa cruza el eje de la luz.
+
+     Todo eso se calcula en `draw` a partir de dos ángulos. No hay ni una
+     capa flotando a distinta Z, que era exactamente el efecto de CodePen.
+     ===================================================================== */
+
+  /* ---------------------------------------------------------------------
+     LO QUE ESTABA ROTO Y NO DABA NINGÚN ERROR
+     ---------------------------------------------------------------------
+     La versión anterior ponía `class="tarjeta"` en el mismo nodo que
+     animaba y le escribía encima el CSS de la tarjeta (820x940, superficie,
+     `preserve-3d`, `overflow: hidden`). Pero `_engine.js` ENVUELVE todo
+     `.tarjeta`: crea un padre con esa clase y al nodo original le deja
+     `.tarjeta-cont`. O sea que esas reglas caían en el ENVOLTORIO, que no
+     gira nunca, y el nodo que sí giraba se quedaba sin caja.
+
+     Medido con `getComputedStyle` en el instante de muestra (t = 2,4 s):
+
+         envoltorio  .tarjeta.tarjeta-pos   overflow: hidden
+         nodo animado .tarjeta-cont         transformStyle: FLAT
+                                            altura: 4,4 px
+         .cifra      translateZ(165px)      ancho en pantalla: 817,6 px
+                                            (el mismo que sin translateZ)
+
+     Tres consecuencias, ninguna con log:
+       1. `overflow: hidden` obliga al valor USADO de `transform-style` a
+          ser `flat`, así que el `preserve-3d` del envoltorio no servía;
+       2. el nodo que giraba no era hijo de nada con `perspective` —el
+          padre estaba aplanado—, así que la rotación salía ORTOGRÁFICA:
+          un cizallamiento de tres píxeles, no un giro;
+       3. el paralaje de las cuatro capas era literalmente CERO: 165 px de
+          `translateZ` y el mismo ancho en pantalla que 0 px.
+     La tarjeta 3D nunca giró. Y encima el `position: relative` del CSS
+     local ganaba al `absolute` del token, así que el `top: 50%` de
+     `[data-zona]` desplazaba la placa 490 px hacia abajo: el borde inferior
+     caía justo en el píxel 1920.
+
+     El arreglo es no volver a nombrar `.tarjeta` en esta hoja. El nodo
+     lleva `class="tarjeta escena"`; el motor le quita `.tarjeta` y todo lo
+     de aquí abajo se cuelga de `.escena`, que sobrevive al envoltorio.
+     --------------------------------------------------------------------- */
+
+  .stage { position: absolute; inset: 0; }
+
+  .escena {
+    position: relative;
+    width: 100%;
+    height: 1240px;
+    /* La perspectiva vive AQUÍ y no en `.stage`: `perspective` solo afecta
+       a los HIJOS DIRECTOS, y entre `.stage` y la placa está ahora el
+       envoltorio que crea el motor. Ponerla arriba era regalársela a él. */
+    perspective: 1680px;
+    /* La cámara va ALTA y a un lado, y no es una preferencia de encuadre:
+       es la única forma de que el grosor exista en el FOTOGRAMA.
+
+       Con el punto de fuga en el centro, la cara frontal tapa el canto
+       hasta que la rotación pasa de
+           asin(410/1680) = 14,1°   (cantos verticales)
+           asin(470/1680) = 16,2°   (cantos horizontales)
+       porque hasta ahí la tira lateral se proyecta DENTRO de la silueta de
+       la cara. La cuenta no es del canto: es de dónde cae su proyección.
+
+       Con el punto de fuga a 20 % 10 % la cámara queda 270 px a la
+       izquierda y 496 px por encima del centro de la placa, y los umbrales
+       pasan a 4,8° en horizontal y a 0° en vertical —496 > 470, o sea que
+       la cámara está por encima de la arista alta y la cara superior se ve
+       desde el reposo—. La órbita no baja de 6,5°, así que el canto no
+       desaparece en ningún fotograma.
+
+       Y no cuesta nada de composición: un plano en z = 0 se proyecta igual
+       con el punto de fuga donde sea, así que la cara frontal no se deforma
+       ni un píxel; lo único que se mueve es lo que está fuera de ese plano,
+       que es exactamente el canto. De paso la cámara queda del mismo lado
+       que la luz, así que las dos caras que se ven son las dos iluminadas. */
+    perspective-origin: 20% 10%;
+    /* El grosor de la chapa vive AQUÍ y en ningún otro sitio: lo usan las
+       cuatro tiras del canto, su desplazamiento en Z y el `calc` de cada
+       giro. Tenerlo en dos sitios —CSS y JS— es cómo se consigue un sólido
+       que no cierra por una arista y que nadie ve hasta que gira 40°. */
+    --grosor: 60px;
+  }
+
+  /* La sombra proyectada. Vive FUERA del contexto 3D, en el plano de la
+     escena, porque no es un objeto: es la huella del objeto sobre otro
+     plano, y esa huella es una transformación AFÍN del rectángulo (la
+     proyección paralela de un plano sobre otro plano lo es siempre). Por
+     eso basta `matrix()` de dos dimensiones, calculada en `draw`.
+     Misma caja que la placa, para que `transform-origin` caiga en su
+     centro sin tener que medir nada. */
+  .sombra {
+    position: absolute;
+    left: 40px; right: 40px; top: 50%; height: 940px; margin-top: -470px;
+    background: var(--sombra);
+    will-change: transform, filter;
+  }
+
+  /* Pivote sin transform propio: solo abre el contexto 3D para que la
+     perspectiva de `.escena` llegue hasta las seis caras. */
+  .pivote {
+    position: absolute;
+    left: 0; right: 0; top: 50%; height: 940px; margin-top: -470px;
+    transform-style: preserve-3d;
+  }
+  .placa {
+    position: absolute; inset: 0 40px;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+
+  /* --- las seis caras de la chapa ------------------------------------
+     Un prisma de verdad, no una sombra que finge grosor. Las cuatro tiras
+     del canto llevan todas `translateZ(D/2)` y luego su giro de 90°: con
+     el origen puesto en la arista que comparten con la cara frontal, el
+     giro las tumba hacia dentro y el desplazamiento las centra, de modo
+     que el sólido queda simétrico respecto a z = 0. */
+  .cara, .canto { position: absolute; }
+
+  .frente {
+    inset: 0;
+    background: var(--surface);
+    transform: translateZ(calc(var(--grosor) / 2));
+    /* `overflow` e `isolation` son OBLIGATORIOS aquí: `Engine.grano` pinta
+       con `mix-blend-mode: multiply` y sin aislar, la teja multiplicaría
+       contra el metraje —que es alfa 0— y devolvería el gris de la teja
+       como un rectángulo sólido sobre el vídeo. */
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .dorso {
+    inset: 0;
+    background: var(--chrome-3);
+    transform: translateZ(calc(var(--grosor) / -2)) rotateY(180deg);
+  }
+
+  .canto-d { top: 0; bottom: 0; left: 100%;  width: var(--grosor);
+             transform-origin: 0 50%;
+             transform: translateZ(calc(var(--grosor) / 2)) rotateY(90deg); }
+  .canto-i { top: 0; bottom: 0; right: 100%; width: var(--grosor);
+             transform-origin: 100% 50%;
+             transform: translateZ(calc(var(--grosor) / 2)) rotateY(-90deg); }
+  .canto-s { left: 0; right: 0; bottom: 100%; height: var(--grosor);
+             transform-origin: 50% 100%;
+             transform: translateZ(calc(var(--grosor) / 2)) rotateX(90deg); }
+  .canto-n { left: 0; right: 0; top: 100%;    height: var(--grosor);
+             transform-origin: 50% 0;
+             transform: translateZ(calc(var(--grosor) / 2)) rotateX(-90deg); }
+
+  /* El canto es bronce MECANIZADO: la trama de 1 px cada 3 es la marca de
+     la fresa. Ojo: `draw` escribe `backgroundColor` y no `background`, o
+     borraría este `background-image` y el canto saldría liso. */
+  .canto { background-color: var(--metal-4); }
+
+  /* --- capas de la cara frontal, de abajo arriba ---------------------- */
+  .rayado  { position: absolute; inset: 0; z-index: 2; opacity: 0.55; }
+  /* `space-between` y no `margin-top: auto`: con el hueco repartido en DOS
+     tramos iguales la chapa se lee como una placa reglada; con todo el aire
+     junto en el medio se leía como una tarjeta a la que le sobra sitio.
+     El padding sube a --s-8 en los cuatro lados porque los tornillos ocupan
+     de 34 a 60 px desde la esquina y con --s-7 (48) el pie los pisaba. */
+  .lamina  { position: absolute; inset: 0; z-index: 3;
+             padding: var(--s-8);
+             display: flex; flex-direction: column;
+             justify-content: space-between; }
+  .velo    { position: absolute; inset: 0; z-index: 4; }
+  .barrido { position: absolute; inset: 0; z-index: 5; }
+  .tornillo{ position: absolute; z-index: 6; width: 26px; height: 26px;
+             border-radius: var(--r-pill); }
+  /* La ranura del tornillo: una barra de 2 px, no un dingbat. Cada una con
+     su ángulo propio —los tornillos de una placa real nunca quedan
+     alineados— sacado de `Engine.noise`, así que es el mismo en cada
+     pasada. */
+  .ranura  { position: absolute; left: 50%; top: 50%; width: 15px; height: 2px;
+             margin: -1px 0 0 -7.5px; background: var(--velo-oscuro);
+             opacity: 0.55; }
+
+  /* --- contenido grabado --------------------------------------------- */
+  .cabecera { display: flex; flex-direction: column; gap: var(--s-3); }
+  .rotulo {
+    font-family: var(--mono); font-size: var(--t-xs);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps-ancho); text-transform: uppercase;
+    color: var(--accent);
+  }
+  .regla { height: 2px; width: 100%; }
+
+  .titulo {
+    font-family: var(--display); font-weight: var(--w-negro);
+    font-size: var(--t-2xl); line-height: 1.04;
+    letter-spacing: var(--tr-display); color: var(--ink);
+  }
+  /* La jerarquía va DENTRO de la línea: 800 -> 400 son 400 puntos de peso,
+     más un cambio de voz a la didone. §1 pide contraste y peso, nunca luz;
+     esta es la única pareja del sistema que lo da. */
+  .titulo em {
+    font-family: var(--editorial); font-style: italic;
+    font-weight: var(--w-libro); letter-spacing: var(--tr-texto);
+  }
+
+  .zocalo { display: flex; flex-direction: column; }
+  .medida { display: flex; align-items: baseline; gap: var(--s-4); }
+  .cifra {
+    font-family: var(--display); font-weight: var(--w-solido);
+    font-size: var(--t-mega); line-height: 0.92;
+    letter-spacing: var(--tr-titan); color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .unidad {
+    font-family: var(--mono); font-size: var(--t-lg);
+    font-weight: var(--w-claro); letter-spacing: var(--tr-caps);
+    color: var(--ink-soft); text-transform: uppercase;
+  }
+  .pie {
+    margin-top: var(--s-5);
+    font-family: var(--subs); font-size: var(--t-md);
+    font-weight: var(--w-libro); letter-spacing: var(--tr-texto);
+    color: var(--ink-soft); max-width: 78%;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="tarjeta escena" id="escena">
+    <div class="sombra" id="sombra"></div>
+    <div class="pivote">
+      <div class="placa" id="placa">
+        <div class="cara dorso"></div>
+        <div class="canto canto-s trama" data-densidad="alta"></div>
+        <div class="canto canto-n trama" data-densidad="alta"></div>
+        <div class="canto canto-i trama" data-densidad="alta"></div>
+        <div class="canto canto-d trama" data-densidad="alta"></div>
+        <div class="cara frente" id="frente">
+          <div class="rayado trama" data-densidad="baja"></div>
+          <div class="lamina">
+            <div class="cabecera">
+              <div class="rotulo" id="rotulo"></div>
+              <div class="regla brushed"></div>
+            </div>
+            <div class="titulo" id="titulo"></div>
+            <div class="zocalo">
+              <div class="medida">
+                <div class="cifra tnum" id="cifra"></div>
+                <div class="unidad" id="unidad"></div>
+              </div>
+              <div class="pie" id="pie"></div>
+            </div>
+          </div>
+          <div class="velo" id="velo"></div>
+          <div class="barrido" id="barrido"></div>
+          <div class="tornillo"><i class="ranura"></i></div>
+          <div class="tornillo"><i class="ranura"></i></div>
+          <div class="tornillo"><i class="ranura"></i></div>
+          <div class="tornillo"><i class="ranura"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp, noise } = Engine;
+
+const placa   = document.getElementById('placa');
+const sombra  = document.getElementById('sombra');
+const frente  = document.getElementById('frente');
+const velo    = document.getElementById('velo');
+const barrido = document.getElementById('barrido');
+const cifraEl = document.getElementById('cifra');
+const grabados = ['rotulo', 'titulo', 'cifra', 'unidad', 'pie']
+  .map(id => document.getElementById(id));
+/* Profundidad del grabado por elemento, en px, PROPORCIONAL al cuerpo de
+   cada uno: la misma fresa deja el mismo bisel relativo, no el mismo bisel
+   absoluto. Los factores salen de dividir cada token por `--t-md` (27 px),
+   que es el del pie:
+       rotulo 19 -> 0,70 · titulo 61 -> 2,26 · cifra 145 -> 5,37
+       unidad 33 -> 1,22 · pie 27 -> 1,00
+   Con una hondura fija para todos, la cifra parecía impresa y el rótulo
+   repujado: cinco calcomanías distintas en la misma chapa. */
+const HONDURA = [0.7, 2.26, 5.37, 1.22, 1.0];
+const cantos = ['canto-s', 'canto-n', 'canto-i', 'canto-d']
+  .map(c => document.querySelector('.' + c));
+const tornillos = [...document.querySelectorAll('.tornillo')];
+
+const SUELO = 130;      // a cuánto flota la placa del plano donde cae la sombra
+
+/* Dirección HACIA la luz, en el sistema de CSS: x a la derecha, y hacia
+   ABAJO, z hacia el espectador. O sea: alta, por la izquierda y un poco
+   por delante. Es fija —una placa atornillada no lleva la luz encima— y
+   que sea fija es justo lo que hace legible el basculeo: si la luz siguiera
+   al objeto, el reflejo no se movería nunca. */
+const LUZ = normaliza(-0.42, -0.66, 0.62);
+
+/* El cepillado corre a 25° (perpendicular a `--metal-ang`, que es el eje
+   del degradado, no el de las estrías). El reflejo anisótropo de un metal
+   cepillado es una banda PARALELA a las estrías que se desplaza a lo largo
+   de la perpendicular: por eso el ángulo del barrido se queda clavado en
+   `--metal-ang` y lo único que se mueve es su posición. */
+const EJE_BARRIDO = 115;
+const EJE_X = Math.sin(EJE_BARRIDO * Math.PI / 180);
+const EJE_Y = -Math.cos(EJE_BARRIDO * Math.PI / 180);
+
+/* Centro de la órbita, en grados. No es el cero: ver el comentario del
+   guiñado en `draw`. Se declara aquí porque el barrido necesita saber
+   dónde está el REPOSO para centrar el reflejo, y calcularlo con los
+   ángulos a cero dejaba la banda entre el 68 % y el 80 % de la cara —o
+   sea fuera de plano medio tiempo y con un recorrido de 12 puntos, que a
+   ojo es una mancha quieta—. Con el reposo bien puesto recorre de 24 a
+   76 % con la configuración por defecto. */
+const SESGO_X = -4, SESGO_Y = 13;
+
+/* La talla del grabado. Las dos constantes las comparten `draw` y las
+   señales de sonido, para que un cambio de ritmo no deje el `tic` sonando
+   donde ya no pasa nada. */
+const TALLA_INI = 0.20, TALLA_DUR = 0.55;
+
+function normaliza(x, y, z) {
+  const m = Math.hypot(x, y, z);
+  return [x / m, y / m, z / m];
+}
+function punto(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+
+/* Las tres columnas de M = Rx(a)·Ry(b), que es el orden en que CSS compone
+   `rotateX(a) rotateY(b)`. `u` y `v` son los ejes de la cara ya girados y
+   `n` su normal; con esos tres vectores salen la iluminación de las seis
+   caras, la dirección del grabado y la sombra, sin repetir un seno. */
+function ejes(a, b) {
+  const ca = Math.cos(a), sa = Math.sin(a);
+  const cb = Math.cos(b), sb = Math.sin(b);
+  return {
+    u: [cb, sa * sb, -ca * sb],
+    v: [0, ca, sa],
+    n: [sb, -sa * cb, ca * cb]
+  };
+}
+
+/* La coordenada del reflejo con la placa en el centro de su órbita. Se
+   calcula UNA vez y no por fotograma: no depende del reloj ni de la
+   configuración, y dentro de `draw` eran cuatro senos por fotograma para
+   devolver siempre −0,7855. */
+const Q_REPOSO = (() => {
+  const E = ejes(SESGO_X * Math.PI / 180, SESGO_Y * Math.PI / 180);
+  return punto(LUZ, E.u) * EJE_X + punto(LUZ, E.v) * EJE_Y;
+})();
+
+/* Un valor de luz 0..1 convertido en color de bronce. NO se interpola
+   entre los stops del metal: en tema `paper` los cinco son el mismo color
+   —`_tokens.css` los colapsa a propósito— así que un canto sombreado con
+   ellos saldría plano en claro y el grosor desaparecería justo en el tema
+   donde más falta hace. Se mezcla contra `--velo-claro` y `--velo-oscuro`,
+   que son los dos únicos tokens fijos en los dos temas.
+   En `oklab` y no en sRGB: entre bronce y negro, sRGB pasa por un marrón
+   sucio que se lee como suciedad, no como sombra. */
+function bronce(k) {
+  const d = clamp(k, 0, 1) - 0.5;
+  return d >= 0
+    ? `color-mix(in oklab, var(--velo-claro) ${(d * 92).toFixed(1)}%, var(--metal-4))`
+    : `color-mix(in oklab, var(--velo-oscuro) ${(-d * 136).toFixed(1)}%, var(--metal-4))`;
+}
+
+/* Marca de énfasis. Si el titular no trae `*palabras*`, se enfatiza la
+   ÚLTIMA palabra: los planes que ya existen pasan el titular en texto
+   plano y sin esto se quedarían con 800 en toda la línea, que según §3 no
+   es jerarquía sino volumen. Con marcas explícitas manda la marca. */
+function componer(txt) {
+  let s = String(txt).replace(/\r?\n|\\n/g, '\n');
+  if (!/\*[^*]+\*/.test(s)) s = s.replace(/(\S+)\s*$/, '*$1*');
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+          .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+          .replace(/\n/g, '<br>');
+}
+
+Engine.register({
+  duration: 6,
+  defaults: {
+    rotulo: 'MEDIDO EN ESTA MÁQUINA',
+    titulo: 'Segundos de\n*máquina*',
+    cifra: '70',
+    unidad: '',            // vacío por defecto: los planes que ya existen no lo pasan
+    pie: 'por cada 30 s de vídeo',
+    inclinacion: 13,       // grados máximos de cabeceo
+    periodo: 7.0,          // segundos por vuelta completa
+    entrada: 0.6,
+    salida: 0.45
+  },
+
+  setup(cfg) {
+    document.getElementById('rotulo').textContent = cfg.rotulo;
+    document.getElementById('titulo').innerHTML = componer(cfg.titulo);
+    document.getElementById('cifra').textContent = cfg.cifra;
+    document.getElementById('unidad').textContent = cfg.unidad || '';
+    document.getElementById('pie').textContent = cfg.pie;
+
+    /* Grano de impresión sobre la chapa. Va en la capa 1, por DEBAJO del
+       texto y de los reflejos: si se dejara donde `Engine.grano` lo pone
+       —el último hijo— multiplicaría también contra la banda especular y
+       la apagaría, que es como convertir un reflejo en una mancha. */
+    Engine.grano(frente, { px: 220, semilla: 19, op: 0.30 }).style.zIndex = '1';
+
+    /* Los cuatro tornillos, a 34 px de cada esquina. La ranura no está
+       alineada con nada: `noise` da el ángulo, distinto por tornillo y
+       reproducible entre fotogramas. */
+    tornillos.forEach((el, i) => {
+      const lado = (i % 2) ? 'right' : 'left';
+      const alto = (i < 2) ? 'top' : 'bottom';
+      el.style[lado] = '34px';
+      el.style[alto] = '34px';
+      el.querySelector('.ranura').style.transform =
+        `rotate(${(noise(i, 11) * 180).toFixed(1)}deg)`;
+    });
+
+    /* Tres señales y no más: la placa llega, asienta y queda grabada. Un
+       `tic` por tornillo o por letra sería un zumbido a 25 pps. */
+    return {
+      cues: cfg.sinSonido ? [] : [
+        { at: 0.02, sfx: 'deslizar', gain: 0.30 },
+        { at: +Number(cfg.entrada || 0).toFixed(3), sfx: 'impacto', gain: 0.46 },
+        { at: +(TALLA_INI + TALLA_DUR).toFixed(3), sfx: 'tic', gain: 0.28 }
+      ]
+    };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 6;
+    const cierre = Engine.sale(t, fin, cfg.salida);   // inCubic: aguanta y se va
+    const e = Engine.entra(t, cfg.entrada);           // outCubic: llega y frena
+
+    /* `inOutCubic` y no `outCubic` para el asiento del ángulo: una mano
+       que POSA una chapa arranca parada. Con `outCubic` la placa aparece
+       ya girando a velocidad máxima y el gesto se lee como un barrido
+       automático, que es justo lo que un objeto colocado no es. */
+    const asiento = span(t, 0, cfg.entrada, Ease.inOutCubic);
+    /* El acercamiento sí se pasa: `outBack6` son 6 % de sobrepaso, el
+       techo que permite §10. Una placa que se apoya rebota una vez, muy
+       poco; sin nada de sobrepaso se lee como un fundido. */
+    const empuje = span(t, 0, cfg.entrada, Ease.outBack6);
+
+    /* Órbita de reposo. Dos periodos inconmensurables en X e Y para que no
+       describa una elipse cerrada: con periodos con divisor común el ciclo
+       se repite dentro de la pieza y se ve el bucle. */
+    const w = (Math.PI * 2) / cfg.periodo;
+    /* La órbita no está centrada en el cero, y ese es el cambio que hace
+       que esto sea un objeto y no un escaneo. Una placa fotografiada de
+       frente es una imagen de la placa; una placa en tres cuartos
+       permanente es la placa. El sesgo mantiene el guiñado en [6°, 20°] y
+       el cabeceo en [-17°, 9°]: los dos lados del umbral de visibilidad
+       del canto están dentro, así que el grosor no desaparece del
+       fotograma en ningún instante de la órbita.
+       `inclinacion` sigue significando lo mismo —la AMPLITUD en grados— y
+       los planes que ya la pasan no cambian de sentido. */
+    const rxOrb = SESGO_X + Math.sin(t * w) * cfg.inclinacion;
+    const ryOrb = SESGO_Y + Math.cos(t * w * 0.72) * cfg.inclinacion * 0.5;
+    /* Pose de llegada: MÁS girada que el reposo y hacia el mismo lado, no
+       hacia el contrario. Con la pose de entrada al otro lado la placa
+       cruzaba el frente durante la entrada —51° de barrido— y el gesto se
+       leía como un volteo de carta. Exagerando el tres cuartos que ya
+       tiene, la entrada es lo que hace una mano al posar algo: se ve
+       primero el GROSOR y la chapa se endereza hasta su ángulo de
+       trabajo. */
+    const rx = rxOrb * asiento + (1 - asiento) * -11;
+    const ry = ryOrb * asiento + (1 - asiento) * 34;
+    /* La placa entra POR DELANTE y se asienta hacia atrás, no al revés.
+       Con la entrada desde el fondo (za negativo) la chapa arrancaba 210 px
+       DETRÁS del plano donde cae su sombra, y la proyección se daba la
+       vuelta: la huella saltaba al otro lado y salía una banda oscura
+       cruzando el cuadro durante los primeros fotogramas. No es un fallo
+       de la sombra —la fórmula es la correcta para un objeto detrás de la
+       pared—, es que un objeto no puede estar detrás de la pared en la que
+       se apoya. */
+    const za = (1 - empuje) * 210;
+
+    /* Deriva de reposo (§10). Se aplica al SÓLIDO entero y no a cada capa:
+       una chapa es rígida, y despegar sus partes es precisamente el efecto
+       de portfolio que esta plantilla ha dejado de hacer. */
+    const d = Engine.flota(t, 0, { amp: 4, periodo: 8.6, semilla: 5, giro: 0.35 });
+
+    const a = rx * Math.PI / 180, b = ry * Math.PI / 180;
+    const E = ejes(a, b);
+
+    placa.style.opacity = e * cierre;
+    placa.style.transform =
+      `translate3d(${d.x.toFixed(2)}px, ${d.y.toFixed(2)}px, ${za.toFixed(1)}px) ` +
+      `rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg) ` +
+      `rotateZ(${d.r.toFixed(2)}deg)`;
+
+    /* --- iluminación de las seis caras -----------------------------
+       Lambert puro contra una sola luz. Es lo que hace que el canto se
+       lea como canto: cuando la placa gira a la derecha, la tira derecha
+       aparece Y se oscurece, porque su normal se aparta de la luz. */
+    const frontal = clamp(punto(E.n, LUZ), 0, 1);
+    const caras = [
+      [-E.v[0], -E.v[1], -E.v[2]],   // canto superior
+      E.v,                            // canto inferior
+      [-E.u[0], -E.u[1], -E.u[2]],   // canto izquierdo
+      E.u                             // canto derecho
+    ];
+    cantos.forEach((el, i) => {
+      /* 0,30 de ambiente, y no 0: una cara que no ve la luz no es negra,
+         ve el rebote de la escena. Con la luz alta y por la izquierda que
+         usa esta plantilla, el canto DERECHO y el INFERIOR no reciben un
+         rayo directo en toda la órbita, así que su tono lo fija ENTERO
+         este número. Medido en claridad de oklab (0..1), tema carbon:
+
+             ambiente 0,18   canto 0,444
+             ambiente 0,30   canto 0,527
+             gris de metraje 0,316 · cara frontal 0,238
+
+         O sea que pasa de +0,13 a +0,21 sobre el metraje y de +0,21 a
+         +0,29 sobre su propia cara. Con 0,18 el canto en sombra se
+         despegaba del fondo lo justo para leerse como un borde sucio; con
+         0,30 se lee como material. */
+      el.style.backgroundColor = bronce(0.30 + 0.70 * clamp(punto(caras[i], LUZ), 0, 1));
+    });
+
+    /* --- luz dentro del plano de la cara ---------------------------
+       (la, lb) es la luz PROYECTADA sobre la cara, en sus propias
+       coordenadas. Es el vector que gira cuando la placa bascula, y de él
+       salen el bisel, el grabado y el barrido: los tres se mueven juntos
+       porque los tres los produce la misma luz. */
+    const la = punto(LUZ, E.u), lb = punto(LUZ, E.v);
+
+    /* Bisel de la cara. Tres filetes y en este orden, porque un `inset` se
+       pinta sobre el anterior:
+         1. el CHAFLÁN de desbarbado, 2 px de bronce en todo el perímetro.
+            Va primero para que se vea entero. Es lo que hace que el canto
+            se lea incluso cuando su cara está de perfil y mide un píxel:
+            un borde vivo de metal siempre devuelve algo de luz, y sin él
+            la placa se recorta contra el metraje como un adhesivo;
+         2. la arista que mira a la luz, clara;
+         3. la opuesta, oscura.
+       §10 pide exactamente esto —`inset` arriba y abajo— y es lo más barato
+       que convierte un rectángulo en un objeto. */
+    frente.style.boxShadow =
+      `inset 0 0 0 2px ${bronce(0.42 + 0.5 * frontal)}, ` +
+      `inset ${(-la * 4).toFixed(1)}px ${(-lb * 4).toFixed(1)}px 0 var(--glass-highlight), ` +
+      `inset ${(la * 5).toFixed(1)}px ${(lb * 5).toFixed(1)}px 0 var(--sombra)`;
+
+    /* Grabado. Oscuro del lado de la luz y claro del contrario: es el
+       orden inverso al relieve, y es lo que distingue una letra HUNDIDA de
+       una pegada encima. Al cruzar la placa el eje de la luz, los dos
+       filetes se intercambian solos. */
+    const talla = span(t, TALLA_INI, TALLA_DUR, Ease.outExpo);
+    grabados.forEach((el, i) => {
+      const h = HONDURA[i] * talla;
+      el.style.textShadow =
+        `${(la * h).toFixed(2)}px ${(lb * h).toFixed(2)}px 0 ` +
+        `color-mix(in oklab, var(--velo-oscuro) 62%, transparent), ` +
+        `${(-la * h * 0.8).toFixed(2)}px ${(-lb * h * 0.8).toFixed(2)}px 0 ` +
+        `color-mix(in oklab, var(--velo-claro) 40%, transparent)`;
+    });
+    /* La cifra se TALLA: el eje variable de la fuente va de 300 a 900
+       mientras entra la fresa. Es un gesto que no se puede imitar con dos
+       ficheros estáticos, y aquí además significa algo — el trazo se
+       ensancha porque la herramienta profundiza. */
+    Engine.peso(cifraEl, Math.round(300 + 600 * talla));
+
+    /* Velo: la mitad que se aparta de la luz se apaga. El ángulo CSS mide
+       desde arriba y en sentido horario, de ahí el atan2(x, -y). */
+    const ang = Math.atan2(la, -lb) * 180 / Math.PI;
+    velo.style.background =
+      `linear-gradient(${ang.toFixed(1)}deg, var(--sombra) 0%, transparent 56%)`;
+    velo.style.opacity = (0.20 + 0.46 * (1 - frontal)) * e * cierre;
+
+    /* --- barrido especular -----------------------------------------
+       Intensidad: modelo de Blinn con exponente 8. `H` es la bisectriz
+       entre la luz y el ojo; cuanto más apunta la normal a `H`, más
+       brilla. Con exponente 1 la banda no se enciende y con 24 solo existe
+       un fotograma de cada treinta.
+       Posición: el desplazamiento a lo largo del eje perpendicular a las
+       estrías, referido al CENTRO DE LA ÓRBITA. Recorre del 24 % al 76 %
+       de la cara con la configuración por defecto y del 21 % al 76 % con
+       la de la hoja de contactos. */
+    const H = normaliza(LUZ[0], LUZ[1], LUZ[2] + 1);
+    const spec = Math.pow(clamp(punto(E.n, H), 0, 1), 8);
+    const q  = la * EJE_X + lb * EJE_Y;
+    const pos = clamp(50 - (q - Q_REPOSO) * 820, -40, 140);
+    const i0 = 5 + 46 * spec;
+    const halo  = `color-mix(in oklab, var(--metal-3) ${(i0 * 0.42).toFixed(1)}%, transparent)`;
+    const nucleo = `color-mix(in oklab, var(--metal-3) ${i0.toFixed(1)}%, transparent)`;
+    /* Dos anchos y no uno: un núcleo de 7 % y una falda de 34 %. Con una
+       sola parada la banda salía como una nube caliente y no como un
+       reflejo — el brillo de un metal cepillado tiene un filo, y el filo es
+       lo que hace que se vea BARRER en vez de aparecer y desaparecer. */
+    barrido.style.background =
+      `linear-gradient(${EJE_BARRIDO}deg, transparent ${(pos - 34).toFixed(1)}%, ` +
+      `${halo} ${(pos - 7).toFixed(1)}%, ${nucleo} ${pos.toFixed(1)}%, ` +
+      `${halo} ${(pos + 7).toFixed(1)}%, transparent ${(pos + 34).toFixed(1)}%)`;
+    barrido.style.opacity = e * cierre;
+
+    /* Reflejo del tornillo: el punto de luz de una cabeza abombada se
+       desplaza a donde mira la luz. Cuatro puntitos de 26 px que se mueven
+       juntos son la prueba barata de que la iluminación es una sola. */
+    const gx = (50 + la * 26).toFixed(1), gy = (50 + lb * 26).toFixed(1);
+    tornillos.forEach(el => {
+      el.style.background =
+        `radial-gradient(circle at ${gx}% ${gy}%, ${bronce(0.92)} 0%, ` +
+        `${bronce(0.52)} 46%, ${bronce(0.16)} 100%)`;
+      el.style.boxShadow = `inset 0 0 0 1px ${bronce(0.10)}`;
+      el.style.opacity = e * cierre;
+    });
+
+    /* --- sombra proyectada -----------------------------------------
+       Proyección paralela de la placa sobre un plano a `SUELO` px por
+       detrás. Para un punto p, el rayo p - u·LUZ corta el plano en
+       u = (p.z + SUELO)/LUZ.z, y como u es afín en p, la huella de un
+       rectángulo es un PARALELOGRAMO: `matrix()` lo representa exacto.
+       Medido sobre la órbita por defecto (incl 13, periodo 7): el eje
+       horizontal de la huella recorre de 0,796 a 0,932 veces el de la
+       placa y su cizalla de −23,9° a −9,1°. O sea que la sombra nunca es
+       el rectángulo de la placa desplazado —que es lo que hace un
+       `box-shadow`— y además cambia de forma 15° mientras la placa
+       bascula. Es lo que delata a la tarjeta que solo es un dibujo. */
+    const proy = v => [
+      v[0] - (v[2] / LUZ[2]) * LUZ[0],
+      v[1] - (v[2] / LUZ[2]) * LUZ[1]
+    ];
+    const pu = proy(E.u), pv = proy(E.v);
+    const u0 = (za + SUELO) / LUZ[2];
+    const tx = d.x - u0 * LUZ[0], ty = d.y - u0 * LUZ[1];
+    sombra.style.transform =
+      `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) ` +
+      `matrix(${pu[0].toFixed(4)}, ${pu[1].toFixed(4)}, ` +
+      `${pv[0].toFixed(4)}, ${pv[1].toFixed(4)}, 0, 0)`;
+    /* Cuanto más lejos del suelo, más difusa y más floja: es la única
+       parte del efecto que la gente reconoce sin saber por qué.
+       El factor de `asiento` no es un truco de opacidad: mientras la placa
+       se está colocando llega a girar 34° y su huella se convierte en un
+       paralelogramo casi vertical que cruza el cuadro. La proyección es
+       correcta —esa ES la sombra de una chapa a 34°— pero fuera de un
+       decorado no hay nada que la contenga, así que sobre metraje se lee
+       como una mancha suelta. Con la sombra al 40 % hasta que la placa
+       asienta, el contacto llega con el objeto. */
+    const vuelo = (za + SUELO) / SUELO;
+    sombra.style.filter = `blur(${(16 + 16 * vuelo).toFixed(1)}px)`;
+    sombra.style.opacity =
+      (0.30 + 0.34 * clamp(2 - vuelo, 0, 1)) * (0.40 + 0.60 * asiento) * e * cierre;
+  }
+});
+</script>
+</body>
+</html>

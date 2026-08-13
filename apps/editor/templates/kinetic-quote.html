@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Frase de impacto</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; display: grid; place-items: center; }
+
+  /* Panel translúcido a sangre. El desenfoque REAL del metraje lo aporta
+     el compositor con `cristal: true`; aquí solo va la translucidez, que
+     es lo único que sobrevive a la captura con alfa. */
+  .velo {
+    position: absolute; inset: 0;
+    /* a sangre y sin radio: `.cristal` trae esquinas redondeadas del
+       sistema de vidrio, pensadas para tarjetas. Un velo a pantalla
+       completa con esquinas se ve como una tarjeta gigante mal centrada. */
+    /* La clase `.cristal` hace falta para que el compositor recorte la
+       máscara, pero trae la decoración de TARJETA: radio y un reflejo en
+       `::before`. A pantalla completa eso se ve como una tarjeta gigante
+       mal centrada, así que se anula lo visual y se conserva la marca. */
+    border-radius: 0 !important;
+    background: color-mix(in srgb, var(--velo-oscuro) 58%, transparent);
+    will-change: opacity;
+  }
+  .velo::before, .velo::after { display: none !important; }
+  .velo { box-shadow: none !important; }
+
+  .frase {
+    position: relative; text-align: center;
+    padding: 0 var(--s-6);
+    font-family: var(--display); font-weight: var(--w-negro);
+    letter-spacing: var(--tr-titan); line-height: 0.94;
+    color: var(--ink);
+    will-change: transform, opacity;
+  }
+  /* El acento no se ENCIENDE de color y ya: gana peso mientras la frase
+     está en pantalla. §1 pide jerarquía por contraste y peso, y un color
+     plano sobre una palabra es la versión barata de eso. */
+  .frase .ac { color: var(--accent);
+               will-change: font-variation-settings; }
+  /* El filete se traza de izquierda a derecha, no crece desde el centro:
+     una raya que crece desde el medio es una barra de progreso invertida;
+     una que se traza es alguien subrayando. */
+  .filo { position: absolute; left: 50%; height: 4px; border-radius: 2px;
+          transform-origin: 0% 50%;
+          background-image: linear-gradient(90deg,
+            var(--metal-1), var(--metal-3) 45%, var(--metal-4));
+          will-change: transform, opacity; }
+</style></head>
+<body>
+<div class="stage">
+  <div class="velo cristal" id="velo"></div>
+  <div class="frase" id="frase"></div>
+  <div class="filo" id="filo"></div>
+</div>
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+const velo = document.getElementById('velo');
+const frase = document.getElementById('frase');
+const filo = document.getElementById('filo');
+let cuerpo = 200, acentos = [];
+
+Engine.register({
+  duration: 1.2,
+  defaults: {
+    /* Corta y en mayúsculas: a 1,2 s no da tiempo a leer una oración.
+       Si el texto no cabe en un vistazo, el recurso no funciona. */
+    texto: 'SUBE DE CAPA',
+    /* El trozo del texto que va en color. Se llamaba `acento` y era el único
+       del catálogo que usaba ese nombre para un TROZO DE TEXTO: `cita` y
+       `headline-clipper` ya llamaban `resaltar` a este mismo trabajo. Dejó de
+       poder llamarse así cuando `acento` pasó a ser el COLOR de plan que el
+       motor aplica a cualquier plantilla — dos cosas distintas con el mismo
+       nombre en la misma config. Un plan viejo que aún mande `acento` aquí no
+       falla en silencio: el motor intenta leerlo como color, no lo es, y
+       avisa por consola. */
+    resaltar: '',
+    tam: 200,
+    entrada: 0.22,
+    salida: 0.26
+  },
+  setup(cfg) {
+    /* El cuerpo se AJUSTA al ancho disponible. Fijarlo a pelo desborda en
+       cuanto la frase es larga o la capa vive en una columna estrecha, y
+       una frase de impacto cortada por el borde no impacta: distrae. */
+    frase.style.fontSize = cfg.tam + 'px';
+    const t = String(cfg.texto);
+    frase.innerHTML = cfg.resaltar && t.includes(cfg.resaltar)
+      ? t.replace(cfg.resaltar, '<span class="ac">' + cfg.resaltar + '</span>')
+      : t;
+    const maxAncho = (cfg.anchoMax || window.innerWidth * 0.86);
+    frase.style.maxWidth = maxAncho + 'px';
+    /* Se mide con el texto ya puesto y se reduce hasta caber. Dos pasadas
+       bastan: la primera corrige el grueso del exceso y la segunda afina
+       el redondeo. */
+    for (let k = 0; k < 2; k++) {
+      const w = frase.scrollWidth;
+      if (w > maxAncho) {
+        const actual = parseFloat(frase.style.fontSize);
+        frase.style.fontSize = Math.max(48, actual * (maxAncho / w) * 0.97) + 'px';
+      }
+    }
+    /* `cuerpo` es el tamaño REAL después del ajuste, no `cfg.tam`. El filete
+        se posicionaba con `cfg.tam` y el ajuste puede haberlo bajado a la
+        mitad para que la frase quepa: con una frase larga, la raya se quedaba
+        a ochenta píxeles del texto. Se veía en el fotograma y en ningún log. */
+    cuerpo = parseFloat(frase.style.fontSize);
+    filo.style.width = Math.min(maxAncho * 0.6, cuerpo * 2.2) + 'px';
+    filo.style.marginLeft = (-Math.min(maxAncho * 0.6, cuerpo * 2.2) / 2) + 'px';
+    acentos = [...frase.querySelectorAll('.ac')];
+  },
+  draw(t, cfg) {
+    const fin = cfg.duration || 1.2;
+    const e = span(t, 0, cfg.entrada, Ease.outExpo);
+    const s = span(t, fin - cfg.salida, cfg.salida, Ease.inOutCubic);
+    const vis = e * (1 - s);
+    velo.style.opacity = vis;
+    frase.style.opacity = vis;
+    /* Entra desde ligeramente grande y se asienta: al revés parece que la
+       frase huye de la pantalla en vez de imponerse. */
+    const fl = Engine.flota(t, 0, { amp: 2.2, periodo: 6.4, semilla: 21 });
+    frase.style.transform =
+      `translate(${fl.x.toFixed(2)}px, ${fl.y.toFixed(2)}px) ` +
+      `scale(${(1.16 - 0.16 * e - s * 0.06).toFixed(4)})`;
+
+    /* SEGUNDO TIEMPO. Antes todo el gesto —escala, filete, opacidad— iba
+       atado a `e`, que se agota en `entrada` (0,22 s de 1,2). O sea que el
+       78 % de la capa era una imagen fija, y el 31 % lo era hasta con la
+       medida a medio segundo. Ahora el subrayado se TRAZA durante casi toda
+       la permanencia y el acento engorda con él: la frase se impone, y
+       seguir imponiéndose lleva tiempo. */
+    const perm = Math.max(0.12, fin - cfg.salida - cfg.entrada);
+    const trazo = span(t, cfg.entrada, perm * 0.86, Ease.inOutCubic);
+    filo.style.opacity = vis;
+    filo.style.bottom = `calc(50% - ${(cuerpo * 0.78).toFixed(1)}px)`;
+    filo.style.transform = `scaleX(${(trazo * (1 - s)).toFixed(4)})`;
+    acentos.forEach(a => {
+      Engine.peso(a, Math.round(500 + 400 * trazo));
+    });
+  },
+  anclas() {
+    const b = frase.getBoundingClientRect();
+    return { frase: { x: Math.round(b.left + b.width / 2),
+                      y: Math.round(b.top + b.height / 2),
+                      w: Math.round(b.width), h: Math.round(b.height) } };
+  }
+});
+</script></body></html>

@@ -1,0 +1,37 @@
+#!/bin/sh
+# Cinturón sobre el tirante del `.gitignore`.
+#
+# `.gitignore` se puede editar; este hook no depende de él. Rechaza dos cosas
+# que, una vez en la historia, ya no se pueden sacar con un commit:
+#
+#   · cualquier fichero de más de 2 MB
+#   · cualquier vídeo fuera de tests/fixtures/
+#
+# Y corre `make lint pruebas`, que tarda menos de un segundo. NO corre `make
+# render` (35 s): un hook lento se salta con --no-verify, y un hook que se salta
+# no protege nada.
+set -e
+
+TOPE=2097152
+malos=""
+for f in $(git diff --cached --name-only --diff-filter=ACM); do
+  [ -f "$f" ] || continue
+  n=$(wc -c < "$f" | tr -d ' ')
+  if [ "$n" -gt "$TOPE" ]; then
+    malos="$malos\n  $f ($((n / 1024)) KB)"
+  fi
+  case "$f" in
+    tests/fixtures/*) ;;
+    *.mp4|*.mov|*.MP4|*.MOV)
+      malos="$malos\n  $f (vídeo fuera de tests/fixtures/)" ;;
+  esac
+done
+
+if [ -n "$malos" ]; then
+  printf "pre-commit: esto no puede entrar en la historia:%b\n" "$malos"
+  echo "  De .gitignore se sale con un commit; de la historia, no."
+  echo "  Si de verdad hace falta:  git commit --no-verify"
+  exit 1
+fi
+
+make lint pruebas

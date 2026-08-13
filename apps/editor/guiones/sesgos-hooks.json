@@ -1,0 +1,635 @@
+{
+  "metadata": {
+    "title": "Sesgos en la IA: quién decide detrás del algoritmo",
+    "aspect_ratio": "9:16",
+    "grabacion": "build/aroll_sesgos_v2.mp4",
+    "nota_de_produccion": "Cinco hooks grabados el 7 de agosto (C0088=H1, C0083=H2, C0084=H3, C0085=H4, C0087=H5) concatenados DELANTE del cuerpo del 6 de agosto. El orden del concat es H1..H5 y no el de los ficheros, que venían desordenados. El `cuerpo` de este fichero es el que se GRABÓ, no el que el guionista escribió: la escaleta traía ocho actos y en la cinta hay seis. Los dos que faltan —«contaminación silenciosa» y «regulación europea»— no se han inventado; se han quitado, y hay que grabarlos para recuperarlos."
+  },
+  "cuerpo": [
+    {
+      "act": 2,
+      "act_name": "problema · falsa neutralidad",
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_CLOSE_UP",
+      "voice_speech": "¿Creemos que los algoritmos son neutros por ser matemáticas?",
+      "blue_highlight_words": [
+        "neutros"
+      ],
+      "visual_trigger": {
+        "name": "headline-clipper.html",
+        "position": "POS_TOP_CENTER",
+        "card_copy": "FALSA NEUTRALIDAD",
+        "config": {
+          "entradilla": "las matemáticas no eligen los datos",
+          "seccion": "INTELIGENCIA ARTIFICIAL",
+          "medio": "quién decide detrás del algoritmo",
+          "resaltar": "NEUTRALIDAD"
+        }
+      },
+      "micro_fx": []
+    },
+    {
+      "act": 3,
+      "act_name": "problema · la mano humana",
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_LEFT",
+      "voice_speech": "La realidad es que la inteligencia artificial aprende de nosotros, con todos nuestros sesgos.",
+      "blue_highlight_words": [
+        "sesgos"
+      ],
+      "visual_trigger": {
+        "name": "definition-card.html",
+        "position": "POS_MID_RIGHT",
+        "config": {
+          "palabra": "Sesgo",
+          "fonetica": "/ˈses.ɣo/",
+          "categoria": "sustantivo",
+          "definicion": "Criterio humano que acaba escrito en el código sin que nadie lo haya escrito."
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "nuestros",
+          "fx_id": "neural-node-pulse"
+        }
+      ],
+      "sfx": [
+        "tech_pulse.wav"
+      ]
+    },
+    {
+      "act": 4,
+      "act_name": "mecanismo · los cuatro momentos",
+      "screen_mode": "MODE_FULL_MOTION",
+      "framing": "NONE",
+      "voice_speech": "Un modelo no nace discriminando. El sesgo humano se cuela en cuatro momentos. Al seleccionar los datos, al etiquetarlos a mano, al elegir qué medir y al decidir cómo desplegarlo.",
+      "blue_highlight_words": [
+        "cuatro"
+      ],
+      "visual_trigger": {
+        "name": "pasos-flow.html",
+        "position": "POS_CENTER",
+        "config": {
+          "escalonado": 2.2,
+          "pasos": [
+            {
+              "n": "01",
+              "titulo": "Datos",
+              "desc": "Qué se recoge y qué se deja fuera.",
+              "meta": "selección"
+            },
+            {
+              "n": "02",
+              "titulo": "Etiquetado",
+              "desc": "Personas decidiendo, una a una.",
+              "meta": "a mano"
+            },
+            {
+              "n": "03",
+              "titulo": "Métrica",
+              "desc": "Qué se declara «acierto».",
+              "meta": "criterio"
+            },
+            {
+              "n": "04",
+              "titulo": "Despliegue",
+              "desc": "Sobre quién se aplica.",
+              "meta": "alcance"
+            }
+          ]
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "etiquetarlos",
+          "fx_id": "stamp-banned",
+          "config": {
+            "texto": "A MANO"
+          }
+        }
+      ],
+      "sfx": [
+        "stamp_heavy.wav"
+      ]
+    },
+    {
+      "act": 5,
+      "act_name": "solución · no hacen falta papers",
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_LEFT",
+      "voice_speech": "Para detectarlo no hace falta leer papers matemáticos.",
+      "blue_highlight_words": [
+        "detectarlo"
+      ],
+      "visual_trigger": {
+        "name": "compare-ab.html",
+        "position": "POS_MID_RIGHT",
+        "card_copy": "LEER O MEDIR",
+        "config": {
+          "ganador": "b",
+          "diferencia": "",
+          "a": {
+            "titulo": "Papers",
+            "sub": "para entenderlo",
+            "valor": 40,
+            "unidad": " pág",
+            "barra": 0.92,
+            "pie": "y sigues sin medir nada"
+          },
+          "b": {
+            "titulo": "Auditoría",
+            "sub": "para medirlo",
+            "valor": 6,
+            "unidad": " líneas",
+            "barra": 0.16,
+            "pie": "y te dice a quién perjudica"
+          }
+        }
+      },
+      "micro_fx": []
+    },
+    {
+      "act": 6,
+      "act_name": "solución · las herramientas que ya existen",
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_LEFT",
+      "voice_speech": "Hoy en día existen herramientas de auditoría que analizan los resultados e indican si un colectivo sale perjudicado.",
+      "blue_highlight_words": [
+        "perjudicado"
+      ],
+      "visual_trigger": {
+        "name": "code-mockup.html",
+        "position": "POS_MID_RIGHT",
+        "config": {
+          "archivo": "auditar.py",
+          "codigo": [
+            "from fairlearn.metrics import MetricFrame",
+            "",
+            "m = MetricFrame(metrics=tasa_acierto,",
+            "                y_true=y, y_pred=p,",
+            {
+              "txt": "                sensitive_features=grupo)",
+              "marca": "+"
+            },
+            "print(m.difference())"
+          ],
+          "primera": 12
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "indican",
+          "fx_id": "target-hud",
+          "config": {
+            "texto": "QUIÉN SALE PEOR",
+            "lectura": "20%"
+          }
+        }
+      ],
+      "sfx": [
+        "hud_lock.wav"
+      ]
+    },
+    {
+      "act": 7,
+      "act_name": "prueba · la regla de paridad",
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_LEFT",
+      "voice_speech": "Aplica la regla de paridad. Si la tasa de éxito entre dos grupos varía más de un 20%, tu sistema incumple los nuevos estándares de responsabilidad.",
+      "blue_highlight_words": [
+        "20%"
+      ],
+      "visual_trigger": {
+        "name": "hero-stat.html",
+        "position": "POS_MID_RIGHT",
+        "config": {
+          "valor": 20,
+          "unidad": "%",
+          "rotulo": "DISPARIDAD MÁXIMA"
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "incumple",
+          "fx_id": "text-stack-offset",
+          "config": {
+            "texto": "INCUMPLE"
+          }
+        }
+      ],
+      "sfx": [
+        "sub_drop.wav"
+      ]
+    },
+    {
+      "act": 8,
+      "act_name": "cierre · llamada a la acción",
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_CLOSE_UP",
+      "voice_speech": "Exigir transparencia en cada decisión humana es la única forma de no cometer errores antes de preguntarnos si...",
+      "blue_highlight_words": [
+        "transparencia"
+      ],
+      "visual_trigger": {
+        "name": "cierre-cta.html",
+        "position": "POS_TOP_CENTER",
+        "card_copy": "AUDITA TU IA",
+        "config": {
+          "boton": "Guarda este vídeo"
+        }
+      },
+      "micro_fx": [],
+      "sfx": [
+        "subscribe_reminder.wav"
+      ]
+    }
+  ],
+  "hooks": [
+    {
+      "id": "H1",
+      "angulo": {
+        "nombre": "métrica shock",
+        "avatar": "Desarrollador / Líder técnico",
+        "consciencia": "Problema consciente",
+        "dolor": "Desplegar un modelo que discrimine en producción",
+        "objecion": "Mi modelo usa datos limpios",
+        "mecanismo": "Sesgo heredado en el etiquetado",
+        "momento": "Evaluando desplegar un modelo en producción"
+      },
+      "creencia": "La IA no se equivoca porque sólo maneja matemáticas.",
+      "voice_speech": "El 80 % de los modelos de IA heredan sesgos humanos invisibles.",
+      "blue_highlight_words": [
+        "80"
+      ],
+      "variantes": [
+        {
+          "id": "A",
+          "screen_mode": "MODE_A_ROLL",
+          "framing": "FRAME_CLOSE_UP",
+          "visual_trigger": {
+            "name": "headline-clipper.html",
+            "position": "POS_TOP_CENTER",
+            "card_copy": "SESGO INVISIBLE",
+            "config": {
+              "entradilla": "lo hereda del que etiquetó los datos",
+              "seccion": "MODELOS EN PRODUCCIÓN",
+              "medio": "ocho de cada diez",
+              "resaltar": "INVISIBLE"
+            }
+          },
+          "micro_fx": [
+            {
+              "trigger_word": "invisibles",
+              "fx_id": "stroke-crossout",
+              "config": {
+                "texto": "NEUTRAL"
+              }
+            }
+          ],
+          "sfx": [
+            "mouse_click.wav"
+          ]
+        },
+        {
+          "id": "B",
+          "screen_mode": "MODE_FULL_MOTION",
+          "framing": "NONE",
+          "visual_trigger": {
+            "name": "hero-stat.html",
+            "position": "POS_CENTER",
+            "config": {
+              "valor": 80,
+              "unidad": "%",
+              "rotulo": "MODELOS SESGADOS"
+            }
+          },
+          "micro_fx": [
+            {
+              "trigger_word": "invisibles",
+              "fx_id": "stroke-crossout",
+              "config": {
+                "texto": "NEUTRAL"
+              }
+            }
+          ],
+          "sfx": [
+            "mouse_click.wav"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "H2",
+      "angulo": {
+        "nombre": "mito / falso culpable",
+        "avatar": "Project Manager / Founder tech",
+        "consciencia": "Solución consciente superficial",
+        "dolor": "Posible multa o sanción legal",
+        "objecion": "El código no distingue género ni raza",
+        "mecanismo": "Decisiones humanas implícitas",
+        "momento": "Asumiendo que la máquina no comete sesgos"
+      },
+      "creencia": "La responsabilidad del sesgo es del algoritmo, no del equipo.",
+      "voice_speech": "Nos dijeron que la inteligencia artificial es neutra. Es completamente falso.",
+      "blue_highlight_words": [
+        "falso"
+      ],
+      "variantes": [
+        {
+          "id": "A",
+          "screen_mode": "MODE_A_ROLL",
+          "framing": "FRAME_LEFT",
+          "visual_trigger": {
+            "name": "definition-card.html",
+            "position": "POS_MID_RIGHT",
+            "config": {
+              "palabra": "Neutra",
+              "fonetica": "/ˈneu̯.tɾa/",
+              "categoria": "adjetivo · falso mito",
+              "definicion": "Dicho de una IA: que hereda el criterio de quien la entrenó y no lo declara."
+            }
+          },
+          "micro_fx": [
+            {
+              "trigger_word": "falso",
+              "fx_id": "stroke-crossout",
+              "config": {
+                "texto": "NEUTRA"
+              }
+            }
+          ],
+          "sfx": [
+            "mouse_click.wav"
+          ]
+        },
+        {
+          "id": "B",
+          "screen_mode": "MODE_A_ROLL",
+          "framing": "FRAME_CLOSE_UP",
+          "visual_trigger": {
+            "name": "tweet-card.html",
+            "position": "POS_TOP_CENTER",
+            "card_copy": "La neutralidad en IA no existe. Existe la neutralidad que nadie ha auditado.",
+            "config": {
+              "nombre": "Mitos técnicos",
+              "usuario": "@tech_myths",
+              "resaltar": "nadie ha auditado"
+            }
+          },
+          "micro_fx": [
+            {
+              "trigger_word": "falso",
+              "fx_id": "cut-strip",
+              "config": {
+                "texto": "NEUTRA"
+              }
+            }
+          ],
+          "sfx": [
+            "whoosh.wav"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "H3",
+      "angulo": {
+        "nombre": "dolor PAS / barrera de entrada",
+        "avatar": "Data Analyst / Product Owner",
+        "consciencia": "Inconsciente del método sencillo",
+        "dolor": "Frustración por la complejidad de los papers académicos",
+        "objecion": "No tengo tiempo para investigar papers incomprensibles",
+        "mecanismo": "Librerías de auditoría rápida en Python",
+        "momento": "Abrumado por requisitos de auditoría de modelos"
+      },
+      "creencia": "Para auditar un modelo de IA hace falta un doctorado en matemáticas.",
+      "voice_speech": "Auditar el sesgo de tu IA te parece demasiado complejo y académico?",
+      "blue_highlight_words": [
+        "complejo"
+      ],
+      "variantes": [
+        {
+          "id": "A",
+          "screen_mode": "MODE_A_ROLL",
+          "framing": "FRAME_CLOSE_UP",
+          "visual_trigger": {
+            "name": "headline-clipper.html",
+            "position": "POS_TOP_CENTER",
+            "card_copy": "SIN PAPERS",
+            "config": {
+              "entradilla": "seis líneas y una librería",
+              "seccion": "AUDITAR UN MODELO",
+              "medio": "no hace falta un doctorado",
+              "resaltar": "PAPERS"
+            }
+          },
+          "micro_fx": [
+            {
+              "trigger_word": "académico",
+              "fx_id": "cut-strip",
+              "config": {
+                "texto": "PAPERS"
+              }
+            }
+          ],
+          "sfx": [
+            "whoosh.wav"
+          ]
+        },
+        {
+          "id": "B",
+          "screen_mode": "MODE_A_ROLL",
+          "framing": "FRAME_LEFT",
+          "visual_trigger": {
+            "name": "code-mockup.html",
+            "position": "POS_MID_RIGHT",
+            "config": {
+              "archivo": "comprobar.py",
+              "codigo": [
+                "auditar(modelo, grupo='edad')",
+                {
+                  "txt": "# → disparidad: 0.31  ✗",
+                  "marca": "-"
+                }
+              ],
+              "primera": 7
+            }
+          },
+          "micro_fx": [
+            {
+              "trigger_word": "académico",
+              "fx_id": "stroke-crossout",
+              "config": {
+                "texto": "DOCTORADO"
+              }
+            }
+          ],
+          "sfx": [
+            "mouse_click.wav"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "H4",
+      "angulo": {
+        "nombre": "causa oculta / secreto",
+        "avatar": "CTO / Lead Data Scientist",
+        "consciencia": "Solución consciente errónea",
+        "dolor": "Invertir miles de euros en Big Data y mantener sesgos",
+        "objecion": "Con millones de filas el sesgo se diluye",
+        "mecanismo": "Multiplicación del sesgo en Big Data",
+        "momento": "Escalando modelos con grandes volúmenes de datos"
+      },
+      "creencia": "Si los datos son masivos, el sesgo desaparece solo.",
+      "voice_speech": "Tener más datos no elimina el sesgo, solo lo multiplica en secreto.",
+      "blue_highlight_words": [
+        "multiplica"
+      ],
+      "variantes": [
+        {
+          "id": "A",
+          "screen_mode": "MODE_A_ROLL",
+          "framing": "FRAME_LEFT",
+          "visual_trigger": {
+            "name": "split-versus.html",
+            "position": "POS_CENTER",
+            "config": {
+              "a": {
+                "rotulo": "1 M FILAS",
+                "titulo": "sesgo 0.31",
+                "pie": "el modelo pequeño"
+              },
+              "b": {
+                "rotulo": "100 M FILAS",
+                "titulo": "sesgo 0.31",
+                "pie": "el mismo, a escala"
+              },
+              "vs": "×100"
+            }
+          },
+          "micro_fx": [
+            {
+              "trigger_word": "secreto",
+              "fx_id": "stroke-crossout",
+              "config": {
+                "texto": "+ DATOS"
+              }
+            }
+          ],
+          "sfx": [
+            "mouse_click.wav"
+          ]
+        },
+        {
+          "id": "B",
+          "screen_mode": "MODE_A_ROLL",
+          "framing": "FRAME_CLOSE_UP",
+          "visual_trigger": {
+            "name": "notification-pop.html",
+            "position": "POS_TOP_CENTER",
+            "config": {
+              "app": "Auditoría",
+              "icono": "!",
+              "titulo": "Disparidad: 0.31 sin cambios",
+              "sub": "100× más datos · el mismo sesgo",
+              "hora": "ahora"
+            }
+          },
+          "micro_fx": [
+            {
+              "trigger_word": "multiplica",
+              "fx_id": "cut-strip",
+              "config": {
+                "texto": "SE DILUYE"
+              }
+            }
+          ],
+          "sfx": [
+            "whoosh.wav"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "H5",
+      "angulo": {
+        "nombre": "provocación / riesgo legal",
+        "avatar": "Director legal / Compliance Officer tech",
+        "consciencia": "Problema consciente de regulación",
+        "dolor": "Sanciones graves del AI Act por sesgos en producción",
+        "objecion": "Los proveedores de IA se encargan de la equidad",
+        "mecanismo": "Responsabilidad legal directa del desplegador",
+        "momento": "A punto de desplegar software con IA en la UE"
+      },
+      "creencia": "Mi empresa no corre riesgo legal por usar algoritmos estándar.",
+      "voice_speech": "¿Tu algoritmo discrimina sin que lo sepas? La ley te sancionará igual.",
+      "blue_highlight_words": [
+        "sancionará"
+      ],
+      "variantes": [
+        {
+          "id": "A",
+          "screen_mode": "MODE_A_ROLL",
+          "framing": "FRAME_CLOSE_UP",
+          "visual_trigger": {
+            "name": "split-versus.html",
+            "position": "POS_CENTER",
+            "config": {
+              "a": {
+                "rotulo": "TU CÓDIGO",
+                "titulo": "No lo sabías",
+                "pie": "sin auditar"
+              },
+              "b": {
+                "rotulo": "LA LEY",
+                "titulo": "Da igual",
+                "pie": "responde el que despliega"
+              },
+              "vs": "VS"
+            }
+          },
+          "micro_fx": [
+            {
+              "trigger_word": "sancionará",
+              "fx_id": "stroke-crossout",
+              "config": {
+                "texto": "NO LO SABÍA"
+              }
+            }
+          ],
+          "sfx": [
+            "mouse_click.wav"
+          ]
+        },
+        {
+          "id": "B",
+          "screen_mode": "MODE_A_ROLL",
+          "framing": "FRAME_LEFT",
+          "visual_trigger": {
+            "name": "tweet-card.html",
+            "position": "POS_MID_RIGHT",
+            "card_copy": "Quien despliega el sistema responde del sesgo. No el que lo entrenó.",
+            "config": {
+              "nombre": "Normativa IA · UE",
+              "usuario": "@eu_law",
+              "resaltar": "Quien despliega"
+            }
+          },
+          "micro_fx": [
+            {
+              "trigger_word": "sancionará",
+              "fx_id": "cut-strip",
+              "config": {
+                "texto": "NO ES MÍO"
+              }
+            }
+          ],
+          "sfx": [
+            "whoosh.wav"
+          ]
+        }
+      ]
+    }
+  ]
+}

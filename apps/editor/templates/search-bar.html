@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Barra de búsqueda</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+  .zona { position: absolute; left: 50%; transform: translateX(-50%);
+          width: min(880px, 86%); will-change: opacity; }
+  .barra {
+    display: flex; align-items: center; gap: var(--s-3);
+    padding: var(--s-3) var(--s-4);
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    border: var(--hairline) solid var(--stroke);
+    border-radius: var(--r-pill);
+    box-shadow: 0 20px 46px -20px var(--sombra);
+    will-change: transform;
+  }
+  .lupa { flex: none; width: 26px; height: 26px; border-radius: 50%;
+          border: 3px solid var(--ink-faint); position: relative; }
+  .lupa::after { content: ''; position: absolute; right: -9px; bottom: -7px;
+                 width: 12px; height: 3px; border-radius: 2px;
+                 background: var(--ink-faint); transform: rotate(45deg); }
+  .q { flex: 1; font-family: var(--subs); font-size: var(--t-lg);
+       color: var(--ink); white-space: nowrap; overflow: hidden; }
+  .cur { display: inline-block; width: 2px; height: 1.05em;
+         background: var(--accent); vertical-align: -0.16em; }
+  /* Sugerencias: lo que convierte una barra en una búsqueda. Sin ellas
+     es solo un campo de texto. */
+  .sug { margin-top: 10px;
+         background: color-mix(in srgb, var(--surface) 94%, transparent);
+         border: var(--hairline) solid var(--stroke);
+         border-radius: var(--r-md); overflow: hidden; }
+  .sug div { padding: 14px var(--s-4); font-family: var(--subs);
+             font-size: var(--t-md); color: var(--ink-soft);
+             border-top: var(--hairline) solid var(--rule);
+             will-change: opacity, transform; }
+  .sug div:first-child { border-top: 0; }
+  .sug div.marca { color: var(--ink); font-weight: 600; }
+</style></head>
+<body>
+<div class="stage"><div class="zona" id="zona">
+  <div class="barra" id="barra"><div class="lupa"></div>
+    <div class="q"><span id="q"></span><span class="cur" id="cur"></span></div>
+  </div>
+  <div class="sug" id="sug"></div>
+</div></div>
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+const zona = document.getElementById('zona');
+const barra = document.getElementById('barra');
+const qEl = document.getElementById('q');
+const cur = document.getElementById('cur');
+let sugs = [], consulta = '';
+
+Engine.register({
+  duration: 5.0,
+  defaults: {
+    consulta: '¿cómo edito un vídeo sin pagar una suscripción?',
+    sugerencias: ['editar vídeo gratis en local',
+                  'alternativas a editores por suscripción',
+                  'montar vídeo con ffmpeg'],
+    y: 700, cps: 22, sugEn: 1.6, pulsacion: 3.4,
+    entrada: 0.45, salida: 0.4
+  },
+  setup(cfg) {
+    zona.style.top = cfg.y + 'px';
+    consulta = String(cfg.consulta);
+    const s = document.getElementById('sug');
+    s.innerHTML = '';
+    sugs = (cfg.sugerencias || []).map((x, i) => {
+      const d = document.createElement('div');
+      d.textContent = x;
+      if (i === 0) d.className = 'marca';
+      s.appendChild(d);
+      return d;
+    });
+  },
+  draw(t, cfg) {
+    const fin = cfg.duration || 5.0;
+    const ap = span(t, 0, cfg.entrada, Ease.outCubic);
+    const cierre = 1 - span(t, fin - cfg.salida, cfg.salida, Ease.outCubic);
+    zona.style.opacity = ap * cierre;
+
+    const n = clamp(Math.floor((t - cfg.entrada) * cfg.cps), 0, consulta.length);
+    qEl.textContent = consulta.slice(0, n);
+    const escribiendo = n < consulta.length;
+    cur.style.opacity = escribiendo ? 1 : (Math.floor(t * 2) % 2 ? 0.15 : 1);
+
+    /* Las sugerencias no salen hasta que hay algo escrito: aparecer con
+       el campo vacío delata que son decorado. */
+    sugs.forEach((d, i) => {
+      const p = span(t, cfg.sugEn + i * 0.12, 0.32, Ease.outCubic);
+      d.style.opacity = p;
+      d.style.transform = `translateY(${(1 - p) * -8}px)`;
+    });
+
+    /* La barra se hunde al "pulsar buscar": es el único momento en que
+       algo confirma que la búsqueda se lanza. */
+    const dp = t - cfg.pulsacion;
+    const hund = dp >= 0 && dp < 0.1 ? 1 : 0;
+    const reb = dp >= 0.1 ? 1 - Ease.outCubic(clamp((dp - 0.1) / 0.28, 0, 1)) : 0;
+    barra.style.transform = `scale(${1 - hund * 0.025 + reb * 0.02})`;
+  },
+  anclas() {
+    const b = barra.getBoundingClientRect();
+    return { barra: { x: Math.round(b.left + b.width / 2),
+                      y: Math.round(b.top + b.height / 2),
+                      w: Math.round(b.width), h: Math.round(b.height) } };
+  }
+});
+</script></body></html>

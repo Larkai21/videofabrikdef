@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Encuesta / lectura sobre escala graduada</title>
+<!-- `auditar_estilo.js` mide `gestos declarados` y ninguna plantilla lo
+     declaraba; el vocabulario no está escrito en ningún sitio, así que se pone
+     el verbo que describe lo que hace esta: no aparece, MIDE. -->
+<meta name="gesto" content="crecer:medir">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* ======================================================================
+     Era una tarjeta de encuesta de Bootstrap: dos carriles con
+     `border-radius: 999px`, el mayoritario relleno de naranja plano y el
+     minoritario en gris, y el número en un rincón. Tres cosas mal, y las
+     tres son la misma:
+
+     1. **No había escala.** Dos barras sueltas no se pueden LEER: solo se
+        pueden comparar entre sí. Sin graduación, «78 %» es una palabra al
+        lado de un rectángulo, y el rectángulo no aporta nada que el número
+        no dijera ya. Un porcentaje es una MEDIDA, y una medida sin
+        referencia no es una medida.
+     2. **La minoría iba en gris.** Eso hace que el gráfico se lea por
+        COLOR: dos materiales distintos significan dos cosas distintas
+        medidas, cuando lo que hay son dos lecturas de la misma magnitud.
+        En un instrumento todas las lecturas son del mismo material; lo que
+        las ordena es cuánto marcan.
+     3. **La píldora es cromo de reproductor.** `border-radius: 999px` sobre
+        una barra horizontal es literalmente lo que dibuja YouTube encima
+        del vídeo, o sea que la pieza llevaba puesto el cromo de la
+        plataforma donde se publica.
+
+     Ahora es una REGLA GRABADA con una lectura por opción: una escala común
+     con su graduación cada 5 % y sus divisiones mayores en los cuartos, vías
+     mecanizadas cuadradas, y en cada una una barra de bronce con su índice
+     de lectura. La jerarquía la da el PESO de la tipografía, y el peso sale
+     del propio dato: la cifra que marca más pesa más. El valor queda
+     codificado dos veces —longitud y peso— así que el gráfico se sigue
+     leyendo en escala de grises.
+     ====================================================================== */
+
+  .stage { position: absolute; inset: 0; }
+
+  .caja { padding: var(--s-6);
+          will-change: transform, opacity; }
+
+  /* La pregunta es la ETIQUETA del instrumento, no el protagonista: el
+     protagonista es la cifra. Va en `--w-claro` a cuerpo de titular, y la
+     palabra que carga cambia de VOZ —`--editorial`, la didone— en vez de
+     subir de cuerpo o encenderse. Son 500 puntos de peso más un cambio de
+     familia dentro de la misma línea, que es la jerarquía que pide §7 y la
+     que §1 admite: contraste y peso, nunca luz.
+     El marcado es `*asteriscos*`, el mismo que ya usa `kicker-hud`. Si el
+     texto no trae ninguno —el caso de `dirigir.py`, que pasa la frase del
+     guion tal cual— la línea entera se queda en `--w-claro` y no pasa nada. */
+  .titulo { font-family: var(--display); font-weight: var(--w-claro);
+            font-size: var(--t-xl); letter-spacing: var(--tr-display);
+            color: var(--ink); margin-bottom: var(--s-5); }
+  .titulo em { font-family: var(--editorial); font-style: italic;
+               font-weight: var(--w-negro); }
+
+  /* ---------- la escala ----------
+     Va ARRIBA y una sola vez para TODAS las vías: es la referencia común, y
+     que sea común es justo lo que permite comparar las lecturas. Una escala
+     por barra serían tantos instrumentos como opciones. */
+  .escala { position: relative; height: 46px; }
+
+  /* Toda la escala sale de `--ink-faint` graduado por opacidad, y no de
+     `--rule`, que es el token que uno cogería para «una línea fina». Medido
+     sobre la tarjeta compuesta —el vidrio de `.vidrio-apple` sobre un metraje
+     gris medio, o sea rgb(28,29,34)— y en contraste WCAG:
+
+         --rule (#2A2A32)          1,18:1   no está: se ven las marcas
+                                            colgando de nada
+         --ink-faint al 60 %       1,74:1   menores
+         --ink-faint al 70 %       1,93:1   línea de fe
+         --ink-faint al 85 %       2,26:1   mayores
+
+     Con esos tres escalones la escala tiene jerarquía interna y sigue por
+     debajo de la lectura, que es lo que tiene que pasar: la referencia no
+     compite con el dato. Con `--rule` no hay escala, hay un rumor. */
+  .escala .linea { position: absolute; left: 0; right: 0; top: 30px;
+                   height: var(--hairline); background: var(--ink-faint);
+                   opacity: 0.7; transform-origin: left center; }
+  .mk { position: absolute; top: 30px; width: var(--hairline);
+        background: var(--ink-faint); transform-origin: top center; }
+  .mk.menor { height: 7px; opacity: 0.6; }
+  /* La división mayor es más larga y más gruesa, como en una escala grabada:
+     no cambia de color, cambia de TAMAÑO. Y son 2 px de ancho por una razón
+     de destino, no de gusto: el lienzo son 1080 px y esto se ve en un teléfono
+     de ~400 px físicos, o sea que un filete de 1 px se rasteriza a 0,37 px y
+     se va en el antialiasing. Los cuartos —que son los que permiten leer la
+     escala de un vistazo— tienen que sobrevivir a esa reducción; las menores
+     pueden desaparecer, porque su trabajo es dar textura de graduación. */
+  .mk.mayor { height: 15px; width: 2px; margin-left: -1px; opacity: 0.85; }
+  .cif { position: absolute; top: 0; transform: translateX(-50%);
+         font-family: var(--mono); font-size: var(--t-2xs);
+         font-weight: var(--w-medio); letter-spacing: var(--tr-caps);
+         font-variant-numeric: tabular-nums; color: var(--ink-faint); }
+
+  /* ---------- las vías ---------- */
+  .pistas { position: relative; margin-top: var(--s-4); }
+  /* Las guías de los cuartos cruzan todas las vías de arriba abajo: son las
+     que permiten ver de un golpe que una lectura ha pasado la mitad y otra
+     no, sin ir a leer las cifras. Sin ellas la graduación se queda arriba y
+     no llega a donde está el dato. */
+  .guia { position: absolute; top: 0; bottom: 0; width: var(--hairline);
+          background: var(--stroke); transform-origin: top center; }
+
+  .fila { position: relative; z-index: 1; will-change: transform; }
+  .fila + .fila { margin-top: var(--s-5); }
+
+  .cab { display: flex; justify-content: space-between; align-items: baseline;
+         margin-bottom: var(--s-2); }
+  .etq { font-family: var(--subs); font-size: var(--t-md);
+         letter-spacing: var(--tr-texto);
+         will-change: font-variation-settings, color; }
+  /* Ventana de lectura de ancho FIJO. `setup` le escribe el `min-width` del
+     valor final, así que la cuenta 0 → 9 → 78 pasa dentro de un hueco que no
+     cambia y las cifras no saltan de sitio al ganar un dígito. Es lo que hace
+     un cuentakilómetros y lo contrario de lo que hace un texto centrado. */
+  .num { display: inline-block; text-align: right;
+         font-family: var(--mono); font-size: var(--t-2xl);
+         letter-spacing: var(--tr-display);
+         font-variant-numeric: tabular-nums; color: var(--ink);
+         will-change: font-variation-settings; }
+  /* La unidad no es el dato: es la unidad. Va pequeña, fina y apartada, como
+     en la esfera de un instrumento. */
+  .uni { font-family: var(--mono); font-size: var(--t-sm); font-style: normal;
+         font-weight: var(--w-fino); letter-spacing: var(--tr-caps);
+         color: var(--ink-faint); margin-left: 0.32em; }
+
+  /* El canal mecanizado. `background-color` y NO el atajo `background`: la
+     clase `.trama` de `_tokens.css` pone su rayado en `background-image`, y
+     el atajo lo habría borrado por venir después en la cascada. Es
+     exactamente el fallo que `Engine.grano` documenta —un estilo que gana y
+     se lleva por delante el fondo que ya había— y no da ningún aviso: la
+     vía sale lisa y parece una decisión. */
+  .via { position: relative; height: 20px;
+         background-color: var(--pista);
+         box-shadow: inset 0 1px 2px var(--sombra),
+                     inset 0 0 0 var(--hairline) var(--stroke); }
+
+  /* La barra ocupa la vía entera y se DESTAPA con `clip-path`; no crece con
+     `scaleX`. `scaleX` escala lo ya pintado, así que el degradado de cinco
+     topes de `.brushed` se aplasta con la barra: la lectura del 22 % enseñaría
+     la lámina entera comprimida en el 22 % de su ancho y la del 78 % la misma
+     lámina en el 78 %, o sea el mismo bronce 3,5 veces más denso en una que en
+     la otra. Dos materiales para dos lecturas de la misma magnitud, que es
+     justo lo que este rediseño quita. Con el recorte las barras salen cortadas
+     de la MISMA lámina y con una sola luz, que es el argumento de
+     `Engine.gradienteMetal`. */
+  .barra { position: absolute; inset: 0; will-change: clip-path; }
+
+  /* El índice: el canto mecanizado que se lee contra la graduación. Sobresale
+     por arriba y por abajo del canal, que es lo que lo distingue del simple
+     final de una barra de progreso. */
+  .canto { position: absolute; width: 2px; margin-left: -1px;
+           background-image: linear-gradient(180deg,
+             var(--metal-3), var(--metal-4) 46%, var(--metal-1));
+           will-change: transform, height; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="caja tarjeta vidrio-apple" id="caja">
+    <div class="titulo" id="titulo"></div>
+    <div class="escala" id="escala"></div>
+    <div class="pistas" id="pistas">
+      <div id="guias"></div>
+      <div id="filas"></div>
+    </div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const caja = document.getElementById('caja');
+const escala = document.getElementById('escala');
+const guias = document.getElementById('guias');
+const cont = document.getElementById('filas');
+
+let filas = [], marcas = [], cifras = [], guiasEl = [], linea = null, tope = 100;
+
+/* Cuándo arranca la primera barra. No es una clave de configuración a
+   propósito: la escala tiene que estar grabada ANTES de que nada la use
+   —primero el instrumento, luego la lectura— y ese orden no es un ajuste,
+   es lo que hace que se lea como un instrumento. */
+const ARRANQUE = 0.55;
+
+/* El recorrido de UNA barra, en 0..1. Vive aquí y no dentro de `draw` porque
+   las señales de sonido tienen que salir de la MISMA expresión: si el ritmo
+   cambia y el `tic` se queda donde estaba, el sonido deja de coincidir con lo
+   que se ve y nada lo delata. */
+function avance(t, i, cfg) {
+  const ini = ARRANQUE + i * (cfg.escalonado === undefined ? 0.22 : cfg.escalonado);
+  /* `inOutCubic` y no `outCubic`: una corredera arranca parada y llega
+     parada. Con `outCubic` la barra sale a velocidad máxima en el primer
+     fotograma —con la `subida: 1.15` de serie y a 30 fps, en 1/30 s ya ha
+     recorrido el 8,5 % de su longitud, o sea que nunca se la ve salir— y eso
+     se lee como un barrido automático, que es lo que esto no es. Con
+     `inOutCubic` ese mismo fotograma es el 0,010 %: la barra ARRANCA. */
+  return span(t, ini, cfg.subida || 1.15, Ease.inOutCubic);
+}
+function encaje(i, cfg) {
+  return ARRANQUE + i * (cfg.escalonado === undefined ? 0.22 : cfg.escalonado)
+       + (cfg.subida || 1.15);
+}
+
+/* Marca `*así*` la palabra que carga. Se construye con nodos y no con
+   `innerHTML`: el texto viene de la configuración —o sea, del guion— y un
+   titular con un `<` dentro no tiene por qué romper el marcado. */
+function pinta(el, txt) {
+  el.textContent = '';
+  String(txt === undefined || txt === null ? '' : txt)
+    .split(/\*([^*]+)\*/)
+    .forEach((trozo, i) => {
+      if (!trozo) return;
+      if (i % 2) {
+        const em = document.createElement('em');
+        em.textContent = trozo;
+        el.appendChild(em);
+      } else {
+        el.appendChild(document.createTextNode(trozo));
+      }
+    });
+}
+
+/* Escribir el peso en `font-variation-settings` NO BASTA, y esto está medido
+   en el mismo Chromium que rasteriza los PNG:
+
+     familia            solo font-variation-settings   solo font-weight
+     --mono   (Geist Mono)    3 fotogramas distintos    3 distintos
+     --subs   (Geist)         3 fotogramas IDÉNTICOS    3 distintos
+     --display(Jakarta)       3 distintos               3 distintos
+
+   O sea que sobre `--subs` el eje variable no hace NADA: los pesos 200, 500 y
+   900 dan el mismo fotograma byte a byte. La causa es que Geist tiene
+   diecinueve instancias ESTÁTICAS instaladas además del fichero variable, y
+   el emparejado de CSS cae en una estática, que no tiene eje que mover. No da
+   ningún error: el estilo queda escrito en el nodo y el texto sale igual.
+   Por eso se escriben las DOS propiedades siempre. */
+function peso(el, w) {
+  const n = Math.round(w);
+  el.style.fontWeight = String(n);
+  Engine.peso(el, n);
+}
+
+Engine.register({
+  duration: 4.5,
+  defaults: {
+    titulo: '¿Dónde está el *valor*?',
+    opciones: [{ txt: 'En la capa alta', pct: 78 },
+               { txt: 'En el modelo', pct: 22 }],
+    subida: 1.15,       /* dur · lo que tarda UNA barra en llegar a su lectura */
+    escalonado: 0.22,   /* dur · separación entre barras */
+    paso: 5,            /* graduación menor, en PORCENTAJE. No es un tiempo */
+    entrada: 0.45,
+    salida: 0.4
+  },
+
+  setup(cfg) {
+    pinta(document.getElementById('titulo'), cfg.titulo);
+
+    const ops = (cfg.opciones || []).filter(o => o);
+    tope = Math.max(1, ...ops.map(o => Number(o.pct) || 0));
+
+    /* ---- la escala ---- */
+    escala.textContent = '';
+    linea = document.createElement('div');
+    linea.className = 'linea';
+    escala.appendChild(linea);
+
+    const paso = clamp(Number(cfg.paso) || 5, 1, 50);
+    const MAYORES = [0, 25, 50, 75, 100];
+    /* Las mayores se añaden SIEMPRE, aunque el paso no las divida: son los
+       cuartos, y un cuarto que falta convierte la escala en decorado. */
+    const puntos = new Set(MAYORES);
+    for (let v = 0; v <= 100.0001; v += paso) puntos.add(+v.toFixed(4));
+
+    marcas = [...puntos].sort((a, b) => a - b).map(v => {
+      const m = document.createElement('i');
+      m.className = 'mk ' + (MAYORES.indexOf(v) >= 0 ? 'mayor' : 'menor');
+      m.style.left = v + '%';
+      escala.appendChild(m);
+      return { el: m, x: v / 100 };
+    });
+    cifras = MAYORES.map(v => {
+      const c = document.createElement('span');
+      c.className = 'cif';
+      c.style.left = v + '%';
+      c.textContent = String(v);
+      escala.appendChild(c);
+      return { el: c, x: v / 100 };
+    });
+
+    guias.textContent = '';
+    guiasEl = [25, 50, 75].map(v => {
+      const g = document.createElement('i');
+      g.className = 'guia';
+      g.style.left = v + '%';
+      guias.appendChild(g);
+      return g;
+    });
+
+    /* ---- las vías ---- */
+    cont.textContent = '';
+    filas = ops.map((o, i) => {
+      const f = document.createElement('div');
+      f.className = 'fila';
+
+      const cab = document.createElement('div');
+      cab.className = 'cab';
+      const etq = document.createElement('span');
+      etq.className = 'etq';
+      etq.textContent = o.txt || '';
+      const lect = document.createElement('span');
+      const num = document.createElement('b');
+      num.className = 'num';
+      const uni = document.createElement('i');
+      uni.className = 'uni';
+      uni.textContent = '%';
+      lect.appendChild(num); lect.appendChild(uni);
+      cab.appendChild(etq); cab.appendChild(lect);
+
+      const via = document.createElement('div');
+      via.className = 'via trama';
+      const barra = document.createElement('div');
+      /* `.brushed` y no un plano de acento: §2 dice que el bronce nunca es un
+         naranja liso, y una barra de 832 px es la superficie más grande de
+         esta plantilla — si algo tiene que leerse como metal, es esta. */
+      barra.className = 'barra brushed';
+      const canto = document.createElement('i');
+      canto.className = 'canto';
+      via.appendChild(barra); via.appendChild(canto);
+
+      f.appendChild(cab); f.appendChild(via);
+      cont.appendChild(f);
+
+      /* Grano de impresión sobre el bronce. Va en la barra y no en la vía
+         porque la vía es el hueco: lo que tiene superficie es el metal. La
+         semilla cambia por fila para que las dos no compartan la misma
+         mancha, que es lo que delata que son la misma imagen repetida. */
+      Engine.grano(barra, { px: 128, semilla: 5 + i, op: 0.3 });
+
+      /* El hueco de la lectura se MIDE con el valor final, no se estima en
+         `ch`. Y aquí, a diferencia de `capitulos`, da igual con qué peso se
+         mida: `--mono` es monoespaciada y su avance no cambia con el eje
+         —medido, la misma cadena a 120 px da 792,00 px de ancho tanto a 200
+         como a 900—, así que el ancho de reposo ya es el máximo. */
+      num.textContent = String(Math.round(Number(o.pct) || 0));
+      num.style.minWidth = Math.ceil(num.getBoundingClientRect().width) + 'px';
+
+      return { el: f, o, etq, num, barra, canto };
+    });
+
+    /* Una señal por EVENTO, y aquí el evento es que la corredera ENCAJA en su
+       lectura: uno por vía, no uno por dígito —a 30 fps una cuenta atrás
+       sonada por cifra es un zumbido—. `tic` y no `clic` porque `dirigir.py`
+       ya pone un `clic` a la entrada de esta capa (`SFX_POR_PLANTILLA`): con
+       el mismo sonido dos veces el oído no distingue la aparición del
+       encaje. El instante sale de `encaje()`, la misma expresión de la que
+       sale `avance()` en `draw`; si se cambia el ritmo, el sonido se mueve
+       con él en vez de quedarse desfasado sin avisar. */
+    const dur = cfg.duration || 4.5;
+    return cfg.sinSonido ? null : {
+      cues: filas.map((f, i) => ({ at: +encaje(i, cfg).toFixed(3),
+                                   sfx: 'tic', gain: 0.5 }))
+                 .filter(c => c.at < dur - 0.05)
+                 .slice(0, 6)
+    };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 4.5;
+    const ap = Engine.entra(t, cfg.entrada);
+    const cierre = Engine.sale(t, fin, cfg.salida);
+    caja.style.opacity = ap * cierre;
+    caja.style.transform = `translateY(${((1 - ap) * 22).toFixed(2)}px)`;
+
+    /* La escala se GRABA de izquierda a derecha antes de que nada la use:
+       cada marca crece desde la línea con su propio retardo según dónde cae.
+       `outExpo` porque un buril entra de golpe y frena; con `outCubic` las
+       veintiuna marcas parecen desplegarse, que es un menú, no un grabado. */
+    marcas.forEach(m => {
+      m.el.style.transform =
+        `scaleY(${span(t, 0.10 + m.x * 0.34, 0.20, Ease.outExpo).toFixed(3)})`;
+    });
+    cifras.forEach(c => {
+      c.el.style.opacity = span(t, 0.16 + c.x * 0.34, 0.26, Ease.outExpo).toFixed(3);
+    });
+    const g = span(t, 0.08, 0.42, Ease.outExpo);
+    if (linea) linea.style.transform = `scaleX(${g.toFixed(4)})`;
+    guiasEl.forEach((el, i) => {
+      el.style.transform =
+        `scaleY(${span(t, 0.30 + i * 0.06, 0.30, Ease.outExpo).toFixed(3)})`;
+    });
+
+    filas.forEach((f, i) => {
+      const p = avance(t, i, cfg);
+      const v = clamp((Number(f.o.pct) || 0) * p, 0, 100);
+
+      f.barra.style.clipPath = `inset(0 ${(100 - v).toFixed(3)}% 0 0)`;
+      f.canto.style.left = v.toFixed(3) + '%';
+      f.num.textContent = String(Math.round(v));
+
+      /* El peso ES el dato, otra vez. `k` es la lectura actual dividida por la
+         mayor de la encuesta, así que la cifra engorda MIENTRAS la barra
+         avanza y la ganadora acaba en 900 sin que nadie la haya marcado como
+         ganadora: se lo gana midiendo. Es la segunda codificación del valor
+         —longitud y peso—, la que hace que el gráfico se siga leyendo en
+         escala de grises, igual que `.trama[data-densidad]`.
+
+         El exponente 1,5 no es decoración. Con rampa lineal el 22 % cae en
+         397, que es Regular: exactamente el peso que se lee como «texto
+         normal», o sea que la minoría no recede y la segunda codificación no
+         codifica nada. Con 1,5 cae en 305 —Light— frente a los 900 de la
+         mayoría: 595 puntos de separación en la cifra y 425 en la etiqueta,
+         por encima de los 400 que pide §7 para jerarquizar dentro de la
+         línea. */
+      const k = Math.pow(clamp(v / tope, 0, 1), 1.5);
+      peso(f.num, 200 + 700 * k);
+      peso(f.etq, 260 + 500 * k);
+      /* En `oklab` y no en sRGB: entre dos tintas sRGB pasa por un gris
+         barro. Y es CONTRASTE, no luz: los dos extremos son tinta. */
+      f.etq.style.color =
+        `color-mix(in oklab, var(--ink) ${(45 + 55 * k).toFixed(0)}%, var(--ink-faint))`;
+
+      /* El índice de la lectura mayor sobresale más del canal. Es masa, no
+         brillo: §1 prohíbe destacar con luz, y un canto que asoma 11 px pesa
+         más que uno que asoma 6 sin encender nada. */
+      const fuera = 5 + 6 * k;
+      f.canto.style.top = (-fuera).toFixed(2) + 'px';
+      f.canto.style.height = `calc(100% + ${(2 * fuera).toFixed(2)}px)`;
+
+      /* §10 pide flotación de reposo, y esta plantilla era una de las que el
+         humo marcaba como CONGELADAS: dos de sus tres instantes daban el
+         mismo fotograma byte a byte.
+
+         Solo el eje Y, y esto no es un detalle de gusto: en esta plantilla el
+         eje X ES el dato. Con la deriva horizontal que devuelve `flota` —1,3
+         px de amplitud sobre una vía de 832— la lectura se movería ±0,16 %
+         sola, y un instrumento que miente no es un instrumento. La escala
+         tampoco flota: es la referencia, y una referencia que se mueve deja
+         de serlo. Derivan las lecturas, no la regla. */
+      const fl = Engine.flota(t, i, { amp: 2.4, periodo: 8.2, semilla: 11 });
+      f.el.style.transform = `translateY(${fl.y.toFixed(2)}px)`;
+    });
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,570 @@
+<!-- hyperframes-registry-item: yt-lower-third -->
+<!doctype html>
+<html lang="en">
+  <head>
+<!-- /* PALETA-AJENA: inicio */ -->
+    <meta charset="UTF-8" />
+    <script src="_gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        background: transparent;
+        overflow: hidden;
+      }
+      body {
+        width: 1920px;
+        height: 1080px;
+        font-family: "DM Sans", sans-serif;
+      }
+
+      [data-composition-id="yt-lower-third"] .lower-third {
+        position: absolute;
+        bottom: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        background: #ffffff;
+        border-radius: 60px;
+        padding: 20px 32px 20px 20px;
+        box-shadow: 0 6px 32px rgba(0, 0, 0, 0.14);
+      }
+
+      [data-composition-id="yt-lower-third"] .avatar {
+        width: 96px;
+        height: 96px;
+        border-radius: 50%;
+        object-fit: cover;
+        flex-shrink: 0;
+      }
+
+      [data-composition-id="yt-lower-third"] .channel-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin-right: 20px;
+      }
+
+      [data-composition-id="yt-lower-third"] .channel-name {
+        font-size: 34px;
+        font-weight: 700;
+        color: #0f0f0f;
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+      }
+
+      [data-composition-id="yt-lower-third"] .subscriber-count {
+        font-size: 22px;
+        font-weight: 400;
+        color: #606060;
+        line-height: 1.3;
+      }
+
+      [data-composition-id="yt-lower-third"] .subscribe-btn {
+        position: relative;
+        width: 220px;
+        height: 68px;
+        border-radius: 34px;
+        background: #0f0f0f;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      [data-composition-id="yt-lower-third"] .btn-text {
+        position: absolute;
+        font-family: "DM Sans", sans-serif;
+        font-size: 24px;
+        font-weight: 700;
+        color: #ffffff;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
+
+      [data-composition-id="yt-lower-third"] .btn-text-subscribe {
+        opacity: 1;
+      }
+
+      [data-composition-id="yt-lower-third"] .btn-text-subscribed {
+        opacity: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      [data-composition-id="yt-lower-third"] .check-icon {
+        display: inline-block;
+        width: 24px;
+        height: 24px;
+      }
+
+      [data-composition-id="yt-lower-third"] .check-icon svg {
+        width: 24px;
+        height: 24px;
+        display: block;
+      }
+    </style>
+    <link rel="stylesheet" href="_tokens.css">
+  <script src="_engine.js"></script>
+</head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="yt-lower-third"
+      data-width="1080"
+      data-height="1920"
+      data-start="0"
+      data-duration="4.5"
+    >
+      <div
+        id="card"
+        class="clip lower-third"
+        data-start="0"
+        data-duration="4.5"
+        data-track-index="0"
+      >
+        <!-- Era un <img src="assets/avatar.jpg" crossorigin="anonymous">: el
+             fichero no existe en este repo y, encima, `crossorigin` sobre
+             file:// lo bloquea por CORS. Se veía el TEXTO ALTERNATIVO
+             («HeyGen» a cuerpo diminuto) dentro de la píldora, y el informe
+             traía dos errores de consola. El disco se dibuja con tokens. -->
+        <div class="avatar"></div>
+        <div class="channel-info">
+          <div class="channel-name">HeyGen</div>
+          <div class="subscriber-count">82.2K subscribers</div>
+        </div>
+        <div id="subscribe-btn" class="subscribe-btn">
+          <span id="btn-subscribe" class="btn-text btn-text-subscribe">Subscribe</span>
+          <span id="btn-subscribed" class="btn-text btn-text-subscribed">
+            <span class="check-icon"
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#fff"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="20 6 9 17 4 12"></polyline></svg
+            ></span>
+            Subscribed
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+
+      var tl = gsap.timeline({ paused: true });
+
+      var card = document.getElementById("card");
+      var btn = document.getElementById("subscribe-btn");
+      var textSub = document.getElementById("btn-subscribe");
+      var textSubd = document.getElementById("btn-subscribed");
+
+      // Slide in from bottom
+      gsap.set(card, { y: 300, opacity: 0 });
+
+      tl.to(
+        card,
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.5,
+          ease: "power3.out",
+        },
+        0.1,
+      );
+
+      // Hold, then button press-in
+      tl.to(
+        btn,
+        {
+          scale: 0.92,
+          duration: 0.15,
+          ease: "power2.out",
+        },
+        1.0,
+      );
+
+      // Button release with spring bounce + text swap
+      tl.to(
+        btn,
+        {
+          scale: 1,
+          duration: 0.4,
+          ease: "elastic.out(1, 0.4)",
+        },
+        1.15,
+      );
+
+      // Fade out "Subscribe", fade in "Subscribed"
+      tl.to(
+        textSub,
+        {
+          opacity: 0,
+          duration: 0.08,
+          ease: "none",
+        },
+        1.15,
+      );
+
+      tl.to(
+        textSubd,
+        {
+          opacity: 1,
+          duration: 0.08,
+          ease: "none",
+        },
+        1.18,
+      );
+
+      // Slide out to bottom (inverse of entrance)
+      tl.to(
+        card,
+        {
+          y: 300,
+          opacity: 0,
+          duration: 0.25,
+          ease: "power3.in",
+        },
+        3.8,
+      );
+
+      window.__timelines["yt-lower-third"] = tl;
+    </script>
+  
+
+<!-- /* PALETA-AJENA: fin */ -->
+
+
+
+
+
+
+
+
+<!-- PUENTE:inicio · generado por scripts/importar_bloque.js -->
+<style>
+  /* El lienzo de este repo, y la raíz TRANSPARENTE: si el fondo llega opaco,
+     omitBackground no lo recorta y los PNG salen sin alfa — el compositor
+     los pega como un rectángulo y tapa el metraje. */
+  html, body { width: 1080px; height: 1920px; margin: 0;
+               background: transparent !important; overflow: hidden; }
+  [data-composition-id="yt-lower-third"] { transform-origin: 50% 50%; }
+  /* El PLAFÓN DE AUTO-PREVISUALIZACIÓN. Varias piezas del catálogo traen un
+     fondo propio para poder mirarse solas —hf-hw-callout-circle lo llama
+     literalmente «self-preview scene» y es un degradado verde— y sobre
+     nuestro metraje eso no es un fondo: es una mancha que tapa el plano.
+     Se quita el relleno y se deja el contenido, que es lo que se quería. */
+  [id$="-scene"] { background: none !important; }
+</style>
+<script>
+(function () {
+  var ID = "yt-lower-third";
+  var RANURAS = {};
+  var raiz = document.querySelector('[data-composition-id="' + ID + '"]');
+  var tl = (window.__timelines || {})[ID] || null;
+
+  /* Maqueta a 1920x1080 y aquí el lienzo es 1080x1920: se escala al ancho y
+     se centra. Es un APAÑO declarado, no una solución — la buena es rehacer
+     la maqueta en vertical. config.encaje:false lo desactiva y
+     config.escala lo fuerza.
+     La medida sale de data-width/data-height y NO de offsetWidth: la raíz de
+     varios bloques mide 0x0 —es un ancla para hijos posicionados, no una
+     caja— y con la medida del DOM el encaje la mandaba a left:-420, fuera
+     del cuadro. Fotograma transparente, cero errores, y el humo diciendo
+     «no se mueve» porque no había nada que moviera. Por eso se envuelve en
+     una caja del tamaño DECLARADO: así los hijos absolutos tienen un
+     contenedor de verdad y la escala se aplica a algo con dimensiones. */
+  var caja = null;
+  function encaja(cfg) {
+    if (!raiz || cfg.encaje === false) return;
+    var w = +raiz.dataset.width || raiz.offsetWidth || 1920;
+    var h = +raiz.dataset.height || raiz.offsetHeight || 1080;
+    if (!caja) {
+      caja = document.createElement('div');
+      raiz.parentNode.insertBefore(caja, raiz);
+      caja.appendChild(raiz);
+    }
+    caja.style.cssText = 'position:absolute;left:0;top:0;width:' + w
+                       + 'px;height:' + h + 'px;transform-origin:0 0;';
+    raiz.style.position = 'absolute';
+    raiz.style.left = '0'; raiz.style.top = '0';
+    raiz.style.width = w + 'px'; raiz.style.height = h + 'px';
+    var k = cfg.escala || Math.min(1080 / w, 1920 / h);
+    /* DÓNDE, y no solo cuánto. Centrado es lo razonable por defecto, pero un
+       rótulo inferior centrado en un lienzo vertical queda en mitad de la
+       cara; y §18 dice que la banda de abajo la pinta la app. zona mueve la
+       caja ya escalada sin tocar la maqueta de dentro: arriba pega bajo la
+       banda superior (230 px), abajo se apoya sobre la inferior (1459 px). */
+    var alto = h * k;
+    var y = (1920 - alto) / 2;
+    if (cfg.zona === 'arriba') y = 230 + 40;
+    else if (cfg.zona === 'abajo') y = 1459 - 40 - alto;
+    caja.style.transform = 'translate(' + Math.round((1080 - w * k) / 2)
+      + 'px,' + Math.round(y) + 'px) scale(' + k + ')';
+  }
+
+  /* LA CAJA DE TINTA, para colocar.py.
+     Sin anclas() una capa es invisible para el colocador: no sabe cuánto
+     ocupa ni dónde, así que no puede apartarla del rostro ni avisar de que
+     cae bajo el caption de la app. Nuestras plantillas la declaran a mano
+     porque saben qué parte de sí mismas importa; un bloque importado no
+     puede saberlo, así que se MIDE: unión de los rectángulos visibles, ya en
+     coordenadas de lienzo —getBoundingClientRect incluye la transformación
+     del encaje—, descartando los contenedores que cubren casi todo.
+     Se llama después de seek, así que la caja es la del instante que se
+     esté mirando y no la del reposo. */
+  function tinta() {
+    if (!raiz) return null;
+    /* Dos pasadas. La primera descarta los contenedores que cubren casi todo
+       —si no, la caja de cualquier plantilla sería el lienzo entero y el dato
+       no diría nada—. Pero en las de dibujo a mano el contenido ES un <svg> a
+       pantalla completa y sus <path> devuelven cajas de cero: con el filtro
+       puesto, veintisiete plantillas se quedaban sin ancla. Si la primera
+       pasada no deja nada, se repite SIN filtro: una caja grande de más es
+       peor que ninguna, pero ninguna es peor que las dos. */
+    function une(filtra) {
+      var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      var todos = raiz.querySelectorAll('*');
+      for (var i = 0; i < todos.length; i++) {
+        var e = todos[i], s = getComputedStyle(e);
+        if (s.display === 'none' || s.visibility === 'hidden' ||
+            parseFloat(s.opacity) < 0.05) continue;
+        var r = e.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        if (filtra && r.width * r.height > 0.92 * 1080 * 1920) continue;
+        if (r.left < x0) x0 = r.left;
+        if (r.top < y0) y0 = r.top;
+        if (r.right > x1) x1 = r.right;
+        if (r.bottom > y1) y1 = r.bottom;
+      }
+      return x1 < x0 ? null : [x0, y0, x1, y1];
+    }
+    var c = une(true) || une(false);
+    if (!c) return null;
+    var x0 = c[0], y0 = c[1], x1 = c[2], y1 = c[3];
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0);
+    x1 = Math.min(1080, x1); y1 = Math.min(1920, y1);
+    return { bloque: { x: Math.round((x0 + x1) / 2), y: Math.round((y0 + y1) / 2),
+                       w: Math.round(x1 - x0), h: Math.round(y1 - y0) } };
+  }
+
+  /* LA SALIDA, que sus bloques no tienen: entran y se quedan puestos hasta
+     que la composición acaba. Aquí una capa vive dentro de su ventana y
+     tiene que irse, y no es cosmética — es lo que humo_plantillas.js
+     comprueba cuando muestrea tres instantes y exige que no sean el mismo
+     fotograma. Medido: x-post y macos-notification animan su entrada y dan
+     tres capturas idénticas después.
+     Es una salida GENÉRICA —se va bajando y encogiendo un pelo— y por eso
+     se puede apagar con config.salida:false cuando el bloque tenga la suya
+     propia. Determinista: solo depende de t. */
+  var SALIDA = 0.42;
+  /* La duración del GESTO, medida al importar. La sustituye el importador;
+     el valor de aquí es el de respaldo para quien abra el fichero suelto.
+     Va en una variable y no en dos sitios a propósito: la salida tiene que
+     caer dentro de la MISMA ventana que registra la plantilla, y cuando eran
+     dos números —la declarada por la timeline y la registrada— la salida se
+     programaba fuera del tramo que nadie llega a ver. */
+  /* El copy que el plan pide, repartido por orden sobre las ranuras que
+     declara TEXTOS. Lo que sobra se ignora; lo que falta se queda con lo que
+     el bloque traía.
+     Se aplica en CADA fotograma y no solo al montar, y no es por comodidad:
+     varios bloques animan su propio texto —un contador que sube, un
+     tecleado— así que su timeline reescribe el nodo en cada seek y el copy
+     del plan duraba un fotograma. Medido: la tarjeta pedía «−12» y salía el
+     «22» de la demo. */
+  function copia(cfg) {
+    for (var k in RANURAS) {
+      if (!cfg || !cfg[k] || !cfg[k].length) continue;
+      var nodos = document.querySelectorAll(RANURAS[k]);
+      for (var i = 0; i < nodos.length && i < cfg[k].length; i++) {
+        if (nodos[i].textContent !== cfg[k][i]) nodos[i].textContent = cfg[k][i];
+      }
+    }
+  }
+
+  var DUR = 2.19;   /* MEDIDO al importar */
+  var vida = DUR;
+
+  Engine.register({
+    duration: DUR,
+    /* Las ranuras se escriben LITERALES en los defaults, no con un
+       Object.assign: lint_config.py lee ese bloque con una expresión regular
+       —no ejecuta la plantilla— así que una clave calculada no existe para
+       él y el plan que la usa aborta por «clave que la plantilla no lee».
+       Las ranuras entran aquí porque lint_config.py --estricto
+       comprueba que toda clave del plan la lea de verdad su plantilla: sin
+       declararlas, pedir el copy por config es una clave muerta y el paso
+       aborta. */
+    defaults: { encaje: true, escala: null, zona: 'centro', salida: true,
+                tema: 'carbon', cue: null, cueGain: null },
+    setup: function (cfg) {
+      encaja(cfg);
+      vida = cfg.duration || DUR;
+      copia(cfg);
+      /* EL SONIDO: NINGUNO por defecto, y esto es una vuelta atrás.
+         Se publicaba un «aparicion» genérico en cada bloque importado para
+         que no entraran mudos. Sobre la pieza montada suena a lo que es: el
+         mismo golpe blando en 126 sitios, puesto por una regla que no sabe
+         qué está entrando. Un sonido que no significa nada es peor que el
+         silencio, porque el oído lo cuenta igual.
+         Quien sabe qué suena una capa es el guion —sfx en la capa— o la
+         tabla del director para las plantillas que conoce. Con cue en la
+         config se puede pedir uno a mano. */
+      return { cues: (!cfg.sinSonido && cfg.cue)
+                     ? [{ at: 0.04, sfx: cfg.cue, gain: cfg.cueGain || 0.5 }]
+                     : [] };
+    },
+    anclas: function () { return tinta(); },
+    /* El puente entero. Los dos motores hacen lo mismo —posicionar una
+       animación en el segundo t, sin tocar el reloj del navegador—, así que
+       no hay nada que traducir. */
+    /* La salida va en la raíz y el encaje en la caja que la envuelve: dos
+       transformaciones en dos nodos, para que no se pisen. */
+    draw: function (t, cfg) {
+      if (tl) tl.time(Math.max(0, Math.min(t, tl.duration())));
+      copia(cfg);
+      if (!raiz) return;
+      if (cfg && cfg.salida !== false && vida > SALIDA) {
+        var d = (t - (vida - SALIDA)) / SALIDA;
+        if (d > 0) {
+          var e = 1 - Math.min(1, d);
+          e = e * e * (3 - 2 * e);              /* suavizado, sin rebote */
+          raiz.style.opacity = e;
+          raiz.style.transform = 'translateY(' + ((1 - e) * -26).toFixed(2)
+                               + 'px) scale(' + (0.985 + 0.015 * e).toFixed(4) + ')';
+          return;
+        }
+      }
+      raiz.style.opacity = '';
+      raiz.style.transform = '';
+    }
+  });
+})();
+</script>
+<!-- PUENTE:fin -->
+
+
+
+
+
+
+<style>
+  /* ── MAQUETA VERTICAL 1080x1920 ────────────────────────────────────────
+     La píldora de suscripción venía a 1920x1080 y el puente la encajaba a
+     0,5625: 352 px de ancho —el 33 % del lienzo— con el nombre del canal a
+     19 px reales. En un Reel eso no es un rótulo, es una marca de agua.
+
+     Con la raíz ya declarada a 1080x1920 el puente no escala (k=1) y aquí se
+     reflowa a BANDA BAJA: la píldora cruza la columna de margen a margen
+     (`left`+`right` en vez de `left:50%`), el bloque de nombre se lleva el
+     hueco sobrante con `flex:1` y el botón queda anclado al borde derecho,
+     que es donde el ojo lo busca.
+
+     Se apoya en 1420 px, por encima de la banda de la app (1459, §18). */
+  #root { width: 1080px; height: 1920px; }
+
+  [data-composition-id="yt-lower-third"] .lower-third {
+    left: var(--s-7);
+    right: var(--s-7);
+    bottom: 500px;
+    gap: var(--s-6);
+    padding: var(--s-5) var(--s-6) var(--s-5) var(--s-5);
+    border-radius: var(--r-pill);
+  }
+
+  /* El disco del avatar, que antes era un <img> roto. Monograma en
+     `--surface` sobre `--accent`: los dos temas lo resuelven al derecho
+     —carbon pone tinta oscura sobre azul, paper la clara sobre bronce—, así
+     que no hace falta un color fijo. */
+  [data-composition-id="yt-lower-third"] .avatar {
+    width: 150px;
+    height: 150px;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  [data-composition-id="yt-lower-third"] .avatar::before {
+    content: "H";
+    font-family: var(--display);
+    font-size: var(--t-2xl);
+    font-weight: var(--w-negro);
+    letter-spacing: var(--tr-display);
+    color: var(--surface);
+  }
+
+  [data-composition-id="yt-lower-third"] .channel-info {
+    flex: 1 1 auto;
+    margin-right: 0;
+    gap: var(--s-1);
+  }
+
+  [data-composition-id="yt-lower-third"] .channel-name {
+    font-family: var(--display);
+    font-size: var(--t-2xl);
+    font-weight: var(--w-negro);
+    letter-spacing: var(--tr-display);
+    line-height: 1.14;
+  }
+
+  [data-composition-id="yt-lower-third"] .subscriber-count {
+    font-family: var(--subs);
+    font-size: var(--t-md);
+    font-weight: var(--w-libro);
+    line-height: 1.2;
+  }
+
+  [data-composition-id="yt-lower-third"] .subscribe-btn {
+    width: 340px;
+    height: 116px;
+    border-radius: var(--r-pill);
+  }
+
+  [data-composition-id="yt-lower-third"] .btn-text {
+    font-family: var(--display);
+    font-size: var(--t-lg);
+    font-weight: var(--w-negro);
+    letter-spacing: var(--tr-texto);
+  }
+
+  [data-composition-id="yt-lower-third"] .btn-text-subscribed { gap: var(--s-2); }
+
+  [data-composition-id="yt-lower-third"] .check-icon,
+  [data-composition-id="yt-lower-third"] .check-icon svg {
+    width: 40px;
+    height: 40px;
+  }
+</style>
+<script>
+  /* La única línea de JS que hace falta, y hace falta de verdad.
+     El bloque centraba con `left:50%` + `transform: translateX(-50%)`, y su
+     `gsap.set(card, {y:300, opacity:0})` corre DURANTE EL PARSEO: GSAP se
+     queda ahí con ese centrado y lo reescribe como `xPercent:-50` en el
+     `style` inline, que a partir de ese momento gana a cualquier hoja. Al
+     pasar la píldora de `left:50%` a `left`+`right` la maqueta quedaba bien
+     —984 px de ancho— pero el transform le seguía restando la mitad: medido,
+     la tarjeta salía en x -444..540, cortada por la izquierda.
+
+     Y ojo con la primera versión de esta línea, que costó una medición:
+     `{x:0}` NO arregla nada, porque el desplazamiento no estaba en `x` sino
+     en `xPercent`. Hay que poner los dos a cero.
+
+     No toca `y` ni `opacity`, así que la entrada deslizante y el gesto del
+     botón siguen intactos. Determinista: no depende del reloj. */
+  gsap.set(document.getElementById('card'), { x: 0, xPercent: 0 });
+</script>
+
+</body>
+</html>

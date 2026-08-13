@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Registro de nivel</title>
+<!-- `correr` porque un arrastre de papel NO decelera al llegar al centro: la
+     entrada imprime la banda a velocidad constante, de izquierda a derecha, y
+     la plumilla la recorre al mismo paso durante toda la capa. El nombre pasa
+     de `registro` a `transporte` porque es lo que `Engine.entra` mueve de
+     verdad — y porque `registro` ya lo usaba otra plantilla con otra familia
+     (`asentar:registro`), así que el nombre no distinguía nada. -->
+<meta name="gesto" content="correr:transporte">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* ======================================================================
+     Era un GRÁFICO DE BARRAS con un cursor de reproductor encima: 96 barras
+     de ancho igual, redondeadas a 2 px, y una línea vertical de lado a lado
+     con una bolita arriba. O sea el widget que dibuja cualquier reproductor
+     sobre el vídeo, incluido el de la plataforma donde se publica la pieza.
+
+     Y había un fallo peor, que no daba error: `extraer_niveles.py` solo
+     rellena `niveles` en la ruta de TTS, así que en la ruta normal —la que
+     MÁS se da— esta plantilla recibe `niveles: []`. Con la envolvente vacía
+     las 96 barras caían todas a `minimo`, 3 px, y lo que salía en pantalla
+     era una LÍNEA DE PUNTOS de 900 px con un cursor encima. Medido sobre el
+     fotograma compuesto: 96 rectángulos de 5,4x3 px, ni uno distinto de
+     otro. Nada en el log lo decía.
+
+     Ahora es un REGISTRADOR DE BANDA: un instrumento que escribe sobre papel
+     continuo. Chasis con su escala de decibelios impresa en el margen, línea
+     de cero grabada en bronce, carro sobre su raíl, brazo colgando y plumilla
+     apoyada en la traza. La tinta se deposita DETRÁS de la plumilla y sigue
+     mojando; delante solo hay papel con la guía tenue de lo que queda.
+
+     El caso vacío se resuelve por donde se tiene que resolver: un registrador
+     sin señal no dibuja un rectángulo plano, dibuja su RUIDO DE FONDO —una
+     oscilación fina y viva alrededor del cero—. No es fingir movimiento (que
+     es lo que el comentario original quería evitar, y con razón): a 16 % de
+     fondo de escala, contra el 100 % que alcanza una locución, nadie lo lee
+     como voz. Y la lectura de PICO en la cabecera lo dice con un número.
+     ====================================================================== */
+
+  .stage { position: absolute; inset: 0; }
+
+  .registro { position: absolute; left: 50%; will-change: transform, opacity; }
+
+  /* --- cabecera: la placa del instrumento --------------------------------
+     Dos voces y no una. El nombre del canal va en la grotesca de display con
+     peso fuerte —es lo que AFIRMA qué se está midiendo— y las lecturas en
+     mono, que es la que MIDE. Antes todo era mono del mismo peso, o sea una
+     sola voz sin jerarquía. */
+  .cabecera { display: flex; align-items: baseline;
+              justify-content: space-between; margin-bottom: var(--s-3); }
+
+  .marca {
+    font-family: var(--display); font-size: var(--t-xs);
+    font-weight: var(--w-fuerte); letter-spacing: var(--tr-caps-ancho);
+    text-transform: uppercase; color: var(--ink-soft);
+  }
+
+  .lecturas { display: flex; align-items: baseline; gap: var(--s-5);
+              font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* `PICO` y `dB` son rótulos, no datos: van al peso más callado del sistema
+     para que el número quede solo en la línea. §3 pide la jerarquía por peso
+     y contraste, nunca por luz. */
+  .pico { display: flex; align-items: baseline; gap: var(--s-1);
+          font-size: var(--t-2xs); letter-spacing: var(--tr-caps);
+          color: var(--ink-soft); }
+  .pico i { font-style: normal; font-weight: var(--w-fino); }
+  .pico b { font-weight: var(--w-medio); will-change: font-variation-settings; }
+
+  .reloj { font-size: var(--t-xs); font-weight: var(--w-medio);
+           letter-spacing: var(--tr-caps); color: var(--accent); }
+
+  /* --- la banda de papel -------------------------------------------------
+     Todo lo IMPRESO vive aquí dentro —escala, cero, traza y graduación— y se
+     mueve como una sola hoja. El carro y la plumilla también, porque la punta
+     tiene que seguir apoyada en la traza: si el papel deriva y la pluma no,
+     la punta se despega y se ve. */
+  .banda { position: relative; will-change: transform; }
+
+  /* El raíl del carro, en el borde superior del chasis. En `--rule` (#2A2A32)
+     no se veía sobre metraje: 1,1:1 contra el gris de un plano medio, o sea
+     que el carro salía flotando sin nada donde apoyarse. */
+  .rail { position: absolute; left: 0; right: 0; height: var(--hairline);
+          background: var(--ink-soft); opacity: 0.5; }
+
+  /* PAPEL y CHASIS son dos cosas y se separan aquí, que es lo que hace que la
+     entrada signifique algo. En `.plot` y `.margen` va todo lo IMPRESO —el
+     rayado, la escala, la guía y la tinta— y se revela con un `clip-path` que
+     avanza a velocidad constante: es la hoja saliendo del rodillo. La línea de
+     cero no está impresa, está GRABADA en la platina, así que vive fuera del
+     papel, por encima, y se traza con su propio `stroke-dashoffset`. */
+  .plot { position: absolute; right: 0; will-change: clip-path; }
+  .margen { position: absolute; right: 0; will-change: clip-path; }
+  .ejecapa { position: absolute; right: 0; }
+
+  /* Referencias de amplitud. En `--rule` no se veían sobre metraje oscuro
+     —1,3:1— que es la misma trampa que ya mordió a `capitulos`: justo la
+     parte de la escala que dice CUÁNTO QUEDA quedaba invisible. */
+  .db { position: absolute; left: 0; right: 0; height: 0;
+        border-top: var(--hairline) dashed var(--ink-soft); opacity: 0.5; }
+  .db.menor { border-top-style: dotted; opacity: 0.32; }
+
+  /* El rayado vertical del papel, en las divisiones mayores de tiempo. Es lo
+     que convierte una caja vacía en papel calibrado, y es subordinado a
+     propósito: si compitiera con la traza, el gráfico pasaría a ser una
+     rejilla con una onda encima. */
+  .vrule { position: absolute; top: 0; bottom: 0; width: var(--hairline);
+           background: var(--ink-soft); opacity: 0.18; }
+
+  /* El rótulo de la escala vive en el MARGEN IZQUIERDO impreso, como en
+     cualquier banda de registro. Solo la mitad superior lleva números: la
+     traza es simétrica respecto al cero y numerar las dos mitades repite el
+     mismo dato dos veces. */
+  .esc {
+    position: absolute; left: 0; text-align: right;
+    font-family: var(--mono); font-size: var(--t-2xs);
+    font-weight: var(--w-fino); letter-spacing: var(--tr-caps);
+    color: var(--ink-soft); white-space: nowrap;
+  }
+  /* La unidad es lo más callado de la placa: se lee una vez y ya no hace
+     falta. Es el único sitio donde `--ink-faint` es legible por diseño. */
+  .esc u { text-decoration: none; color: var(--ink-faint);
+           padding-left: var(--s-1); }
+
+  /* Las dos capas de papel: la guía de lo que queda y la tinta ya depositada.
+     La tinta se recorta con `clip-path` por el borde de la plumilla — no se
+     dibuja «hasta aquí», se TAPA lo que aún no se ha escrito, que es lo que
+     hace un papel en blanco. */
+  .capa { position: absolute; inset: 0; }
+  .tinta { position: absolute; inset: 0; will-change: clip-path; }
+
+  /* La graduación de tiempo. Es el margen de la banda, no una regla: sin
+     números, hairline, y con la marca recién pisada aún cargada de tinta. */
+  .tick { position: absolute; top: 0; width: var(--hairline);
+          background: var(--ink-soft); will-change: opacity, background; }
+  /* Mayor y menor se distinguen por TRAZO y LARGO, no por color: el color de
+     la marca lo escribe `draw` según lo reciente que sea el paso de la pluma,
+     así que si la jerarquía viviera ahí también, se perdería en cuanto la
+     tinta se asienta. */
+  .tick.mayor { width: 2px; }
+
+  /* --- el mecanismo ------------------------------------------------------
+     Carro sobre el raíl, brazo colgando del carro y plumilla en la punta.
+     Esto es lo que separa un registrador de un cursor de reproductor: el
+     cursor es una línea de lado a lado; aquí el brazo solo llega HASTA la
+     traza, porque más abajo no hay nada que sujetar. */
+  .pluma { position: absolute; top: 0; will-change: transform; }
+  .carro { position: absolute; left: -12px; top: 0; width: 24px; height: 9px;
+           border-radius: 2px;
+           background-image: linear-gradient(var(--metal-ang),
+             var(--metal-1) 0%, var(--metal-3) 42%, var(--metal-4) 66%,
+             var(--metal-5) 100%); }
+  .asta { position: absolute; left: 0; width: var(--hairline);
+          margin-left: -1px; background: var(--accent-line);
+          will-change: height, top; }
+  /* La punta se DIBUJA, no se compone con un carácter. El primer intento era
+     `polygon(0 0, 100% 0, 100% 34%, 62% 100%, 38% 100%, 0 34%)` a 12x16 y en
+     el fotograma salía un EMBUDO: hombros rectos, boca ancha y caída corta.
+     Una plumilla tiene los hombros metidos y la caída larga. */
+  .nib { position: absolute; left: -5px; width: 10px; height: 19px;
+         clip-path: polygon(20% 0, 80% 0, 100% 38%, 50% 100%, 0 38%);
+         background-image: linear-gradient(var(--metal-ang),
+           var(--metal-3) 0%, var(--metal-4) 45%, var(--metal-1) 100%);
+         will-change: top; }
+
+  /* La retención de pico: un tope de bronce en el margen derecho de la
+     banda, a la altura del máximo alcanzado. Solo sube. */
+  .tope { position: absolute; right: 0; width: 26px; height: 3px;
+          background-image: linear-gradient(90deg,
+            var(--metal-1), var(--metal-4) 60%, var(--metal-3));
+          will-change: transform, opacity; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="registro" id="registro">
+    <div class="cabecera">
+      <span class="marca" id="etq"></span>
+      <span class="lecturas">
+        <span class="pico"><i>PICO</i><b id="picoN">—</b><i>dB</i></span>
+        <span class="reloj" id="reloj"></span>
+      </span>
+    </div>
+    <div class="banda" id="banda">
+      <i class="rail" id="rail"></i>
+      <div class="plot" id="plot">
+        <div class="capa" id="capaGuia"></div>
+        <div class="tinta" id="tinta"></div>
+      </div>
+      <div class="margen" id="margen"></div>
+      <div class="ejecapa" id="capaEje"></div>
+      <i class="tope" id="tope"></i>
+      <div class="pluma" id="pluma">
+        <i class="carro"></i>
+        <i class="asta" id="asta"></i>
+        <i class="nib" id="nib"></i>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+const NS = 'http://www.w3.org/2000/svg';
+
+const registro = document.getElementById('registro');
+const banda  = document.getElementById('banda');
+const rail   = document.getElementById('rail');
+const plot   = document.getElementById('plot');
+const margen = document.getElementById('margen');
+const capaGuia = document.getElementById('capaGuia');
+const capaEje = document.getElementById('capaEje');
+const tinta  = document.getElementById('tinta');
+const pluma  = document.getElementById('pluma');
+const asta   = document.getElementById('asta');
+const nib    = document.getElementById('nib');
+const tope   = document.getElementById('tope');
+const picoN  = document.getElementById('picoN');
+const reloj  = document.getElementById('reloj');
+
+/* Geometría del chasis, en píxeles. El raíl del carro va por encima del papel
+   —el carro no puede rodar sobre la propia traza— y la graduación por debajo,
+   que es donde una banda de registro imprime su margen de tiempo. */
+const RAIL = 15, MARGEN = 18, MG_IZQ = 58;
+/* La traza nunca llega al canto del papel: un registrador real deja aire para
+   que un pico no se salga del rodillo. 92 % de la media altura. */
+const FONDO_ESCALA = 0.92;
+
+let NIV = [], TASA = 30, DUR = 1, SUELO = 0.16;
+let W = 0, H = 0, MEDIA = 0, PUNTOS = 96, MIN_PX = 3;
+let guia = null, relleno = null, borde = null, eje = null;
+let ticks = [], picoAcc = [];
+
+/* LA ESCALA, y es lo que separa un registro de audio de una regla.
+   Un vúmetro no está graduado en amplitud lineal: está en decibelios, que es
+   como se oye. Sobre el eje lineal del papel esas divisiones se APIÑAN hacia
+   el cero —0 dB cae en 1,0 de amplitud y −6 en 0,501, pero −12 ya está en
+   0,251 y −18 en 0,126—, y esa densidad desigual es la firma de un
+   instrumento de audio.
+
+   Y por eso la escalera se corta en −6. El intento de poner cuatro peldaños
+   se fue a mirar al fotograma y no cabía: sobre una media altura de 69 px,
+   −12 cae a 17,3 px del cero y −18 a 8,7, o sea DENTRO de la propia traza
+   —el ruido de fondo se mueve en ±11 px—, así que los dos peldaños de abajo
+   quedaban enterrados bajo la tinta y el rótulo «−12» aterrizaba encima de
+   la onda. Dos divisiones que se ven valen más que cuatro que no.
+
+   Lo que da estructura al papel es la otra retícula: las verticales de la
+   graduación mayor, que sí llegan de canto a canto. */
+const LADDER = [
+  { db: 0,  clase: '',      rotulo: '0',  unidad: 'dB' },
+  { db: -6, clase: 'menor', rotulo: '-6' },
+];
+
+/* Nivel de la envolvente en el segundo s, interpolado. Sin interpolar, a 30
+   muestras por segundo y 25 fotogramas, la traza daría saltos cada pocos
+   frames. */
+function nivel(s) {
+  if (!NIV.length) return 0;
+  const p = clamp(s * TASA, 0, NIV.length - 1);
+  const i = Math.floor(p), f = p - i;
+  const a = NIV[i], b = NIV[Math.min(i + 1, NIV.length - 1)];
+  return a + (b - a) * f;
+}
+
+/* EL RUIDO DE FONDO — el caso de verdad frecuente.
+   Tres armónicos de frecuencia inconmensurable, con las fases sacadas de
+   `Engine.noise` para que sea el MISMO papel en cada pasada. Nada de ruido
+   blanco muestra a muestra: con 96 puntos sobre 844 px, un valor aleatorio por
+   punto sale como una sierra de 8,8 px de paso, que es aliasing, no un
+   registro. La frecuencia más alta es 13,3 ciclos sobre el ancho, o sea 7,2
+   puntos por ciclo: se dibuja liso.
+   El término constante impide que la pluma llegue a levantar: una punta
+   apoyada siempre escribe algo. */
+const F_SUELO = [3.2, 7.7, 13.3], A_SUELO = [0.52, 0.31, 0.17];
+function suelo(u) {
+  let v = 0;
+  for (let k = 0; k < F_SUELO.length; k++) {
+    v += A_SUELO[k] * Math.sin(2 * Math.PI * (F_SUELO[k] * u + Engine.noise(k + 1, 19)));
+  }
+  return (Math.abs(v) * 0.86 + 0.14) * SUELO;
+}
+
+/* Amplitud 0..1 en la posición u (0 = principio del clip, 1 = final). */
+function muestra(u) {
+  return NIV.length ? nivel(u * DUR) : suelo(u);
+}
+
+/* dBFS. Se corta en -60 porque por debajo la cifra deja de significar nada y
+   solo aporta dígitos que bailan. */
+function dB(v) {
+  return v <= 0.001 ? -60 : Math.max(-60, 20 * Math.log10(v));
+}
+
+function reloj_txt(s) {
+  const m = Math.floor(s / 60), q = Math.floor(s % 60);
+  const c = Math.floor((s % 1) * 100);
+  return `${String(m).padStart(2,'0')}:${String(q).padStart(2,'0')}.` +
+         `${String(c).padStart(2,'0')}`;
+}
+
+/* Paso de la graduación: la división redonda más fina que no pase de 28
+   marcas. Con 300 rayitas el margen es una textura y no una graduación. */
+const PASOS = [0.25, 0.5, 1, 2, 5, 10, 15, 30, 60];
+function pasoPara(d) {
+  for (const p of PASOS) if (d / p <= 28) return p;
+  return PASOS[PASOS.length - 1];
+}
+
+/* La traza cerrada: borde superior de ida y su espejo de vuelta. Una onda es
+   simétrica respecto al cero y dibujar solo media se lee como un gráfico de
+   barras cualquiera. `MIN_PX` es el grosor mínimo de la punta: una plumilla
+   apoyada deja línea aunque la señal sea nula. */
+function trazado() {
+  const sup = [], inf = [];
+  for (let i = 0; i < PUNTOS; i++) {
+    const u = i / (PUNTOS - 1);
+    const a = Math.max(MIN_PX / 2, muestra(u) * MEDIA * FONDO_ESCALA);
+    const x = (u * W).toFixed(2);
+    sup.push(x + ',' + (MEDIA - a).toFixed(2));
+    inf.push(x + ',' + (MEDIA + a).toFixed(2));
+  }
+  return 'M' + sup.join('L') + 'L' + inf.reverse().join('L') + 'Z';
+}
+
+function svgDe(caja, id) {
+  const s = document.createElementNS(NS, 'svg');
+  s.setAttribute('width', W); s.setAttribute('height', H);
+  s.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  caja.appendChild(s);
+  /* La caja es OBLIGATORIA: sin ella el degradado usa `objectBoundingBox` y
+     una recta horizontal —la línea de cero— tiene alto cero, así que el SVG
+     no la dibuja. Ni error ni aviso: el `<path>` está y no pinta un píxel.
+     Con la caja del papel entero, además, todo lo que se traza aquí comparte
+     UNA lámina de bronce con una sola luz.
+     Sin `id` no se inyecta nada: la capa de guía se pinta en tinta apagada y
+     un degradado que no usa nadie es peso muerto en el DOM. */
+  if (id) Engine.gradienteMetal(s, id, [0, 0, W, H]);
+  return s;
+}
+
+Engine.register({
+  duration: 8,
+  defaults: {
+    /* La envolvente sale de `scripts/extraer_niveles.py`: es el audio real, no
+       una animación inventada. OJO: solo se rellena en la ruta de TTS, así que
+       lo normal es recibir `[]` y ver el ruido de fondo del instrumento con la
+       lectura de pico en `—`. Para tener traza de verdad:
+           python3 scripts/extraer_niveles.py build/voz.mp3 */
+    niveles: [],
+    tasa: 30,
+    etiqueta: 'LOCUCIÓN',
+    y: 1500,
+    ancho: 900,
+    alto: 150,
+    barras: 96,         // puntos de la traza: la resolución del papel
+    minimo: 3,          // px de grosor mínimo: la punta apoyada deja línea
+    suelo: 0.16,        // fondo de escala del ruido propio del instrumento
+    desde: 0,           // desfase entre el reloj de la capa y el del audio
+    entrada: 0.5,
+    salida: 0.4
+  },
+
+  setup(cfg) {
+    NIV = cfg.niveles || [];
+    TASA = cfg.tasa || 30;
+    SUELO = cfg.suelo === undefined ? 0.16 : cfg.suelo;
+    DUR = NIV.length ? NIV.length / TASA : (cfg.duration || 8);
+    PUNTOS = Math.max(16, cfg.barras || 96);
+    MIN_PX = cfg.minimo === undefined ? 3 : cfg.minimo;
+    document.getElementById('etq').textContent = cfg.etiqueta || '';
+
+    registro.style.top = cfg.y + 'px';
+    registro.style.width = cfg.ancho + 'px';
+
+    W = cfg.ancho - MG_IZQ;
+    H = cfg.alto;
+    MEDIA = H / 2;
+
+    banda.style.height = (RAIL + H + MARGEN) + 'px';
+    rail.style.top = '4px';
+    rail.style.left = MG_IZQ + 'px';
+    plot.style.left = MG_IZQ + 'px';
+    plot.style.top = RAIL + 'px';
+    plot.style.height = H + 'px';
+    margen.style.left = MG_IZQ + 'px';
+    margen.style.top = (RAIL + H) + 'px';
+    margen.style.height = MARGEN + 'px';
+    capaEje.style.left = MG_IZQ + 'px';
+    capaEje.style.top = RAIL + 'px';
+    capaEje.style.height = H + 'px';
+    pluma.style.left = MG_IZQ + 'px';
+
+    /* --- escala impresa --------------------------------------------------
+       Cuatro pesos de línea y no uno: el cero es bronce grabado (va aparte,
+       en el SVG de arriba), el fondo de escala una discontinua, y las dos
+       divisiones de abajo punteadas cada vez más flojas. Eso es la jerarquía.
+       Cada división se imprime también en ESPEJO, sin rótulo: la traza es
+       simétrica respecto al cero y numerar las dos mitades repite el dato. */
+    [...plot.querySelectorAll('.db'), ...banda.querySelectorAll('.esc')]
+      .forEach(n => n.remove());
+    LADDER.forEach(p => {
+      const a = Math.pow(10, p.db / 20) * MEDIA * FONDO_ESCALA;
+      [MEDIA - a, MEDIA + a].forEach(y => {
+        const d = document.createElement('i');
+        d.className = ('db ' + p.clase).trim();
+        d.style.top = y.toFixed(1) + 'px';
+        plot.insertBefore(d, capaGuia);
+      });
+      if (!p.rotulo) return;
+      const e = document.createElement('span');
+      e.className = 'esc';
+      e.textContent = p.rotulo;
+      if (p.unidad) {
+        const u = document.createElement('u');
+        u.textContent = p.unidad;
+        e.appendChild(u);
+      }
+      e.style.width = (MG_IZQ - 14) + 'px';
+      /* −8 px es media línea de `--t-2xs`: centra la cifra en su división. */
+      e.style.top = (RAIL + MEDIA - a - 8).toFixed(1) + 'px';
+      banda.appendChild(e);
+    });
+
+    /* --- graduación de tiempo -------------------------------------------- */
+    margen.innerHTML = '';
+    [...plot.querySelectorAll('.vrule')].forEach(n => n.remove());
+    ticks = [];
+    const paso = pasoPara(DUR);
+    const cada = paso < 1 ? Math.round(1 / paso) : 5;
+    for (let i = 0, s = 0; s <= DUR + 1e-6; i++, s = i * paso) {
+      const x = (s / DUR * W).toFixed(2) + 'px';
+      const k = document.createElement('i');
+      const mayor = (i % cada) === 0;
+      k.className = 'tick' + (mayor ? ' mayor' : '');
+      k.style.left = x;
+      k.style.height = (mayor ? 11 : 6) + 'px';
+      margen.appendChild(k);
+      ticks.push({ el: k, t: s, mayor });
+      if (!mayor) continue;
+      const v = document.createElement('i');
+      v.className = 'vrule';
+      v.style.left = x;
+      plot.insertBefore(v, capaGuia);
+    }
+
+    /* --- papel: la guía y la tinta ---------------------------------------
+       Dos SVG y no uno porque el recorte de la plumilla es `clip-path` sobre
+       una caja HTML de tamaño conocido. Sobre un `<g>` los porcentajes se
+       resolverían contra la caja del propio trazado, que cambia con los datos.
+       El grosor no se distorsiona: el viewBox va 1:1 con el tamaño en px. */
+    capaGuia.innerHTML = '';
+    capaEje.innerHTML = '';
+    tinta.innerHTML = '';
+    const d = trazado();
+
+    /* La guía de lo que QUEDA. Un registrador real solo tiene papel en blanco
+       por delante, pero una onda en pantalla sirve justamente para ver de un
+       vistazo cuánto falta —era la razón del diseño anterior y sigue siendo
+       buena—, así que se conserva al peso más callado que sigue leyéndose
+       sobre metraje: contorno sin relleno. */
+    guia = document.createElementNS(NS, 'path');
+    guia.setAttribute('d', d);
+    guia.setAttribute('fill', 'none');
+    guia.setAttribute('stroke-width', '1');
+    /* En `--ink-faint` esta guía era legible en carbón y desaparecía en paper
+       —#9CA3AF sobre un plano claro—, o sea que la mitad del gráfico que dice
+       CUÁNTO QUEDA solo existía en un tema. Es la misma trampa de `capitulos`,
+       vista otra vez. */
+    guia.style.stroke = 'var(--ink-soft)';
+    guia.style.opacity = '0.55';
+    svgDe(capaGuia).appendChild(guia);
+
+    const sTinta = svgDe(tinta, 'metalTinta');
+    /* Trama de mecanizado DENTRO de la tinta. `Engine.grano` no vale aquí:
+       multiplica, y multiplicar contra alfa 0 devuelve el gris de la teja
+       sobre el vídeo. Un `<pattern>` recortado por la propia traza sí, y de
+       paso el área se lee también en escala de grises. */
+    const defs = sTinta.querySelector('defs');
+    const pat = document.createElementNS(NS, 'pattern');
+    pat.setAttribute('id', 'rayado');
+    pat.setAttribute('width', '6'); pat.setAttribute('height', '6');
+    pat.setAttribute('patternUnits', 'userSpaceOnUse');
+    pat.setAttribute('patternTransform', 'rotate(25)');
+    const fondo = document.createElementNS(NS, 'rect');
+    fondo.setAttribute('width', '6'); fondo.setAttribute('height', '6');
+    fondo.style.fill = 'var(--accent-soft)';
+    const raya = document.createElementNS(NS, 'line');
+    raya.setAttribute('x1', '0'); raya.setAttribute('y1', '0');
+    raya.setAttribute('x2', '0'); raya.setAttribute('y2', '6');
+    raya.setAttribute('stroke-width', '2');
+    raya.style.stroke = 'var(--accent)';
+    raya.style.opacity = '0.30';
+    pat.appendChild(fondo); pat.appendChild(raya);
+    defs.appendChild(pat);
+
+    relleno = document.createElementNS(NS, 'path');
+    relleno.setAttribute('d', d);
+    relleno.setAttribute('fill', 'url(#rayado)');
+    borde = document.createElementNS(NS, 'path');
+    borde.setAttribute('d', d);
+    borde.setAttribute('fill', 'none');
+    borde.setAttribute('stroke', 'url(#metalTinta)');
+    sTinta.appendChild(relleno);
+    sTinta.appendChild(borde);
+
+    /* La línea de cero va ENCIMA de la tinta, y no debajo como en la primera
+       versión. Es la referencia grabada en el rodillo, no una raya impresa en
+       el papel: si la tapa la traza —y con el ruido de fondo, que se mueve en
+       ±11 px alrededor del cero, la tapaba entera— el gráfico pierde la única
+       línea que dice dónde está el cero. Se dibuja con `stroke-dashoffset`: no
+       aparece, se TRAZA de izquierda a derecha al paso del transporte. */
+    eje = document.createElementNS(NS, 'path');
+    eje.setAttribute('d', `M0,${MEDIA}H${W}`);
+    eje.setAttribute('stroke', 'url(#metalEje)');
+    eje.setAttribute('stroke-width', '2');
+    eje.setAttribute('fill', 'none');
+    svgDe(capaEje, 'metalEje').appendChild(eje);
+
+    /* Máximo acumulado hasta cada punto. Se precalcula porque `draw` tiene que
+       ser función PURA de t: una retención de pico integrada entre fotogramas
+       daría un valor distinto según por dónde haya pasado Playwright. */
+    picoAcc = new Array(PUNTOS);
+    let m = 0;
+    for (let i = 0; i < PUNTOS; i++) {
+      m = Math.max(m, muestra(i / (PUNTOS - 1)));
+      picoAcc[i] = m;
+    }
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 8;
+    const ap = Engine.entra(t, cfg.entrada);        // linear: el transporte
+    const cierre = Engine.sale(t, fin, cfg.salida);
+    registro.style.opacity = ap * cierre;
+    registro.style.transform = `translate(-50%, ${((1 - ap) * 9).toFixed(2)}px)`;
+
+    /* §10 pide que nada se quede como una captura fija. Lo que deriva es el
+       PAPEL, no el chasis, y solo en vertical: la dirección de arrastre la
+       sujeta el rodillo, así que un papel que bailara en horizontal sería un
+       fallo mecánico. El mecanismo va dentro de `.banda` a propósito — si la
+       hoja subiera y la plumilla no, la punta se despegaría de la traza. */
+    const f = Engine.flota(t, 0, { amp: 2, periodo: 6.2, semilla: 11 });
+    banda.style.transform = `translateY(${f.y.toFixed(2)}px)`;
+
+    /* La entrada es el TRANSPORTE, no un fundido con adornos: la hoja sale del
+       rodillo de izquierda a derecha a velocidad constante —de ahí `correr`,
+       que resuelve a `linear`; una correa no decelera al llegar al centro— y
+       la platina traza su línea de cero al mismo paso.
+
+       Antes esto solo dibujaba el eje y todo lo demás ya estaba puesto desde el
+       primer fotograma: el gesto declarado en el `<meta>` movía 2 px de 900 y
+       la entrada real era el fundido de opacidad, o sea la misma que las otras
+       cincuenta y cinco. */
+    const revelado = `inset(0 ${((1 - ap) * 100).toFixed(3)}% 0 0)`;
+    plot.style.clipPath = revelado;
+    margen.style.clipPath = revelado;
+    eje.style.strokeDasharray = W;
+    eje.style.strokeDashoffset = (W * (1 - ap)).toFixed(1);
+
+    const reproducido = t + (cfg.desde || 0);
+    const avance = clamp(reproducido / DUR, 0, 1);
+    reloj.textContent = reloj_txt(clamp(reproducido, 0, DUR));
+
+    /* La tinta llega justo hasta la punta. No se dibuja «hasta aquí»: se tapa
+       lo que todavía es papel en blanco. */
+    tinta.style.clipPath = `inset(0 ${((1 - avance) * 100).toFixed(3)}% 0 0)`;
+
+    /* EL SEGUNDO TIEMPO. Ni la entrada ni el recorrido de la plumilla: lo que
+       pasa DESPUÉS de que la tinta toque el papel.
+         · `secado` — la tinta sigue mojando y se abre: absorción capilar, que
+           es exponencial de verdad, de ahí `outExpo` y no una curva elegida
+           para que salgan distintas.
+         · `asiento` — la lectura de pico se confirma. Arranca en el peso más
+           fino, o sea provisional, y el instrumento se compromete con ella a
+           medida que acumula recorrido. */
+    const secado  = Engine.reposo(t, cfg.entrada, fin, cfg.salida, Ease.outExpo);
+    const asiento = Engine.reposo(t, cfg.entrada, fin, cfg.salida, Ease.inOutCubic);
+    borde.style.strokeWidth = (1.4 + 1.2 * secado).toFixed(2);
+    relleno.style.opacity = (0.45 + 0.45 * secado).toFixed(3);
+
+    /* --- el mecanismo ---------------------------------------------------- */
+    const v = muestra(avance);
+    const alto = Math.max(MIN_PX / 2, v * MEDIA * FONDO_ESCALA);
+    const yTraza = RAIL + MEDIA - alto;
+    pluma.style.transform = `translateX(${(avance * W).toFixed(2)}px)`;
+    nib.style.top = (yTraza - 16).toFixed(2) + 'px';
+    /* El brazo cuelga del carro y llega HASTA la punta, ni un píxel más. Una
+       línea de lado a lado sería el cursor de un reproductor. */
+    asta.style.top = '9px';
+    asta.style.height = Math.max(0, yTraza - 16 - 9).toFixed(2) + 'px';
+
+    /* Retención de pico: solo sube, y el tope se para donde se paró la aguja.
+       El valor sale del acumulado precalculado, así que es el mismo tanto si
+       Playwright llega a este instante por orden como de un salto. */
+    const j = Math.min(PUNTOS - 1, Math.round(avance * (PUNTOS - 1)));
+    const p = picoAcc[j] || 0;
+    tope.style.transform =
+      `translateY(${(RAIL + MEDIA - p * MEDIA * FONDO_ESCALA - 1).toFixed(2)}px)`;
+    /* El tope se apoya en el borde derecho de la hoja, así que no puede existir
+       antes que ella: sin el factor `ap` era lo ÚNICO visible a la derecha del
+       frente de papel durante la entrada, y en el fotograma se leía como una
+       marca suelta a media pantalla. */
+    tope.style.opacity = (ap * (0.35 + 0.65 * asiento)).toFixed(3);
+
+    picoN.textContent = p > 0 ? dB(p).toFixed(1) : '—';
+    /* El eje variable: 200 -> 700 continuo. Con dos ficheros estáticos habría
+       un salto; aquí lo que se ve es una lectura afirmándose. */
+    Engine.peso(picoN, Math.round(200 + 500 * asiento));
+    picoN.style.color =
+      `color-mix(in oklab, var(--accent) ${(asiento * 100).toFixed(0)}%, var(--ink-faint))`;
+
+    /* La graduación recién pisada va cargada de tinta y se asienta a su peso
+       impreso. `outExpo` porque una plumilla descarga de golpe y luego solo
+       queda el rastro: es la misma física que el secado, vista en un punto. */
+    ticks.forEach(k => {
+      const base = k.mayor ? 0.8 : 0.5;
+      if (reproducido < k.t) {
+        k.el.style.opacity = (base * 0.34).toFixed(3);
+        k.el.style.background = 'var(--ink-soft)';
+      } else {
+        const q = span(reproducido, k.t, 0.7, Ease.outExpo);
+        k.el.style.opacity = (1 - q * (1 - base)).toFixed(3);
+        k.el.style.background =
+          `color-mix(in oklab, var(--accent) ${((1 - q) * 100).toFixed(0)}%,` +
+          ' var(--ink-soft))';
+      }
+    });
+  },
+
+  anclas(cfg) {
+    const b = plot.getBoundingClientRect();
+    return { pista: { x: Math.round(b.left + b.width / 2),
+                      y: Math.round(b.top + b.height / 2),
+                      w: Math.round(b.width), h: Math.round(b.height) } };
+  }
+});
+</script>
+</body>
+</html>

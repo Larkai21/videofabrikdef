@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Texto multiplicado</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+  .pila { position: absolute; left: 0; right: 0; margin-inline: auto;
+          width: fit-content; max-width: 92%; }
+  .capa {
+    position: absolute; left: 0; top: 0;
+    font-family: var(--display); font-weight: 800; letter-spacing: var(--tr-hero);
+    white-space: nowrap; color: var(--ink);
+    will-change: transform, opacity;
+  }
+  .capa.frente { position: relative;
+                 text-shadow: 0 3px 0 rgba(0,0,0,0.5); }
+</style>
+</head>
+<body>
+<div class="stage">  <div class="pila" id="pila"></div></div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp, noise } = Engine;
+
+const pila=document.getElementById('pila');
+let capas=[];
+
+Engine.register({
+  duration: 1.2,
+  defaults: { texto: 'MILES', y: 860, tam: 150, copias: 3,
+              dx: 26, dy: 20 },
+
+  setup(cfg) {
+    pila.style.fontSize=cfg.tam+'px';
+    pila.style.top=cfg.y+'px';
+    pila.innerHTML='';
+    capas=[];
+    /* Las copias van DETRÁS y en orden inverso: la del frente se añade la
+       última para que quede encima sin recurrir a z-index. */
+    for (let i=cfg.copias; i>=1; i--) {
+      const el=document.createElement('div');
+      el.className='capa'; el.textContent=cfg.texto||'';
+      pila.appendChild(el); capas.push({el, i});
+    }
+    const f=document.createElement('div');
+    f.className='capa frente'; f.textContent=cfg.texto||'';
+    pila.appendChild(f); capas.push({el:f, i:0});
+  },
+
+  draw(t, cfg) {
+    const dur = cfg.duration || 1.2;
+    const fin = 1 - span(t, dur - 0.24, 0.24, Ease.inOutCubic);
+
+    /* SEGUNDO TIEMPO: el montón CIERRA EN REGISTRO.
+       ------------------------------------------------------------------
+       Antes las capas se desplegaban en los primeros 0,3 s y se quedaban
+       desplazadas hasta el final: el 25 % de la capa era una imagen fija
+       incluso midiendo a medio segundo, y el efecto entero era una sola idea
+       que se agota enseguida.
+
+       Un texto apilado y desplazado no es un adorno: es lo que se ve en una
+       impresión a varias tintas cuando los fotolitos NO están registrados. Y
+       lo que sigue después de eso, en un taller, es que se registran. Así que
+       el segundo tiempo no hay que inventarlo, ya está en el objeto: las
+       capas vuelven a su sitio y el texto queda limpio.
+
+       `inOutCubic` porque una platina que se ajusta arranca y frena. */
+    const cierre = span(t, 0.34, Math.max(0.2, dur - 0.34 - 0.24),
+                        Ease.inOutCubic);
+
+    capas.forEach(({ el, i }) => {
+      /* Escalonado por profundidad: las de atrás salen DESPUÉS, así el
+         montón parece crecer hacia atrás en vez de aparecer entero. */
+      const q = span(t, i * 0.07, 0.3, Ease.outCubic);
+      const abre = q * (1 - cierre);
+      /* La capa de delante no se atenúa; las de atrás se apagan al entrar en
+         registro, porque una vez alineadas ya no son tintas distintas: son la
+         misma letra y se sumarían en un borrón. */
+      el.style.opacity = (i === 0 ? 1 : (0.42 - i * 0.10) * (1 - cierre * 0.92))
+                         * q * fin;
+      /* Y algo que NO vuelve atrás. Abrir y cerrar es un movimiento
+         simétrico: el montón a mitad de apertura y a mitad de cierre se ven
+         casi igual, así que la medida a medio segundo seguía encontrando
+         parecido —un 17 % de la capa— aunque nada estuviera parado.
+         El peso de la capa de delante sube MONÓTONO de 400 a 800 durante toda
+         la permanencia: con él, dos instantes distintos no se parecen nunca, y
+         además es lo que dice que el texto se ha asentado. */
+      if (i === 0) {
+        const asienta = span(t, 0.1, Math.max(0.2, dur - 0.34), Ease.inOutCubic);
+        Engine.peso(el, Math.round(400 + 400 * asienta));
+      }
+      const fl = Engine.flota(t, i, { amp: 1.5, periodo: 5.6, semilla: 17 });
+      el.style.transform =
+        `translate(${(-i * cfg.dx * abre + fl.x).toFixed(2)}px, ` +
+        `${(-i * cfg.dy * abre + fl.y).toFixed(2)}px) ` +
+        `scale(${(1 - i * 0.03 * abre).toFixed(4)})`;
+    });
+  }
+});
+</script>
+</body>
+</html>

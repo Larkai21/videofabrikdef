@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Esclusa de auditoría — puertas que dejan pasar o no</title>
+<meta name="gesto" content="revelar:esclusa">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* =====================================================================
+     QUÉ ES ESTO
+     ---------------------------------------------------------------------
+     Era una CADENA DE TARJETAS DE VIDRIO con un punto de luz corriendo por
+     un canalillo entre ellas. Tres problemas, y ninguno es de gusto:
+
+       · el punto llevaba `box-shadow: 0 0 18px 4px <acento>`, o sea un halo
+         de neón, que es literalmente lo que §1 prohíbe cuando dice que se
+         destaca «con contraste y peso tipográfico, nunca con luz»;
+       · el punto se repetía en bucle cada 1,5 s — hormigas marchantes con
+         otro nombre. Un flujo que se repite no cuenta un proceso: dice «hay
+         movimiento» y ya;
+       · y el nodo de alerta se distinguía por un FILETE ROJO. Un color no es
+         un argumento: el gráfico afirmaba que algo iba mal sin enseñar nada
+         yendo mal.
+
+     Un pipeline de seguridad no es una cadena de cajas: es una ESCLUSA. Un
+     canal mecanizado con PUERTAS, y algo que baja por él y que en cada
+     puerta o pasa o se queda. Eso es lo que dibuja esta plantilla:
+
+       · el CANAL: una ranura fresada que recorre toda la columna, continua.
+         Antes el canalillo solo existía ENTRE tarjetas, así que el recorrido
+         estaba troceado y no se leía como un solo camino;
+       · las PUERTAS: una hoja de cuchilla que cruza la ranura y que se
+         retrae dentro de su bonete cuando la etapa da paso. Cerrada es una
+         barra sólida atravesada; abierta, la ranura está despejada. No hay
+         que explicarlo;
+       · el TESTIGO: UNA pieza mecanizada que baja, se para contra cada
+         puerta cerrada mientras la etapa la inspecciona, y sigue cuando la
+         hoja despeja. Deja detrás una marca de bronce: lo ya auditado;
+       · y la etapa marcada con `alerta: true` es la que NO abre. Su hoja
+         muerde, se pone de bronce con la cara rayada, y el testigo se queda
+         encima. El vídeo termina con algo detenido a la vista, que es
+         exactamente lo que significa «Vulnerability Alert».
+
+     Es hermana de `data-diagram` en material —placa mecanizada, chaflán,
+     bisel de bronce, grano de impresión— y no en argumento: allí un paquete
+     ATRAVIESA una topología; aquí una pieza se DETIENE en una puerta.
+     ===================================================================== */
+
+  .stage { position: absolute; inset: 0; }
+
+  /* ---------------------------------------------------------------------
+     EL BANCO — lienzo a pantalla completa, OPCIONAL (`config.lienzo`).
+     Para el modo full-motion, en el que el A-Roll queda tapado y el gráfico
+     pasa a ser el plano. Va en un hijo del body y NO en el elemento raíz: el
+     fondo de la raíz se propaga al lienzo del navegador, queda fuera del
+     grupo de opacidad y `omitBackground` no puede recortarlo — los PNG
+     saldrían sin canal alfa y el compositor los pegaría como un rectángulo
+     negro fijo.
+
+     El color era un `#08080A` escrito a pelo, o sea un negro que solo existe
+     en tema oscuro: en `paper` el gráfico entero se montaba sobre un fondo
+     casi negro con tinta oscura encima. `--velo-oscuro` y `--velo-claro` son
+     los dos tokens que existen justo para esto y son FIJOS en los dos temas.
+     --------------------------------------------------------------------- */
+  .banco {
+    position: absolute; inset: 0; opacity: 0;
+    background: var(--velo-oscuro);
+    overflow: hidden; isolation: isolate;
+    will-change: opacity;
+  }
+  :root[data-tema="paper"] .banco { background: var(--velo-claro); }
+
+  /* Retícula de datum, no rejilla de fondo: una fina cada `celda` y una
+     basta cada cuatro. Una cuadrícula uniforme es papel milimetrado; la
+     jerarquía 1:4 es lo que lleva cualquier plano de taller, y de paso da
+     escala — se ve de un vistazo cuánto mide una celda. */
+  .banco::after {
+    content: ''; position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(to right,
+        var(--reja-basta) 0 1px, transparent 1px var(--celda-4)),
+      repeating-linear-gradient(to bottom,
+        var(--reja-basta) 0 1px, transparent 1px var(--celda-4)),
+      repeating-linear-gradient(to right,
+        var(--reja-fina) 0 1px, transparent 1px var(--celda)),
+      repeating-linear-gradient(to bottom,
+        var(--reja-fina) 0 1px, transparent 1px var(--celda));
+    /* Se apaga hacia los bordes: una retícula uniforme de borde a borde se
+       lee como un error de render, no como profundidad. */
+    mask-image: radial-gradient(ellipse 76% 60% at 50% 45%,
+                rgba(0,0,0,1) 0%, rgba(0,0,0,0.32) 60%, rgba(0,0,0,0) 100%);
+  }
+  /* Hundido de bordes. `--vineta` es cálida y suave en `paper` a propósito:
+     una viñeta negra sobre papel se lee como suciedad. */
+  .banco::before {
+    content: ''; position: absolute; inset: 0; z-index: 2;
+    background: radial-gradient(ellipse 72% 56% at 50% 46%,
+                rgba(0,0,0,0) 40%, var(--vineta) 100%);
+  }
+
+  /* ---------------------------------------------------------------------
+     CABECERA — chapa de identificación y filete
+     La chapa existe por legibilidad, no por adorno: §12 dice que un bloque
+     de texto sobre metraje lleva vidrio o lleva sombra dura, «flotar no es
+     opción». Antes el rótulo iba suelto con un `text-shadow` negro de 2 px,
+     que sobre metraje claro no separa nada. Una chapa atornillada al bastidor
+     es además lo que este objeto tendría de verdad.
+     --------------------------------------------------------------------- */
+  .cabecera {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    width: 88%; max-width: 820px;
+    will-change: transform, opacity;
+  }
+  .chapa {
+    display: inline-flex; align-items: baseline; gap: var(--s-3);
+    padding: var(--s-2) var(--s-4);
+    position: relative; isolation: isolate; overflow: hidden;
+    background: var(--surface);
+    box-shadow: 0 12px 30px var(--sombra), inset 0 1px 0 var(--glass-highlight);
+    clip-path: polygon(11px 0, 100% 0, 100% calc(100% - 11px),
+                       calc(100% - 11px) 100%, 0 100%, 0 11px);
+  }
+  .rotulo {
+    font-family: var(--mono); font-size: var(--t-md);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps-ancho); text-transform: uppercase;
+    color: var(--accent); white-space: nowrap;
+  }
+  /* Lectura viva de la esclusa: en qué puerta va. Es un dato DERIVADO —no
+     hay copia que inventar— y cambia con el reloj, que es lo que distingue
+     un instrumento de una etiqueta. */
+  .cuenta {
+    font-family: var(--mono); font-size: var(--t-2xs);
+    font-weight: var(--w-fino);
+    letter-spacing: var(--tr-caps); color: var(--ink-faint);
+  }
+  /* El filete de 2 px es el bastidor: se dibuja de izquierda a derecha y
+     todo lo demás se atornilla a él. Bronce de verdad, con el ángulo de
+     cepillado del sistema, no un plano naranja. */
+  .filete {
+    height: 2px; margin-top: var(--s-3); transform-origin: 0 50%;
+    background-image: linear-gradient(var(--metal-ang),
+      var(--metal-1) 0%, var(--metal-3) 42%, var(--metal-4) 68%,
+      var(--metal-5) 100%);
+    will-change: transform;
+  }
+
+  /* ---------------------------------------------------------------------
+     EL BASTIDOR
+     --------------------------------------------------------------------- */
+  .chase {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    width: 88%; max-width: 820px;
+    will-change: transform;
+  }
+
+  /* El CANAL: ranura fresada. Fondo hundido (`--chrome-3` es más oscuro que
+     la superficie en los DOS temas, que es lo que hace que se lea como
+     rebaje) y paredes de canto claro arriba. `overflow: hidden` no es
+     adorno: es lo que se traga la hoja cuando se retrae, o sea el efecto
+     entero. */
+  .canal {
+    position: absolute; overflow: hidden;
+    background: var(--chrome-3);
+    box-shadow: inset 1px 0 0 var(--stroke), inset -1px 0 0 var(--stroke),
+                inset 0 2px 4px var(--sombra);
+    will-change: clip-path;
+  }
+
+  /* La MARCA: lo ya auditado. Es una línea de bronce de longitud FIJA que se
+     revela con `clip-path`, y no un div al que se le anima el alto. La
+     diferencia se ve: con `height` el degradado del metal se reescala en
+     cada fotograma y el bronce «fluye» por dentro de la línea, que es un
+     material que no existe. Revelando una línea que ya está, la luz se queda
+     donde estaba. */
+  .marca {
+    position: absolute; left: 21px; width: 4px; top: 0; bottom: 0;
+    background-image: linear-gradient(180deg,
+      var(--metal-1) 0%, var(--metal-3) 26%, var(--metal-4) 58%,
+      var(--metal-2) 82%, var(--metal-5) 100%);
+    will-change: clip-path;
+  }
+
+  /* La PUERTA. Una hoja de cuchilla: cruza la ranura con el morro por
+     delante y se retrae hacia su bonete. El morro no es decoración — una
+     compuerta de guillotina real lleva el filo achaflanado, y es lo que hace
+     que a 18 px de alto se lea como una pieza y no como una raya. */
+  .compuerta { position: absolute; left: 0; width: 100%; height: 18px; }
+  .hoja {
+    position: absolute; inset: 0;
+    clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 50%,
+                       calc(100% - 8px) 100%, 0 100%);
+    background: var(--chrome-2);
+    /* El canto vivo de arriba en `--ink-ghost` y no en `--stroke`. Medido en
+       carbon: el acero de la hoja (`--chrome-2`) contra el fondo de la ranura
+       (`--chrome-3`) son 10,6 puntos de L* —un borde que EXISTE y no se ve—; el
+       filo de 1 px sube a 20,0 sin tocar el relleno. Importa porque una hoja
+       cerrada es lo único que impide que la pieza pase: si no se lee antes de
+       abrir, el gesto de abrir no significa nada. */
+    box-shadow: inset 0 1px 0 var(--ink-ghost),
+                inset 0 -2px 4px var(--sombra);
+    isolation: isolate; overflow: hidden;
+    will-change: transform;
+  }
+  /* SELLADA: la puerta que no abre. Cambia de MATERIAL, no de color: pasa a
+     bronce mecanizado con la cara rayada, que es una superficie de retención
+     —una mordaza, un freno— y no un semáforo en rojo. El rojo anterior
+     (`#E5484D` a pelo, con `var(--rojo)` de fantasma delante: ese token no
+     existe en `_tokens.css`, así que SIEMPRE caía al hexadecimal) decía que
+     algo iba mal; esto lo enseña. */
+  .compuerta.sellada .hoja {
+    background-image: linear-gradient(var(--metal-ang),
+      var(--metal-3) 0%, var(--metal-4) 24%, var(--metal-1) 58%,
+      var(--metal-5) 100%);
+  }
+  .hoja > .trama { position: absolute; inset: 0; opacity: 0;
+                   mix-blend-mode: overlay; }
+  .compuerta.sellada .hoja > .trama { opacity: 1; }
+
+  /* El BONETE: la caja donde entra la hoja al retraerse. Sin él, una hoja
+     que se va hacia la izquierda simplemente desaparece; con él, se guarda.
+     Cuesta un div y es la diferencia entre un mecanismo y una animación. */
+  .bonete {
+    position: absolute; left: 0; width: 24px; height: 32px;
+    background: var(--chrome);
+    box-shadow: inset 0 0 0 1px var(--stroke);
+    clip-path: polygon(6px 0, 100% 0, 100% 100%, 6px 100%,
+                       0 calc(100% - 6px), 0 6px);
+  }
+  /* CARGADO: la hoja está guardada dentro y su cola asoma por la trasera del
+     bonete, que es lo que hace una compuerta de guillotina de verdad cuando
+     abre. Es una BANDA de 11 px y no el bloque entero teñido de bronce: dos
+     pastillas naranjas flotando al costado de la columna se leen como pilotos
+     encendidos, y encender pilotos para decir «esto ya pasó» es jerarquía por
+     luz otra vez. Un vástago que sobresale es la misma información y es una
+     pieza. */
+  .bonete.cargado {
+    background-image: linear-gradient(90deg,
+      var(--metal-3) 0 2px, var(--metal-4) 2px 8px,
+      color-mix(in oklab, var(--metal-5) 55%, var(--chrome)) 8px 11px,
+      transparent 11px);
+  }
+
+  /* El TESTIGO: la pieza que se audita. Chaflanes en dos esquinas opuestas
+     —como una pletina cortada— para que se distinga a simple vista de la
+     hoja, que es rectangular con morro.
+
+     Y NO es un bulto de bronce macizo, que es como estaba y como se veía mal:
+     al llegar a la puerta que muerde, testigo y hoja son los dos de bronce, se
+     tocan, y en el fotograma final —el que remata el gráfico— formaban UNA
+     mancha en la que no se distingue qué retiene a qué. Aro de bronce y
+     núcleo de superficie: la misma gramática de las placas —canto de metal,
+     cara de material— aplicada a la pieza que las recorre. */
+  .testigo {
+    position: absolute; left: 10px; width: 26px; height: 34px;
+    clip-path: polygon(0 7px, 7px 0, 100% 0, 100% calc(100% - 7px),
+                       calc(100% - 7px) 100%, 0 100%);
+    background-image: linear-gradient(var(--metal-ang),
+      var(--metal-3) 0%, var(--metal-4) 30%, var(--metal-1) 72%,
+      var(--metal-5) 100%);
+    will-change: transform;
+  }
+  .testigo > i {
+    position: absolute; inset: 3px; display: block;
+    background: var(--surface);
+    clip-path: polygon(0 5px, 5px 0, 100% 0, 100% calc(100% - 5px),
+                       calc(100% - 5px) 100%, 0 100%);
+  }
+
+  /* ---------------------------------------------------------------------
+     LA ETAPA — placa mecanizada
+     Chaflanes de 22 px en los dos cantos que MIRAN AL CANAL y uno de 14 en
+     la esquina superior derecha, que es donde va el troquel de numeración.
+     La asimetría es deliberada: una placa simétrica es un rectángulo con las
+     esquinas matadas; esta tiene un lado que se atornilla y una esquina de
+     referencia, o sea que su forma dice cómo se monta.
+
+     Dos capas con el MISMO `clip-path` porque un `border` se recorta con la
+     forma y en los chaflanes no quedaría filete: la de fuera es el canto y
+     la de dentro la cara.
+     --------------------------------------------------------------------- */
+  .etapa { position: absolute; will-change: transform, opacity; }
+  .canto, .faz {
+    position: absolute;
+    clip-path: polygon(22px 0, calc(100% - 14px) 0, 100% 14px,
+                       100% 100%, 22px 100%, 0 calc(100% - 22px), 0 22px);
+  }
+  .canto { inset: 0; background: var(--rule); }
+  /* `overflow` e `isolation` van juntos y no son adorno: el grano es una
+     capa hija con `mix-blend-mode: multiply`, y sin aislar mezclaría con lo
+     que haya DETRÁS de la placa —el metraje— en vez de con su propia cara. */
+  .faz {
+    inset: 2px; background: var(--surface);
+    overflow: hidden; isolation: isolate;
+    background-image: linear-gradient(180deg,
+      rgba(255,255,255,0.055), rgba(255,255,255,0) 44%, rgba(0,0,0,0.10));
+  }
+  /* Un BISEL, no un contorno. La luz cae por un canto y el resto muere en
+     `--rule`, que es el gris del canto sin luz. Con el bronce claro repartido
+     por todo el perímetro cada placa se lee como un rótulo encendido, y §1
+     prohíbe exactamente eso: jerarquía por luz. */
+  .etapa.viva .canto {
+    background: none;
+    background-image: linear-gradient(var(--metal-ang),
+      var(--metal-3) 0%, var(--metal-4) 9%, var(--metal-1) 26%,
+      color-mix(in oklab, var(--metal-5) 40%, var(--rule)) 68%,
+      var(--rule) 100%);
+  }
+  .etapa.retenida .faz { background-color: var(--surface-2); }
+
+  .num {
+    position: absolute; top: 13px; right: 18px;
+    font-family: var(--mono); font-size: var(--t-2xs);
+    font-weight: var(--w-fino);
+    letter-spacing: var(--tr-caps); color: var(--ink-ghost);
+  }
+  .etapa.viva .num { color: var(--ink-faint); }
+
+  .txt { position: relative; padding: var(--s-4) var(--s-5); }
+  .rot {
+    display: block;
+    font-family: var(--mono); font-size: var(--t-xs);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps-ancho); text-transform: uppercase;
+    color: var(--ink-ghost);
+  }
+  .etapa.viva .rot { color: var(--accent); }
+  /* El titular NO cambia de tamaño ni se enciende: el PESO es el estado.
+     Arranca en `--w-claro` (300) y sube por el eje variable hasta 800 mientras
+     la etapa inspecciona, y hasta 900 en la que retiene. Es la respuesta
+     literal de §1 —«contraste y peso tipográfico, nunca luz»—.
+
+     Comprobado en el mismo Chromium que rasteriza, porque el eje variable es
+     justo el tipo de cosa que se da por hecha: los rásteres de «Code Repo» a
+     300, 400, 600 y 800 tienen md5 DISTINTOS, o sea que Plus Jakarta Sans
+     responde al eje de verdad y no salta entre dos ficheros.
+
+     Y ojo con cómo se mide, que me costó una vuelta: por ANCHO no se ve. De
+     300 a 900 este titular pasa de 242,3 px a 242,4 —un 0,4 %, o sea ruido de
+     subpíxel— porque PJS mantiene casi el mismo avance en todo el eje. Si se
+     mide el ancho se concluye que la fuente no varía, que es exactamente lo
+     que concluí, y lo que varía es el TRAZO. Hay que rasterizar y comparar. */
+  .tit {
+    display: block; margin-top: var(--s-1);
+    font-family: var(--display); font-size: var(--t-xl);
+    font-weight: var(--w-claro);
+    letter-spacing: var(--tr-display); line-height: 1.04;
+    color: var(--ink-soft);
+  }
+  .etapa.viva .tit { color: var(--ink); }
+  .sub {
+    display: block; margin-top: var(--s-1);
+    font-family: var(--subs); font-size: var(--t-sm);
+    font-weight: var(--w-libro);
+    letter-spacing: var(--tr-cuerpo); color: var(--ink-soft);
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="banco" id="banco"></div>
+  <div class="cabecera" id="cabecera">
+    <div class="chapa"><span class="rotulo" id="rotulo"></span
+      ><span class="cuenta tnum" id="cuenta"></span></div>
+    <div class="filete" id="filete"></div>
+  </div>
+  <div class="chase" id="chase">
+    <div class="canal" id="canal">
+      <div class="marca" id="marca"></div>
+      <div class="testigo" id="testigo"><i></i></div>
+    </div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const banco    = document.getElementById('banco');
+const cabecera = document.getElementById('cabecera');
+const rotulo   = document.getElementById('rotulo');
+const cuenta   = document.getElementById('cuenta');
+const filete   = document.getElementById('filete');
+const chase    = document.getElementById('chase');
+const canal    = document.getElementById('canal');
+const marca    = document.getElementById('marca');
+const testigo  = document.getElementById('testigo');
+
+/* Geometría de la esclusa, en píxeles del lienzo de 1080. Va aquí y no en el
+   CSS porque `draw` tiene que hacer cuentas con ella —dónde para el testigo,
+   cuánto mide el canal— y leerla del DOM con `getBoundingClientRect` en cada
+   fotograma es lo que hacía la versión anterior para averiguar la altura de
+   un canalillo: 3 medidas forzadas de layout por fotograma para saber un
+   número que no cambia. */
+const CANAL_X = 24, CANAL_W = 46;     // la ranura, dentro de la columna
+const ETAPA_X = 100;                  // dónde empieza la placa
+const ALTO = 152, HUECO = 56;         // placa y aire entre placas
+const PASO_Y = ALTO + HUECO;          // 208 px de paso vertical
+const HOJA_H = 18, TOK_H = 34;
+const ARRIBA = 72, COLA = 96;         // ranura por encima y por debajo
+
+const gateY = i => i * PASO_Y + ALTO / 2 + ARRIBA;   // en coords del canal
+const paradaY = i => gateY(i) - HOJA_H / 2 - TOK_H;  // el testigo apoya aquí
+
+let etapas = [], puertas = [], bonetes = [];
+let bloqueada = -1, canalAlto = 0;
+
+/* EL RELOJ DE LA ESCLUSA, EN UN SOLO SITIO.
+   `setup` lo usa para publicar las señales de sonido y `draw` para mover el
+   testigo. Escrito dos veces, cambiar el ritmo desincronizaría el sonido de
+   la imagen sin que nada lo dijera — y un `clic` que suena 80 ms antes de que
+   la hoja despeje no se percibe como un desfase, se percibe como que el
+   gráfico va mal montado.
+
+   `ciclo` es lo que tarda UNA etapa entera: el viaje del testigo más la
+   inspección. Antes era el periodo con el que el punto de luz se repetía en
+   bucle; el número (1,5 s) y la escala son los mismos, así que ningún plan
+   escrito contra la versión anterior cambia de ritmo. */
+function reloj(cfg, n) {
+  const dur = cfg.duration || 5;
+  const fundido = cfg.fundido || 0.5;
+  /* Con lienzo, la cadena espera a que el fondo haya tapado el A-Roll: si
+     arrancara antes se vería el testigo bajando sobre la cara medio visible,
+     que es justo lo que este modo evita. */
+  const ini = cfg.lienzo ? fundido * 0.8 : 0.12;
+  /* El paso se deriva de `cfg.duration` y no de instantes escritos a mano:
+     `silencios.py` recorta la duración de la capa al quitar el aire, y una
+     lista de tiempos por etapa se quedaría en el reloj viejo sin que nada lo
+     delatase — `nodos` no está en sus claves de tiempo. Derivándolo, se
+     re-reparte solo.
+
+     `ciclo` es un TECHO y no un valor fijo, y esto es un fallo arreglado, no
+     una preferencia: con los defectos de siempre —5 s, tres etapas, ciclo
+     1,5— la última puerta daba su veredicto en el segundo 4,58 y la capa
+     empieza a irse en el 4,55. O sea que la frase del gráfico, lo único que
+     este gráfico dice, ocurría DENTRO del fundido de salida y no se veía. No
+     daba ningún error: el JSON era correcto, el humo pasaba y los tres
+     hashes eran distintos. Se reserva siempre `cola` de sobra al final.
+
+     `reparto` sigue significando lo de antes: estirar la cadena por encima
+     del ciclo cuando la capa da para más, en vez de resolverla al principio
+     y dejar el resto quieto. */
+  const cola = 0.85;
+  const holgado = Math.max(0.55, (dur - ini - cola) / Math.max(1, n));
+  const paso = cfg.reparto ? holgado : Math.min(cfg.ciclo || 1.5, holgado);
+  const viaje = Math.min(cfg.viaje || 0.55, paso * 0.62);
+  const apertura = Math.min(0.30, paso * 0.24);
+  return {
+    dur, ini, paso, viaje, apertura,
+    /* El instante en que la puerta i termina de despejar —o de morder— y el
+       testigo arranca hacia la siguiente. */
+    veredicto: i => ini + (i + 1) * paso - 0.04,
+    llegada:   i => ini + i * paso + viaje
+  };
+}
+
+Engine.register({
+  duration: 5,
+  defaults: {
+    titulo: 'Arquitectura de auditoría',
+    y: 520,
+    zona: 'arriba',
+    nodos: [
+      { rot: 'entrada', tit: 'Code Repo', sub: 'tus PRs y ramas' },
+      { rot: 'motor',   tit: 'Codex Engine', sub: 'auditoría estática' },
+      /* `alerta` ya no pinta un filete rojo: marca la puerta que NO abre.
+         Es el mismo dato del plan con un significado que se puede ver. */
+      { rot: 'salida',  tit: 'Vulnerability Alert', sub: 'antes de compilar',
+        alerta: true }
+    ],
+    viaje: 0.55,          // lo que tarda el testigo de una puerta a la siguiente
+    ciclo: 1.5,           // lo que dura una etapa entera: viaje + inspección
+    entrada: 0.42,        // el bastidor montándose
+    salida: 0.45,
+    lienzo: false,
+    celda: 72,            // paso de la retícula del banco, px
+    rejilla: 0.07,        // alfa de la retícula fina
+    fundido: 0.5,         // entrada y salida del banco, s
+    reparto: false
+  },
+
+  setup(cfg) {
+    const conBanco = !!cfg.lienzo;
+    banco.style.display = conBanco ? 'block' : 'none';
+    const celda = cfg.celda || 72;
+    banco.style.setProperty('--celda', celda + 'px');
+    banco.style.setProperty('--celda-4', (celda * 4) + 'px');
+    /* El alfa llega como número y el color sale del TOKEN, en `oklab`. Antes
+       se componía `rgba(205, 127, 50, a)` en el JS: el bronce de `carbon`
+       escrito a mano, o sea que en `paper` la retícula seguía siendo naranja
+       oscuro sobre papel en vez del acento del tema. */
+    const a = cfg.rejilla === undefined ? 0.07 : cfg.rejilla;
+    const mezcla = p => 'color-mix(in oklab, var(--accent) ' +
+                        (clamp(p, 0, 1) * 100).toFixed(1) + '%, transparent)';
+    banco.style.setProperty('--reja-fina', mezcla(a));
+    banco.style.setProperty('--reja-basta', mezcla(a * 2.4));
+    if (conBanco) Engine.grano(banco, { px: 256, semilla: 5, op: 0.14 });
+
+    rotulo.textContent = cfg.titulo || '';
+    /* La chapa va por encima de la BOCA del canal, no por encima de la primera
+       placa. Con los 62 px de antes —que eran los del rótulo suelto— la ranura
+       le pasaba por encima y se comía las tres primeras letras del título. Se
+       descuenta `ARRIBA`, que es justo lo que el canal sobresale. */
+    cabecera.style.top = ((cfg.y || 0) - ARRIBA - 96) + 'px';
+    /* La cabecera se centra escribiendo el transform ENTERO en `draw`, así
+       que aquí solo se deja el ancho; el `left: 50%` lo pone el CSS. */
+    chase.style.top = (cfg.y || 0) + 'px';
+
+    const nodos = (cfg.nodos || []);
+    const n = nodos.length;
+    /* La PRIMERA etapa marcada manda: un pipeline se para en la primera
+       puerta que no abre, no en la última. Si el plan marca dos, la segunda
+       es inalcanzable y el gráfico no debe fingir que pasa algo allí. */
+    bloqueada = nodos.findIndex(x => x && x.alerta);
+
+    canalAlto = (Math.max(1, n) - 1) * PASO_Y + gateY(0) + COLA;
+    canal.style.left = CANAL_X + 'px';
+    canal.style.width = CANAL_W + 'px';
+    canal.style.top = (-ARRIBA) + 'px';
+    canal.style.height = canalAlto + 'px';
+    chase.style.height = ((Math.max(1, n) - 1) * PASO_Y + ALTO) + 'px';
+
+    /* Se reconstruye todo menos el canal, la marca y el testigo, que son
+       piezas únicas y viven en el marcado. */
+    [...canal.querySelectorAll('.compuerta')].forEach(e => e.remove());
+    [...chase.querySelectorAll('.etapa, .bonete')].forEach(e => e.remove());
+    etapas = []; puertas = []; bonetes = [];
+
+    nodos.forEach((nd, i) => {
+      const c = document.createElement('div');
+      c.className = 'compuerta';
+      c.style.top = (gateY(i) - HOJA_H / 2) + 'px';
+      c.innerHTML = '<span class="hoja"><i class="trama" ' +
+                    'data-densidad="alta"></i></span>';
+      canal.appendChild(c);
+      puertas.push({ el: c, hoja: c.querySelector('.hoja') });
+
+      const b = document.createElement('div');
+      b.className = 'bonete';
+      b.style.top = (gateY(i) - ARRIBA - 16) + 'px';
+      chase.appendChild(b);
+      bonetes.push(b);
+
+      const e = document.createElement('div');
+      e.className = 'etapa';
+      e.style.left = ETAPA_X + 'px';
+      e.style.right = '0';
+      e.style.top = (i * PASO_Y) + 'px';
+      e.style.height = ALTO + 'px';
+      e.innerHTML =
+        '<span class="canto"></span><span class="faz"></span>' +
+        '<span class="num tnum"></span>' +
+        '<div class="txt"><span class="rot"></span>' +
+        '<span class="tit"></span><span class="sub"></span></div>';
+      e.querySelector('.num').textContent = String(i + 1).padStart(2, '0');
+      e.querySelector('.rot').textContent = nd.rot || '';
+      e.querySelector('.tit').textContent = nd.tit || '';
+      e.querySelector('.sub').textContent = nd.sub || '';
+      chase.appendChild(e);
+      /* Grano solo sobre la CARA, que es la única superficie opaca de la
+         pieza. Sobre una capa transparente el multiply devuelve el gris de la
+         teja y saldría un rectángulo gris flotando sobre el vídeo. */
+      Engine.grano(e.querySelector('.faz'), { px: 256, semilla: 11, op: 0.20 });
+      etapas.push(e);
+    });
+
+    /* SONIDO. Una señal por EVENTO: la hoja que se guarda en su bonete
+       (`clic`) y la que muerde (`fallo`). Nada por fotograma ni por etapa
+       que simplemente exista.
+
+       Los `clic` van bajos —0,32— porque la capa entera ya entra con un
+       `escaner` (`dirigir.py:643`) o un `aparicion` (`plan_codex.py`): el
+       barrido es el gráfico apareciendo y los clics son cada puerta
+       despejando. A volumen normal competirían con él. El `fallo` sí sube:
+       es el único de la capa y es la frase del gráfico.
+
+       El instante sale de `reloj()`, la MISMA función que usa `draw`. */
+    const R = reloj(cfg, Math.max(1, nodos.length));
+    const cues = nodos.map((nd, i) => (i === bloqueada
+      ? { at: +(R.veredicto(i) - R.apertura * 0.4).toFixed(3),
+          sfx: 'fallo', gain: 0.55 }
+      : { at: +(R.veredicto(i) - R.apertura * 0.45).toFixed(3),
+          sfx: 'clic', gain: 0.32 }))
+      /* Después de la puerta que retiene no pasa nada más: publicar los clics
+         de unas puertas que nunca abren sería sonido sin imagen. */
+      .filter((c, i) => (bloqueada < 0 || i <= bloqueada) &&
+                        c.at >= 0 && c.at <= (cfg.duration || 5))
+      .slice(0, 6);
+
+    return { cues: cfg.sinSonido ? [] : cues };
+  },
+
+  draw(t, cfg) {
+    const n = etapas.length || 1;
+    const R = reloj(cfg, n);
+    /* `Engine.entra` / `Engine.sale` en vez del párrafo de tres líneas
+       copiado a mano: la salida va en `inCubic`, que AGUANTA legible el 86,7 %
+       de su ventana frente al 29,6 % de `outCubic`. */
+    const ent = Engine.entra(t, cfg.entrada || 0.42);
+    const cierre = Engine.sale(t, R.dur, cfg.salida || 0.45);
+    const vis = ent * cierre;
+
+    if (cfg.lienzo) {
+      /* El banco entra ANTES que el bastidor y sale DESPUÉS: fundidos a la
+         vez, durante la transición se verían las placas sobre el A-Roll medio
+         visible. */
+      const f = cfg.fundido || 0.5;
+      banco.style.opacity =
+        span(t, 0, f, Ease.inOutCubic) *
+        (1 - span(t, R.dur - f, f, Ease.inOutCubic));
+    }
+
+    /* --- deriva de reposo (§10) ---------------------------------------
+       TRES periodos y no uno por pieza, y es una decisión, no un descuido:
+       el bastidor es UN objeto rígido —canal, bonetes y placas atornillados
+       al mismo filete—, así que si cada placa derivase por su cuenta se
+       despegarían del canal y el mecanismo dejaría de ser un mecanismo. Lo
+       que sí tiene vida propia es el testigo, que va suelto dentro de la
+       ranura y cabecea 1 px como cabecea cualquier pieza con holgura en su
+       guía. Y la cabecera, que cuelga aparte. */
+    const dRig = Engine.flota(t, 0, { amp: 2.0, periodo: 11.0, semilla: 4 });
+    const dCab = Engine.flota(t, 1, { amp: 1.6, periodo: 8.6, semilla: 4 });
+    const dTok = Engine.flota(t, 2, { amp: 1.0, periodo: 2.9, semilla: 4 });
+
+    chase.style.opacity = vis;
+    chase.style.transform =
+      'translateX(-50%) translate(' + dRig.x.toFixed(2) + 'px,' +
+      (dRig.y + (1 - ent) * 12).toFixed(2) + 'px)';
+
+    cabecera.style.opacity = span(t, 0.06, 0.30, Ease.outCubic) * cierre;
+    cabecera.style.transform =
+      'translateX(-50%) translate(' + dCab.x.toFixed(2) + 'px,' +
+      (dCab.y + (1 - span(t, 0.06, 0.30, Ease.outCubic)) * -10).toFixed(2) + 'px)';
+    /* El filete se DIBUJA: es lo primero que existe y todo se monta encima.
+       `outExpo` y no `outCubic` porque un trazo tirado a regla arranca a
+       velocidad y frena al final, no al revés. */
+    filete.style.transform =
+      'scaleX(' + span(t, 0, 0.34, Ease.outExpo).toFixed(4) + ')';
+
+    /* La ranura se FRESA de arriba abajo. `clip-path` y no altura: recortando,
+       las puertas y sus sombras aparecen a medida que el canal las descubre,
+       que es lo que hace una fresa; con `height`, el fondo hundido se
+       estiraría y las sombras interiores viajarían con él. */
+    const milla = span(t, 0, (cfg.entrada || 0.42) * 0.75, Ease.outCubic);
+    canal.style.clipPath = 'inset(0 0 ' + ((1 - milla) * 100).toFixed(2) + '% 0)';
+
+    /* --- el testigo ---------------------------------------------------
+       `k` es el tramo en curso: hacia qué puerta va. Se recorta al índice de
+       la puerta que retiene, porque más allá no hay camino. */
+    let k = t < R.ini ? -1 : Math.floor((t - R.ini) / R.paso);
+    if (bloqueada >= 0) k = Math.min(k, bloqueada);
+    k = Math.min(k, n);
+    const desde = k <= 0 ? -TOK_H - 12 : paradaY(k - 1);
+    const hasta = k < 0 ? -TOK_H - 12
+                : (k >= n ? canalAlto + 12 : paradaY(k));
+    const local = t - (R.ini + k * R.paso);
+    /* `inOutCubic` y no `outCubic`: el testigo ARRANCA parado contra una
+       puerta y TERMINA parado contra la siguiente. Con `outCubic` sale
+       disparado en el primer fotograma, que es el movimiento de algo que ya
+       venía lanzado — y aquí no venía. */
+    const q = k < 0 ? 0 : span(local, 0, R.viaje, Ease.inOutCubic);
+    let y = desde + (hasta - desde) * q;
+    /* Retroceso de contacto: 2,5 px al topar con la hoja. No es un rebote
+       elástico —§1 los prohíbe— sino el asentamiento de una pieza que llega a
+       tope: sube y vuelve, una sola vez, en 0,2 s. */
+    if (k >= 0 && k < n) {
+      y -= 2.5 * Math.sin(Math.PI * span(local, R.viaje, 0.20, Ease.outCubic));
+    }
+    /* No lleva opacidad propia: la fresa lo descubre. Recortarlo por alfa
+       además de por `clip-path` sería contarlo dos veces, y un testigo que se
+       funde en vez de asomar por la boca del canal no es una pieza que entra,
+       es un gráfico que aparece. */
+    testigo.style.transform =
+      'translate(' + dTok.x.toFixed(2) + 'px,' + y.toFixed(2) + 'px)';
+
+    const avance = clamp((y + TOK_H) / Math.max(1, canalAlto), 0, 1);
+    marca.style.clipPath =
+      'inset(0 0 ' + ((1 - avance) * 100).toFixed(2) + '% 0)';
+
+    /* --- las puertas y sus etapas -------------------------------------- */
+    let enCurso = 0;
+    puertas.forEach((p, i) => {
+      const sellada = i === bloqueada;
+      /* `outExpo`: una compuerta neumática despeja de golpe y frena al
+         llegar al bonete. La cuchilla se va 52 px a la izquierda, o sea 6
+         más de lo que mide el canal: así queda completamente tragada por el
+         recorte y no se ve un canto asomando en la pared. */
+      const abre = sellada ? 0
+        : span(t, R.veredicto(i) - R.apertura, R.apertura, Ease.outExpo);
+      p.hoja.style.transform = 'translateX(' + (-52 * abre).toFixed(2) + 'px)';
+      bonetes[i].classList.toggle('cargado', abre > 0.55);
+
+      /* El sellado es un CHASQUIDO, no un fundido: un relé que muerde cambia
+         de estado en un fotograma. Poner ahí una transición CSS además
+         rompería el determinismo — las transiciones corren con el reloj del
+         navegador y `seek(t)` no lo controla. */
+      const mordida = sellada &&
+        t >= R.veredicto(i) - R.apertura * 0.4;
+      p.el.classList.toggle('sellada', mordida);
+
+      const et = etapas[i];
+      const llega = R.llegada(i);
+      const viva = t >= llega - 0.06 && (bloqueada < 0 || i <= bloqueada);
+      et.classList.toggle('viva', viva);
+      et.classList.toggle('retenida', mordida);
+
+      /* El peso como estado. 300 -> 800 mientras la etapa inspecciona, y 900
+         en la que retiene: la placa que para la pieza es la más pesada de la
+         columna, que es la jerarquía que pide §1. */
+      const insp = span(t, llega, Math.max(0.2, R.veredicto(i) - llega) * 0.9,
+                        Ease.outCubic);
+      const extra = mordida
+        ? 100 * span(t, R.veredicto(i) - R.apertura * 0.4, 0.18, Ease.outCubic)
+        : 0;
+      const w = Math.round(300 + 500 * insp + extra);
+      const tit = et.querySelector('.tit');
+      Engine.peso(tit, w);
+      tit.style.fontWeight = w;
+
+      /* Montaje: cada placa se atornilla al filete con 0,09 s de desfase.
+         `outBack6` es el `outBack` con el sobrepaso CALIBRADO al 6 % que
+         permite §10; el `outBack` de serie se pasa un 10 % y está fuera de
+         norma. Aquí el sobrepaso es lo que hace que la placa parezca que
+         ASIENTA contra el tope en vez de aterrizar. */
+      const mont = span(t, 0.18 + i * 0.09, 0.40, Ease.outBack6);
+      /* Sacudida al morder: la placa encaja la carga y devuelve 3 px. Sale de
+         la MISMA expresión que el chasquido, así que no puede desfasarse. */
+      const golpe = sellada
+        ? 3 * Math.sin(Math.PI * span(t, R.veredicto(i) - R.apertura * 0.4,
+                                      0.22, Ease.outCubic))
+        : 0;
+      et.style.opacity = clamp(mont, 0, 1);
+      et.style.transform =
+        'translateX(' + ((1 - mont) * -16 + golpe).toFixed(2) + 'px)';
+
+      if (viva) enCurso = i + 1;
+    });
+
+    /* La lectura de la chapa sale del mismo `enCurso` que acaba de decidir
+       qué placas están vivas: no hay forma de que diga una puerta y se ilumine
+       otra. */
+    cuenta.textContent =
+      String(enCurso).padStart(2, '0') + ' / ' + String(n).padStart(2, '0');
+  },
+
+  /* La clave se llama `red` desde la primera versión y se conserva: un plan
+     puede anclar una anotación a `securitypipelinenodes.red`, y renombrarla
+     rompería ese plan sin dar ningún error —`validar_plan.py` solo comprueba
+     las anclas que EXISTEN en el manifiesto—. */
+  anclas() {
+    const b = chase.getBoundingClientRect();
+    return { red: { x: Math.round(b.left + b.width / 2),
+                    y: Math.round(b.top + b.height / 2),
+                    w: Math.round(b.width), h: Math.round(b.height) } };
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,496 @@
+<!-- hyperframes-registry-item: macos-notification -->
+<!doctype html>
+<html lang="en">
+  <head>
+<!-- /* PALETA-AJENA: inicio */ -->
+    <meta charset="UTF-8" />
+    <script src="_gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        background: transparent;
+        overflow: hidden;
+      }
+      body {
+        width: 1920px;
+        height: 1080px;
+        font-family: "Inter", sans-serif;
+      }
+
+      [data-composition-id="macos-notification"] .notification-card {
+        position: absolute;
+        top: 24px;
+        right: 24px;
+        width: 380px;
+        background: rgba(30, 30, 30, 0.82);
+        backdrop-filter: blur(40px);
+        -webkit-backdrop-filter: blur(40px);
+        border-radius: 16px;
+        padding: 16px;
+        box-shadow:
+          0 8px 32px rgba(0, 0, 0, 0.4),
+          inset 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+      }
+
+      [data-composition-id="macos-notification"] .app-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        flex-shrink: 0;
+        overflow: hidden;
+      }
+
+      [data-composition-id="macos-notification"] .app-icon svg {
+        width: 36px;
+        height: 36px;
+        display: block;
+      }
+
+      [data-composition-id="macos-notification"] .notification-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      [data-composition-id="macos-notification"] .notification-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2px;
+      }
+
+      [data-composition-id="macos-notification"] .app-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.5);
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+      }
+
+      [data-composition-id="macos-notification"] .time-label {
+        font-size: 13px;
+        font-weight: 400;
+        color: rgba(255, 255, 255, 0.35);
+      }
+
+      [data-composition-id="macos-notification"] .notification-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: #ffffff;
+        line-height: 1.3;
+        margin-bottom: 2px;
+      }
+
+      [data-composition-id="macos-notification"] .notification-body {
+        font-size: 13px;
+        font-weight: 400;
+        color: rgba(255, 255, 255, 0.6);
+        line-height: 1.35;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+    </style>
+    <link rel="stylesheet" href="_tokens.css">
+  <script src="_engine.js"></script>
+</head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="macos-notification"
+      data-width="1080"
+      data-height="1920"
+      data-start="0"
+      data-duration="5"
+    >
+      <div
+        id="notification"
+        class="clip notification-card"
+        data-start="0"
+        data-duration="5"
+        data-track-index="0"
+      >
+        <div class="app-icon">
+          <svg viewBox="0 0 36 36" fill="none">
+            <defs>
+              <linearGradient
+                id="icon-grad"
+                x1="0"
+                y1="0"
+                x2="36"
+                y2="36"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop offset="0%" stop-color="#6366f1" />
+                <stop offset="100%" stop-color="#8b5cf6" />
+              </linearGradient>
+            </defs>
+            <rect width="36" height="36" rx="8" fill="url(#icon-grad)" />
+            <text
+              x="18"
+              y="23"
+              text-anchor="middle"
+              font-family="Inter, sans-serif"
+              font-size="14"
+              font-weight="700"
+              fill="#fff"
+            >
+              HF
+            </text>
+          </svg>
+        </div>
+        <div class="notification-content">
+          <div class="notification-header">
+            <span class="app-name">HyperFrames</span>
+            <span class="time-label">now</span>
+          </div>
+          <div class="notification-title">Prompt to replace this title</div>
+          <div class="notification-body">
+            Prompt to change this body text, the app icon, and the app name to match your content.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+
+      var tl = gsap.timeline({ paused: true });
+      var notification = document.getElementById("notification");
+
+      // Start off-screen to the right
+      gsap.set(notification, { x: 420, opacity: 0 });
+
+      // Slide in from right
+      tl.to(
+        notification,
+        {
+          x: 0,
+          opacity: 1,
+          duration: 0.5,
+          ease: "power3.out",
+        },
+        0.2,
+      );
+
+      // Slide out to right
+      tl.to(
+        notification,
+        {
+          x: 420,
+          opacity: 0,
+          duration: 0.3,
+          ease: "power3.in",
+        },
+        4.2,
+      );
+
+      window.__timelines["macos-notification"] = tl;
+    </script>
+  
+
+<!-- /* PALETA-AJENA: fin */ -->
+
+
+
+
+
+
+
+
+<!-- PUENTE:inicio · generado por scripts/importar_bloque.js -->
+<style>
+  /* El lienzo de este repo, y la raíz TRANSPARENTE: si el fondo llega opaco,
+     omitBackground no lo recorta y los PNG salen sin alfa — el compositor
+     los pega como un rectángulo y tapa el metraje. */
+  html, body { width: 1080px; height: 1920px; margin: 0;
+               background: transparent !important; overflow: hidden; }
+  [data-composition-id="macos-notification"] { transform-origin: 50% 50%; }
+  /* El PLAFÓN DE AUTO-PREVISUALIZACIÓN. Varias piezas del catálogo traen un
+     fondo propio para poder mirarse solas —hf-hw-callout-circle lo llama
+     literalmente «self-preview scene» y es un degradado verde— y sobre
+     nuestro metraje eso no es un fondo: es una mancha que tapa el plano.
+     Se quita el relleno y se deja el contenido, que es lo que se quería. */
+  [id$="-scene"] { background: none !important; }
+</style>
+<script>
+(function () {
+  var ID = "macos-notification";
+  var RANURAS = {};
+  var raiz = document.querySelector('[data-composition-id="' + ID + '"]');
+  var tl = (window.__timelines || {})[ID] || null;
+
+  /* Maqueta a 1920x1080 y aquí el lienzo es 1080x1920: se escala al ancho y
+     se centra. Es un APAÑO declarado, no una solución — la buena es rehacer
+     la maqueta en vertical. config.encaje:false lo desactiva y
+     config.escala lo fuerza.
+     La medida sale de data-width/data-height y NO de offsetWidth: la raíz de
+     varios bloques mide 0x0 —es un ancla para hijos posicionados, no una
+     caja— y con la medida del DOM el encaje la mandaba a left:-420, fuera
+     del cuadro. Fotograma transparente, cero errores, y el humo diciendo
+     «no se mueve» porque no había nada que moviera. Por eso se envuelve en
+     una caja del tamaño DECLARADO: así los hijos absolutos tienen un
+     contenedor de verdad y la escala se aplica a algo con dimensiones. */
+  var caja = null;
+  function encaja(cfg) {
+    if (!raiz || cfg.encaje === false) return;
+    var w = +raiz.dataset.width || raiz.offsetWidth || 1920;
+    var h = +raiz.dataset.height || raiz.offsetHeight || 1080;
+    if (!caja) {
+      caja = document.createElement('div');
+      raiz.parentNode.insertBefore(caja, raiz);
+      caja.appendChild(raiz);
+    }
+    caja.style.cssText = 'position:absolute;left:0;top:0;width:' + w
+                       + 'px;height:' + h + 'px;transform-origin:0 0;';
+    raiz.style.position = 'absolute';
+    raiz.style.left = '0'; raiz.style.top = '0';
+    raiz.style.width = w + 'px'; raiz.style.height = h + 'px';
+    var k = cfg.escala || Math.min(1080 / w, 1920 / h);
+    /* DÓNDE, y no solo cuánto. Centrado es lo razonable por defecto, pero un
+       rótulo inferior centrado en un lienzo vertical queda en mitad de la
+       cara; y §18 dice que la banda de abajo la pinta la app. zona mueve la
+       caja ya escalada sin tocar la maqueta de dentro: arriba pega bajo la
+       banda superior (230 px), abajo se apoya sobre la inferior (1459 px). */
+    var alto = h * k;
+    var y = (1920 - alto) / 2;
+    if (cfg.zona === 'arriba') y = 230 + 40;
+    else if (cfg.zona === 'abajo') y = 1459 - 40 - alto;
+    caja.style.transform = 'translate(' + Math.round((1080 - w * k) / 2)
+      + 'px,' + Math.round(y) + 'px) scale(' + k + ')';
+  }
+
+  /* LA CAJA DE TINTA, para colocar.py.
+     Sin anclas() una capa es invisible para el colocador: no sabe cuánto
+     ocupa ni dónde, así que no puede apartarla del rostro ni avisar de que
+     cae bajo el caption de la app. Nuestras plantillas la declaran a mano
+     porque saben qué parte de sí mismas importa; un bloque importado no
+     puede saberlo, así que se MIDE: unión de los rectángulos visibles, ya en
+     coordenadas de lienzo —getBoundingClientRect incluye la transformación
+     del encaje—, descartando los contenedores que cubren casi todo.
+     Se llama después de seek, así que la caja es la del instante que se
+     esté mirando y no la del reposo. */
+  function tinta() {
+    if (!raiz) return null;
+    /* Dos pasadas. La primera descarta los contenedores que cubren casi todo
+       —si no, la caja de cualquier plantilla sería el lienzo entero y el dato
+       no diría nada—. Pero en las de dibujo a mano el contenido ES un <svg> a
+       pantalla completa y sus <path> devuelven cajas de cero: con el filtro
+       puesto, veintisiete plantillas se quedaban sin ancla. Si la primera
+       pasada no deja nada, se repite SIN filtro: una caja grande de más es
+       peor que ninguna, pero ninguna es peor que las dos. */
+    function une(filtra) {
+      var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      var todos = raiz.querySelectorAll('*');
+      for (var i = 0; i < todos.length; i++) {
+        var e = todos[i], s = getComputedStyle(e);
+        if (s.display === 'none' || s.visibility === 'hidden' ||
+            parseFloat(s.opacity) < 0.05) continue;
+        var r = e.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        if (filtra && r.width * r.height > 0.92 * 1080 * 1920) continue;
+        if (r.left < x0) x0 = r.left;
+        if (r.top < y0) y0 = r.top;
+        if (r.right > x1) x1 = r.right;
+        if (r.bottom > y1) y1 = r.bottom;
+      }
+      return x1 < x0 ? null : [x0, y0, x1, y1];
+    }
+    var c = une(true) || une(false);
+    if (!c) return null;
+    var x0 = c[0], y0 = c[1], x1 = c[2], y1 = c[3];
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0);
+    x1 = Math.min(1080, x1); y1 = Math.min(1920, y1);
+    return { bloque: { x: Math.round((x0 + x1) / 2), y: Math.round((y0 + y1) / 2),
+                       w: Math.round(x1 - x0), h: Math.round(y1 - y0) } };
+  }
+
+  /* LA SALIDA, que sus bloques no tienen: entran y se quedan puestos hasta
+     que la composición acaba. Aquí una capa vive dentro de su ventana y
+     tiene que irse, y no es cosmética — es lo que humo_plantillas.js
+     comprueba cuando muestrea tres instantes y exige que no sean el mismo
+     fotograma. Medido: x-post y macos-notification animan su entrada y dan
+     tres capturas idénticas después.
+     Es una salida GENÉRICA —se va bajando y encogiendo un pelo— y por eso
+     se puede apagar con config.salida:false cuando el bloque tenga la suya
+     propia. Determinista: solo depende de t. */
+  var SALIDA = 0.42;
+  /* La duración del GESTO, medida al importar. La sustituye el importador;
+     el valor de aquí es el de respaldo para quien abra el fichero suelto.
+     Va en una variable y no en dos sitios a propósito: la salida tiene que
+     caer dentro de la MISMA ventana que registra la plantilla, y cuando eran
+     dos números —la declarada por la timeline y la registrada— la salida se
+     programaba fuera del tramo que nadie llega a ver. */
+  /* El copy que el plan pide, repartido por orden sobre las ranuras que
+     declara TEXTOS. Lo que sobra se ignora; lo que falta se queda con lo que
+     el bloque traía.
+     Se aplica en CADA fotograma y no solo al montar, y no es por comodidad:
+     varios bloques animan su propio texto —un contador que sube, un
+     tecleado— así que su timeline reescribe el nodo en cada seek y el copy
+     del plan duraba un fotograma. Medido: la tarjeta pedía «−12» y salía el
+     «22» de la demo. */
+  function copia(cfg) {
+    for (var k in RANURAS) {
+      if (!cfg || !cfg[k] || !cfg[k].length) continue;
+      var nodos = document.querySelectorAll(RANURAS[k]);
+      for (var i = 0; i < nodos.length && i < cfg[k].length; i++) {
+        if (nodos[i].textContent !== cfg[k][i]) nodos[i].textContent = cfg[k][i];
+      }
+    }
+  }
+
+  var DUR = 1.25;   /* MEDIDO al importar */
+  var vida = DUR;
+
+  Engine.register({
+    duration: DUR,
+    /* Las ranuras se escriben LITERALES en los defaults, no con un
+       Object.assign: lint_config.py lee ese bloque con una expresión regular
+       —no ejecuta la plantilla— así que una clave calculada no existe para
+       él y el plan que la usa aborta por «clave que la plantilla no lee».
+       Las ranuras entran aquí porque lint_config.py --estricto
+       comprueba que toda clave del plan la lea de verdad su plantilla: sin
+       declararlas, pedir el copy por config es una clave muerta y el paso
+       aborta. */
+    defaults: { encaje: true, escala: null, zona: 'centro', salida: true,
+                tema: 'carbon', cue: null, cueGain: null },
+    setup: function (cfg) {
+      encaja(cfg);
+      vida = cfg.duration || DUR;
+      copia(cfg);
+      /* EL SONIDO: NINGUNO por defecto, y esto es una vuelta atrás.
+         Se publicaba un «aparicion» genérico en cada bloque importado para
+         que no entraran mudos. Sobre la pieza montada suena a lo que es: el
+         mismo golpe blando en 126 sitios, puesto por una regla que no sabe
+         qué está entrando. Un sonido que no significa nada es peor que el
+         silencio, porque el oído lo cuenta igual.
+         Quien sabe qué suena una capa es el guion —sfx en la capa— o la
+         tabla del director para las plantillas que conoce. Con cue en la
+         config se puede pedir uno a mano. */
+      return { cues: (!cfg.sinSonido && cfg.cue)
+                     ? [{ at: 0.04, sfx: cfg.cue, gain: cfg.cueGain || 0.5 }]
+                     : [] };
+    },
+    anclas: function () { return tinta(); },
+    /* El puente entero. Los dos motores hacen lo mismo —posicionar una
+       animación en el segundo t, sin tocar el reloj del navegador—, así que
+       no hay nada que traducir. */
+    /* La salida va en la raíz y el encaje en la caja que la envuelve: dos
+       transformaciones en dos nodos, para que no se pisen. */
+    draw: function (t, cfg) {
+      if (tl) tl.time(Math.max(0, Math.min(t, tl.duration())));
+      copia(cfg);
+      if (!raiz) return;
+      if (cfg && cfg.salida !== false && vida > SALIDA) {
+        var d = (t - (vida - SALIDA)) / SALIDA;
+        if (d > 0) {
+          var e = 1 - Math.min(1, d);
+          e = e * e * (3 - 2 * e);              /* suavizado, sin rebote */
+          raiz.style.opacity = e;
+          raiz.style.transform = 'translateY(' + ((1 - e) * -26).toFixed(2)
+                               + 'px) scale(' + (0.985 + 0.015 * e).toFixed(4) + ')';
+          return;
+        }
+      }
+      raiz.style.opacity = '';
+      raiz.style.transform = '';
+    }
+  });
+})();
+</script>
+<!-- PUENTE:fin -->
+
+
+
+
+
+
+<style>
+  /* ── MAQUETA VERTICAL 1080x1920 ────────────────────────────────────────
+     Una notificación de macOS mide 380 px sobre un escritorio de 1920. Traída
+     aquí y encajada a 0,5625 se quedaba en 214 px —el 20 % del lienzo— con el
+     cuerpo a 7 px REALES: en un móvil eso no se lee, se adivina. Y encima
+     nacía pegada al borde derecho (`top:24; right:24`), o sea en la esquina
+     que la app tapa con sus propios controles.
+
+     Sigue siendo una TARJETA —no se convierte en un rótulo de banda, que es
+     lo que la haría dejar de parecer una notificación— pero ocupa la columna
+     entera y se coloca en el tercio alto, por debajo de la banda superior de
+     la plataforma (230 px, BRAND_RULES §18).
+
+     Las proporciones internas de macOS se mantienen: icono cuadrado a la
+     izquierda, nombre de app en versalitas sobre el titular, cuerpo a dos
+     líneas recortadas. Lo que cambia es la ESCALA, que es lo único que
+     estaba mal.
+
+     La entrada sigue siendo el deslizamiento desde la derecha del bloque
+     (`x:420` -> 0), así que en el primer cuarto la tarjeta ASOMA por el borde
+     derecho. Es la entrada, no un desbordamiento: a partir de que se asienta
+     vive dentro de los márgenes. */
+  #root { width: 1080px; height: 1920px; }
+
+  [data-composition-id="macos-notification"] .notification-card {
+    top: 300px;
+    left: var(--s-7);
+    right: var(--s-7);
+    width: auto;
+    padding: var(--s-6);
+    gap: var(--s-5);
+    border-radius: calc(var(--r-lg) * 2);
+  }
+
+  [data-composition-id="macos-notification"] .app-icon,
+  [data-composition-id="macos-notification"] .app-icon svg {
+    width: 108px;
+    height: 108px;
+  }
+
+  [data-composition-id="macos-notification"] .app-icon {
+    border-radius: var(--r-lg);
+  }
+
+  [data-composition-id="macos-notification"] .notification-header {
+    margin-bottom: var(--s-1);
+  }
+
+  [data-composition-id="macos-notification"] .app-name {
+    font-family: var(--display);
+    font-size: var(--t-sm);
+    font-weight: var(--w-fuerte);
+    letter-spacing: var(--tr-caps);
+  }
+
+  [data-composition-id="macos-notification"] .time-label {
+    font-family: var(--subs);
+    font-size: var(--t-sm);
+    font-weight: var(--w-libro);
+  }
+
+  [data-composition-id="macos-notification"] .notification-title {
+    font-family: var(--display);
+    font-size: var(--t-xl);
+    font-weight: var(--w-negro);
+    letter-spacing: var(--tr-display);
+    line-height: 1.16;
+    margin-bottom: var(--s-2);
+  }
+
+  [data-composition-id="macos-notification"] .notification-body {
+    font-family: var(--subs);
+    font-size: var(--t-md);
+    font-weight: var(--w-libro);
+    letter-spacing: var(--tr-cuerpo);
+    line-height: 1.34;
+  }
+</style>
+
+</body>
+</html>

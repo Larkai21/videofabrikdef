@@ -1,0 +1,986 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Muestrario de subtítulos</title>
+<meta name="gesto" content="asentar:muestrario">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* ======================================================================
+     QUÉ ES ESTO
+     ----------------------------------------------------------------------
+     Un MUESTRARIO, no una rejilla de tarjetas. La diferencia no es de
+     adorno: un muestrario de fundición —o un catálogo de pantones— tiene
+     tres partes y las tres hacen trabajo distinto.
+
+       · la VENTANA, donde la muestra se ve en su condición real de uso.
+         Aquí la condición real es «sobre metraje», así que la ventana es
+         un tono medio y no el fondo de la hoja. Es lo que §16 ya exigía.
+       · la BANDA, donde el catálogo habla de la muestra: número, nombre y
+         ficha técnica. Es la voz de ESTA marca, y va entera en tokens.
+       · la HOJA, que las ordena y las numera.
+
+     Antes las tres estaban fundidas: la etiqueta flotaba DENTRO de la
+     ventana, en mono blanco de 15 px sobre el metraje, compitiendo con la
+     muestra que estaba juzgando. Separarlas resuelve de paso el conflicto
+     de fondo de este fichero — la higiene de marca y los presets ajenos
+     dejan de pelearse porque ya no viven en el mismo sitio: la ventana es
+     100 % del preset y la banda es 100 % de la marca.
+
+     Y la ficha técnica está MEDIDA, no escrita a mano. Ver §FICHA abajo.
+     ====================================================================== */
+
+  /* ======================================================================
+     §PALETA AJENA · quince excepciones DECLARADAS
+     ----------------------------------------------------------------------
+     Estos quince colores son de terceros a propósito: reproducen looks
+     conocidos, que es lo único que esta plantilla existe para hacer.
+     Tokenizarlos «para bajar el contador» convertiría diez presets
+     distintos en diez veces el mismo bronce.
+
+     Las reglas que sí se cumplen, y que son las que importan:
+
+       1. Ni uno se usa FUERA del bloque de su preset. La hoja, la banda,
+          la cabecera y el pie —todo lo que es de esta marca— van en
+          tokens de `_tokens.css`, sin una sola excepción.
+       2. El que coincide con un color de marca se escribe como token y no
+          como excepción: el bronce del preset 1, del 7 y del 9 es
+          `var(--accent)`, no `#CD7F32`.
+       3. El preset 1 es NUESTRO —«Carbon & Bronze»— y por eso no aparece
+          aquí: va entero en tokens semánticos y cambia con el tema.
+
+     Eran 46 hexadecimales sueltos. Quedan quince, todos con nombre.
+     ====================================================================== */
+  :root {
+  /* PALETA-AJENA: inicio */
+    --x-blanco:          #FFFFFF;   /* el blanco de subtítulo de vídeo. NO es
+                                       `--ink`: no debe cambiar con el tema,
+                                       porque no es tinta de interfaz sino el
+                                       color que estos presets tienen. */
+    --x-negro:           #000000;   /* trazo, extrusión y sombra dura */
+    --x-coral:           #FF3B4E;   /* preset 2 y extrusión del 6 */
+    --x-coral-claro:     #FF6B4E;   /* stop del degradado del preset 7 */
+    --x-ambar:           #F0A030;   /* stop del degradado del preset 7 */
+    --x-lima:            #FFE500;   /* preset 3 (Hormozi) y clave del 6 */
+    --x-cian:            #00F0FF;   /* preset 4 (Cyber Neon) y clave del 6 */
+    --x-cian-fondo:      #00141A;   /* la caja del preset 4 */
+    --x-champan:         #F4E0A5;   /* preset 5 y clave del 7 */
+    --x-lima-electrico:  #CCFF00;   /* clave del preset 8 */
+    --x-cinta-tinta:     #14141A;   /* preset 9: la tinta de la etiqueta */
+    --x-cinta-papel:     #F5F0E4;   /* preset 9: el papel de la etiqueta */
+    --x-oro-sombra:      #8A6A2F;   /* preset 10 */
+    --x-oro:             #C9A227;   /* preset 10 */
+    --x-oro-luz:         #FFF4C4;   /* preset 10 */
+  /* PALETA-AJENA: fin */
+
+    /* El TRACKING de un preset ajeno también es suyo. Se declara con nombre
+       por el mismo motivo que el color: un `-0.015em` suelto parece un
+       descuido y es la firma de ese estilo. Los que coinciden EXACTAMENTE
+       con un token de la curva de marca —los −0,02em de los presets 6, 7 y
+       10— se escriben como `var(--tr-display)`, que es lo que son. */
+    --x-tr-coral:      -0.01em;
+    --x-tr-hormozi:    -0.015em;
+    --x-tr-neon:        0.02em;
+    --x-tr-editorial:   0.10em;
+    --x-tr-lima:       -0.035em;
+    --x-tr-cinta:       0.06em;
+
+    /* ------------------------------------------------------------------
+       LOS DOS TONOS DE METRAJE.
+       Antes eran cuatro hexadecimales a pelo (#55555E #33333A #6B5F52
+       #3A332C). No son de ningún preset: son la CONDICIÓN DE VISIONADO
+       del muestrario, o sea chrome de esta marca, y por tanto tienen que
+       salir de tokens.
+
+       Salen de `--velo-claro` y `--velo-oscuro`, que son los dos únicos
+       tokens FIJOS en los dos temas — y eso es exactamente lo que hace
+       falta aquí: el metraje no cambia porque cambie el tema de la hoja.
+       Medido, el mix reproduce los cuatro valores anteriores con un error
+       de tono y no de luz: 36 % da #555555 (antes #55555E) y 20 % da
+       #323233 (antes #33333A). El cálido añade un 16 % de `--accent`:
+       #685C53 (antes #6B5F52) y #493E37 (antes #3A332C).
+
+       Se mezcla en `oklab` y no en sRGB porque entre dos tonos medios sRGB
+       pasa por un gris barro. */
+    --tono-frio-a:   color-mix(in oklab, var(--velo-claro) 36%, var(--velo-oscuro));
+    --tono-frio-b:   color-mix(in oklab, var(--velo-claro) 20%, var(--velo-oscuro));
+    --tono-calido-a: color-mix(in oklab, var(--tono-frio-a) 84%, var(--accent));
+    --tono-calido-b: color-mix(in oklab, var(--tono-frio-b) 84%, var(--accent));
+  }
+
+  .stage { position: absolute; inset: 0; background: transparent; }
+
+  /* ======================================================================
+     LA HOJA
+     ====================================================================== */
+  .hoja {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    padding: var(--s-6);
+  }
+  /* El papel va en su propia capa y NO en `.hoja`, porque lleva la trama y
+     un `background-image` en `.hoja` pelearía con la clase. Además así
+     queda debajo de todo con `z-index` y no por orden del DOM. */
+  .papel {
+    position: absolute; inset: 0; z-index: 0;
+    background-color: var(--bg);
+  }
+  .cabecera, .filete, .rejilla, .pie { position: relative; z-index: 1; }
+
+  /* ---------- cabecera ---------- */
+  .cabecera {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: var(--s-6);
+  }
+  /* La cadena de muestra, impresa UNA vez a tamaño de titular: es lo que
+     todas las fichas están componiendo, y un muestrario que no la enseña
+     obliga a deducirla de diez maquetaciones distintas. */
+  .cadena {
+    font-family: var(--display); font-size: var(--t-2xl);
+    font-weight: var(--w-negro); letter-spacing: var(--tr-display);
+    text-transform: uppercase; line-height: 1.02; color: var(--ink);
+  }
+  /* §7 dice que la jerarquía dentro de una línea se hace con un salto de
+     peso o con `--editorial` en cursiva sobre una o dos palabras, NUNCA
+     encendiendo un color. Aquí se hace con las dos cosas a la vez, y de
+     paso separa la VOZ de la marca de las diez voces ajenas de abajo. */
+  .cadena em {
+    font-family: var(--editorial); font-style: italic;
+    font-weight: var(--w-libro); letter-spacing: var(--tr-texto);
+    text-transform: none; color: var(--accent);
+  }
+  .marcador { text-align: right; flex: none; }
+  .marcador .cifra {
+    font-family: var(--mono); font-size: var(--t-3xl);
+    font-weight: var(--w-fino); letter-spacing: var(--tr-hero);
+    line-height: 0.9; color: var(--ink);
+  }
+  .marcador .rotulo {
+    font-family: var(--mono); font-size: var(--t-2xs);
+    letter-spacing: var(--tr-caps-ancho); text-transform: uppercase;
+    color: var(--ink-faint); margin-top: var(--s-1);
+  }
+
+  /* El filete de bronce que cierra la cabecera. `.brushed` y no un plano
+     naranja: §2 pide que el bronce lea como metal, y una barra de 3 px es
+     justo donde el degradado diagonal todavía se aprecia. */
+  .filete {
+    height: 3px; margin: var(--s-4) 0 var(--s-5);
+    transform-origin: left center;
+  }
+
+  /* ---------- rejilla de fichas ---------- */
+  .rejilla {
+    flex: 1; display: grid; grid-template-columns: 1fr 1fr;
+    grid-auto-rows: 1fr; gap: var(--s-4);
+  }
+
+  .ficha { display: flex; flex-direction: column; will-change: transform, opacity; }
+
+  /* La VENTANA. Fondo de MEDIO TONO, no negro: sobre negro, el trazo negro
+     de 4 px del preset 3 y las sombras duras del 6 son invisibles —están
+     ahí, 18.000 píxeles cambian al quitarlos, medido— pero no se pueden
+     juzgar. Un catálogo sobre fondo negro miente sobre la mitad de sus
+     fichas. Los dos tonos se alternan en DAMERO y no por columnas: con
+     `nth-child(even)` sobre dos columnas, la izquierda salía siempre fría
+     y la derecha siempre cálida, o sea que las dos columnas no eran
+     comparables entre sí. */
+  .ventana {
+    position: relative; flex: 1; overflow: hidden; isolation: isolate;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(155deg, var(--tono-frio-a) 0%, var(--tono-frio-b) 100%);
+    /* La viñeta es lo que hace que esto lea como un FOTOGRAMA y no como
+       una pastilla de color. Es un hundido de bordes, no un halo: §1
+       prohíbe destacar con luz, no oscurecer un borde. */
+    box-shadow: inset 0 0 0 var(--hairline) var(--stroke),
+                inset 0 0 54px var(--vineta);
+  }
+  .ficha[data-tono="calido"] .ventana {
+    background: linear-gradient(155deg, var(--tono-calido-a) 0%, var(--tono-calido-b) 100%);
+  }
+  .ventana .lienzo {
+    /* El contenido se dibuja SIEMPRE a 1080 px de ancho y se reduce con
+       `zoom`. Maquetar cada ficha a su tamaño real daría cuerpos de letra
+       distintos y la comparación dejaría de ser justa. */
+    position: relative; z-index: 2;
+    width: 1080px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* La BANDA: la voz del catálogo. Cero colores ajenos aquí dentro. */
+  .banda {
+    position: relative; flex: none;
+    display: flex; align-items: center; gap: var(--s-3);
+    padding: var(--s-3) var(--s-4);
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+  /* La MARCA de lectura: un filete de bronce que se traza de izquierda a
+     derecha sobre la banda cuando el recorrido se detiene en esta ficha.
+     Es el pasador de un muestrario de pantones, no un resaltado. */
+  .marca {
+    position: absolute; left: 0; right: 0; top: 0; height: 3px;
+  }
+  .num {
+    font-family: var(--mono); font-size: var(--t-lg);
+    font-weight: var(--w-fino); line-height: 1;
+    color: var(--ink-faint); flex: none;
+  }
+  .datos { flex: 1; min-width: 0; }
+  .nombre {
+    font-family: var(--display); font-size: var(--t-md);
+    font-weight: var(--w-claro); letter-spacing: var(--tr-texto);
+    line-height: 1.1; color: var(--ink-soft);
+  }
+  .spec {
+    display: flex; align-items: center; gap: var(--s-2);
+    margin-top: var(--s-1);
+    font-family: var(--mono); font-size: var(--t-2xs);
+    font-weight: var(--w-medio); letter-spacing: var(--tr-cuerpo);
+    color: var(--ink-faint); white-space: nowrap;
+  }
+  .spec .tnum { font-variant-numeric: tabular-nums; }
+  /* Separador DIBUJADO. §8 prohíbe los dingbats del sistema: un filete de
+     bronce de 1 px cuesta lo mismo y es de esta marca. */
+  .sep { flex: none; width: var(--hairline); height: 12px;
+         background: var(--accent); opacity: 0.55; }
+  /* Cuando la familia que se pide NO es la que resuelve el navegador, la
+     ficha lo dice en bronce. Ver §FICHA. */
+  .fam.respaldo { color: var(--accent); }
+
+  /* ---------- pie ---------- */
+  .pie {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--s-5); margin-top: var(--s-5); padding-top: var(--s-3);
+    border-top: var(--hairline) solid var(--rule);
+    font-family: var(--mono); font-size: var(--t-2xs);
+    letter-spacing: var(--tr-caps-ancho); text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .pie .izq { display: flex; align-items: center; gap: var(--s-3); }
+  /* El punto de separación, otra vez dibujado y no tecleado. */
+  .punto { width: 5px; height: 5px; background: var(--accent); flex: none; }
+
+  /* ======================================================================
+     VISTA `solo`
+     ----------------------------------------------------------------------
+     La ventana pasa a ocupar el cuadro entero y la muestra baja al tercio
+     inferior, que es donde vive un subtítulo. La ventana OPACA es
+     deliberada aunque impida componer esta vista sobre otro metraje: §16
+     dice que un preset de subtítulo no se puede juzgar sin un tono medio
+     detrás, y esta plantilla no entra en `ORDEN` —no es un componente de
+     pieza, es la hoja de muestra—, así que no hay ningún montaje que
+     dependa de que salga transparente.
+     ====================================================================== */
+  .hoja.solo { padding: 0; }
+  .hoja.solo .ficha { position: absolute; inset: 0; }
+  /* `inset: -6px` y no `0`: la ficha entera deriva con `Engine.flota`, y en
+     esta vista la ventana ES el cuadro. Con la ventana a ras del lienzo, esos
+     dos píxeles de deriva destapaban una franja TRANSPARENTE en el borde —que
+     sobre metraje no se ve, y en el PNG suelto sí—. La amplitud máxima de la
+     flotación son 2 px en Y y 1,1 en X, así que 6 px la cubren de sobra. */
+  .hoja.solo .ventana { position: absolute; inset: -6px; align-items: flex-end; }
+  /* El margen lateral no es estético: sin él la píldora del preset 1 —que a
+     1080 px de ancho ocupa el lienzo entero— salía con las dos puntas
+     redondeadas CORTADAS por el borde del cuadro. Un subtítulo real tampoco
+     se pega al canto. */
+  .hoja.solo .lienzo { width: 100%; padding: 0 var(--s-8) 16%; }
+  .hoja.solo .banda {
+    position: absolute; z-index: 3;
+    left: var(--s-6); right: var(--s-6); top: var(--s-6);
+  }
+
+  /* Sonda de medición: fuera de pantalla, sin `display:none` porque hace
+     falta que MAQUETE para poder medirla. Ver §FICHA. */
+  .sonda { position: absolute; left: -9999px; top: 0; visibility: hidden; }
+
+  /* ======================================================================
+     LAS MUESTRAS
+     ====================================================================== */
+  .bloque { text-align: center; }
+  .grupo  { display: flex; flex-wrap: wrap; align-items: baseline;
+            justify-content: center; gap: 0 0.22em;
+            will-change: transform, opacity; }
+  .w      { display: inline-block; }
+
+  /* ======================================================================
+     PRESET 1 · Carbon & Bronze — EL NUESTRO
+     ----------------------------------------------------------------------
+     Único preset sin una sola excepción: va entero en tokens semánticos y
+     por eso es el único que CAMBIA con el tema, que es justo lo que un
+     preset de marca tiene que hacer.
+
+     `--scrim` y `--sobre-relleno` son la pareja exacta para esto y ya
+     estaban: en carbón, píldora casi negra con texto marfil; en papel,
+     píldora casi blanca con texto tinta. Lo dice el propio comentario del
+     token —«el scrim del texto es CLARO, porque lo que hay que separar del
+     metraje es tinta oscura, no marfil»—. Contraste de la palabra clave
+     sobre su píldora: 5,6:1 en carbón y 4,9:1 en papel.
+
+     El tracking pasa de −0,02em a `var(--tr-hero)` (−0,03em) porque el
+     cuerpo son 91,6 px y la curva de §7 manda −0,03em de 82 a 144 px. Es
+     el único cambio visual que se le hace a un preset, y se le hace a este
+     porque es el único que se rige por la curva de la marca.
+     ====================================================================== */
+  .p1 .grupo {
+    padding: 0.30em 0.62em; border-radius: var(--r-pill);
+    background: var(--scrim);
+    border: var(--hairline) solid var(--accent-line);
+    box-shadow: 0 20px 44px var(--sombra),
+                inset 0 1px 0 var(--stroke);
+  }
+  .p1 .w {
+    font-family: var(--display);
+    font-weight: var(--w-negro); text-transform: uppercase;
+    letter-spacing: var(--tr-hero);
+    color: var(--sobre-relleno);
+  }
+  .p1 .w.clave { color: var(--accent); }
+
+  /* ======================================================================
+     PRESET 2 · Cinematic Coral Glow
+     El bloom es un `filter` sobre el TEXTO, no un `text-shadow`: el filtro
+     difumina el glifo ya compuesto —incluida su silueta— y da el halo que
+     se ve en el vídeo. `text-shadow` solo pinta copias desplazadas y el
+     resultado es un contorno, no un resplandor.
+     ====================================================================== */
+  .p2 .cursiva {
+    font-family: "Yellowtail", "Caveat", cursive; font-weight: var(--w-libro);
+    color: var(--x-blanco); font-size: 0.46em; line-height: 1;
+    margin-bottom: 0.10em; transform: rotate(-3deg);
+    text-shadow: 0 4px 16px color-mix(in oklab, var(--x-negro) 90%, transparent);
+  }
+  .p2 .grupo {
+    padding: 0.16em 0.50em; border-radius: 18px;
+    background: color-mix(in oklab, var(--x-negro) 85%, transparent);
+  }
+  .p2 .w {
+    font-family: "Montserrat", "Plus Jakarta Sans", sans-serif;
+    font-weight: var(--w-negro); text-transform: uppercase;
+    letter-spacing: var(--x-tr-coral);
+    color: var(--x-coral);
+    filter: drop-shadow(0 0 22px color-mix(in oklab, var(--x-coral) 75%, transparent))
+            drop-shadow(0 12px 30px color-mix(in oklab, var(--x-negro) 95%, transparent));
+  }
+  .p2 .w.clave { color: var(--x-blanco); }
+
+  /* ======================================================================
+     PRESET 3 · Hormozi High-Energy
+     ====================================================================== */
+  .p3 .grupo { transform-origin: center; }
+  .p3 .w {
+    font-family: "Montserrat", sans-serif; font-weight: var(--w-solido);
+    text-transform: uppercase; letter-spacing: var(--x-tr-hormozi);
+    color: var(--x-blanco);
+    -webkit-text-stroke: 4px var(--x-negro);
+    paint-order: stroke fill;      /* el trazo va DETRÁS: si no, come el glifo */
+    text-shadow: 0 6px 0 color-mix(in oklab, var(--x-negro) 85%, transparent);
+  }
+  .p3 .w.clave { color: var(--x-lima); }
+
+  /* ======================================================================
+     PRESET 4 · Cyber Tech Neon
+     ====================================================================== */
+  .p4 .grupo {
+    padding: 0.22em 0.55em;
+    border-top: 2px solid color-mix(in oklab, var(--x-cian) 75%, transparent);
+    border-bottom: 2px solid color-mix(in oklab, var(--x-cian) 75%, transparent);
+    background: color-mix(in oklab, var(--x-cian-fondo) 55%, transparent);
+    position: relative;
+  }
+  .p4 .grupo::before, .p4 .grupo::after {
+    content: ''; position: absolute; top: -2px; bottom: -2px; width: 14px;
+    border: 2px solid color-mix(in oklab, var(--x-cian) 75%, transparent);
+  }
+  .p4 .grupo::before { left: -2px; border-right: none; }
+  .p4 .grupo::after  { right: -2px; border-left: none; }
+  .p4 .w {
+    font-family: "JetBrains Mono", "Geist Mono", monospace;
+    font-weight: var(--w-fuerte);
+    text-transform: uppercase; letter-spacing: var(--x-tr-neon);
+    color: var(--x-cian);
+    text-shadow: 0 0 8px color-mix(in oklab, var(--x-cian) 95%, transparent),
+                 0 0 28px color-mix(in oklab, var(--x-cian) 55%, transparent);
+  }
+  .p4 .w.clave { color: var(--x-blanco);
+                 text-shadow: 0 0 10px var(--x-cian),
+                              0 0 34px color-mix(in oklab, var(--x-cian) 80%, transparent); }
+
+  /* ======================================================================
+     PRESET 5 · Editorial Magazine
+     Las dos familias que pedía a mano —Playfair Display y Geist— son
+     EXACTAMENTE las pilas de `--editorial` y `--subs`, así que se escriben
+     como los roles que son. No cambia un píxel y deja de haber dos sitios
+     donde arreglar un respaldo.
+     ====================================================================== */
+  .p5 .cursiva {
+    font-family: var(--editorial);
+    font-style: italic; font-weight: var(--w-medio); color: var(--x-champan);
+    font-size: 0.52em; line-height: 1; margin-bottom: 0.06em;
+    text-shadow: 0 4px 18px color-mix(in oklab, var(--x-negro) 85%, transparent);
+  }
+  .p5 .w {
+    font-family: var(--subs); font-weight: var(--w-fuerte);
+    text-transform: uppercase; letter-spacing: var(--x-tr-editorial);
+    color: var(--x-blanco);
+    text-shadow: 0 4px 20px color-mix(in oklab, var(--x-negro) 80%, transparent);
+  }
+  .p5 .w.clave {
+    font-family: var(--editorial); font-style: italic;
+    font-weight: 600; text-transform: none; letter-spacing: var(--tr-cuerpo);
+    color: var(--x-champan);
+  }
+
+  /* ======================================================================
+     PRESET 6 · 3D Layered Offset
+     ====================================================================== */
+  .p6 .w {
+    font-family: "Montserrat", sans-serif; font-weight: var(--w-solido);
+    text-transform: uppercase; letter-spacing: var(--tr-display);
+    color: var(--x-blanco);
+    text-shadow: 4px 4px 0px var(--x-negro), 8px 8px 0px var(--x-coral);
+  }
+  .p6 .w.clave { color: var(--x-lima);
+                 text-shadow: 4px 4px 0px var(--x-negro), 8px 8px 0px var(--x-cian); }
+
+  /* ======================================================================
+     PRESET 7 · Glassmorphism Gradient
+     ====================================================================== */
+  .p7 .grupo {
+    padding: 0.34em 0.72em; border-radius: 26px;
+    background: color-mix(in oklab, var(--x-blanco) 10%, transparent);
+    border: 1px solid color-mix(in oklab, var(--x-blanco) 22%, transparent);
+    box-shadow: 0 30px 60px color-mix(in oklab, var(--x-negro) 45%, transparent),
+                inset 0 1px 0 color-mix(in oklab, var(--x-blanco) 30%, transparent);
+  }
+  .p7 .w {
+    font-family: "Plus Jakarta Sans", sans-serif; font-weight: var(--w-negro);
+    text-transform: uppercase; letter-spacing: var(--tr-display);
+    /* El degradado va recortado al glifo. Con `color` no se puede: hay que
+       pintarlo de fondo y hacer el texto transparente. El segundo stop es
+       el bronce de la marca, así que se escribe como token y el preset
+       ANDA con el tema en vez de quedarse clavado en un naranja. */
+    background: linear-gradient(96deg, var(--x-ambar) 0%, var(--accent) 34%,
+                                var(--x-coral-claro) 68%, var(--x-coral) 100%);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+  }
+  .p7 .w.clave {
+    background: linear-gradient(96deg, var(--x-blanco) 0%, var(--x-champan) 100%);
+    -webkit-background-clip: text; background-clip: text;
+  }
+
+  /* ======================================================================
+     PRESET 8 · Minimal Electric Lime
+     ====================================================================== */
+  .p8 .w {
+    font-family: "Inter", "Geist", sans-serif; font-weight: var(--w-negro);
+    text-transform: uppercase; letter-spacing: var(--x-tr-lima);
+    color: var(--x-blanco);
+    text-shadow: 0 3px 14px color-mix(in oklab, var(--x-negro) 55%, transparent);
+  }
+  .p8 .w.clave {
+    color: var(--x-lima-electrico);
+    text-shadow: 0 0 24px color-mix(in oklab, var(--x-lima-electrico) 45%, transparent);
+  }
+
+  /* ======================================================================
+     PRESET 9 · Analog Label Tape
+     Una caja POR PALABRA, no una por grupo: son etiquetas físicas y cada
+     una tiene su borde. Un solo rectángulo detrás sería una píldora.
+     ====================================================================== */
+  .p9 .grupo { gap: 0.16em 0.14em; }
+  .p9 .w {
+    font-family: var(--mono); font-weight: var(--w-fuerte);
+    text-transform: uppercase; letter-spacing: var(--x-tr-cinta);
+    color: var(--x-cinta-tinta); background: var(--x-cinta-papel);
+    padding: 0.08em 0.24em; border-radius: 3px;
+    box-shadow: 0 4px 0 color-mix(in oklab, var(--x-negro) 55%, transparent),
+                0 10px 22px color-mix(in oklab, var(--x-negro) 40%, transparent);
+  }
+  .p9 .w.clave { color: var(--x-cinta-papel); background: var(--accent); }
+
+  /* ======================================================================
+     PRESET 10 · Gold Shimmer Luxury
+     ====================================================================== */
+  .p10 .w {
+    font-family: "Plus Jakarta Sans", sans-serif; font-weight: var(--w-negro);
+    text-transform: uppercase; letter-spacing: var(--tr-display);
+    background: linear-gradient(100deg,
+      var(--x-oro-sombra) 0%, var(--x-oro) 28%, var(--x-oro-luz) 47%,
+      var(--x-blanco) 50%, var(--x-oro-luz) 53%, var(--x-oro) 72%,
+      var(--x-oro-sombra) 100%);
+    background-size: 320% 100%;
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 10px 26px color-mix(in oklab, var(--x-negro) 75%, transparent))
+            drop-shadow(0 0 34px color-mix(in oklab, var(--x-oro) 32%, transparent));
+    will-change: background-position;
+  }
+  .p10 .w.clave {
+    background: linear-gradient(100deg, var(--x-blanco) 0%,
+                                var(--x-oro-luz) 50%, var(--x-oro) 100%);
+    background-size: 320% 100%;
+    -webkit-background-clip: text; background-clip: text;
+  }
+</style>
+</head>
+<body>
+<div class="stage" id="stage"></div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+const stage = document.getElementById('stage');
+
+/* Los diez presets. `k` NO es un tamaño: es la corrección óptica de esa
+   familia respecto al cuerpo maestro del muestrario, que sale del token
+   `--t-hero` (109 px) y no de un número escrito aquí.
+
+   Antes eran diez constantes en píxeles —92, 104, 100, 78…— y un `font-size`
+   en píxeles dentro de una plantilla es un fallo aunque se vea bien: la
+   escala tipográfica deja de poder moverse. Los factores están calibrados
+   para reproducir los diez cuerpos anteriores con un error máximo de 0,5 px,
+   así que ninguna ficha cambia de tamaño. Montserrat 900 y JetBrains Mono
+   necesitan factores muy distintos porque sus alturas de x no se parecen. */
+const PRESETS = [
+  { n: 1,  id: 'p1',  nombre: 'Carbon & Bronze',  k: 0.84, cursiva: null },
+  { n: 2,  id: 'p2',  nombre: 'Cinematic Coral',  k: 0.95, cursiva: 'y entonces' },
+  { n: 3,  id: 'p3',  nombre: 'Hormozi',          k: 0.92, cursiva: null, giro: -2 },
+  { n: 4,  id: 'p4',  nombre: 'Cyber Neon',       k: 0.72, cursiva: null },
+  { n: 5,  id: 'p5',  nombre: 'Editorial',        k: 0.70, cursiva: 'la clave' },
+  { n: 6,  id: 'p6',  nombre: '3D Offset',        k: 0.88, cursiva: null },
+  { n: 7,  id: 'p7',  nombre: 'Glass Gradient',   k: 0.84, cursiva: null },
+  { n: 8,  id: 'p8',  nombre: 'Electric Lime',    k: 0.88, cursiva: null },
+  { n: 9,  id: 'p9',  nombre: 'Label Tape',       k: 0.68, cursiva: null },
+  { n: 10, id: 'p10', nombre: 'Gold Shimmer',     k: 0.86, cursiva: null },
+];
+
+let piezas = [];        // una por ficha
+let cabecera = null;    // { el, filete, pie }
+
+/* --------------------------------------------------------------------------
+   El cuerpo maestro sale del TOKEN, no de un número.
+   Se lee de una sonda con `font-size: var(--t-hero)` y se borra. Un número
+   explícito en `cfg.cuerpo` sigue valiendo como anulación: si algún día un
+   plan lo pasa, tiene que ganar.
+   -------------------------------------------------------------------------- */
+function cuerpoMaestro(cfg) {
+  if (cfg.cuerpo > 0) return Number(cfg.cuerpo);
+  const s = document.createElement('span');
+  s.className = 'sonda';
+  s.style.fontSize = 'var(--t-hero)';
+  document.body.appendChild(s);
+  const px = parseFloat(getComputedStyle(s).fontSize) || 109;
+  s.remove();
+  return px;
+}
+
+/* --------------------------------------------------------------------------
+   §FICHA · la ficha técnica está MEDIDA, no escrita a mano
+   --------------------------------------------------------------------------
+   Un muestrario que declara «Montserrat 900» y rasteriza Geist porque
+   Montserrat no está instalada no es un catálogo: es una mentira con
+   maquetación. Así que la banda no imprime lo que dice la tabla de arriba
+   sino lo que el navegador RESUELVE para esa muestra: familia, peso y
+   tracking salen de `getComputedStyle` de una sonda con las clases del
+   preset puestas.
+
+   Y la familia se comprueba MIDIENDO EL ANCHO, no con `document.fonts.check`,
+   que **devuelve `true` para una familia que no existe**: solo informa de
+   cargas `@font-face` pendientes, y el emparejado de familias de CSS nunca
+   falla —cae al respaldo—. Comprobado aquí mismo. La medida que vale es
+   componer la misma cadena con la familia sobre dos respaldos muy distintos
+   y ver si los anchos coinciden. Es la misma prueba que hace
+   `humo_plantillas.js` con los tres roles del sistema.
+
+   Se mide en `setup` y se escribe en el DOM como texto: `draw(t)` sigue
+   siendo función pura de `t`.
+   -------------------------------------------------------------------------- */
+function medidor(cuerpo) {
+  const s = document.createElement('span');
+  s.className = 'sonda';
+  /* Se mide al CUERPO MAESTRO y no a un tamaño escrito aquí: cuanto mayor el
+     cuerpo, mayor la diferencia de ancho entre dos familias distintas, y
+     además así no queda ni un `font-size` en píxeles en el fichero. */
+  s.style.fontSize = Math.max(96, Math.round(cuerpo)) + 'px';
+  s.style.whiteSpace = 'pre';
+  s.textContent = 'mmmmmwwwwwiiiii0123';
+  document.body.appendChild(s);
+  const ancho = pila => { s.style.fontFamily = pila; return s.getBoundingClientRect().width; };
+  return {
+    hay(fam) {
+      const q = '"' + fam + '"';
+      return Math.abs(ancho(q + ', serif') - ancho(q + ', monospace')) < 0.5;
+    },
+    cierra() { s.remove(); }
+  };
+}
+
+const GENERICAS = /^(serif|sans-serif|monospace|system-ui|cursive|ui-\w+)$/;
+
+function medirPreset(p, cuerpo, med) {
+  const sonda = document.createElement('div');
+  sonda.className = 'sonda bloque ' + p.id;
+  sonda.style.fontSize = cuerpo + 'px';
+  const g = document.createElement('div');
+  g.className = 'grupo';
+  const w = document.createElement('span');
+  w.className = 'w';
+  w.textContent = 'Hxg';
+  g.appendChild(w);
+  sonda.appendChild(g);
+  document.body.appendChild(sonda);
+
+  const cs = getComputedStyle(w);
+  const pila = cs.fontFamily.split(',')
+    .map(x => x.trim().replace(/^["']|["']$/g, ''))
+    .filter(x => x && !GENERICAS.test(x));
+  const tam = parseFloat(cs.fontSize) || 1;
+  const esp = parseFloat(cs.letterSpacing);          // `normal` -> NaN
+  const datos = {
+    pedida: pila[0] || '—',
+    resuelta: pila.find(f => med.hay(f)) || null,
+    peso: cs.fontWeight,
+    tracking: (isNaN(esp) ? 0 : esp) / tam,
+  };
+  sonda.remove();
+  return datos;
+}
+
+/* El signo se escribe con el MENOS tipográfico (U+2212) y no con un guion:
+   en una ficha técnica alineada en mono, el guion es más corto que el signo
+   y las columnas dejan de cuadrar. */
+function comoEm(v) {
+  if (Math.abs(v) < 0.0005) return '0em';
+  return (v < 0 ? '−' : '+') + Math.abs(v).toFixed(3) + 'em';
+}
+
+/* -------------------------------------------------------------------------- */
+function construyeMuestra(cont, p, cfg, cuerpo) {
+  const bloque = document.createElement('div');
+  bloque.className = 'bloque ' + p.id;
+  bloque.style.fontSize = (cuerpo * p.k * (cfg.escalaTexto || 1)) + 'px';
+  if (p.giro) bloque.style.transform = `rotate(${p.giro}deg)`;
+
+  let cursivaEl = null;
+  if (p.cursiva) {
+    cursivaEl = document.createElement('div');
+    cursivaEl.className = 'cursiva';
+    cursivaEl.textContent = p.cursiva;
+    bloque.appendChild(cursivaEl);
+  }
+
+  const grupo = document.createElement('div');
+  grupo.className = 'grupo';
+  const claves = new Set((cfg.clave || []).map(x => x.toLowerCase()));
+  const palabras = (cfg.texto || '').split(/\s+/).filter(Boolean).map(t => {
+    const s = document.createElement('span');
+    const limpio = t.replace(/[.,;:!?¿¡]/g, '').toLowerCase();
+    s.className = 'w' + (claves.has(limpio) ? ' clave' : '');
+    s.textContent = t;
+    grupo.appendChild(s);
+    return s;
+  });
+  bloque.appendChild(grupo);
+  cont.appendChild(bloque);
+  return { grupoEl: grupo, palabras, cursivaEl };
+}
+
+function construyeFicha(p, cfg, cuerpo, med, idx, columnas) {
+  const fila = Math.floor(idx / columnas);
+  const ficha = document.createElement('div');
+  ficha.className = 'ficha';
+  /* Damero: el tono alterna por FILA y por COLUMNA, no solo por índice. */
+  ficha.dataset.tono = ((fila + (idx % columnas)) % 2) ? 'calido' : 'frio';
+
+  const ventana = document.createElement('div');
+  ventana.className = 'ventana';
+  const lienzo = document.createElement('div');
+  lienzo.className = 'lienzo';
+  ventana.appendChild(lienzo);
+  ficha.appendChild(ventana);
+
+  const banda = document.createElement('div');
+  banda.className = 'banda';
+  const marca = document.createElement('div');
+  marca.className = 'marca brushed';
+  banda.appendChild(marca);
+
+  const num = document.createElement('div');
+  num.className = 'num tnum';
+  num.textContent = String(p.n).padStart(2, '0');
+  banda.appendChild(num);
+
+  const datos = document.createElement('div');
+  datos.className = 'datos';
+  const nombre = document.createElement('div');
+  nombre.className = 'nombre';
+  nombre.textContent = p.nombre;
+  datos.appendChild(nombre);
+
+  const m = medirPreset(p, cuerpo * p.k, med);
+  const spec = document.createElement('div');
+  spec.className = 'spec';
+  const fam = document.createElement('span');
+  fam.className = 'fam' + (m.resuelta && m.resuelta !== m.pedida ? ' respaldo' : '');
+  /* Si el navegador NO encuentra ninguna familia de la pila, la ficha lo
+     dice con el nombre de la que se pedía y en bronce. Es la única forma
+     de que un muestrario no mienta sobre sí mismo. */
+  fam.textContent = m.resuelta || (m.pedida + ' (no instalada)');
+  if (!m.resuelta) fam.classList.add('respaldo');
+  spec.appendChild(fam);
+  [String(m.peso), comoEm(m.tracking)].forEach(txt => {
+    const s = document.createElement('i');
+    s.className = 'sep';
+    spec.appendChild(s);
+    const v = document.createElement('span');
+    v.className = 'tnum';
+    v.textContent = txt;
+    spec.appendChild(v);
+  });
+  datos.appendChild(spec);
+  banda.appendChild(datos);
+  ficha.appendChild(banda);
+
+  const muestra = construyeMuestra(lienzo, p, cfg, cuerpo);
+  return Object.assign({ preset: p, el: ficha, banda, marca, num, nombre, fila },
+                       muestra);
+}
+
+function construyeCabecera(cfg, total) {
+  const cab = document.createElement('div');
+  cab.className = 'cabecera';
+
+  const cadena = document.createElement('div');
+  cadena.className = 'cadena';
+  const claves = new Set((cfg.clave || []).map(x => x.toLowerCase()));
+  (cfg.texto || '').split(/\s+/).filter(Boolean).forEach((t, i) => {
+    const limpio = t.replace(/[.,;:!?¿¡]/g, '').toLowerCase();
+    const el = document.createElement(claves.has(limpio) ? 'em' : 'span');
+    el.textContent = (i ? ' ' : '') + t;
+    cadena.appendChild(el);
+  });
+  cab.appendChild(cadena);
+
+  const marcador = document.createElement('div');
+  marcador.className = 'marcador';
+  const cifra = document.createElement('div');
+  cifra.className = 'cifra tnum';
+  cifra.textContent = String(total).padStart(2, '0');
+  const rotulo = document.createElement('div');
+  rotulo.className = 'rotulo';
+  rotulo.textContent = total === 1 ? 'estilo' : 'estilos';
+  marcador.appendChild(cifra);
+  marcador.appendChild(rotulo);
+  cab.appendChild(marcador);
+  return cab;
+}
+
+function construyePie() {
+  const pie = document.createElement('div');
+  pie.className = 'pie';
+  const izq = document.createElement('div');
+  izq.className = 'izq';
+  const a = document.createElement('span');
+  a.textContent = 'Muestrario';
+  const punto = document.createElement('i');
+  punto.className = 'punto';
+  const b = document.createElement('span');
+  b.textContent = 'Subtítulos cinéticos';
+  izq.appendChild(a); izq.appendChild(punto); izq.appendChild(b);
+  const der = document.createElement('span');
+  der.textContent = 'Tema ' + (document.documentElement.dataset.tema || 'carbon');
+  pie.appendChild(izq);
+  pie.appendChild(der);
+  return pie;
+}
+
+/* --------------------------------------------------------------------------
+   EL RECORRIDO
+   --------------------------------------------------------------------------
+   El muestrario no flota: se LEE. La cabeza de lectura avanza ficha a ficha
+   y se PARA en cada una, que es lo que hace un dedo sobre un catálogo de
+   pantones. De ahí `inOutCubic` y no `outCubic`: un desplazamiento que
+   arranca de golpe y frena lento se lee como un barrido automático, y esto
+   es lo contrario — arranca despacio, cruza y se detiene.
+
+   Devuelve una POSICIÓN continua en la lista, no un índice, para que la
+   activación pueda repartirse entre dos fichas mientras la cabeza cruza. Se
+   acota a [−1, n−1]: `humo_plantillas.js` hace `seek(−1)` y `seek(dur*2)`, y
+   sin el tope la cabeza saldría de la lista.
+   -------------------------------------------------------------------------- */
+function cabeza(t, cfg, n) {
+  const paso = Math.max(0.04, (cfg.viaje || 0) + (cfg.permanencia || 0));
+  const u = (t - cfg.entrada) / paso;
+  const i = Math.floor(u);
+  const f = span(u - i, 0, (cfg.viaje || 0) / paso, Ease.inOutCubic);
+  return clamp(i + f, -1, n - 1);
+}
+
+Engine.register({
+  duration: 6,
+  defaults: {
+    /* `vista`, no `modo`: el renderizador hace
+       `Object.assign({}, capa.config, { modo })` y SOBRESCRIBE esa clave
+       con la suya. Con `modo` la plantilla salía siempre en rejilla
+       aunque el plan pidiera `solo`, y sin ningún error. */
+    vista: 'rejilla',     // rejilla | solo
+    preset: 2,            // cuál se ve en modo `solo`
+    texto: 'ESTO LO CAMBIA TODO',
+    clave: ['cambia'],
+    escalaTexto: 1,
+    cuerpo: 0,            // 0 = usar el token --t-hero; un número lo anula
+    pop: 0.14,            // duración del zoom de entrada de cada palabra
+    escalonado: 0.055,    // retardo entre palabras, y entre filas de la hoja
+    entrada: 0.5,         // cuánto tarda la hoja en asentarse
+    viaje: 0.18,          // lo que la cabeza de lectura tarda en cambiar de ficha
+    permanencia: 0.36,    // lo que descansa en cada una
+    brillo: 1.1           // duración del barrido dorado del preset 10
+  },
+
+  setup(cfg) {
+    stage.innerHTML = '';
+    piezas = [];
+    cabecera = null;
+
+    const cuerpo = cuerpoMaestro(cfg);
+    const med = medidor(cuerpo);
+
+    const hoja = document.createElement('div');
+    hoja.className = 'hoja' + (cfg.vista === 'solo' ? ' solo' : '');
+    const papel = document.createElement('div');
+    /* `.trama` es el rayado de mecanizado de `_tokens.css`, en densidad
+       baja: 1 px cada 5. Es la única textura de la hoja y va AQUÍ y no en
+       la ventana, porque la ventana representa metraje y el metraje no es
+       papel. `Engine.grano` no vale para esto: pinta con `multiply`, y
+       sobre `--bg` en tema carbón multiplicar no aclara nada — el grano
+       sería invisible en uno de los dos temas. */
+    papel.className = 'papel trama';
+    papel.dataset.densidad = 'baja';
+    hoja.appendChild(papel);
+
+    if (cfg.vista === 'solo') {
+      const p = PRESETS.find(x => x.n === cfg.preset) || PRESETS[0];
+      const z = construyeFicha(p, cfg, cuerpo, med, 0, 1);
+      hoja.appendChild(z.el);
+      piezas.push(z);
+    } else {
+      hoja.appendChild(construyeCabecera(cfg, PRESETS.length));
+      const filete = document.createElement('div');
+      filete.className = 'filete brushed';
+      hoja.appendChild(filete);
+
+      const rej = document.createElement('div');
+      rej.className = 'rejilla';
+      PRESETS.forEach((p, i) => {
+        const z = construyeFicha(p, cfg, cuerpo, med, i, 2);
+        /* Se dibuja a 1080 y se reduce: la mitad del ancho por dos
+           columnas, menos un margen para que el halo del coral —45 px a
+           cada lado a tamaño real, o sea 19 px aquí— no se corte contra el
+           borde de la ventana. */
+        z.el.querySelector('.lienzo').style.zoom = 0.42;
+        rej.appendChild(z.el);
+        piezas.push(z);
+      });
+      hoja.appendChild(rej);
+      const pie = construyePie();
+      hoja.appendChild(pie);
+      cabecera = { el: hoja.querySelector('.cabecera'), filete, pie };
+    }
+
+    med.cierra();
+    stage.appendChild(hoja);
+  },
+
+  draw(t, cfg) {
+    const n = piezas.length || 1;
+    const h = cabeza(t, cfg, n);
+
+    if (cabecera) {
+      const c = Engine.entra(t, cfg.entrada);
+      cabecera.el.style.opacity = c;
+      cabecera.el.style.transform = `translate3d(0, ${((1 - c) * -10).toFixed(2)}px, 0)`;
+      /* El filete se TRAZA, no aparece: es una regla que alguien apoya y
+         corre. Por eso `inOutCubic` y por eso `transform-origin: left`. */
+      cabecera.filete.style.transform =
+        `scaleX(${span(t, 0, cfg.entrada * 1.6, Ease.inOutCubic).toFixed(4)})`;
+      cabecera.pie.style.opacity = span(t, cfg.entrada * 0.6, cfg.entrada,
+                                        Ease.outCubic);
+    }
+
+    piezas.forEach((z, idx) => {
+      /* Activación triangular: 1 cuando la cabeza descansa encima, y
+         repartida entre dos fichas mientras cruza. */
+      const a = clamp(1 - Math.abs(h - idx), 0, 1);
+      const ret = z.fila * cfg.escalonado * 1.4;
+      const E = span(t, ret, cfg.entrada, Ease.outCubic);
+
+      /* §10: cada ficha deriva con su propio periodo. 2 px sobre 1080 —por
+         debajo de los 3 px que trae `flota` por defecto— porque esto es una
+         hoja impresa y no un objeto suspendido: a 3 px las diez fichas
+         parecen flotar y el muestrario deja de leerse como papel. Lo que no
+         puede hacer es quedarse quieto: sin esto, dos de los tres fotogramas
+         del humo salen idénticos byte a byte. Y como la muestra deriva CON
+         su ficha, la comparación entre estilos no se ve afectada. */
+      const d = Engine.flota(t, idx, { amp: 2, periodo: 8.2, semilla: 5 });
+      z.el.style.opacity = E;
+      z.el.style.transform =
+        `translate3d(${d.x.toFixed(2)}px, ${(d.y + (1 - E) * 16).toFixed(2)}px, 0)`;
+
+      /* La banda sube un escalón de superficie, el número se enciende en
+         bronce y el nombre GANA PESO. §7: la jerarquía se hace con peso y
+         contraste, nunca con luz — y el peso se anima de verdad porque las
+         fuentes son variables. Medido en este Chromium: `Plus Jakarta Sans`
+         a wght 200 mide 1126 px la cadena de prueba y a wght 800 mide 1231,
+         o sea un 9,4 % más: el eje responde y no es un salto entre dos
+         ficheros estáticos. */
+      const pc = (a * 100).toFixed(1);
+      z.banda.style.background =
+        `color-mix(in oklab, var(--surface-2), var(--surface) ${pc}%)`;
+      Engine.peso(z.nombre, Math.round(300 + 500 * a));
+      z.nombre.style.color = `color-mix(in oklab, var(--ink-soft), var(--ink) ${pc}%)`;
+      z.num.style.color = `color-mix(in oklab, var(--ink-faint), var(--accent) ${pc}%)`;
+      /* El filete de bronce se traza de izquierda a derecha con la cabeza.
+         `clip-path` y no `scaleX`: el degradado del metal tiene que quedarse
+         QUIETO mientras se descubre, o el bronce se estira y deja de parecer
+         una lámina para parecer una barra de progreso. */
+      z.marca.style.clipPath = `inset(0 ${((1 - a) * 100).toFixed(2)}% 0 0)`;
+
+      if (z.cursivaEl) {
+        const c = span(t, ret, 0.3, Ease.outCubic);
+        z.cursivaEl.style.opacity = c;
+        z.cursivaEl.style.transform =
+          `rotate(-3deg) translateY(${((1 - c) * 14).toFixed(2)}px)`;
+      }
+      z.palabras.forEach((el, i) => {
+        /* `outBack6` y no `outBack`: el `s` por defecto se pasa un 10,0 % y
+           §10 permite un 6 %. Aquí estaba usándose el crudo. */
+        const p = span(t, ret + cfg.entrada * 0.24 + i * cfg.escalonado,
+                       cfg.pop, Ease.outBack6);
+        const k = 0.84 + 0.16 * clamp(p, 0, 1.10);
+        el.style.opacity = clamp(p * 3, 0, 1);
+        el.style.transform = `scale(${k.toFixed(4)})`;
+      });
+
+      /* El brillo dorado del preset 10 es lo único que sigue vivo dentro de
+         una muestra: si el resto también se moviera, el muestrario no
+         dejaría comparar los estilos en reposo, que es para lo que existe. */
+      if (z.preset.id === 'p10') {
+        const b = ((t - 0.5) % (cfg.brillo * 2)) / cfg.brillo;
+        const pos = b < 0 || b > 1 ? 110 : 110 - 220 * b;
+        z.palabras.forEach(el => { el.style.backgroundPosition = pos + '% 0'; });
+      }
+    });
+  },
+
+  anclas() {
+    const b = stage.getBoundingClientRect();
+    return { catalogo: { x: Math.round(b.left + b.width / 2),
+                         y: Math.round(b.top + b.height / 2),
+                         w: Math.round(b.width), h: Math.round(b.height) } };
+  }
+});
+</script>
+</body>
+</html>

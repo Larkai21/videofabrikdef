@@ -1,0 +1,476 @@
+<!-- hyperframes-registry-item: hw-path-text -->
+<!doctype html>
+<html lang="en">
+  <head>
+<!-- /* PALETA-AJENA: inicio */ -->
+    <meta charset="utf-8" />
+    <script src="_gsap.min.js"></script>
+    <style>
+      /* Fuera el @font-face: `assets/fonts/Caveat-700-latin.woff2` no existe
+         en este repo. Cada render soltaba un ERR_FILE_NOT_FOUND y la
+         escritura caía a `cursive` sin que nadie lo dijera; Caveat está
+         instalada en la máquina y se resuelve por familia local. */
+      *,
+      *::before,
+      *::after {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: transparent;
+        overflow: hidden;
+      }
+      #hw-pt-root {
+        --hw-font-print: "Caveat", cursive;
+        --hw-font-script: "Caveat", cursive;
+        --hw-ink: var(--ink);
+
+        position: relative;
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        background: transparent;
+        font-family: var(--hw-font-print, "Caveat", cursive);
+      }
+      #hw-pt-svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+      /* The textPath carrier is geometry only — without fill:none it inherits
+         SVG's default black fill and renders as a solid blob under the text. */
+      #hw-pt-path {
+        fill: none;
+      }
+      #hw-pt-guide {
+        fill: none;
+        stroke: rgba(244, 242, 236, 0.22);
+        stroke-width: 3;
+        stroke-dasharray: 2 14;
+        stroke-linecap: round;
+      }
+      #hw-pt-svg text {
+        font-family: var(--hw-font-print, "Caveat", cursive);
+        font-weight: 700;
+        fill: var(--hw-ink);
+      }
+      #hw-pt-svg tspan {
+        opacity: 0;
+      }
+    </style>
+    <link rel="stylesheet" href="_tokens.css">
+  <script src="_engine.js"></script>
+</head>
+  <body>
+    <div
+      id="hw-pt-root"
+      data-composition-id="hw-path-text"
+      data-start="0"
+      data-duration="6"
+      data-width="1080"
+      data-height="1920"
+    >
+      <!-- viewBox VERTICAL. Escalar el de 1920x1080 dejaba la escritura en el
+           28 % del ancho; reescribir el trazado en coordenadas de 1080x1920 es
+           más limpio que meter una transformación por encima, porque el
+           `boil` ya usa la del elemento y las dos se pisarían. -->
+      <svg id="hw-pt-svg" viewBox="0 0 1080 1920">
+        <path id="hw-pt-path" d=""></path>
+        <path id="hw-pt-guide" d=""></path>
+        <text id="hw-pt-text" font-size="92">
+          <textPath id="hw-pt-tp" href="#hw-pt-path" startOffset="4%"></textPath>
+        </text>
+      </svg>
+      <div
+        id="hw-pt-drv"
+        class="clip"
+        data-start="0"
+        data-duration="6"
+        data-track-index="0"
+        style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none"
+      ></div>
+    </div>
+    <script>
+      (function () {
+        window.__timelines = window.__timelines || {};
+
+        /* ---- published parameters ----
+           Handwriting along any path — custom path text, natively via
+           SVG textPath (no Fusion overlay). CONFIG.d is the whole design. */
+        var CONFIG = {
+          /* El trazado, en coordenadas de LIENZO VERTICAL: dos ondas que
+             bajan de izquierda a derecha, 1131 px de recorrido dentro de
+             x 68-1012 · y 639-1200 — el 87 % del ancho y el 29 % del alto.
+             Medido con `getTotalLength` y `getBBox`, y con las tangentes
+             muestreadas cada décima: ningún tramo pasa de 46°, que es donde
+             la letra manuscrita deja de leerse.
+             `fontSize` es un TECHO; el cuerpo real lo calcula `ajusta()`. */
+          text: "come on this wild journey with me...",
+          d: "M 50 640 C 250 620, 290 880, 520 900 C 750 920, 790 1180, 1030 1200",
+          fontSize: 120,
+          /* Arrancaba en el 4 % del trazado y en un lienzo de 1080 eso son 45
+             px de sangría que la caja de tinta pagaba entera: la escritura
+             empezaba en x=120 con la guía naciendo en x=68. */
+          inicio: 0.01,
+          showGuide: true, // faint dotted guide under the writing
+          typeCharDelay: 0.05,
+          seed: 12,
+          boil: { enabled: true, amp: 1.4, rot: 0.3, frameDrop: 3 },
+          animationOut: true,
+        };
+
+        var DUR = 6;
+        function clamp(v, lo, hi) {
+          return Math.min(hi, Math.max(lo, v));
+        }
+        var OUT = clamp(DUR * 0.06, 0.25, 0.6);
+
+        /* hw family runtime */
+        window.hwOnUpdate = function (tl, fn) {
+          if (!tl.__hwRenders) {
+            tl.__hwRenders = [];
+            tl.eventCallback("onUpdate", function () {
+              for (var i = 0; i < tl.__hwRenders.length; i++) tl.__hwRenders[i]();
+            });
+          }
+          tl.__hwRenders.push(fn);
+          fn();
+        };
+        window.hwHash = function (n, seed) {
+          var x = Math.sin(n * 127.1 + (seed || 1) * 311.7) * 43758.5453;
+          return (x - Math.floor(x)) * 2 - 1;
+        };
+        window.hwBoil = function (tl, target, opts) {
+          opts = opts || {};
+          var amp = opts.amp !== undefined ? opts.amp : 1.6;
+          var rot = opts.rot !== undefined ? opts.rot : 0.5;
+          var fps = opts.fps || 30;
+          var drop = opts.frameDrop || 3;
+          var seed = opts.seed || 1;
+          var els = gsap.utils.toArray(target);
+          window.hwOnUpdate(tl, function () {
+            var step = Math.floor((tl.time() * fps) / drop);
+            for (var i = 0; i < els.length; i++) {
+              gsap.set(els[i], {
+                x: window.hwHash(step * 3 + i * 97, seed) * amp,
+                y: window.hwHash(step * 3 + 1 + i * 97, seed) * amp,
+                rotation: (opts.baseRot || 0) + window.hwHash(step * 3 + 2 + i * 97, seed) * rot,
+              });
+            }
+          });
+        };
+
+        document.getElementById("hw-pt-path").setAttribute("d", CONFIG.d);
+        if (CONFIG.showGuide) document.getElementById("hw-pt-guide").setAttribute("d", CONFIG.d);
+        document.getElementById("hw-pt-text").setAttribute("font-size", CONFIG.fontSize);
+
+        /* per-char tspans along the path */
+        var NS = "http://www.w3.org/2000/svg";
+        var tp = document.getElementById("hw-pt-tp");
+        Array.from(CONFIG.text).forEach(function (ch) {
+          var t = document.createElementNS(NS, "tspan");
+          t.textContent = ch;
+          tp.appendChild(t);
+        });
+
+        /* EL CUERPO SE MIDE. Un textPath que no cabe en su trazado recorta el
+           final SIN DECIR NADA: con el número escrito a mano de la primera
+           pasada la frase terminaba en «with» y se perdía «me...» sin un
+           aviso en ningún log. La cadena mide 12,07 em en Caveat 700 —no las
+           10,29 que salían de medirla en HTML, donde el <span> envolvía—, así
+           que el número bueno solo sale de medir en el mismo SVG.
+           La regla es un <text> oculto a cuerpo 100: se compara su avance en
+           cada fotograma y solo se reajusta cuando cambia, que es lo que pasa
+           cuando la fuente local termina de aplicarse después del parseo. */
+        tp.setAttribute("startOffset", CONFIG.inicio * 100 + "%");
+        var svgRaiz = document.getElementById("hw-pt-svg");
+        var regla = document.createElementNS(NS, "text");
+        regla.setAttribute("font-size", "100");
+        regla.setAttribute("x", "-9999");
+        regla.setAttribute("y", "-9999");
+        regla.style.visibility = "hidden";
+        regla.textContent = CONFIG.text;
+        svgRaiz.appendChild(regla);
+
+        var avance = -1;
+        function ajusta() {
+          var a = regla.getComputedTextLength();
+          if (!a || Math.abs(a - avance) < 0.5) return;
+          avance = a;
+          var largo = document.getElementById("hw-pt-path").getTotalLength();
+          /* lo que queda tras el startOffset, menos un pelo de aire al final */
+          var hueco = largo * (1 - CONFIG.inicio) - 10;
+          var fs = Math.min(CONFIG.fontSize, Math.floor((hueco / a) * 100));
+          document.getElementById("hw-pt-text").setAttribute("font-size", fs);
+        }
+        ajusta();
+
+        var tl = gsap.timeline({ paused: true });
+
+        /* guide draws first, then the handwriting types along it */
+        var guide = document.getElementById("hw-pt-guide");
+        if (CONFIG.showGuide) {
+          var glen = guide.getTotalLength();
+          /* El punteado, a escala del lienzo nuevo: «2 14» a 3 px de trazo
+             venía de un lienzo de 1920 y aquí se quedaba en nada. */
+          gsap.set(guide, { strokeDasharray: "4 18", strokeDashoffset: glen });
+          tl.to(guide, { strokeDashoffset: 0, duration: 0.9, ease: "power2.inOut" }, 0.2);
+        }
+        var chars = tp.querySelectorAll("tspan");
+        var delay = Math.min(CONFIG.typeCharDelay, 2.6 / Math.max(1, chars.length));
+        tl.to(chars, { opacity: 1, duration: 0.03, stagger: delay, ease: "none" }, 0.7);
+
+        /* El reajuste va en la misma tubería que el resto: un `hwOnUpdate` por
+           fotograma, que es lo único que corre seguro DESPUÉS de que la
+           fuente esté aplicada — `setup` es del puente y no se puede tocar. */
+        window.hwOnUpdate(tl, ajusta);
+
+        if (CONFIG.boil.enabled) {
+          window.hwBoil(tl, "#hw-pt-svg", {
+            amp: CONFIG.boil.amp,
+            rot: CONFIG.boil.rot,
+            frameDrop: CONFIG.boil.frameDrop,
+            seed: CONFIG.seed,
+          });
+        }
+
+        if (CONFIG.animationOut) {
+          tl.to("#hw-pt-svg", { opacity: 0, duration: OUT, ease: "power2.in" }, DUR - OUT - 0.05);
+        }
+        tl.set("#hw-pt-root", { visibility: "hidden" }, DUR - 0.02);
+
+        window.__timelines["hw-path-text"] = tl;
+      })();
+    </script>
+  
+
+<!-- /* PALETA-AJENA: fin */ -->
+
+
+
+
+
+
+
+
+<!-- PUENTE:inicio · generado por scripts/importar_bloque.js -->
+<style>
+  /* El lienzo de este repo, y la raíz TRANSPARENTE: si el fondo llega opaco,
+     omitBackground no lo recorta y los PNG salen sin alfa — el compositor
+     los pega como un rectángulo y tapa el metraje. */
+  html, body { width: 1080px; height: 1920px; margin: 0;
+               background: transparent !important; overflow: hidden; }
+  [data-composition-id="hw-path-text"] { transform-origin: 50% 50%; }
+  /* El PLAFÓN DE AUTO-PREVISUALIZACIÓN. Varias piezas del catálogo traen un
+     fondo propio para poder mirarse solas —hf-hw-callout-circle lo llama
+     literalmente «self-preview scene» y es un degradado verde— y sobre
+     nuestro metraje eso no es un fondo: es una mancha que tapa el plano.
+     Se quita el relleno y se deja el contenido, que es lo que se quería. */
+  [id$="-scene"] { background: none !important; }
+</style>
+<script>
+(function () {
+  var ID = "hw-path-text";
+  var RANURAS = {};
+  var raiz = document.querySelector('[data-composition-id="' + ID + '"]');
+  var tl = (window.__timelines || {})[ID] || null;
+
+  /* Maqueta a 1920x1080 y aquí el lienzo es 1080x1920: se escala al ancho y
+     se centra. Es un APAÑO declarado, no una solución — la buena es rehacer
+     la maqueta en vertical. config.encaje:false lo desactiva y
+     config.escala lo fuerza.
+     La medida sale de data-width/data-height y NO de offsetWidth: la raíz de
+     varios bloques mide 0x0 —es un ancla para hijos posicionados, no una
+     caja— y con la medida del DOM el encaje la mandaba a left:-420, fuera
+     del cuadro. Fotograma transparente, cero errores, y el humo diciendo
+     «no se mueve» porque no había nada que moviera. Por eso se envuelve en
+     una caja del tamaño DECLARADO: así los hijos absolutos tienen un
+     contenedor de verdad y la escala se aplica a algo con dimensiones. */
+  var caja = null;
+  function encaja(cfg) {
+    if (!raiz || cfg.encaje === false) return;
+    var w = +raiz.dataset.width || raiz.offsetWidth || 1920;
+    var h = +raiz.dataset.height || raiz.offsetHeight || 1080;
+    if (!caja) {
+      caja = document.createElement('div');
+      raiz.parentNode.insertBefore(caja, raiz);
+      caja.appendChild(raiz);
+    }
+    caja.style.cssText = 'position:absolute;left:0;top:0;width:' + w
+                       + 'px;height:' + h + 'px;transform-origin:0 0;';
+    raiz.style.position = 'absolute';
+    raiz.style.left = '0'; raiz.style.top = '0';
+    raiz.style.width = w + 'px'; raiz.style.height = h + 'px';
+    var k = cfg.escala || Math.min(1080 / w, 1920 / h);
+    /* DÓNDE, y no solo cuánto. Centrado es lo razonable por defecto, pero un
+       rótulo inferior centrado en un lienzo vertical queda en mitad de la
+       cara; y §18 dice que la banda de abajo la pinta la app. zona mueve la
+       caja ya escalada sin tocar la maqueta de dentro: arriba pega bajo la
+       banda superior (230 px), abajo se apoya sobre la inferior (1459 px). */
+    var alto = h * k;
+    var y = (1920 - alto) / 2;
+    if (cfg.zona === 'arriba') y = 230 + 40;
+    else if (cfg.zona === 'abajo') y = 1459 - 40 - alto;
+    caja.style.transform = 'translate(' + Math.round((1080 - w * k) / 2)
+      + 'px,' + Math.round(y) + 'px) scale(' + k + ')';
+  }
+
+  /* LA CAJA DE TINTA, para colocar.py.
+     Sin anclas() una capa es invisible para el colocador: no sabe cuánto
+     ocupa ni dónde, así que no puede apartarla del rostro ni avisar de que
+     cae bajo el caption de la app. Nuestras plantillas la declaran a mano
+     porque saben qué parte de sí mismas importa; un bloque importado no
+     puede saberlo, así que se MIDE: unión de los rectángulos visibles, ya en
+     coordenadas de lienzo —getBoundingClientRect incluye la transformación
+     del encaje—, descartando los contenedores que cubren casi todo.
+     Se llama después de seek, así que la caja es la del instante que se
+     esté mirando y no la del reposo. */
+  function tinta() {
+    if (!raiz) return null;
+    /* Dos pasadas. La primera descarta los contenedores que cubren casi todo
+       —si no, la caja de cualquier plantilla sería el lienzo entero y el dato
+       no diría nada—. Pero en las de dibujo a mano el contenido ES un <svg> a
+       pantalla completa y sus <path> devuelven cajas de cero: con el filtro
+       puesto, veintisiete plantillas se quedaban sin ancla. Si la primera
+       pasada no deja nada, se repite SIN filtro: una caja grande de más es
+       peor que ninguna, pero ninguna es peor que las dos. */
+    function une(filtra) {
+      var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      var todos = raiz.querySelectorAll('*');
+      for (var i = 0; i < todos.length; i++) {
+        var e = todos[i], s = getComputedStyle(e);
+        if (s.display === 'none' || s.visibility === 'hidden' ||
+            parseFloat(s.opacity) < 0.05) continue;
+        var r = e.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        if (filtra && r.width * r.height > 0.92 * 1080 * 1920) continue;
+        if (r.left < x0) x0 = r.left;
+        if (r.top < y0) y0 = r.top;
+        if (r.right > x1) x1 = r.right;
+        if (r.bottom > y1) y1 = r.bottom;
+      }
+      return x1 < x0 ? null : [x0, y0, x1, y1];
+    }
+    var c = une(true) || une(false);
+    if (!c) return null;
+    var x0 = c[0], y0 = c[1], x1 = c[2], y1 = c[3];
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0);
+    x1 = Math.min(1080, x1); y1 = Math.min(1920, y1);
+    return { bloque: { x: Math.round((x0 + x1) / 2), y: Math.round((y0 + y1) / 2),
+                       w: Math.round(x1 - x0), h: Math.round(y1 - y0) } };
+  }
+
+  /* LA SALIDA, que sus bloques no tienen: entran y se quedan puestos hasta
+     que la composición acaba. Aquí una capa vive dentro de su ventana y
+     tiene que irse, y no es cosmética — es lo que humo_plantillas.js
+     comprueba cuando muestrea tres instantes y exige que no sean el mismo
+     fotograma. Medido: x-post y macos-notification animan su entrada y dan
+     tres capturas idénticas después.
+     Es una salida GENÉRICA —se va bajando y encogiendo un pelo— y por eso
+     se puede apagar con config.salida:false cuando el bloque tenga la suya
+     propia. Determinista: solo depende de t. */
+  var SALIDA = 0.42;
+  /* La duración del GESTO, medida al importar. La sustituye el importador;
+     el valor de aquí es el de respaldo para quien abra el fichero suelto.
+     Va en una variable y no en dos sitios a propósito: la salida tiene que
+     caer dentro de la MISMA ventana que registra la plantilla, y cuando eran
+     dos números —la declarada por la timeline y la registrada— la salida se
+     programaba fuera del tramo que nadie llega a ver. */
+  /* El copy que el plan pide, repartido por orden sobre las ranuras que
+     declara TEXTOS. Lo que sobra se ignora; lo que falta se queda con lo que
+     el bloque traía.
+     Se aplica en CADA fotograma y no solo al montar, y no es por comodidad:
+     varios bloques animan su propio texto —un contador que sube, un
+     tecleado— así que su timeline reescribe el nodo en cada seek y el copy
+     del plan duraba un fotograma. Medido: la tarjeta pedía «−12» y salía el
+     «22» de la demo. */
+  function copia(cfg) {
+    for (var k in RANURAS) {
+      if (!cfg || !cfg[k] || !cfg[k].length) continue;
+      var nodos = document.querySelectorAll(RANURAS[k]);
+      for (var i = 0; i < nodos.length && i < cfg[k].length; i++) {
+        if (nodos[i].textContent !== cfg[k][i]) nodos[i].textContent = cfg[k][i];
+      }
+    }
+  }
+
+  var DUR = 6;   /* MEDIDO al importar */
+  var vida = DUR;
+
+  Engine.register({
+    duration: DUR,
+    /* Las ranuras se escriben LITERALES en los defaults, no con un
+       Object.assign: lint_config.py lee ese bloque con una expresión regular
+       —no ejecuta la plantilla— así que una clave calculada no existe para
+       él y el plan que la usa aborta por «clave que la plantilla no lee».
+       Las ranuras entran aquí porque lint_config.py --estricto
+       comprueba que toda clave del plan la lea de verdad su plantilla: sin
+       declararlas, pedir el copy por config es una clave muerta y el paso
+       aborta. */
+    defaults: { encaje: true, escala: null, zona: 'centro', salida: true,
+                tema: 'carbon', cue: null, cueGain: null },
+    setup: function (cfg) {
+      encaja(cfg);
+      vida = cfg.duration || DUR;
+      copia(cfg);
+      /* EL SONIDO: NINGUNO por defecto, y esto es una vuelta atrás.
+         Se publicaba un «aparicion» genérico en cada bloque importado para
+         que no entraran mudos. Sobre la pieza montada suena a lo que es: el
+         mismo golpe blando en 126 sitios, puesto por una regla que no sabe
+         qué está entrando. Un sonido que no significa nada es peor que el
+         silencio, porque el oído lo cuenta igual.
+         Quien sabe qué suena una capa es el guion —sfx en la capa— o la
+         tabla del director para las plantillas que conoce. Con cue en la
+         config se puede pedir uno a mano. */
+      return { cues: (!cfg.sinSonido && cfg.cue)
+                     ? [{ at: 0.04, sfx: cfg.cue, gain: cfg.cueGain || 0.5 }]
+                     : [] };
+    },
+    anclas: function () { return tinta(); },
+    /* El puente entero. Los dos motores hacen lo mismo —posicionar una
+       animación en el segundo t, sin tocar el reloj del navegador—, así que
+       no hay nada que traducir. */
+    /* La salida va en la raíz y el encaje en la caja que la envuelve: dos
+       transformaciones en dos nodos, para que no se pisen. */
+    draw: function (t, cfg) {
+      if (tl) tl.time(Math.max(0, Math.min(t, tl.duration())));
+      copia(cfg);
+      if (!raiz) return;
+      if (cfg && cfg.salida !== false && vida > SALIDA) {
+        var d = (t - (vida - SALIDA)) / SALIDA;
+        if (d > 0) {
+          var e = 1 - Math.min(1, d);
+          e = e * e * (3 - 2 * e);              /* suavizado, sin rebote */
+          raiz.style.opacity = e;
+          raiz.style.transform = 'translateY(' + ((1 - e) * -26).toFixed(2)
+                               + 'px) scale(' + (0.985 + 0.015 * e).toFixed(4) + ')';
+          return;
+        }
+      }
+      raiz.style.opacity = '';
+      raiz.style.transform = '';
+    }
+  });
+})();
+</script>
+<!-- PUENTE:fin -->
+
+
+
+
+
+
+<style>
+  /* VERTICAL. El trazado y el cuerpo ya van en coordenadas de 1080x1920
+     desde CONFIG; aquí queda el grosor de la guía, que a esta escala se
+     quedaba en un hilo. */
+  #hw-pt-guide {
+    stroke-width: 5;
+  }
+</style>
+
+</body>
+</html>

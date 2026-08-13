@@ -1,0 +1,4 @@
+#!/bin/sh
+# El nivel rápido entero antes de publicar. Menos de tres segundos.
+set -e
+make rapido

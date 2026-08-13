@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Publicación citada</title>
+<link rel="stylesheet" href="_tokens.css">
+<meta name="gesto" content="asentar:registro">
+<style>
+  /* ======================================================================
+     QUÉ ERA Y QUÉ ES
+
+     Era una captura de X dibujada a mano. No hacía falta el logotipo del
+     pájaro para serlo: lo era la ESTRUCTURA. Avatar circular de 66 px con
+     iniciales, nombre en negrita con una insignia de check al lado, arroba
+     en gris debajo, el texto en medio y una fila de métricas que suben
+     solas. Ese orden —quién primero, qué después, cuánto al final— es el
+     de la plataforma, y copiarlo es citar a otra empresa aunque no se
+     escriba su nombre.
+
+     Y había una infracción que ningún control veía: el avatar se pintaba
+     con `hsl(noise * 360, 40%, 40%)`, o sea un TONO ARBITRARIO de los 360.
+     `auditar_estilo.js` solo busca `#RRGGBB`, así que un color fuera de
+     paleta escrito en `hsl()` pasaba invisible — el mismo agujero por el
+     que §2 se cumple en la hoja y no en el fotograma. El avatar ha
+     desaparecido entero, así que el color arbitrario también.
+
+     Ahora es una FICHA DE CITA: la publicación tratada como documento
+     citado, no como pantallazo. Cambia el orden y con él el significado:
+
+       · el TEXTO manda y ocupa la columna ancha;
+       · la AUTORÍA cuelga del margen, DEBAJO, que es donde va un crédito
+         —quien cita pone la fuente después de lo citado, no antes—;
+       · las CIFRAS son el registro del documento, en mono tabular, con la
+         etiqueta en versalitas debajo de cada número;
+       · y no hay ni un icono: ni pájaro, ni corazón, ni check de sistema.
+
+     El pasaje citado se marca con CORONDEL —el filete vertical de bronce
+     que en composición señala la materia citada— y no con comillas. Es una
+     de las dos convenciones y son excluyentes: poner las dos es lo que
+     hace una plantilla que no sabe cuál está usando. Además el corondel no
+     compite con el texto por el ojo, y las comillas grandes ya son de
+     `cita.html`, que es otra plantilla y otra cosa (una frase del autor a
+     pantalla completa, no un documento de un tercero).
+     ====================================================================== */
+
+  .stage { position: absolute; inset: 0; }
+
+  /* La ficha no es una tarjeta de aplicación: no lleva `vidrio-apple` ni
+     esquinas de 24 px. Lleva CANTO VIVO y un filete de un píxel, que es lo
+     que distingue un recorte montado sobre la imagen de un componente de
+     interfaz pegado encima. */
+  .ficha {
+    position: relative;
+    padding: var(--s-6) var(--s-6) var(--s-5);
+    will-change: transform, opacity;
+  }
+
+  /* La plancha: fondo, canto y grano. Va aparte del contenido porque el
+     grano de `Engine.grano` se pinta con `multiply` sobre una capa hija, y
+     si la capa cubriera el texto lo oscurecería un 22 % en carbón. Aquí
+     solo puede tocar la superficie. */
+  .plancha {
+    position: absolute; left: 0; right: 0; top: 0; height: 100%;
+    background: var(--scrim);
+    border: var(--hairline) solid var(--stroke);
+    overflow: hidden;
+    will-change: height;
+    /* El grano se aplica con `multiply`, o sea que solo puede OSCURECER —es
+       lo que hace una tinta de impresión—. Sobre el papel de `paper` se ve a
+       la primera; sobre el carbón, que ya está a L=20, oscurecer no da nada.
+       Por eso la superficie lleva DOS texturas y no una: el grano manda en
+       claro y el rayado en oscuro, porque `--stroke` es marfil al 10 % en
+       carbón y tinta al 10 % en papel, o sea que aclara donde el grano no
+       puede. Las opacidades van cruzadas a propósito.
+
+       El rayado se queda en `baja` (1 px cada 5) y a media opacidad por una
+       razón de VÍDEO y no de gusto: la ficha flota, así que la trama se
+       desplaza fracciones de píxel entre fotogramas y una diagonal fina a
+       plena opacidad centellea al remuestrear a la salida. Al 10 % de
+       `--stroke` por 0,55 el contraste efectivo es del 5,5 % y el centelleo
+       queda por debajo de lo que el codificador conserva. */
+    --grano-op: 0.34;
+    --rayado-op: 0.55;
+  }
+  :root[data-tema="paper"] .plancha { --grano-op: 0.30; --rayado-op: 0.30; }
+  .rayado {
+    position: absolute; inset: 0;
+    opacity: var(--rayado-op);
+    pointer-events: none;
+  }
+
+  /* Tres columnas y no dos: el corondel es una COLUMNA con su propio
+     ancho, no un borde de otra caja. Así el filete mide exactamente lo
+     que mide el pasaje citado —crece y encoge con él— sin medir nada
+     desde JS. */
+  .rejilla {
+    position: relative;
+    display: grid;
+    grid-template-columns: 200px 2px 1fr;
+    column-gap: var(--s-6);
+    row-gap: var(--s-5);
+    align-items: start;
+  }
+
+  /* La fuente, arriba del margen: el campo de catálogo. `--tr-caps-ancho`
+     es el tracking de sello de §3, y aquí gana su sitio: dos palabras en
+     caja alta necesitan aire o se leen como una sola mancha. */
+  .fuente {
+    grid-column: 1; grid-row: 1;
+    text-align: right;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps-ancho);
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    /* Iguala la ALTURA DE MAYÚSCULA del mono con la de la primera línea de
+       la cita: es lo que hace que el campo del margen parezca colgado de la
+       misma línea y no una etiqueta suelta. Medido en el fotograma, no
+       calculado: con 0,58 em el rótulo caía 6 px por debajo, así que son
+       0,26 em de su propio cuerpo (19 px). */
+    padding-top: 0.26em;
+    will-change: opacity;
+  }
+
+  /* CORONDEL. Es metal de verdad: los cinco stops del tema en degradado a
+     lo largo, con el tapiz al 240 % para que la luz pueda RECORRERLO. Un
+     bronce cuya luz no se mueve nunca es una calcomanía naranja, que es lo
+     que §2 lleva pidiendo que no hagamos. En `paper` los cinco stops se
+     colapsan al acento a propósito (_tokens.css), así que ahí queda como
+     filete plano y el movimiento lo llevan las otras piezas. */
+  .corondel {
+    grid-column: 2; grid-row: 1;
+    align-self: stretch;
+    width: 2px;
+    transform-origin: 50% 0;
+    background-image: linear-gradient(180deg,
+      var(--metal-1) 0%, var(--metal-3) 24%, var(--metal-4) 46%,
+      var(--metal-2) 72%, var(--metal-1) 100%);
+    background-size: 100% 240%;
+    will-change: transform, background-position, opacity;
+  }
+
+  .cuerpo { grid-column: 3; grid-row: 1; min-width: 0; }
+
+  /* El texto en `--subs` y no en `--display`, y es una decisión de §3 y no
+     de gusto: una publicación es PROSA que alguien escribió —`--subs`
+     NARRA— y quien AFIRMA aquí es la firma, que va en `--display`. Es al
+     revés de lo que hace toda tarjeta de cita del mundo, y por eso no se
+     parece a ninguna.
+
+     Peso 300 a cuerpo 46: la jerarquía dentro de la línea la da el salto a
+     800 de `resaltar`, o sea 500 puntos. §3 pide exactamente eso —«un
+     salto de al menos 400 puntos», nunca subir el cuerpo ni encender un
+     color— y el catálogo no lo hacía en ninguna plantilla. */
+  .cita {
+    font-family: var(--subs);
+    font-size: var(--t-xl);
+    font-weight: var(--w-claro);
+    line-height: 1.24;
+    letter-spacing: var(--tr-display);
+    color: var(--ink);
+  }
+  /* La medida se ajusta al TEXTO y no al revés. La columna útil son 562 px;
+     a 46 px caben ~23 caracteres por línea, así que 78 caracteres son tres
+     líneas y 150 serían seis, que ya no es una cita: es un párrafo. Los dos
+     escalones bajan el cuerpo antes de que eso pase. El tracking baja con
+     él porque §3 lo publica como curva: a menos cuerpo, menos negativo. */
+  .cita[data-medida="media"] { font-size: var(--t-lg); letter-spacing: var(--tr-texto); }
+  .cita[data-medida="larga"] { font-size: var(--t-md); letter-spacing: var(--tr-texto); }
+
+  /* Cada línea se revela con su propia máscara. `nowrap` porque las líneas
+     ya están medidas: se parte donde el navegador partió, no donde
+     volvería a partir. */
+  .linea { white-space: nowrap; will-change: mask-image; }
+  .fuerte { font-weight: var(--w-negro); }
+
+  /* El filete que separa el pasaje del registro. No es bronce: el bronce ya
+     lo lleva el corondel y dos metales en la misma ficha compiten.
+
+     Va en `--ink-ghost` y no en `--rule`, que es lo que pedía el papel de
+     este trabajo, PORQUE EN CLARO NO SE VEÍA: `--rule` de `paper` es
+     #E4E0D9 sobre un velo que queda en #F0EEEA, o sea 4 niveles de
+     diferencia — el filete estaba en el DOM y en el fotograma no había
+     nada. Es la trampa que §11 lleva anotada tres veces, en el otro
+     sentido: un color que funciona en oscuro puede desaparecer en claro.
+     `--ink-ghost` es la tinta más floja de cada tema, así que se ve en los
+     dos. */
+  .filo {
+    grid-column: 1 / -1; grid-row: 2;
+    height: var(--hairline);
+    background: var(--ink-ghost);
+    transform-origin: 0 50%;
+    will-change: transform, opacity;
+  }
+
+  /* El crédito CUELGA del margen, alineado a la derecha contra el eje del
+     corondel. Va debajo del texto y no encima: eso es lo que separa una
+     cita de un pantallazo. */
+  .credito {
+    grid-column: 1; grid-row: 3;
+    text-align: right;
+    will-change: transform, opacity;
+  }
+  .nombre {
+    font-family: var(--display);
+    font-size: var(--t-sm);
+    font-weight: var(--w-libro);
+    letter-spacing: var(--tr-cuerpo);
+    line-height: 1.14;
+    color: var(--ink);
+    will-change: font-variation-settings;
+  }
+  .usuario {
+    margin-top: var(--s-1);
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    letter-spacing: var(--tr-cuerpo);
+    color: var(--ink-soft);
+  }
+
+  /* El sello de fuente confirmada. Era un círculo de acento con un `✓`
+     dentro, o sea la insignia de una red dibujada a mano y encima con un
+     dingbat del sistema, que §8 prohíbe. Aquí es un filete de bronce de
+     2 px y una palabra: cuesta lo mismo, dice lo mismo y es de esta marca.
+     El filete se TRAZA de derecha a izquierda, como quien subraya al firmar. */
+  .sello {
+    display: flex; align-items: center; justify-content: flex-end;
+    gap: var(--s-2);
+    margin-top: var(--s-2);
+    font-family: var(--mono);
+    font-size: var(--t-2xs);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps);
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .marca {
+    display: block; width: 26px; height: 2px;
+    background-image: linear-gradient(90deg,
+      var(--metal-1) 0%, var(--metal-3) 45%, var(--metal-4) 100%);
+    transform-origin: 100% 50%;
+    will-change: transform;
+  }
+
+  /* Las cifras: número grande en mono TABULAR y etiqueta en versalitas
+     debajo. Tabular no es un adorno: sin él, cada dígito tiene su ancho y
+     una cifra que cambia baila. Aquí no cambian —son el registro del
+     documento, no un contador en vivo— pero la columna sigue alineada
+     entre cifras distintas, que es la mitad de por qué esto parece una
+     ficha y no una fila de «me gusta». */
+  .cifras {
+    grid-column: 3; grid-row: 3;
+    display: flex; gap: var(--s-7); align-items: flex-end;
+  }
+  .cifra { will-change: transform, opacity; }
+  .cifra .n {
+    display: block;
+    font-family: var(--mono);
+    font-size: var(--t-lg);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-texto);
+    line-height: 1.05;
+    color: var(--ink);
+  }
+  .cifra .etq {
+    display: block;
+    margin-top: var(--s-1);
+    font-family: var(--mono);
+    font-size: var(--t-2xs);
+    letter-spacing: var(--tr-caps);
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+</style></head>
+<body>
+<div class="stage">
+  <div class="tarjeta ficha" id="ficha">
+    <div class="plancha" id="plancha"><i class="rayado trama" data-densidad="baja"></i></div>
+    <div class="rejilla">
+      <div class="fuente" id="fuente"></div>
+      <div class="corondel" id="corondel"></div>
+      <div class="cuerpo"><div class="cita" id="cita"></div></div>
+      <div class="filo" id="filo"></div>
+      <div class="credito" id="credito">
+        <div class="nombre" id="nom"></div>
+        <div class="usuario" id="usu"></div>
+        <div class="sello" id="sello"><i class="marca" id="marca"></i><span id="selloTxt"></span></div>
+      </div>
+      <div class="cifras" id="cifras"></div>
+    </div>
+  </div>
+</div>
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const ficha    = document.getElementById('ficha');
+const plancha  = document.getElementById('plancha');
+const fuenteEl = document.getElementById('fuente');
+const corondel = document.getElementById('corondel');
+const cita     = document.getElementById('cita');
+const filo     = document.getElementById('filo');
+const credito  = document.getElementById('credito');
+const nom      = document.getElementById('nom');
+const usu      = document.getElementById('usu');
+const sello    = document.getElementById('sello');
+const selloTxt = document.getElementById('selloTxt');
+const marca    = document.getElementById('marca');
+const cifrasEl = document.getElementById('cifras');
+
+let lineas = [], cifras = [];
+
+/* Agrupación de millares a mano, y NO `toLocaleString('es-ES')`, que es lo que
+   había. Medido en el mismo Chromium que rasteriza los PNG: 1240 salía como
+   «1240», sin separador ninguno — el binario de Playwright no trae la tabla
+   completa de ICU, así que la localización se degrada en silencio y devuelve
+   el número pelado. No da error, no avisa, y el fallo solo se ve en el
+   fotograma. Además esto es lo correcto por otra razón: el catálogo tiene que
+   dar los mismos píxeles en cualquier máquina, y `toLocaleString` depende de
+   con qué ICU se compiló el navegador. */
+function millares(n) {
+  const s = Math.round(Math.abs(Number(n) || 0)).toString();
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    if (i && (s.length - i) % 3 === 0) out += '.';
+    out += s[i];
+  }
+  return (Number(n) < 0 ? '−' : '') + out;
+}
+
+/* Parte el texto en LÍNEAS REALES: se escribe una vez con cada palabra en su
+   `<span>`, se lee el `offsetTop` de cada una y se agrupan las que comparten
+   línea. Después se reconstruye con una caja por línea.
+
+   Hace falta porque el gesto es LEER, y leer va por líneas: revelar el bloque
+   entero de golpe es la receta universal de opacidad que tienen 42 de las 56.
+   Y hay que medir, no adivinar: dónde parte el navegador depende de la fuente
+   real, del peso de las palabras resaltadas y del ancho de la columna, y
+   ninguna de las tres se sabe desde la configuración. */
+function partirEnLineas(cfg) {
+  const texto = String(cfg.texto || '');
+  cita.dataset.medida = texto.length <= 78 ? 'corta'
+                      : texto.length <= 150 ? 'media' : 'larga';
+  cita.innerHTML = '';
+  lineas = [];
+  if (!texto) return;
+
+  /* `resaltar` se busca por RANGO DE CARACTERES y no palabra a palabra: puede
+     ser una frase de varias palabras, y comparando palabra suelta se
+     resaltaría también cualquier repetición de una de ellas en otra parte. */
+  const res = String(cfg.resaltar || '').trim().toLowerCase();
+  const desde = res ? texto.toLowerCase().indexOf(res) : -1;
+  const hasta = desde >= 0 ? desde + res.length : -1;
+
+  const palabras = [];
+  let off = 0;
+  texto.split(/(\s+)/).forEach(tr => {
+    if (!tr) return;
+    if (/^\s+$/.test(tr)) { off += tr.length; return; }
+    const s = document.createElement('span');
+    s.textContent = tr;
+    if (desde >= 0 && off < hasta && off + tr.length > desde) s.className = 'fuerte';
+    cita.appendChild(s);
+    cita.appendChild(document.createTextNode(' '));
+    palabras.push(s);
+    off += tr.length;
+  });
+
+  const grupos = [];
+  let top = null;
+  palabras.forEach(el => {
+    const y = el.offsetTop;
+    /* Umbral de 2 px y no igualdad: una palabra en peso 800 dentro de una
+       línea en peso 300 puede asentarse medio píxel más arriba. */
+    if (top === null || Math.abs(y - top) > 2) { grupos.push([]); top = y; }
+    grupos[grupos.length - 1].push(el);
+  });
+
+  cita.innerHTML = '';
+  lineas = grupos.map(g => {
+    const d = document.createElement('div');
+    d.className = 'linea';
+    g.forEach((el, i) => {
+      if (i) d.appendChild(document.createTextNode(' '));
+      d.appendChild(el);
+    });
+    cita.appendChild(d);
+    return d;
+  });
+}
+
+Engine.register({
+  duration: 5.0,
+  defaults: {
+    nombre: 'Nombre Apellido', usuario: '@usuario', red: 'publicación',
+    verificado: true,
+    /* AÑADIDAS con defecto, nunca sustituyen a ninguna: `sello` saca la
+       copia del sello fuera del código, y `resaltar` habilita el salto de
+       peso de §3 dentro de la línea. Vacía, no pasa nada. */
+    sello: 'verificada',
+    resaltar: '',
+    texto: 'El modelo dejó de ser la ventaja el día que bajó de precio.',
+    metricas: [{ etq: 'me gusta', n: 1240 }, { etq: 'republicado', n: 318 }],
+    /* `subida` conserva su nombre y su clase en `reloj.SEMANTICA` (dur), y
+       cambia de trabajo: antes era lo que tardaba el contador de «me gusta»
+       en subir desde cero; ahora es lo que tarda la cita en LEERSE entera,
+       de la primera línea a la última. El contador se ha ido con la captura
+       de pantalla: las cifras de un documento citado son históricas, no
+       están pasando, y verlas correr era la señal más de plataforma que
+       tenía esta plantilla. */
+    subida: 1.2,
+    escalonado: 0.12,
+    entrada: 0.5, salida: 0.4
+  },
+
+  setup(cfg) {
+    fuenteEl.textContent = cfg.red || '';
+    nom.textContent = cfg.nombre || '';
+    usu.textContent = cfg.usuario || '';
+    selloTxt.textContent = cfg.sello || '';
+    sello.style.display = cfg.verificado ? '' : 'none';
+
+    partirEnLineas(cfg);
+
+    cifrasEl.innerHTML = '';
+    cifras = (cfg.metricas || []).map(m => {
+      const d = document.createElement('div');
+      d.className = 'cifra';
+      const n = document.createElement('b');
+      n.className = 'n tnum';
+      n.textContent = millares(m.n);
+      const e = document.createElement('span');
+      e.className = 'etq';
+      e.textContent = m.etq || '';
+      d.appendChild(n); d.appendChild(e);
+      cifrasEl.appendChild(d);
+      return d;
+    });
+
+    /* Grano de impresión sobre la plancha. Es la diferencia entre un recorte
+       y un plano de color con un filete de 1 px, que es la firma de una demo
+       de CSS y lo que tienen 48 de las 56. */
+    /* La opacidad se deja en manos del CSS —`var(--grano-op)`— en vez del
+       número que acepta el helper, porque tiene que cambiar con el tema y un
+       estilo en línea no puede. Mismo recurso que usa `cita.html` con
+       `--agua-op`. */
+    Engine.grano(plancha, { px: 256, semilla: 19 })
+          .style.opacity = 'var(--grano-op)';
+
+    /* Sin `cues` a propósito. El sonido de esta capa ya lo declara el
+       director (`dirigir.SFX_POR_PLANTILLA['tweet-card'] = ('pop', 0.65)`),
+       así que publicar aquí una señal más lo DUPLICARÍA en el montaje. Dicho
+       queda que `pop` es el sonido de una burbuja y no el de una ficha: lo
+       suyo sería `clic` o `deslizar`, pero esa tabla vive en `dirigir.py` y
+       no se toca desde una plantilla. */
+  },
+
+  anclas() {
+    const b = ficha.getBoundingClientRect();
+    return { post: { x: Math.round(b.left + b.width / 2),
+                     y: Math.round(b.top + b.height / 2),
+                     w: Math.round(b.width), h: Math.round(b.height) } };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 5.0;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+    const entrada = Math.max(0.12, cfg.entrada || 0.5);
+    const subida = Math.max(0.2, cfg.subida || 1.2);
+
+    /* 1 · LA HOJA SE POSA. Se anima la ALTURA de la plancha, no una escala:
+       con `scaleY` el grano se estira y durante la entrada la trama de
+       impresión se ve como rayas. Con altura, la teja se sigue repitiendo
+       desde arriba y el canto inferior baja como el borde de una hoja que se
+       desenrolla. `inOutCubic` y no `outCubic`: una hoja que se posa arranca
+       despacio; con `outCubic` el canto sale disparado en el primer fotograma
+       y parece un barrido.
+
+       Dura `entrada * 1.5` —0,75 s con el defecto— y no `entrada`, para que
+       el canto vaya SIEMPRE por delante de la lectura en vez de terminar
+       antes. Con la entrada corta se veía durante 0,28 s una plancha vacía a
+       tamaño final, que anuncia el hueco antes de que haya nada dentro: es el
+       mismo error que un rótulo que reserva su caja y luego se rellena. */
+    const hoja = span(t, 0, entrada * 1.5, Ease.inOutCubic);
+    plancha.style.height = (hoja * 100).toFixed(2) + '%';
+
+    /* Flotación de reposo (§10). Esta plantilla estaba marcada como CONGELA:
+       dos de los tres fotogramas de muestra eran idénticos byte a byte, o sea
+       que se quedaba muerta media pantalla porque después de 1,7 s no cambiaba
+       ni un píxel. La ficha entera deriva con un periodo, las cifras con otro
+       y la luz del bronce con un tercero: ninguno divisor del otro, así que el
+       conjunto no vuelve a coincidir dentro de la pieza. */
+    const f = Engine.flota(t, 0, { amp: 2.6, periodo: 8.6, semilla: 5 });
+    ficha.style.opacity = cierre.toFixed(3);
+    ficha.style.transform =
+      'translate(' + f.x.toFixed(2) + 'px, ' +
+      ((1 - hoja) * 14 + f.y).toFixed(2) + 'px)';
+
+    /* 2 · SE MARCA EL PASAJE. El corondel se traza hacia abajo antes de que
+       haya texto que leer, que es el orden real: primero se señala en el
+       margen lo que se va a citar. */
+    const cor = span(t, entrada * 0.45, 0.44, Ease.outCubic);
+    corondel.style.transform = 'scaleY(' + cor.toFixed(3) + ')';
+    corondel.style.opacity = (cor > 0 ? cor : 0).toFixed(3);
+    /* La luz recorre el metal. Periodo 9,3 s: más largo que la capa, así que
+       nunca se ve el ciclo cerrarse y no se lee como un bucle. */
+    corondel.style.backgroundPosition =
+      '0% ' + (50 + 46 * Math.sin(2 * Math.PI * t / 9.3)).toFixed(2) + '%';
+
+    const fu = span(t, entrada * 0.6, 0.34, Ease.outCubic);
+    fuenteEl.style.opacity = fu.toFixed(3);
+
+    /* 3 · SE LEE. Cada línea se descubre de izquierda a derecha con una
+       máscara de borde blando (18 % de la línea ≈ tres caracteres), y las
+       líneas van escalonadas: el ojo recorre el texto en vez de encontrárselo
+       puesto. `subida` es el total, así que el reparto se recalcula con el
+       número de líneas y una cita de dos líneas no tarda lo mismo que una de
+       cinco.
+
+       El degradado de la máscara va en `rgba(0,0,0,·)` y no en un token: una
+       máscara es CANAL ALFA, no color. No se ve, no cambia con el tema y por
+       eso no le corresponde ninguna variable de paleta. */
+    const ini = entrada * 0.75;
+    const barrido = clamp(subida * 0.42, 0.20, 0.46);
+    const paso = lineas.length > 1 ? (subida - barrido) / (lineas.length - 1) : 0;
+    lineas.forEach((l, i) => {
+      const p = span(t, ini + i * paso, barrido, Ease.outCubic);
+      const borde = p * 118 - 18;
+      const m = 'linear-gradient(90deg, rgba(0,0,0,1) ' + borde.toFixed(2) +
+                '%, rgba(0,0,0,0) ' + (borde + 18).toFixed(2) + '%)';
+      l.style.webkitMaskImage = m;
+      l.style.maskImage = m;
+    });
+    const finLectura = ini + subida;
+
+    /* 4 · SE CIERRA EL PASAJE Y SE FIRMA. El filete cruza de izquierda a
+       derecha mientras aún se está leyendo la última línea —solapar los dos
+       gestos es lo que hace que la ficha no vaya a trompicones— y el crédito
+       entra justo cuando el texto termina. */
+    const fi = span(t, ini + subida * 0.55, 0.52, Ease.inOutCubic);
+    filo.style.transform = 'scaleX(' + fi.toFixed(3) + ')';
+    filo.style.opacity = (fi > 0 ? 1 : 0).toFixed(3);
+
+    const cre = span(t, finLectura - 0.24, 0.4, Ease.outCubic);
+    credito.style.opacity = cre.toFixed(3);
+    credito.style.transform = 'translateY(' + ((1 - cre) * 8).toFixed(2) + 'px)';
+
+    /* El nombre ASIENTA su peso, de 360 a 720 sobre el eje `wght` de Plus
+       Jakarta Sans, que es variable. Es el gesto que §3 pide y que no se
+       puede imitar con dos ficheros estáticos: el crédito no aparece, se
+       AFIRMA. Va en `--display` justamente por eso — y porque Geist tiene
+       instalados los estáticos además del variable, así que animar el eje
+       ahí no está garantizado. */
+    const w = 360 + 360 * span(t, finLectura - 0.20, 0.58, Ease.outCubic);
+    Engine.peso(nom, Math.round(w));
+
+    marca.style.transform =
+      'scaleX(' + span(t, finLectura + 0.02, 0.30, Ease.outCubic).toFixed(3) + ')';
+
+    /* 5 · SE ESTAMPA EL REGISTRO. `outBack6` es el único sobrepaso que §1
+       permite (6 %, calibrado en el motor): una cifra que se estampa presiona
+       y se asienta. Con `outCubic` llegaría frenando y parecería otra vez una
+       entrada de tarjeta. */
+    const esc = cfg.escalonado === undefined ? 0.12 : cfg.escalonado;
+    cifras.forEach((d, i) => {
+      const p = span(t, finLectura + 0.06 + i * esc, 0.34, Ease.outBack6);
+      const fl = Engine.flota(t, i + 2, { amp: 1.6, periodo: 6.4, semilla: 11 });
+      d.style.opacity = clamp(p, 0, 1).toFixed(3);
+      d.style.transform =
+        'translate(' + fl.x.toFixed(2) + 'px, ' +
+        ((1 - p) * 12 + fl.y).toFixed(2) + 'px)';
+    });
+  }
+});
+</script></body></html>

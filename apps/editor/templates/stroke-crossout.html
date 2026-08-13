@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Tachado vectorial</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+  .palabra {
+    position: absolute; left: 0; right: 0; margin-inline: auto;
+    width: fit-content; max-width: 90%;
+    font-family: var(--display); font-weight: 800;
+    letter-spacing: -0.03em; color: var(--ink);
+    text-shadow: 0 3px 0 rgba(0,0,0,0.5), 0 0 24px rgba(0,0,0,0.4);
+    white-space: nowrap;
+  }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  #tacha { fill: none; stroke: var(--rojo, var(--senal-no)); stroke-linecap: round; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="palabra" id="p"></div>
+  <svg id="svg" viewBox="0 0 1080 1920" preserveAspectRatio="none">
+    <path id="tacha"></path>
+  </svg></div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp, noise } = Engine;
+
+const p = document.getElementById('p');
+const tacha = document.getElementById('tacha');
+let largo = 1;
+
+Engine.register({
+  duration: 1.0,
+  defaults: { texto: 'NO', y: 900, tam: 150, grosor: 14, diagonal: false,
+              trazo: 0.2 },   // el tachado se dibuja en 0.2 s
+
+  setup(cfg) {
+    p.textContent = cfg.texto || '';
+    p.style.fontSize = cfg.tam + 'px';
+    p.style.top = cfg.y + 'px';
+    tacha.style.strokeWidth = cfg.grosor;
+
+    /* La caja se MIDE, no se calcula: el ancho depende de la palabra y de
+       la fuente, y una raya de longitud fija se queda corta o se pasa. */
+    const r = p.getBoundingClientRect();
+    const m = 18;                       // sobresale un poco por los lados
+    const x0 = r.left - m, x1 = r.right + m;
+    const [y0, y1] = cfg.diagonal
+      ? [r.bottom + m * 0.4, r.top - m * 0.4]
+      : [r.top + r.height * 0.56, r.top + r.height * 0.56];
+    tacha.setAttribute('d', `M${x0} ${y0} L${x1} ${y1}`);
+    largo = Math.hypot(x1 - x0, y1 - y0) || 1;
+    tacha.style.strokeDasharray = largo;
+  },
+
+  draw(t, cfg) {
+    const e = span(t, 0, 0.18, Ease.outCubic);
+    /* La palabra entra un pelo antes que la raya: tacharla mientras
+       aparece se lee como un fallo de sincronía, no como una negación. */
+    p.style.opacity = e;
+    p.style.transform = `scale(${0.94 + 0.06 * e})`;
+    const d = span(t, 0.12, cfg.trazo, Ease.outCubic);
+    tacha.style.strokeDashoffset = largo * (1 - d);
+    const fin = 1 - span(t, (cfg.duration || 1) - 0.22, 0.22, Ease.inOutCubic);
+    p.style.opacity = e * fin;
+    tacha.style.opacity = fin;
+  }
+});
+</script>
+</body>
+</html>

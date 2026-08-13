@@ -1,0 +1,917 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<!-- El gesto no es el «pop»: es la VOZ recorriendo la línea. Ver el bloque
+     «Qué dibuja esto» de abajo. -->
+<meta name="gesto" content="revelar:voz">
+<title>Subtítulos cinéticos</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* ======================================================================
+     QUÉ DIBUJA ESTO
+     ----------------------------------------------------------------------
+     Antes: tres palabras blancas en caja alta que aparecían de golpe con un
+     zoom elástico, con la palabra con carga en amarillo neón. O sea, el
+     subtítulo por defecto de CapCut. Y una vez pasado el zoom —0,1 s, tres
+     fotogramas a 30 pps— el grupo se quedaba QUIETO durante los 20 restantes:
+     el humo capturaba tres instantes y dos salían idénticos byte a byte.
+
+     Ahora: una LÍNEA DE HABLA por la que pasa la voz. Las palabras que aún no
+     se han dicho están puestas en un peso claro y apagadas; la que suena en
+     este instante está en negro; las ya dichas se quedan en un peso medio.
+     El ojo sigue a la voz por el PESO, que es la única jerarquía que §1
+     permite —«contraste y peso tipográfico, nunca luz»— y la que `_tokens.css`
+     pide explícitamente: «un salto de al menos 400 puntos de peso».
+
+     Por qué esto y no otra cosa: la plantilla YA RECIBÍA el tiempo de cada
+     palabra —`palabras: [{w, ini, fin}]`, que es lo que la hace «cinética»— y
+     los tiraba a la basura en cuanto agrupaba: solo se quedaba con el `ini` de
+     la primera y el `fin` de la última. El dato más caro de todo el pipeline
+     —lo que produce Whisper— se usaba para decidir dónde cortar y para nada
+     más. Aquí se usa para lo que es: saber qué se está diciendo AHORA.
+
+     Y es un gesto que un subtítulo de fuente estática no puede imitar: hace
+     falta un eje `wght` variable, y Plus Jakarta Sans lo tiene.
+     ====================================================================== */
+
+  .stage { position: absolute; inset: 0; }
+
+  .zona {
+    position: absolute; left: 0; right: 0;
+    /* 820 y no 980: lo pone `setup` desde `anchoMax`, y este es el valor de
+       la hoja para que la plantilla abierta suelta no mienta. Ver el
+       `defaults`. */
+    margin-inline: auto; width: 92%; max-width: 820px;
+    display: flex; flex-wrap: wrap; align-items: baseline;
+    justify-content: center; gap: 0 0.22em;
+    text-align: center;
+
+    /* Los tres estados de una palabra, nombrados y sacados del sistema de
+       pesos. Viven aquí y no como números sueltos en el JS por dos razones:
+       se leen desde `getComputedStyle`, así que el motor no repite la escala;
+       y quedan donde alguien los busca, junto al resto del estilo.
+
+       800 − 300 = 500 puntos, por encima de los 400 que `_tokens.css` exige
+       para que un salto de peso VALGA como jerarquía. `--w-solido` (900) no
+       sirve aquí: medido en el mismo Chromium que rasteriza, el eje `wght` de
+       Plus Jakarta Sans se acaba en 800 y 900 y 1000 devuelven exactamente el
+       mismo ancho que 800 (431,39 px los tres, para «PALABRA» a 92 px). Pedir
+       900 no es un peso más: es no hacer nada. */
+    --wght-espera: var(--w-claro);   /* 300 · aún no se ha dicho */
+    --wght-voz:    var(--w-negro);   /* 800 · suena ahora        */
+    --wght-dicha:  var(--w-medio);   /* 500 · ya se ha dicho     */
+  }
+  .zona[data-zona="arriba"] { top: 180px; }
+  /* Una sola altura en toda la pieza, con tarjeta y sin ella: lo que cede el
+     subtítulo cuando entra una tarjeta es el GESTO, no la posición. Antes
+     eran dos —300 aquí y 150 en la franja «fija»— y el bloque SALTABA: su
+     borde inferior iba de 1515 a 1750 contando el número de líneas, y eso se
+     lee como un error de montaje.
+     Y 471 y no 300 porque el número ya no es de diseño: sale de dónde empieza
+     la banda que pinta la plataforma. Lo escribe `draw` desde `fijoAbajo`;
+     esto es el respaldo. */
+  .zona[data-zona="abajo"]  { bottom: 471px; }
+  .zona[data-zona="centro"] { top: 0; bottom: 0; height: fit-content;
+                              margin-block: auto; }
+  /* Franja fija mientras hay una tarjeta: `bottom` lo pone `draw`. */
+  .zona[data-zona="fija"] { top: auto; }
+
+  /* Cada grupo es una unidad de lectura: 1-3 palabras. Más de tres a este
+     cuerpo no caben de un vistazo, y el recurso vive de que se lea sin
+     mover los ojos. */
+  .grupo { display: flex; flex-wrap: wrap; align-items: baseline;
+           justify-content: center; gap: 0 0.22em;
+           will-change: transform, opacity; }
+
+  .w {
+    font-family: var(--display);
+    font-weight: var(--w-negro);
+    /* `inline-block` con ancho FIJO, y no es maquetación defensiva: es lo que
+       hace posible animar el peso.
+
+       Medido sobre «PALABRA» a 92 px en Plus Jakarta Sans: 402,97 px a `wght`
+       200 y 431,39 px a 800, o sea un 7,05 % de diferencia de AVANCE. Con las
+       palabras en flujo normal, subir el peso de la que suena ensancha su
+       caja, el `justify-content: center` del grupo recoloca las otras dos y la
+       línea entera se desplaza en horizontal en cada ataque. A 30 pps eso no
+       se lee como énfasis: se lee como un texto que tiembla.
+
+       Fijando el ancho al del peso MÁXIMO —el que la palabra ocupará cuando
+       suene— la caja no se mueve nunca y el glifo engorda dentro de ella. El
+       ancho lo mide `setup` en `em`, no en px, para que siga valiendo si el
+       plan cambia `tam` o si el motor aplica `zoom`.
+
+       `flex: none` no es opcional: sin él los `.w` son ítems flex con
+       `flex-shrink: 1` y el navegador puede encogerlos, con lo que la medida
+       de `setup` sería la de una caja ya comprimida. */
+    flex: none;
+    display: inline-block;
+    text-align: center;
+    text-transform: uppercase;
+    /* El peldaño de tracking lo elige `setup` según el cuerpo que le toque:
+       `--tr-*` es una CURVA indexada por tamaño, no un valor. Congelar aquí
+       `--tr-hero` sería correcto a 96 px y falso a los 62 que manda
+       `dirigir.py` cuando el lienzo es bajo — y el tracking es una corrección
+       óptica, así que aplicar el de 109 px a uno de 62 aprieta las letras de
+       un cuerpo que ya necesita aire. El respaldo es el peldaño del cuerpo por
+       defecto, por si alguien abre el fichero sin llamar a `setup`. */
+    letter-spacing: var(--tr-w, var(--tr-hero));
+    /* 1,14 y no 1,02, que era lo que había. Con dos líneas de caja alta y
+       tildes —«SUBTÍTULOS» sobre «CINÉTICOS»— el acento agudo de la línea de
+       abajo entra en la de arriba y aparece una coma bajo la S. Se ve en
+       cualquier captura del montaje viejo y no lo delata ningún log. */
+    line-height: 1.14;
+    color: var(--sobre-relleno);
+    position: relative;
+    /* Para el pop de la dinámica: el mismo origen que `karaoke-subs`, un
+       poco por debajo del centro, que es donde el ojo ancla la palabra.
+       Sin transform escrito no cambia ningún píxel. */
+    transform-origin: 50% 60%;
+    /* Legibilidad sobre metraje ARBITRARIO, y en los dos temas con la misma
+       declaración: `--sobre-relleno` es marfil en carbón y tinta en papel, y
+       `--scrim` es el halo complementario —negro al 80 % en carbón, papel al
+       92 % en claro—. Antes esto era `#FFFFFF` con una sombra negra escrita a
+       mano, o sea que en tema `paper` el subtítulo salía blanco sobre un
+       grado claro: el caso en que un subtítulo desaparece.
+
+       El contorno es `-webkit-text-stroke` con `paint-order: stroke fill` y no
+       una pila de `text-shadow` desplazados: el trazo se pinta primero y el
+       relleno encima, así que el glifo conserva su forma y solo gana borde por
+       fuera. Con `text-shadow` harían falta ocho copias para cerrar el
+       contorno, que es ocho veces el mismo texto rasterizado en cada
+       fotograma de toda la pieza.
+
+       0,05 em, y aquí decía 0,03 «y no más» por proteger el contraste de asta
+       entre pesos. Ese razonamiento perdió contra una medida: en el fotograma
+       de 44,5 s de la pieza real, «NECESITAS» —fina, en espera, opacidad
+       0,66— daba 2,20:1 sobre piel clara cuando WCAG pide 3:1 para texto
+       grande, mientras la negrita de al lado aguantaba a 6,3:1. El halo de la
+       palabra en espera hereda su opacidad, así que a media opacidad el scrim
+       se queda en alfa ~0,54 y la letra clara se lee A TRAVÉS de su borde
+       sobre un fondo claro. Mismo trazo que `karaoke-subs`, que ya está en
+       0,05 em con `paint-order` por lo mismo.
+
+       Las cuatro sombras duras a 0,025 em —una por dirección, sin desenfoque—
+       no son decorativas y no se leen como sombra: son copias de la silueta
+       apiladas DEBAJO del trazo que densifican el halo donde el relleno no lo
+       tapa. El scrim solo es un alfa 0,82 que la palabra en espera multiplica
+       por 0,66; apilando copias el borde se acerca a opaco ANTES de esa
+       multiplicación, que es la única vía de subir la protección sin tocar la
+       opacidad de la palabra — su señal de estado. Medido sobre #B0A89C —la
+       luma de la pared— en ese mismo fotograma: el halo de la fina pasa de
+       2,54:1 a ≥3:1 contra el fondo, y el asta sigue leyéndose contra su
+       halo.
+
+       El trazo NO cambia la métrica: `-webkit-text-stroke` pinta fuera de la
+       caja de maquetación, así que los anchos que `setup` congela son
+       idénticos con 0,03 y con 0,05 (comprobado midiendo `style.width` de la
+       misma palabra con los dos trazos: 6,3611 em las dos veces). */
+    -webkit-text-stroke: 0.05em var(--scrim);
+    paint-order: stroke fill;
+    text-shadow: 0.025em 0 0 var(--scrim), -0.025em 0 0 var(--scrim),
+                 0 0.025em 0 var(--scrim), 0 -0.025em 0 var(--scrim),
+                 0 0.03em 0.12em var(--scrim);
+  }
+
+  /* La palabra con carga es una pieza de BRONCE CEPILLADO, no un plano
+     naranja: §2 lo dice sin rodeos y `.brushed-text` es la forma del metal que
+     sirve para texto. En `paper` los cinco stops se colapsan al acento, así
+     que devuelve color plano sin tocar el marcado — que es para lo que se
+     escribió esa clase.
+
+     `-webkit-text-stroke` sigue puesto y `paint-order` sigue mandando: el
+     trazo del scrim va debajo y el degradado recortado al texto encima. */
+  /* La palabra CLAVE no solo cambia de tinta: cambia de TAMAÑO y de peso.
+     Con solo el color, un subtítulo tiene una sola voz y el énfasis depende
+     de que el espectador distinga dos azules a 40 px de alto sobre metraje en
+     movimiento. Con cuerpo y peso se ve de reojo, que es como se ve un
+     subtítulo.
+
+     1,16 y no más: el grupo se alinea por LÍNEA BASE, así que una palabra
+     mucho mayor levanta el renglón entero y la línea deja de leerse como una
+     unidad. Y el ancho se congela por palabra —ver `setup`—, o una palabra
+     con otro cuerpo desplaza a las de al lado en cada ataque. */
+  .w.clave {
+    color: var(--accent);
+    font-size: 1.16em;
+    --wght-espera: 400;
+    --wght-voz: 900;
+  }
+
+  /* El filete que la voz traza bajo la palabra con carga mientras la dice.
+     Es el sustituto del amarillo: antes la clave se señalaba ENCENDIÉNDOLA
+     —#FFE500, neón que §1 prohíbe—, y encender es exactamente lo que §1
+     descarta. Un filete de bronce de 4 px dice lo mismo, cuesta un
+     `transform: scaleX` y es de esta marca.
+
+     Va absoluto para no participar en la maquetación: ni ensancha la caja de
+     la palabra ni entra en la medida de `anclas()`. */
+  .w .filo {
+    position: absolute;
+    left: 0; right: 0; bottom: -0.02em;
+    height: 0.05em;
+    border-radius: var(--r-sm);
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+
+  /* --- ACENTO DEL PLAN -------------------------------------------------
+     La palabra con carga va en `--accent`, que es el azul de esta marca. En
+     una pieza que NO es de esta marca —el vídeo de un cliente— ese azul es
+     el error, no el acierto, y hasta ahora la única salida era un `preset`,
+     que cambia la VOZ entera (familia, pastilla, bloom) para reproducir un
+     catálogo ajeno. Cambiar de tinta no debería costar cambiar de estilo.
+
+     `acento` toma un color CSS del plan y lo aplica a la clave. No es un
+     hexadecimal a pelo en la plantilla —§2— porque no lo decide la plantilla:
+     llega del plan, con la misma naturaleza que un `card_copy`.
+
+     El filete se va con él: el bronce es la marca de ESTA marca (lo dice el
+     preset 2 al retirarlo por lo mismo), y un filete de bronce bajo una
+     palabra rosa son dos colores peleándose bajo el mismo glifo. Se sustituye
+     por un plano del propio acento, que es lo que un filete debe hacer:
+     subrayar, no decorar. */
+  .zona[data-acento] .w.clave { color: var(--acento-plan); }
+  .zona[data-acento] .w .filo {
+    background-image: none;
+    background-color: var(--acento-plan);
+  }
+
+  /* Conectores en cursiva caligráfica y minúscula. No van en el mismo
+     peso ni en mayúscula a propósito: su trabajo es unir, y compitiendo
+     con las palabras con carga se pierde el ritmo de lectura.
+
+     Y hasta ahora hacían justo lo contrario de lo que dice ese párrafo: el
+     conector llevaba `#FFE500`, EL MISMO amarillo que la palabra clave, o sea
+     la tinta más llamativa de la plantilla. El elemento cuyo comentario decía
+     «no debe competir» era el que más gritaba. `--ink-soft` es literalmente
+     «la mitad callada de un contraste», que es su papel.
+
+     Tampoco entra en el sistema de pesos, y no por olvido: Yellowtail es
+     estática, un solo peso. Su estado lo marca solo la opacidad. */
+  .w.enlace {
+    font-family: "Yellowtail", "Caveat", cursive;
+    font-weight: var(--w-libro);
+    text-transform: lowercase;
+    letter-spacing: var(--tr-cuerpo);
+    color: var(--ink-soft);
+    transform: rotate(-4deg);
+    padding: 0 0.06em;
+    /* Sin ancho fijo, a propósito: no anima el peso, así que no se ensancha.
+       Y medirlo sería medir MAL — `getBoundingClientRect` de un elemento
+       rotado devuelve la caja alineada a los ejes, que a −4° es más ancha que
+       el texto. */
+    width: auto !important;
+  }
+
+  /* ======================================================================
+     PRESETS
+     El catálogo de estilos vivía SOLO en `subtitles-showcase.html`, que
+     enseña una frase suelta sobre un fondo liso. O sea que se podía elegir
+     un estilo y no se podía usar: los subtítulos de verdad —los que llevan
+     los tiempos de cada palabra y se componen sobre metraje— tenían uno
+     fijo. Un catálogo del que no se puede sacar nada es una demo.
+
+     Se portan aquí como capa de anulación sobre el estilo por defecto, no
+     como sustitución: lo que un preset no diga sigue valiendo, así que
+     añadir el siguiente cuesta un bloque y no una copia de la plantilla.
+     La numeración es la del catálogo a propósito — `preset: 2` aquí es el
+     PRESET 2 de allí y no otro.
+
+     SOBRE LOS HEX DE ESTA SECCIÓN. Son la única excepción a «cero
+     hexadecimales a pelo» de todo el fichero, y es una excepción DECLARADA:
+     un preset reproduce un color concreto de un catálogo externo, y
+     tokenizarlo lo convertiría en otro estilo. Se recogen en variables con
+     nombre al principio del bloque de su preset y no se usa ni uno fuera de
+     él. El estilo POR DEFECTO —el de marca— no tiene ninguno.
+     ====================================================================== */
+
+  /* --- 2 · Cinematic Coral Glow ---------------------------------------
+     El bloom es un `filter: drop-shadow` sobre el TEXTO y no un
+     `text-shadow`: el filtro difumina el glifo ya compuesto —su silueta
+     incluida— y da resplandor; `text-shadow` solo pinta copias desplazadas
+     y produce un contorno. Medido en §16: el halo llega a 45 px por lado.
+
+     Sí, es un resplandor de color, que es lo que §1 descarta. Está aquí por
+     lo mismo que sus hexadecimales: NO es un estilo de esta marca, es la
+     reproducción declarada de uno ajeno, y su nombre lo dice. La norma aplica
+     al preset 0, que es el que sale en las piezas.
+
+     La pastilla negra tras el grupo no es decorativa. El coral se queda en
+     2,1:1 de contraste sobre piel o sobre una pared clara, muy por debajo del
+     4,5 de la AA; sobre la pastilla sube a 5,8:1. Sin ella el preset se ve
+     bien en las capturas oscuras y se cae en las claras. */
+  .zona[data-preset="2"] {
+    /* PALETA-AJENA: inicio */
+    /* EXCEPCIÓN DECLARADA: colores de un catálogo externo, no de la marca.
+       Ninguno se usa fuera de este bloque. */
+    --p2-coral: #FF3B4E;
+    --p2-tinta: #FFFFFF;
+    /* PALETA-AJENA: fin */
+  }
+  .zona[data-preset="2"] .grupo {
+    padding: 0.14em 0.44em;
+    border-radius: 20px;
+    background: rgba(0, 0, 0, 0.85);
+  }
+  /* `:not(.enlace)` NO es un detalle de especificidad: es la línea que separa
+     ESTILO de ESTRUCTURA, y me costó un fotograma descubrirlo.
+
+     Sin él, `.zona[data-preset="2"] .w` (0,3,0) pisa a `.w.enlace` (0,2,0) y
+     el conector pierde su cursiva, su minúscula y su tracking — se queda solo
+     con el `rotate`, porque `transform` no se declaraba aquí. Se veía en el
+     vídeo y en ningún log.
+
+     El arreglo evidente —repetir las tres propiedades dentro del bloque del
+     preset— es el malo: obliga a repetirlas en CADA preset futuro y rompe la
+     promesa de arriba, que añadir el siguiente cuesta un bloque.
+
+     El bueno es este, porque dice la verdad sobre el sistema: un preset cambia
+     LA VOZ DE LAS PALABRAS. El conector no es «una palabra con otro estilo»,
+     es OTRO ROL —existe para unir, y por eso va en otra familia, otra caja y
+     otro peso—. Un preset que lo pisa está confundiendo estilo con estructura.
+     Con `:not(.enlace)` el rol queda protegido por construcción. */
+  .zona[data-preset="2"] .w:not(.enlace) {
+    font-family: "Montserrat", "Plus Jakarta Sans", "Geist", sans-serif;
+    letter-spacing: var(--tr-texto);
+    color: var(--p2-coral);
+    /* El contorno del estilo de marca se retira: este preset separa del fondo
+       con la pastilla y con el bloom, y un borde encima los emborrona. */
+    -webkit-text-stroke: 0;
+    text-shadow: none;
+    filter: drop-shadow(0 0 22px color-mix(in oklab, var(--p2-coral) 75%, transparent))
+            drop-shadow(0 12px 30px rgba(0, 0, 0, 0.95));
+  }
+  /* Invertido respecto al defecto: aquí la palabra con carga va en BLANCO
+     sobre el coral, no al revés. Con la clave también en coral no se
+     distinguiría, que es justo lo que la clave existe para hacer. Y el filete
+     de bronce se retira: es la marca de ESTA marca, no de este preset. */
+  .zona[data-preset="2"] .w.clave { color: var(--p2-tinta); }
+  .zona[data-preset="2"] .w .filo { display: none; }
+  /* El conector conserva su familia y su caja; solo cambia de tinta, que es
+     lo único que un preset tiene que decidir sobre él. */
+  .zona[data-preset="2"] .w.enlace {
+    color: var(--p2-tinta);
+    -webkit-text-stroke: 0;
+    text-shadow: none;
+    filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.9));
+  }
+</style>
+</head>
+<body>
+<div class="stage"><div class="zona" id="zona"></div></div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp, flota } = Engine;
+const zona = document.getElementById('zona');
+let grupos = [];
+/* Qué grupo está PUESTO en el DOM ahora mismo. No es un acumulador: se deriva
+   entero de `t` en cada `draw`; lo único que evita es reescribir `display` en
+   los demás grupos en cada fotograma. Medido sobre el plan que hay en
+   `build/plan.json`: 105 palabras, 39 grupos y 1495 fotogramas, o sea 58 305
+   escrituras de `display` que antes se hacían y ahora no. */
+let enPantalla = -1;
+
+/* Cuánto sigue el grupo en pantalla después de su última palabra. Se recorta
+   contra el comienzo del siguiente en `setup`; ver el comentario de `corte`. */
+const COLA = 0.06;
+
+/* Flotación de reposo (§10). 3 px sobre 1080 es el valor del motor: por debajo
+   de lo que se nota como movimiento en un fotograma suelto y por encima de lo
+   que hace falta para que la imagen deje de estar muerta.
+
+   Mientras hay una tarjeta en pantalla baja a 1,4 px en vez de apagarse. Se
+   podría apagar —era la tentación— y sería un error medible: en el plan que
+   hay en `build/plan.json` las siete ventanas de tarjeta cubren 15,27 s de
+   49,84, o sea que apagarla dejaría el subtítulo congelado durante el 30,6 %
+   de la pieza, que es exactamente el diagnóstico del que se parte. Lo que
+   molesta al competir con una tarjeta es el gesto grande, no la deriva. */
+const DERIVA = 3, DERIVA_FIJA = 1.4;
+
+/* Entrada del grupo. `outBack6` y no `outBack`: el `s` por defecto se pasa un
+   10,0 % y §1 corta en el 6 %. Y el rango es 0,94 → 1, no el 0,85 → 1 de
+   antes: §10 dice «entradas con outCubic y como mucho 6 % de escala», y un
+   15 % de zoom es el gesto de CapCut, no el de esta marca. Lo que lleva la
+   energía ya no es el zoom del grupo, es el ataque de peso de cada palabra. */
+const ESCALA = 0.94, ALZA = 14;
+
+/* Opacidad de los tres estados. La palabra que aún no ha sonado se ve —hace
+   falta para leer por delante de la voz, que es para lo que se muestran tres
+   a la vez— pero se ve callada.
+
+   0,66 y no 0,52, que es donde empezó: mirando el fotograma compuesto sobre un
+   gris de metraje, a 0,52 las dos palabras que no suenan quedaban al borde de
+   no leerse, y esta es la capa más larga de todo el montaje —1495 fotogramas
+   frente a los 399 de la segunda, medido en `build/frames`—. La señal fuerte
+   la lleva el peso (300 → 800), así que la opacidad puede permitirse ser suave
+   sin perder el énfasis. */
+const OP_ESPERA = 0.66, OP_DICHA = 0.88;
+
+/* Soltar tarda más que agarrar. El ataque de una sílaba es instantáneo y la
+   caída no: con la misma duración en los dos sentidos la línea parpadea. */
+const SOLTAR = 3.0;
+
+/* Los tres pesos, leídos de los tokens de `.zona` en `setup`. Se guardan aquí
+   para que `draw` no vuelva a llamar a `getComputedStyle` en cada uno de los
+   1495 fotogramas de la pieza: es una lectura que fuerza estilo. */
+const pesos = { espera: 300, voz: 800, dicha: 500 };
+
+/* Palabras que solo enlazan. Se detectan por lista y no por longitud: hay
+   conectores largos («mientras») y palabras con carga cortas («IA»). */
+const ENLACES = new Set([
+  'a','ante','bajo','con','contra','de','del','desde','durante','en','entre',
+  'hacia','hasta','para','por','según','sin','sobre','tras','y','e','o','u',
+  'ni','que','se','le','la','el','los','las','un','una','unos','unas','al',
+  'lo','su','sus','es','son','pero','como','cuando','si','ya','más','muy'
+]);
+
+function esEnlace(w) {
+  return ENLACES.has(w.toLowerCase().replace(/[.,;:!?¿¡«»"']/g, ''));
+}
+
+/* El cuerpo maestro sale del TOKEN, no de un número en `defaults`. Un
+   `font-size` en píxeles escrito a mano es un fallo aunque se vea bien: es una
+   escala paralela que nadie puede cambiar desde el sistema. Un número
+   explícito en el plan sigue mandando, porque los planes que ya existen lo
+   pasan (`dirigir.py` manda 62 o 96 según el alto del lienzo). */
+function cuerpoDelToken(token) {
+  const s = document.createElement('i');
+  s.style.cssText = 'position:absolute;visibility:hidden;font-size:' + token;
+  document.body.appendChild(s);
+  const px = parseFloat(getComputedStyle(s).fontSize);
+  s.remove();
+  return px;
+}
+
+/* El peldaño de la curva de tracking que le toca a un cuerpo. Los cortes son
+   los que publica `_tokens.css` junto a cada token, no una interpolación
+   propia: la curva ya está decidida ahí y aquí solo se consulta. */
+function peldanoTracking(px) {
+  return px >= 145 ? 'var(--tr-titan)'
+       : px >=  82 ? 'var(--tr-hero)'
+       : px >=  46 ? 'var(--tr-display)'
+       : px >=  27 ? 'var(--tr-texto)'
+       :             'var(--tr-cuerpo)';
+}
+
+Engine.register({
+  duration: 10,
+  defaults: {
+    /* Lista plana de palabras con tiempos: [{w, ini, fin, energia?}].
+       `energia` es 0..1 —el RMS de la voz en esa palabra, normalizado por
+       `medir_energia.py`— y AUSENTE vale 0,5: neutro, no cero. Una ventana
+       muda suele ser un fallo de alineación de Whisper, y castigarla
+       invertiría el énfasis. */
+    palabras: [],
+    zona: 'abajo',
+    /* `null` = el cuerpo del token `--t-hero` (109 px). Un número lo anula. */
+    tam: null,
+    max: 3,            // palabras por grupo
+    huecoMax: 0.42,    // una pausa mayor que esto corta el grupo
+    pop: 0.1,          // entrada del grupo
+    subida: 0.12,      // cuánto tarda una palabra en llegar a su peso de voz
+    trazo: 0.26,       // el filete de bronce bajo la palabra con carga
+    clave: [],         // palabras que van en bronce, con filete
+    /* Ventanas [{ini,fin}] en las que hay una tarjeta en pantalla. */
+    ventanas: [],
+    /* La ALTURA del bloque, en px desde el borde inferior. Una sola en toda
+       la pieza, con tarjeta y sin ella: lo que cede el subtítulo cuando hay
+       una tarjeta es el GESTO, no la posición (§18).
+
+       471 y no 300, y el número no es de diseño: es 1920 − 1459 + 10, o sea
+       donde empieza la banda que pinta Reels —MEDIDA sobre capturas, ver
+       `colocar.PLATAFORMAS`— más lo que el alfa real se pasa por debajo de
+       la caja de maquetación. Con 300 el bloque salía a y 1430-1630 y sus
+       últimos 171 px quedaban debajo del caption, el usuario y el CTA de la
+       app. Quien escribe el plan lo deriva con `escaleta.caja_subtitulo()`
+       en vez de copiar el número; este es el respaldo para quien abra la
+       plantilla suelta. */
+    fijoAbajo: 471,
+    /* Ancho máximo del bloque, en px. 820 = 2×950 − 1080: la caja está
+       CENTRADA, así que para que su borde derecho no entre en la columna de
+       likes (x ≥ 950) el ancho no puede pasar del doble de lo que hay del
+       centro a esa columna. Con los 980 de antes se metía 130 px por detrás
+       de los iconos. */
+    anchoMax: 820,
+    /* Estilo del catálogo (`subtitles-showcase.html`). 0 = el de marca.
+       La numeración es la de allí: `preset: 2` es su PRESET 2. */
+    preset: 0,
+    /* Color CSS para la palabra con carga, cuando la pieza no es de esta
+       marca. Vacío = el acento de marca. Ver el bloque «ACENTO DEL PLAN». */
+    acento: '',
+
+    /* --- DINÁMICA. Todo apagado por defecto, y el cero no es decorativo:
+       con estos valores `draw` toma la rama de siempre, textual, y el píxel
+       es idéntico al de antes de que esto existiera (la puerta es
+       `comparar_fotogramas.py`). Son factores y px, no tiempos: en
+       `reloj.SEMANTICA` van como "nada" y `silencios.py` no los toca. --- */
+    /* Entradas rotativas por grupo: alza (la de siempre), lateral,
+       aterrizaje, crecer. Rotan por índice de grupo — determinista. */
+    gestos: false,
+    /* Escala extra de la palabra MIENTRAS suena, vía transform: los anchos
+       congelados no se tocan porque un transform no maqueta. Tope 0,06 —
+       §10 corta el gesto de escala en el 6 %. */
+    popPalabra: 0,
+    /* Ídem para la clave. 0 = hereda `popPalabra`. Tope 0,12: la clave ya
+       va a 1,16em, y más encima deja de ser énfasis y es un parpadeo. */
+    popClave: 0,
+    /* Descoloque del grupo en px (dx; dy es 0,6·dx), determinista por
+       índice. Tope 24: la caja de 820 centrada deja 130 px hasta la
+       columna de likes (§18). Con tarjeta en pantalla se apaga (§13). */
+    vaiven: 0,
+    /* Cuerpo extra (factor) del grupo que lleva clave o energía ≥ 0,75.
+       Se aplica ANTES de la sonda de anchos, así los `em` congelados salen
+       exactos. No crece un grupo que solapa una ventana de tarjeta. */
+    cuerpoClave: 0,
+    /* Cascada: cada palabra del grupo entra este retardo (s) después de la
+       anterior, con una alza corta y fundido propio. Es un RITMO —"dur" en
+       `reloj.SEMANTICA`, la clave ya estaba clasificada— así que un reloj
+       comprimido lo comprime con él. 0 lo apaga del todo. */
+    escalonado: 0,
+    /* Micro-giro de la palabra CLAVE mientras suena, en grados (tope 2).
+       El signo lo decide `Engine.noise` por palabra. Los enlaces quedan
+       fuera —su cursiva ya vive rotada— y 0 no escribe transform. */
+    giroClave: 0
+  },
+
+  setup(cfg) {
+    zona.dataset.zona = cfg.zona || 'abajo';
+    /* La caja, antes de medir nada: `anchoMax` cambia dónde parten las
+       líneas, así que fijarlo después dejaría los anchos congelados por
+       `setup` medidos sobre otra caja. */
+    if (cfg.anchoMax) zona.style.maxWidth = cfg.anchoMax + 'px';
+    /* Se escribe SIEMPRE, también con 0: sin borrarlo, cambiar de preset a
+       defecto dentro de la misma página dejaría el atributo viejo puesto.
+       Pasa en la hoja de contactos y en la galería, que reutilizan la
+       pestaña entre plantillas. Y va ANTES de medir: el preset 2 cambia de
+       familia, así que cambia los anchos. */
+    if (cfg.preset) zona.dataset.preset = String(cfg.preset);
+    else delete zona.dataset.preset;
+    if (cfg.acento) {
+      zona.dataset.acento = '';
+      zona.style.setProperty('--acento-plan', cfg.acento);
+    } else {
+      delete zona.dataset.acento;
+      zona.style.removeProperty('--acento-plan');
+    }
+    const cuerpo = cfg.tam != null ? cfg.tam : cuerpoDelToken('var(--t-hero)');
+    zona.style.fontSize = cuerpo + 'px';
+    zona.style.setProperty('--tr-w', peldanoTracking(cuerpo));
+
+    const claves = new Set((cfg.clave || []).map(x => x.toLowerCase()));
+
+    /* Agrupación: corta al llegar al máximo, en puntuación fuerte o si hay
+       una pausa larga. La pausa manda tanto como el punto — dos palabras
+       separadas por medio segundo no se leen juntas por mucho que la
+       gramática las una. */
+    const ws = cfg.palabras || [];
+    const bloques = [];
+    let act = [];
+    ws.forEach((p, i) => {
+      act.push(p);
+      const sig = ws[i + 1];
+      const corta = act.length >= cfg.max
+                 || /[.,;:!?]$/.test(p.w.trim())
+                 || !sig
+                 || (sig.ini - p.fin) > cfg.huecoMax;
+      if (corta) { bloques.push(act); act = []; }
+    });
+    if (act.length) bloques.push(act);
+
+    zona.innerHTML = '';
+    grupos = bloques.map(b => {
+      const g = document.createElement('div');
+      g.className = 'grupo';
+      const palabras = b.map(p => {
+        const s = document.createElement('span');
+        const limpio = p.w.replace(/[.,;:!?¿¡«»"']/g, '');
+        const enlace = esEnlace(p.w);
+        const clave = !enlace && claves.has(limpio.toLowerCase());
+        s.className = 'w' + (enlace ? ' enlace' : clave ? ' clave brushed-text' : '');
+        s.textContent = p.w;
+        let filo = null;
+        if (clave) {
+          /* `.brushed` y no un `background: var(--accent)`: §2 dice que el
+             bronce nunca es un plano naranja. Se añade DESPUÉS del
+             `textContent`, que si no lo borraría. */
+          filo = document.createElement('i');
+          filo.className = 'filo brushed';
+          s.appendChild(filo);
+        }
+        g.appendChild(s);
+        return { el: s, filo, enlace, clave, ini: p.ini, fin: p.fin,
+                 energia: p.energia };
+      });
+      zona.appendChild(g);
+      return { el: g, palabras, ini: b[0].ini, fin: b[b.length - 1].fin };
+    });
+
+    /* --- la cola de cada grupo, recortada contra el siguiente -------------
+       Esto arregla un fallo que no daba ningún error y que se veía en el
+       vídeo. El grupo seguía en pantalla hasta `fin + 0,06` para que la última
+       palabra no desapareciera en el mismo fotograma en que se acaba de decir,
+       pero el siguiente grupo suele empezar EXACTAMENTE en ese `fin` —Whisper
+       encadena las palabras—, así que durante esos 0,06 s los dos estaban
+       visibles a la vez. Y como son dos ítems del mismo flex centrado, no se
+       apilaban: se colocaban en la misma banda, la línea saltaba y se leían
+       seis palabras donde tiene que haber tres.
+
+       Comprobado mirando el fotograma compuesto: con la ficha de la hoja de
+       contactos, en t = 2,22 s se leía «SUBTÍTULOS CINÉTICOS PALABRA» y debajo
+       «por PALABRA sobre». Y no es un caso de laboratorio: sobre el plan que
+       hay en `build/plan.json` la condición se cumple en 35 de las 38 fronteras
+       de grupo, el 92 %. Son ~70 de los 1495 fotogramas de esa capa con el
+       subtítulo partido en dos, y no lo delata ningún log. */
+    grupos.forEach((g, i) => {
+      const sig = grupos[i + 1];
+      g.corte = sig ? Math.min(g.fin + COLA, sig.ini) : g.fin + COLA;
+    });
+
+    /* Cuerpo por grupo, y tiene que ir ANTES de la sonda de anchos: la
+       congelación ya divide por el `fontSize` PROPIO de cada palabra, así
+       que con el cuerpo puesto aquí los `em` salen exactos sin tocar esa
+       lógica. El ajuste global de `masAncha` corre después, o sea que un
+       grupo crecido tampoco puede salirse de la caja. El grupo que solapa
+       una tarjeta no crece —§13: lo que se cede es el gesto— y el umbral
+       de energía es constante a propósito: menos claves de config, menos
+       superficie para lint, reloj y docs. */
+    const UMBRAL_ENERGIA = 0.75;
+    if (cfg.cuerpoClave > 0) {
+      grupos.forEach(g => {
+        const enVentana = (cfg.ventanas || [])
+          .some(v => g.ini < v.fin && g.corte > v.ini);
+        const energia = g.palabras.reduce(
+          (m, p) => Math.max(m, p.energia != null ? p.energia : 0), 0);
+        if (!enVentana && (g.palabras.some(p => p.clave)
+                           || energia >= UMBRAL_ENERGIA))
+          g.el.style.fontSize = (1 + cfg.cuerpoClave).toFixed(3) + 'em';
+      });
+    }
+
+    /* --- anchos congelados al peso de voz ---------------------------------
+       Se leen TODOS antes de escribir ninguno: intercalar lectura y escritura
+       forzaría una maquetación por palabra en vez de una para todas.
+
+       La medida va en `em` y no en px, y hace falta la sonda para eso: bajo
+       `documentElement.style.zoom` —que el motor aplica cuando la capa vive en
+       una columna— `getBoundingClientRect` devuelve píxeles ya escalados
+       mientras que `style.width` se interpreta sin escalar. Dividiendo por el
+       ancho medido de una caja de 10 em las dos escalas se cancelan. */
+    const sonda = document.createElement('i');
+    sonda.style.cssText = 'position:absolute;visibility:hidden;width:10em';
+    zona.appendChild(sonda);
+    const unidad = sonda.getBoundingClientRect().width / 10;
+    /* El ancho se mide en `em` de la ZONA y se escribe en `style.width`, que
+       se resuelve en `em` de la PALABRA. Mientras todas comparten cuerpo eso
+       da igual; desde que la clave va a 1,16em deja de darlo, y una palabra
+       clave saldría un 16 % más estrecha de lo medido. Se divide por su
+       propia proporción. */
+    const cuerpoZona = parseFloat(getComputedStyle(zona).fontSize) || 1;
+    const anchos = [];
+    grupos.forEach(g => g.palabras.forEach(p => {
+      if (p.enlace) { anchos.push(0); return; }
+      const propio = parseFloat(getComputedStyle(p.el).fontSize) || cuerpoZona;
+      anchos.push((p.el.getBoundingClientRect().width / unidad)
+                  * (cuerpoZona / propio));
+    }));
+    sonda.remove();
+    let n = 0;
+    grupos.forEach(g => g.palabras.forEach(p => {
+      const em = anchos[n++];
+      if (em > 0) p.el.style.width = em.toFixed(4) + 'em';
+    }));
+
+    /* La dinámica por grupo se decide UNA vez aquí y no en `draw`: el gesto
+       por índice —determinista, sin reloj— y el descoloque con
+       `Engine.noise`, que es la única fuente de azar permitida. El 0,6 de
+       `dy`: la banda es más ancha que alta, y un descoloque isótropo se
+       come el margen vertical antes que el horizontal. */
+    const VAIVEN_MAX = 24;
+    const va = Math.min(cfg.vaiven || 0, VAIVEN_MAX);
+    grupos.forEach((g, gi) => {
+      g.gesto = cfg.gestos ? gi % 4 : 0;
+      g.lado = Engine.noise(gi, 7) < 0.5 ? -1 : 1;
+      g.vx = (Engine.noise(gi, 23) * 2 - 1) * va;
+      g.vy = (Engine.noise(gi, 31) * 2 - 1) * va * 0.6;
+    });
+
+    /* La palabra que no cabe en la caja. `anchoMax` corta el bloque a 820 px
+       para no meterse por detrás de la columna de likes, pero un `max-width`
+       no encoge nada: un ítem flex más ancho que su línea SE SALE, y con
+       `justify-content: center` se sale por los dos lados a la vez. Medido en
+       esta pieza: «ESPECÍFICAMENTE» a 78 px pedía 858 px y el alfa real del
+       bloque llegaba a x = 1080 —los 130 px del aviso de `colocar.py`— con la
+       caja declarada en 820.
+
+       Se corrige con el CUERPO y de una sola vez para toda la pieza: los
+       anchos ya están escritos en `em`, así que bajar el `font-size` de la
+       zona los escala solos y ninguna palabra se recoloca respecto a otra. Un
+       ajuste por grupo haría que el subtítulo cambiara de tamaño a mitad de
+       frase, que es el mismo defecto que el bloque que saltaba de altura. */
+    const anchoMax = cfg.anchoMax || Infinity;
+    let masAncha = 0;
+    grupos.forEach(g => g.palabras.forEach(p => {
+      masAncha = Math.max(masAncha, p.el.getBoundingClientRect().width);
+    }));
+    if (masAncha > anchoMax) {
+      const menor = Math.floor(cuerpo * (anchoMax / masAncha));
+      zona.style.fontSize = menor + 'px';
+      /* El tracking es una CURVA indexada por cuerpo, no un valor: dejar el
+         peldaño de 78 px sobre un cuerpo de 70 aprieta las letras justo donde
+         hace falta lo contrario. */
+      zona.style.setProperty('--tr-w', peldanoTracking(menor));
+    }
+    /* Los tres pesos, leídos del sistema en vez de repetidos aquí. */
+    const est = getComputedStyle(zona);
+    pesos.espera = parseFloat(est.getPropertyValue('--wght-espera')) || 300;
+    pesos.voz    = parseFloat(est.getPropertyValue('--wght-voz'))    || 800;
+    pesos.dicha  = parseFloat(est.getPropertyValue('--wght-dicha'))  || 500;
+
+    /* Y los de CADA palabra, porque `.w.clave` los redefine y las propiedades
+       personalizadas cascadean: leyendo solo los del contenedor, la clave
+       tendría cuerpo mayor y el mismo peso que las demás, o sea la mitad del
+       énfasis. Se leen una vez en `setup` y se guardan en el nodo: en `draw`
+       una llamada a `getComputedStyle` por palabra y por fotograma serían
+       ochenta lecturas de estilo a 30 fps. */
+    let nPalabra = 0;
+    grupos.forEach(g => g.palabras.forEach(p => {
+      const e = getComputedStyle(p.el);
+      p.pesos = {
+        espera: parseFloat(e.getPropertyValue('--wght-espera')) || pesos.espera,
+        voz:    parseFloat(e.getPropertyValue('--wght-voz'))    || pesos.voz,
+        dicha:  parseFloat(e.getPropertyValue('--wght-dicha'))  || pesos.dicha,
+      };
+      /* Amplitud del pop, precalculada: la energía modula ±40 % alrededor
+         del factor del plan, y una palabra sin medir vale 0,5 —neutro—.
+         El enlace queda fuera: su CSS lleva `rotate(-4deg)` y un
+         `style.transform` se lo pisaría, y ya no anima ni el peso. */
+      const base = p.clave ? (cfg.popClave || cfg.popPalabra || 0)
+                           : (cfg.popPalabra || 0);
+      const enrg = p.energia != null ? p.energia : 0.5;
+      p.amp = p.enlace ? 0
+            : Math.min(base * (0.6 + 0.8 * enrg), p.clave ? 0.12 : 0.06);
+      /* El micro-giro solo existe en la clave y con su tope: ±2° es un
+         gesto de sello; más es el texto borracho de CapCut. El signo por
+         `noise` y no alternando: dos claves seguidas girando en espejo se
+         leen como un patrón, y un patrón visible deja de ser materia. */
+      p.giro = (p.clave && cfg.giroClave > 0)
+             ? (Engine.noise(nPalabra, 13) * 2 - 1) * Math.min(cfg.giroClave, 2)
+             : 0;
+      nPalabra++;
+    }));
+
+    grupos.forEach(g => { g.el.style.display = 'none'; });
+    enPantalla = -1;
+
+    /* Sin `cues`, y a propósito. Un subtítulo tiene un evento por grupo: son
+       unos 150 en una pieza de 44 s y el tope es 6 por capa. Un tic por grupo
+       no es una señal, es un traqueteo — la misma razón por la que el tecleo
+       va por palabra y no por carácter. */
+  },
+
+  draw(t, cfg) {
+    /* Exclusión mutua con los gráficos. Mientras una tarjeta ocupa la
+       pantalla, los subtítulos se clavan en la franja inferior y renuncian al
+       gesto grande: competir con la tarjeta por la mirada estropea las dos
+       cosas a la vez. */
+    const tapado = (cfg.ventanas || []).some(v => t >= v.ini && t < v.fin);
+    zona.dataset.zona = tapado ? 'fija' : (cfg.zona || 'abajo');
+    /* La MISMA altura con tarjeta y sin ella. El ternario que había aquí
+       —`fijoAbajo` con tarjeta, el `bottom` de la hoja sin ella— es lo que
+       hacía saltar el bloque cada vez que entraba o salía una tarjeta; con
+       los dos valores en 300 el salto ya era 0, pero seguía habiendo dos
+       números que podían separarse en cuanto alguien tocara uno. Ahora hay
+       uno, y es el que deriva de la zona segura. */
+    if (cfg.zona !== 'centro' && cfg.zona !== 'arriba')
+      zona.style.bottom = cfg.fijoAbajo + 'px';
+
+    /* El grupo candidato es el ÚLTIMO cuyo comienzo ya ha pasado, y se busca
+       por bisección. No con un cursor que avanza: `seek` no llega en orden
+       —`--only` rehace tramos sueltos y el humo salta a los bordes—, así que
+       un cursor daría el grupo equivocado en cuanto el reloj retrocede. */
+    let lo = 0, hi = grupos.length - 1, gi = -1;
+    while (lo <= hi) {
+      const m = (lo + hi) >> 1;
+      if (grupos[m].ini <= t) { gi = m; lo = m + 1; } else hi = m - 1;
+    }
+    if (gi >= 0 && t >= grupos[gi].corte) gi = -1;
+
+    if (gi !== enPantalla) {
+      if (enPantalla >= 0) grupos[enPantalla].el.style.display = 'none';
+      if (gi >= 0) grupos[gi].el.style.display = 'flex';
+      enPantalla = gi;
+    }
+    if (gi < 0) return;
+    const g = grupos[gi];
+
+    /* --- el grupo: entrada + deriva de reposo --- */
+    const f = flota(t, gi, { amp: tapado ? DERIVA_FIJA : DERIVA,
+                             periodo: 6.2, semilla: 11 });
+    g.el.style.opacity =
+      cfg.pop > 0 ? clamp((t - g.ini) / (cfg.pop * 0.55), 0, 1) : 1;
+    /* Con tarjeta se cede el GESTO (§13): entrada de siempre, sin
+       descoloque. Y con la dinámica a cero, la rama de arriba es la
+       expresión de SIEMPRE, textual — esa identidad es la garantía de que
+       los planes existentes no cambian de píxel. */
+    const gesto = (cfg.gestos && !tapado) ? g.gesto : 0;
+    const vx = tapado ? 0 : (g.vx || 0), vy = tapado ? 0 : (g.vy || 0);
+    if (!gesto && !vx && !vy) {
+      const e = span(t, g.ini, cfg.pop, Ease.outBack6);
+      g.el.style.transform =
+        'translate3d(' + f.x.toFixed(2) + 'px,' +
+        (ALZA * (1 - e) + f.y).toFixed(2) + 'px,0) scale(' +
+        (ESCALA + (1 - ESCALA) * e).toFixed(4) + ')';
+    } else {
+      let tx = f.x + vx, ty = f.y + vy, esc = 1;
+      if (gesto === 1) {
+        /* Lateral: entra deslizando 18 px. `outCubic`, sin cruce de 1. */
+        tx += g.lado * 18 * (1 - span(t, g.ini, cfg.pop, Ease.outCubic));
+      } else if (gesto === 2) {
+        /* Aterrizaje: baja 10 px asentándose desde 1,04 — dentro del 6 %
+           de escala que permite §10, y `outCubic` no lo cruza. */
+        const e = span(t, g.ini, cfg.pop, Ease.outCubic);
+        ty -= 10 * (1 - e);
+        esc = 1.04 - 0.04 * e;
+      } else if (gesto === 3) {
+        /* Crecer: el 0,94 → 1 de siempre, sin alza. */
+        esc = ESCALA + (1 - ESCALA) * span(t, g.ini, cfg.pop, Ease.outBack6);
+      } else {
+        /* Alza, la entrada de siempre, con el descoloque sumado. */
+        const e = span(t, g.ini, cfg.pop, Ease.outBack6);
+        ty += ALZA * (1 - e);
+        esc = ESCALA + (1 - ESCALA) * e;
+      }
+      g.el.style.transform =
+        'translate3d(' + tx.toFixed(2) + 'px,' + ty.toFixed(2) +
+        'px,0) scale(' + esc.toFixed(4) + ')';
+    }
+
+    /* --- las palabras: la voz recorre la línea ---------------------------
+       Los dos progresos salen del tiempo de la PALABRA, que es el dato que la
+       plantilla ya recibía. `viva` sube cuando empieza a sonar; `suelta` la
+       devuelve al peso de «ya dicha» cuando termina. El filete de bronce se
+       traza con la MISMA expresión de `viva`, no con una copia: si algún día
+       cambia el ataque, el filete cambia con él en vez de desfasarse. */
+    for (let i = 0; i < g.palabras.length; i++) {
+      const p = g.palabras[i];
+      const viva = span(t, p.ini, cfg.subida, Ease.outCubic);
+      const suelta = span(t, p.fin, cfg.subida * SOLTAR, Ease.inOutCubic);
+      /* La cascada retrasa la ENTRADA de cada palabra dentro del grupo; la
+         voz (viva/suelta) no se toca. Con `escalonado: 0` no multiplica
+         nada y la expresión de la opacidad es la de siempre. */
+      let op = OP_ESPERA + (1 - OP_ESPERA) * viva
+                         - (1 - OP_DICHA) * suelta;
+      let casc = 1;
+      if (cfg.escalonado > 0) {
+        casc = span(t, g.ini + i * cfg.escalonado, cfg.pop, Ease.outCubic);
+        op *= casc;
+      }
+      p.el.style.opacity = op.toFixed(3);
+      if (!p.enlace) {
+        /* Redondeado a entero: el eje admite fracciones, pero un cambio de
+           menos de un punto obliga a rasterizar los glifos otra vez sin
+           cambiar un píxel. En los 500 puntos del salto, a 30 pps y con
+           `subida: 0.12`, quedan ~139 puntos por fotograma: de sobra. */
+        const P = p.pesos || pesos;
+        Engine.peso(p.el, Math.round(
+          P.espera + (P.voz - P.espera) * viva
+                   - (P.voz - P.dicha) * suelta));
+      }
+      if (p.filo) {
+        p.filo.style.transform =
+          'scaleX(' + span(t, p.ini, cfg.trazo, Ease.outCubic).toFixed(4) + ')';
+      }
+      /* El pop y el giro reutilizan `viva` y `suelta`, no una copia: si
+         algún día cambia el ataque, cambian con él — la misma regla que el
+         filete. El transform se compone entero cada vez (alza de cascada +
+         escala + giro) porque escribir a trozos dejaría el trozo viejo
+         puesto. El enlace queda fuera SIEMPRE —su `rotate(-4deg)` vive en
+         CSS— y con toda la dinámica a cero la condición no escribe nunca,
+         que es la garantía del caso apagado. */
+      if (!p.enlace && (cfg.escalonado > 0 || p.amp > 0 || p.giro)) {
+        const puls = viva - suelta;
+        let tr = casc < 1
+          ? 'translateY(' + (8 * (1 - casc)).toFixed(2) + 'px)' : '';
+        if (p.amp > 0)
+          tr += (tr ? ' ' : '') +
+                'scale(' + (1 + p.amp * puls).toFixed(4) + ')';
+        if (p.giro)
+          tr += (tr ? ' ' : '') +
+                'rotate(' + (p.giro * puls).toFixed(2) + 'deg)';
+        p.el.style.transform = tr;
+      }
+    }
+  },
+
+  anclas() {
+    const b = zona.getBoundingClientRect();
+    return { subtitulos: { x: Math.round(b.left + b.width / 2),
+                           y: Math.round(b.top + b.height / 2),
+                           w: Math.round(b.width), h: Math.round(b.height) } };
+  }
+});
+</script>
+</body>
+</html>

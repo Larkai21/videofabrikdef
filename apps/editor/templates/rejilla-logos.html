@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Rejilla de logos / lockup de marca</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+
+  .caja { will-change: transform, opacity; }
+
+  .cab { text-align: center; margin-bottom: var(--s-5); }
+  .titulo {
+    font-family: var(--display); font-weight: 700;
+    font-size: var(--t-xl); letter-spacing: var(--tr-display);
+    color: var(--ink); margin-bottom: var(--s-2);
+  }
+  .sub {
+    font-family: var(--mono); font-size: var(--t-sm);
+    letter-spacing: var(--tr-caps); text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  /* ---------------- rejilla ---------------- */
+  .rejilla { display: grid; justify-content: center; }
+
+  .tesela {
+    position: relative;
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    box-shadow: inset 0 0 0 var(--hairline) var(--stroke);
+    display: grid; align-content: center; justify-items: center;
+    gap: var(--s-2);
+    will-change: transform, opacity;
+  }
+  /* El halo del elegido va DETRÁS y como caja aparte: pintarlo con el
+     box-shadow de la tesela obligaría a reescribir el borde interior en el
+     mismo declarante, y al animarlo se perdía el canto. */
+  .halo {
+    position: absolute; inset: -5px;
+    border-radius: calc(var(--r-lg) + 5px);
+    box-shadow: 0 0 0 2px var(--accent), 0 14px 40px -12px var(--accent-line);
+    opacity: 0; will-change: opacity, transform;
+  }
+
+  .marca { display: grid; place-items: center; }
+  .marca svg { display: block; }
+  /* El monograma es TIPOGRAFÍA, no un dibujo: ver la nota de `setup`. */
+  .mono-marca {
+    font-family: var(--display); font-weight: 700;
+    letter-spacing: var(--tr-hero); line-height: 1;
+    color: var(--accent);
+  }
+  .tesela[data-tono="frio"]   .mono-marca,
+  .tesela[data-tono="frio"]   .marca svg { color: var(--accent-2); }
+  .tesela[data-tono="neutro"] .mono-marca,
+  .tesela[data-tono="neutro"] .marca svg { color: var(--ink-soft); }
+
+  .nombre {
+    font-family: var(--mono); font-size: var(--t-xs);
+    letter-spacing: var(--tr-caps); text-transform: uppercase;
+    color: var(--ink-soft); text-align: center;
+    padding: 0 var(--s-2);
+  }
+
+  .nota {
+    position: absolute;
+    font-family: var(--mono); font-size: var(--t-xs);
+    letter-spacing: var(--tr-caps); text-transform: uppercase;
+    color: var(--accent); white-space: nowrap;
+    opacity: 0; will-change: opacity, transform;
+  }
+
+  /* ---------------- lockup ---------------- */
+  /* Un lockup es marca + logotipo con una relación FIJA entre ellos. Lo que
+     lo hace un lockup y no dos elementos sueltos es la regla vertical y el
+     alto compartido: por eso el separador se dimensiona en `setup` a partir
+     del alto real medido, no con un valor a ojo. */
+  .lockup {
+    display: flex; align-items: center; justify-content: center;
+    gap: var(--s-5);
+  }
+  .lockup .marca { flex: none; }
+  .regla { width: var(--hairline); background: var(--rule); flex: none;
+           transform-origin: center; will-change: transform; }
+  .palabras { display: grid; gap: var(--s-1); }
+  .wordmark {
+    font-family: var(--display); font-weight: 700;
+    letter-spacing: var(--tr-hero); line-height: 1; color: var(--ink);
+  }
+  .tagline {
+    font-family: var(--mono); letter-spacing: var(--tr-caps-ancho);
+    text-transform: uppercase; color: var(--ink-soft);
+  }
+</style>
+</head>
+<body>
+<div class="stage"><div class="caja tarjeta" id="caja">
+  <div class="cab"><div class="titulo" id="titulo"></div>
+                   <div class="sub" id="sub"></div></div>
+  <div class="rejilla" id="rejilla"></div>
+  <div class="lockup" id="lockup" hidden>
+    <div class="marca" id="lk-marca"></div>
+    <div class="regla" id="lk-regla"></div>
+    <div class="palabras">
+      <div class="wordmark" id="lk-word"></div>
+      <div class="tagline" id="lk-tag"></div>
+    </div>
+  </div>
+  <div class="nota" id="nota"></div>
+</div></div>
+<script src="_engine.js"></script>
+<script>
+const { span, Ease, clamp } = Engine;
+
+/* Una marca puede venir de tres sitios, y el orden importa:
+
+     marca: '<path d="…"/>'   trazado SVG suelto; se envuelve aquí
+     svg:   '<svg …>…</svg>'  marcado completo, para logos con varios trazos
+     (nada)                   monograma tipográfico con las iniciales
+
+   Lo que NO se acepta es un `<img>`. Y no es una limitación estética: una
+   imagen se decodifica de forma asíncrona y Playwright puede capturar el
+   fotograma antes de que esté pintada, así que el mismo `seek(t)` daría dos
+   píxeles distintos según lo que tardara el disco. Todo el proyecto se apoya
+   en lo contrario. El SVG en línea se pinta con el layout y no tiene carrera.
+
+   Y el monograma no es un dibujo aproximado del logo real: dibujar de memoria
+   la marca de otro sale mal y además no es nuestra para redibujarla. Cuando
+   haga falta el logo de verdad, se pega su trazado en `marca`. */
+function pintarMarca(host, it, lado) {
+  host.innerHTML = '';
+  if (it.svg) { host.innerHTML = it.svg; }
+  else if (it.marca) {
+    const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    s.setAttribute('viewBox', it.viewBox || '0 0 24 24');
+    s.setAttribute('width', lado); s.setAttribute('height', lado);
+    s.setAttribute('fill', 'currentColor');
+    s.innerHTML = it.marca;
+    host.appendChild(s);
+  } else {
+    const d = document.createElement('div');
+    d.className = 'mono-marca';
+    d.style.fontSize = Math.round(lado * 0.92) + 'px';
+    d.textContent = it.monograma || iniciales(it.nombre || '');
+    host.appendChild(d);
+  }
+  const svg = host.querySelector('svg');
+  if (svg) { svg.style.width = lado + 'px'; svg.style.height = lado + 'px'; }
+}
+
+/* Dos iniciales cuando el nombre tiene dos palabras, una si no. Tres letras
+   ya no se leen como monograma a este tamaño: se leen como una palabra
+   cortada. */
+function iniciales(nombre) {
+  const ws = String(nombre).split(/[\s.\-_/]+/).filter(Boolean);
+  if (!ws.length) return '·';
+  if (ws.length === 1) return ws[0].slice(0, 1).toUpperCase();
+  return (ws[0][0] + ws[1][0]).toUpperCase();
+}
+
+const caja = document.getElementById('caja');
+const rejilla = document.getElementById('rejilla');
+const lockup = document.getElementById('lockup');
+const nota = document.getElementById('nota');
+let teselas = [], maxDiag = 1, esLockup = false;
+
+Engine.register({
+  duration: 6,
+  defaults: {
+    /* `vista` y no `modo`: `modo` la pisa el renderizador con la pasada de
+       render (detalle/mascara), así que una plantilla que la use para otra
+       cosa tiene un valor inalcanzable por el pipeline. Ya pasó con
+       `data-diagram` y con `subtitles-showcase`. */
+    vista: 'rejilla',
+    titulo: 'Todo el montaje, en local',
+    sub: 'Un M4 Pro y nada de nube',
+    items: [
+      { nombre: 'Whisper',    monograma: 'W' },
+      { nombre: 'Playwright', monograma: 'PW' },
+      { nombre: 'ffmpeg',     monograma: 'FF', tono: 'frio' },
+      { nombre: 'MLX',        monograma: 'MLX' },
+      { nombre: 'Metal',      monograma: 'M',  tono: 'frio' },
+      { nombre: 'Vision',     monograma: 'V',  tono: 'neutro' }
+    ],
+    columnas: 3,
+    lado: 210,
+    hueco: 14,
+    elegido: null,      // índice de `items` que se destaca
+    nota: '',           // texto junto al elegido
+    lockup: null,       // { marca?, svg?, viewBox?, wordmark, tagline? }
+    escalonado: 0.055,
+    entrada: 0.46,
+    salida: 0.42,
+    zona: 'centro'
+  },
+
+  setup(cfg) {
+    document.getElementById('titulo').textContent = cfg.titulo || '';
+    document.getElementById('sub').textContent = cfg.sub || '';
+    /* Sin título ni subtítulo la cabecera sigue ocupando su `margin-bottom`
+       y descentra el bloque entero unos trece píxeles hacia abajo. No se ve
+       como un error, se ve como una maqueta mal centrada, que es peor. */
+    document.querySelector('.cab').hidden = !cfg.titulo && !cfg.sub;
+
+    esLockup = cfg.vista === 'lockup';
+    rejilla.hidden = esLockup;
+    lockup.hidden = !esLockup;
+
+    if (esLockup) {
+      const lk = cfg.lockup || {};
+      const lado = cfg.lado || 210;
+      pintarMarca(document.getElementById('lk-marca'), lk, Math.round(lado * 0.62));
+      const word = document.getElementById('lk-word');
+      const tag = document.getElementById('lk-tag');
+      word.style.fontSize = Math.round(lado * 0.30) + 'px';
+      tag.style.fontSize = Math.round(lado * 0.105) + 'px';
+      word.textContent = lk.wordmark || lk.nombre || '';
+      tag.textContent = lk.tagline || '';
+      /* La regla se mide DESPUÉS de escribir el texto: su alto tiene que
+         salir del bloque de palabras real. Fijarla a un porcentaje del lado
+         la dejaba corta con tagline y larga sin ella, que es justo el
+         defecto que un lockup no puede tener. */
+      const h = document.querySelector('.palabras').getBoundingClientRect().height;
+      document.getElementById('lk-regla').style.height =
+        Math.max(28, Math.round(h * 1.06)) + 'px';
+      teselas = [];
+      maxDiag = 1;
+      return;
+    }
+
+    const items = cfg.items || [];
+    const nc = Math.max(1, Math.min(cfg.columnas || 3, items.length || 1));
+    const lado = cfg.lado || 210;
+    rejilla.style.gridTemplateColumns = 'repeat(' + nc + ', ' + lado + 'px)';
+    rejilla.style.gap = (cfg.hueco || 14) + 'px';
+    rejilla.innerHTML = '';
+
+    teselas = [];
+    items.forEach((it, i) => {
+      const el = document.createElement('div');
+      el.className = 'tesela';
+      el.style.width = lado + 'px';
+      el.style.height = lado + 'px';
+      if (it.tono) el.dataset.tono = it.tono;
+
+      const halo = document.createElement('div');
+      halo.className = 'halo';
+      const marca = document.createElement('div');
+      marca.className = 'marca';
+      pintarMarca(marca, it, Math.round(lado * 0.34));
+      const nom = document.createElement('div');
+      nom.className = 'nombre';
+      nom.textContent = it.nombre || '';
+      el.append(halo, marca, nom);
+      rejilla.appendChild(el);
+
+      const f = Math.floor(i / nc), c = i % nc;
+      teselas.push({ el, halo, i, d: f + c, atenuado: !!it.atenuado });
+    });
+    maxDiag = Math.max(1, Math.floor((items.length - 1) / nc) + (nc - 1));
+
+    /* La nota se coloca midiendo la tesela real, igual que el foco del mapa
+       de calor: deducir su sitio de índices y tamaños obliga a replicar los
+       huecos del grid y se desalinea en cuanto cambia `hueco`. */
+    nota.textContent = '';
+    const el = cfg.elegido;
+    if (cfg.nota && el !== null && el !== undefined && teselas[el]) {
+      nota.textContent = cfg.nota;
+      const r = teselas[el].el.getBoundingClientRect();
+      const g = rejilla.getBoundingClientRect();
+      const b = caja.getBoundingClientRect();
+      /* Bajo la REJILLA, no bajo la tesela. Medido desde la tesela, un
+         elegido de la primera fila deja la nota encima de la segunda: se
+         leía «Y ESTE LO PEGA TODO» cruzado sobre dos marcas. Bajo la rejilla
+         está siempre despejado, sea cual sea el elegido.
+         El eje X sí sale de la tesela —es a ella a la que apunta— y se
+         limita al ancho de la rejilla para que no se salga por un lado
+         cuando el elegido es de la primera o la última columna. */
+      const x = clamp(r.left - b.left + r.width / 2,
+                      g.left - b.left + 60, g.right - b.left - 60);
+      nota.style.left = Math.round(x) + 'px';
+      nota.style.top = Math.round(g.bottom - b.top + 18) + 'px';
+      nota.style.transform = 'translateX(-50%)';
+    }
+  },
+
+  anclas(cfg) {
+    const b = caja.getBoundingClientRect();
+    const a = {};
+    const caj = document.querySelector('.tarjeta-pos') || caja;
+    const rc = caj.getBoundingClientRect();
+    a.caja = { x: rc.left + rc.width / 2, y: rc.top + rc.height / 2,
+               w: rc.width, h: rc.height };
+    if (esLockup) {
+      const r = lockup.getBoundingClientRect();
+      a.lockup = { x: r.left + r.width / 2, y: r.top + r.height / 2,
+                   w: r.width, h: r.height };
+      return a;
+    }
+    teselas.forEach(({ el, i }) => {
+      const r = el.getBoundingClientRect();
+      a['tesela' + i] = { x: r.left + r.width / 2, y: r.top + r.height / 2,
+                          w: r.width, h: r.height };
+    });
+    const el = cfg.elegido;
+    if (el !== null && el !== undefined && a['tesela' + el]) {
+      a.elegido = a['tesela' + el];
+    }
+    return a;
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 6;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+    const ap = span(t, 0, 0.44, Ease.outCubic);
+    caja.style.opacity = ap * cierre;
+    const flC = Engine.flota(t, 31, { amp: 2.4, periodo: 9.4, semilla: 5 });
+    caja.style.transform =
+      `translate(${flC.x.toFixed(2)}px, ${((1 - ap) * 24 + flC.y).toFixed(2)}px)`;
+
+    if (esLockup) {
+      /* La marca y el logotipo entran desde los DOS lados hacia la regla, y
+         la regla crece en vertical. Un lockup que entra de una pieza se lee
+         como una imagen; entrando así se lee como lo que es: dos cosas que
+         se juntan en una relación fija. */
+      const p = span(t, 0.15, cfg.entrada + 0.3, Ease.outCubic);
+      const m = document.getElementById('lk-marca');
+      const w = document.querySelector('.palabras');
+      m.style.transform = `translateX(${(1 - p) * -34}px)`;
+      m.style.opacity = p;
+      w.style.transform = `translateX(${(1 - p) * 34}px)`;
+      w.style.opacity = p;
+      document.getElementById('lk-regla').style.transform = `scaleY(${p})`;
+      return;
+    }
+
+    /* Onda diagonal, como el mapa de calor: fila a fila se lee como una
+       lista y una rejilla de marcas no es una lista, es un conjunto. */
+    teselas.forEach(({ el, halo, i, d, atenuado }) => {
+      const p = span(t, 0.18 + (d / maxDiag) * 0.5, cfg.entrada, Ease.outCubic);
+      const elegido = cfg.elegido === i;
+      el.style.opacity = p * (atenuado ? 0.42 : 1);
+      /* Flotación de reposo (§10): una rejilla de marcas quieta ES una
+         captura de pantalla, que es exactamente lo que una rejilla de logos
+         no debe parecer. Cada teja con su periodo, así que el conjunto no
+         late. */
+      const fl = Engine.flota(t, i, { amp: 2.0, periodo: 10.9, semilla: 5 });
+      el.style.transform =
+        `translate(${fl.x.toFixed(2)}px, ${fl.y.toFixed(2)}px) ` +
+        `scale(${(0.86 + 0.14 * p).toFixed(3)})`;
+      if (halo) {
+        const tSel = 0.18 + 0.5 + cfg.entrada + 0.12;
+        const s = elegido ? span(t, tSel, 0.4, Ease.outCubic) : 0;
+        halo.style.opacity = s * cierre;
+        halo.style.transform = `scale(${1.06 - 0.06 * s})`;
+        /* Los demás RECEDEN cuando hay elegido: destacar uno subiendo su
+           brillo lo saca de la paleta; bajando el de los otros, no. */
+        if (cfg.elegido !== null && cfg.elegido !== undefined && !elegido) {
+          el.style.opacity = p * (atenuado ? 0.42 : 1) * (1 - 0.55 * s);
+        }
+      }
+    });
+
+    if (nota.textContent) {
+      const tSel = 0.18 + 0.5 + cfg.entrada + 0.12;
+      const n = span(t, tSel + 0.16, 0.38, Ease.outCubic);
+      nota.style.opacity = n * cierre;
+      nota.style.transform = `translateX(-50%) translateY(${(1 - n) * -10}px)`;
+    }
+  }
+});
+</script>
+</body>
+</html>

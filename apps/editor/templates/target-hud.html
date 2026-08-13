@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Calibre — atraca sobre el punto</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* ======================================================================
+     ERA una RETÍCULA DE PUNTERÍA: dos círculos concéntricos, cuatro esquinas
+     de mira, una cruz y un rótulo, todo del mismo acento, entrando girado 26°
+     y contrayéndose desde 1,9x. O sea el cromo de un videojuego pegado encima
+     de la cara de alguien — exactamente el paquete de reacción de YouTube que
+     esta marca no es. El diagnóstico medido: solo `opacity` y `transform`,
+     un `font-size` en px, sin textura y sin color propio.
+
+     ES un CALIBRE —un pie de rey— que ATRACA sobre el punto. Cinco cosas
+     cambian de naturaleza:
+
+       · la mira pasa a ser una HERRAMIENTA con dos materiales: viga y
+         mordazas de bronce, taco de corredera en grafito con trama de
+         mecanizado. Antes todo el gráfico era un solo trazo de acento;
+       · las esquinas parpadeantes pasan a ser una GRADUACIÓN con tres
+         especies —menor, media y registro—, que es lo que un instrumento
+         tiene y un HUD imita. Ninguna esquina de mira mide nada;
+       · la contracción concéntrica pasa a ser una corredera que VIAJA con
+         masa por la viga y para en seco contra el punto, con el retroceso
+         del cuerpo en el golpe. `inOutCubic`: lo que tiene masa arranca y
+         para;
+       · el rótulo suelto pasa a ser una LECTURA en mono dentro de un rebaje,
+         y el número NO es decorado: es la abertura real de las mordazas, así
+         que CUENTA mientras la corredera cierra y se congela al atracar;
+       · el punto deja de estar «apuntado» y pasa a estar MARCADO: dos rayas
+         se graban sobre el metraje —cada una con su surco— y se quedan.
+
+     Lo que §1 prohíbe y aquí no está: ni un `box-shadow` de acento, ni un
+     destello. El único brillo es la LUZ RASANTE que recorre la lámina de
+     bronce, que es luz sobre una superficie que ya estaba ahí.
+     ====================================================================== */
+
+  .stage { position: absolute; inset: 0; }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%;
+        overflow: visible; }
+
+  /* ---------------- el material ----------------
+     Dos materiales y no uno. La viga y las mordazas comparten UNA lámina de
+     bronce en `userSpaceOnUse` —o sea una sola luz para las tres piezas, que
+     es lo que hace que se lean como una herramienta y no como tres formas
+     pegadas—; el taco de la corredera es grafito, que es la pieza que se
+     agarra. Con todo del mismo color la corredera no se distinguía de la
+     viga por la que corre. */
+  .pieza  { fill: url(#metal); }
+  /* §10: «sombra multicapa con brillo interior — lo que hace que algo
+     parezca un objeto». En SVG no hay `inset`, así que son dos filetes: luz
+     arriba, canto abajo. Cuestan dos nodos y son la diferencia entre una
+     barra y una pieza. */
+  .luz    { stroke: var(--stroke); stroke-width: 1; fill: none; }
+  .canto  { stroke: var(--sombra); stroke-width: 1.5; fill: none; }
+
+  .taco   { fill: var(--surface); stroke: var(--stroke); stroke-width: 1; }
+  /* Trama de mecanizado. Es un `<pattern>` y no `Engine.grano`, y la razón
+     está medida en la tanda anterior: `grano` pinta con `mix-blend-mode:
+     multiply` en una capa HTML hija, y sobre una capa sin superficie opaca
+     multiplicar contra alfa 0 devuelve el gris de la teja — un rectángulo
+     gris flotando sobre el vídeo. Dentro de un SVG ni siquiera se
+     rasterizaría: la capa que crea es un `<i>`. El rayado sí es SVG, se
+     rasteriza una vez y se recorta solo a la silueta del taco. */
+  .rayado { fill: url(#rayado); }
+  .rayado-linea { stroke: var(--stroke); stroke-width: 1; }
+
+  /* El rebaje de lectura: hundido, no levantado. Nada de sombra proyectada
+     —lo que está hundido no levanta— y el canto oscuro va ARRIBA, que es de
+     donde vendría la sombra en un rebaje real. */
+  .rebaje { fill: var(--chrome-3); }
+  .rebaje-canto { stroke: var(--sombra); stroke-width: 1.5; fill: none; }
+  .rebaje-luz   { stroke: var(--stroke); stroke-width: 1.5; fill: none; }
+
+  /* ---------------- la graduación ----------------
+     Tres especies, y la jerarquía está en el LARGO y en el MATERIAL, nunca
+     en el color de acento: 7 px la menor, 13 la media, 24 la de registro, o
+     sea separadas por casi el doble cada vez. Con 7 y 9 la diferencia existe
+     en el código y NO se ve en el fotograma, que es tener tres especies y
+     leer una sola.
+
+     `--ink-soft` y `--ink`, nunca `--ink-faint`: sobre el gris de metraje
+     0x2E3238 el faint cae a 1,9:1 y la graduación sencillamente no está. Es
+     el mismo hallazgo que documenta el calibre de `kicker-hud`. */
+  .div-menor { stroke: var(--ink-soft); stroke-width: 1.4; opacity: 0.5; }
+  .div-media { stroke: var(--ink);      stroke-width: 1.8; opacity: 0.75; }
+  /* La ÚNICA especie con material: marca dónde está cada cara de medida.
+     Se distingue de las otras dos sin subir de tamaño ni encender nada.
+
+     Va en DOS tramos y esto es un fallo que solo se vio mirando el fotograma:
+     la primera versión trazaba una sola línea de bronce desde dentro de la
+     viga hasta 20 px por debajo, y el tramo de dentro era bronce SOBRE
+     bronce — o sea invisible, con el `<line>` en el DOM y su `stroke-width`
+     correcto. Dentro de la viga la división es un GRABADO y va en `--sombra`;
+     fuera es la marca de registro y va en metal, que es donde el metal
+     contrasta con el metraje. */
+  .div-reg   { stroke: url(#metal); stroke-width: 2.6; }
+  .div-grab  { stroke: var(--sombra); stroke-width: 2.4; }
+  /* El nonio: paso 0,9 del principal, que es lo que convierte una regla en
+     un pie de rey. Va en el taco, o sea que se desplaza sobre la escala fija
+     — el gesto entero del instrumento en diez líneas. */
+  .nonio     { stroke: var(--ink); stroke-width: 1.4; opacity: 0.8; }
+
+  /* ---------------- las lecturas ---------------- */
+  .lectura {
+    font-family: var(--mono);
+    font-size: var(--t-md);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-cuerpo);
+    fill: var(--ink);
+  }
+  /* La leyenda grabada en la viga. `paint-order: stroke` pinta el trazo
+     ANTES del relleno, así que el velo queda DEBAJO de la letra en vez de
+     encima: es la versión SVG del scrim, y el color es `--scrim` —negro en
+     carbón, papel en claro— nunca el acento. Un halo de acento es justo lo
+     que §1 prohíbe. */
+  .legenda {
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps-ancho);
+    fill: var(--ink);
+    paint-order: stroke;
+    stroke: var(--scrim);
+    stroke-width: 7px;
+    stroke-linejoin: round;
+  }
+
+  /* ---------------- la medida y la marca ----------------
+     Cada raya se dibuja DOS veces: el surco ancho en `--scrim` desplazado
+     1,5 px y el filo estrecho en `--ink` encima. No es un truco de
+     legibilidad: es cómo se ve una raya grabada de verdad —una pared coge la
+     luz y la otra queda en sombra—, y de paso resuelve el problema real, que
+     es que una línea de 2 px sobre metraje arbitrario puede caer sobre algo
+     de su mismo valor y desaparecer.
+
+     La LÍNEA DE MEDIDA une las dos caras y se acorta con ellas, así que el
+     vano deja de estar vacío: sin ella el punto —que es de lo que va esta
+     plantilla— era un hueco entre dos barras y la mirada se iba a la
+     herramienta. Va en `--ink-soft` porque es la cota, no la marca. */
+  .surco  { stroke: var(--scrim); stroke-width: 6; fill: none; }
+  .filo   { stroke: var(--ink);   stroke-width: 3.2; fill: none; }
+  .cota   { stroke: var(--ink-soft); stroke-width: 1.4; fill: none; }
+  .cota-s { stroke: var(--scrim); stroke-width: 4; fill: none; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <svg id="svg" viewBox="0 0 1080 1920">
+    <defs>
+      <pattern id="rayado" width="4" height="4" patternUnits="userSpaceOnUse"
+               patternTransform="rotate(115)">
+        <line class="rayado-linea" x1="0" y1="0" x2="0" y2="4"></line>
+      </pattern>
+      <clipPath id="clipLeg"><rect id="rleg"></rect></clipPath>
+    </defs>
+
+    <g id="g">
+      <!-- La cota y la marca van DEBAJO de la herramienta y FUERA del grupo
+           que retrocede en el golpe: están sobre el metraje, no en el
+           instrumento. -->
+      <g id="cota">
+        <line class="cota-s" id="cotas"></line>
+        <line class="cota"   id="cotaf"></line>
+      </g>
+      <g id="marca">
+        <line class="surco" id="surcov"></line>
+        <line class="filo"  id="rayav"></line>
+      </g>
+
+      <g id="util">
+        <g id="cuerpo">
+          <rect class="pieza" id="viga"></rect>
+          <line class="luz"   id="luzarr"></line>
+          <line class="canto" id="cantoab"></line>
+          <g id="grad"></g>
+          <path class="pieza" id="mordf"></path>
+          <line class="div-grab" id="grabf"></line>
+          <line class="div-reg" id="regf"></line>
+          <text class="legenda" id="legenda" clip-path="url(#clipLeg)"></text>
+        </g>
+
+        <g id="corredera">
+          <path class="pieza" id="mordm"></path>
+          <line class="div-grab" id="grabm"></line>
+          <line class="div-reg" id="regm"></line>
+          <rect class="taco"   id="taco"></rect>
+          <rect class="rayado" id="tramataco"></rect>
+          <rect class="rebaje" id="rebaje"></rect>
+          <line class="rebaje-canto" id="rebajecanto"></line>
+          <line class="rebaje-luz" id="rebajeluz"></line>
+          <g id="nonio"></g>
+          <text class="lectura tnum" id="lect"
+                dominant-baseline="central"></text>
+        </g>
+      </g>
+    </g>
+  </svg>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+const NS = 'http://www.w3.org/2000/svg';
+
+const svg = document.getElementById('svg');
+const g = document.getElementById('g');
+const util = document.getElementById('util');
+const cuerpo = document.getElementById('cuerpo');
+const viga = document.getElementById('viga');
+const luzarr = document.getElementById('luzarr');
+const cantoab = document.getElementById('cantoab');
+const gGrad = document.getElementById('grad');
+const mordf = document.getElementById('mordf');
+const regf = document.getElementById('regf');
+const grabf = document.getElementById('grabf');
+const legenda = document.getElementById('legenda');
+const rleg = document.getElementById('rleg');
+const corredera = document.getElementById('corredera');
+const mordm = document.getElementById('mordm');
+const regm = document.getElementById('regm');
+const grabm = document.getElementById('grabm');
+const taco = document.getElementById('taco');
+const tramataco = document.getElementById('tramataco');
+const rebaje = document.getElementById('rebaje');
+const rebajecanto = document.getElementById('rebajecanto');
+const rebajeluz = document.getElementById('rebajeluz');
+const gNonio = document.getElementById('nonio');
+const elLect = document.getElementById('lect');
+const gCota = document.getElementById('cota');
+const cotas = document.getElementById('cotas');
+const cotaf = document.getElementById('cotaf');
+const marca = document.getElementById('marca');
+const surcov = document.getElementById('surcov');
+const rayav = document.getElementById('rayav');
+
+/* Medidas fijas de la herramienta, en px de lienzo. No dependen de `r`
+   porque son el GROSOR de las piezas: una mordaza más ancha no es una
+   mordaza que mide más, es otra herramienta. */
+const WB = 26;    // canto de la mordaza
+const WT = 148;   // largo del taco de la corredera
+const HV = 18;    // alto de la viga
+
+const M = {};     // geometría de la pasada actual
+let largoMarca = 1;
+
+function pon(el, a) { for (const k in a) el.setAttribute(k, a[k]); }
+function caja(el, xa, xb, ya, yb) {
+  pon(el, { x: Math.min(xa, xb), y: Math.min(ya, yb),
+            width: Math.abs(xb - xa), height: Math.abs(yb - ya) });
+}
+function recta(el, xa, ya, xb, yb) {
+  pon(el, { x1: xa, y1: ya, x2: xb, y2: yb });
+}
+
+/* Toda la geometría en una función, llamada solo en `setup`: aquí nada
+   depende de la fuente, así que no hace falta re-medir en `draw` como en
+   `kicker-hud`. */
+function montar(cfg) {
+  const cx = +cfg.x, cy = +cfg.y;
+  const R = clamp(+cfg.r || 170, 60, 420);
+
+  /* De qué lado se monta la corredera. No es una preferencia estética: el
+     taco y su lectura ocupan 162 px MÁS ALLÁ de la cara móvil, y ahí va el
+     único dato de la capa. Con `x: 900` y `r: 150` el borde caería en 1212 px
+     —132 fuera del lienzo— y la lectura quedaría cortada sin que nada avise:
+     el humo no mira dónde está el dato y esta plantilla no publica anclas.
+
+     Se conserva la orientación natural SIEMPRE QUE QUEPA, y solo entonces se
+     voltea. Volteando en cuanto el otro lado tiene más hueco —que fue la
+     primera versión— la configuración real de `plan_codex.py` (`x: 700`,
+     `r: 150`, sobra por 68 px) salía en espejo, y dos micro-FX de la misma
+     pieza montaban la herramienta al revés sin ninguna razón visible. */
+  const holgura = WT + 14;
+  const s = (cx + R + holgura <= 1080) ? 1
+          : (cx - R - holgura >= 0) ? -1
+          : ((1080 - (cx + R)) >= (cx - R) ? 1 : -1);
+  /* Abertura de partida: 62 % del semiancho. Con r=170 son 105 px de viaje
+     en 0,34 s, o sea 10 fotogramas a 30 pps con desplazamiento visible en
+     cada uno. Por debajo de ~60 px el cierre no se lee como un cierre. */
+  const ab = Math.round(R * 0.62);
+
+  /* La viga va por DEBAJO del punto y las mordazas suben hasta pasarlo: así
+     el punto queda en el aire entre las dos caras, que es donde se mide, y
+     no tapado por la herramienta. Los dos desplazamientos son
+     proporcionales a `r` pero acotados, o sea que un calibre pequeño sigue
+     teniendo una viga con sitio para su escala. */
+  const off = clamp(R * 0.55, 76, 150);
+  const yV = cy + off;                 // canto superior de la viga
+  const yB = yV + HV;                  // canto inferior
+  const yJ = cy - clamp(R * 0.44, 60, 118);   // punta de las mordazas
+
+  const xF = cx - s * R;               // cara fija
+  const xM = cx + s * R;               // cara móvil, ya atracada
+  const x0 = xF - s * (WB + 92);       // cola de la viga
+  const x1 = xM + s * (ab + WT + 12);  // la viga tiene que dar para el viaje
+
+  Object.assign(M, { cx, cy, R, s, ab, yV, yB, yJ, xF, xM, x0, x1 });
+
+  caja(viga, x0, x1, yV, yB);
+  recta(luzarr, x0, yV + 0.5, x1, yV + 0.5);
+  recta(cantoab, x0, yB - 0.7, x1, yB - 0.7);
+
+  /* --- las mordazas ---
+     Con chaflán en el lomo y la punta en la CARA DE MEDIDA: una mordaza de
+     calibre es una cuña, no un rectángulo, y la cuña apunta a lo que mide. */
+  const cuna = (el, cara, dir) => el.setAttribute('d',
+    `M ${cara} ${yJ} L ${cara} ${yB} L ${cara + dir * WB} ${yB} ` +
+    `L ${cara + dir * WB} ${yJ + 44} Z`);
+  cuna(mordf, xF, -s);
+  cuna(mordm, xM, s);
+  recta(grabf, xF, yV + 3, xF, yB);
+  recta(grabm, xM, yV + 3, xM, yB);
+  recta(regf, xF, yB, xF, yB + 24);
+  recta(regm, xM, yB, xM, yB + 24);
+
+  /* --- la graduación fija ---
+     Cada quinta división es media: es el ritmo de cualquier regla grabada y
+     es lo que permite CONTAR sin ir de una en una. Con paso 13 sobre la viga
+     de 723 px que sale con `r: 170` son 56 divisiones y 12 medias —
+     bastantes para estimar, pocas para que se lea como una trama. */
+  gGrad.textContent = '';
+  const paso = Math.max(6, +cfg.division || 13);
+  const largoViga = Math.abs(x1 - x0);
+  for (let i = 0, d = 0; d <= largoViga; d += paso, i++) {
+    const x = x0 + s * d;
+    const media = i % 5 === 0;
+    const l = document.createElementNS(NS, 'line');
+    l.setAttribute('class', media ? 'div-media' : 'div-menor');
+    recta(l, x, yB, x, yB + (media ? 15 : 7));
+    gGrad.appendChild(l);
+  }
+
+  /* --- el taco y su nonio --- */
+  const yT0 = yV - 30, yT1 = yB + 14;
+  caja(taco, xM, xM + s * WT, yT0, yT1);
+  caja(tramataco, xM, xM + s * WT, yT0, yT1);
+  caja(rebaje, xM + s * 16, xM + s * (WT - 14), yV - 22, yV + 24);
+  /* Canto oscuro ARRIBA y luz ABAJO: es de donde vendría la sombra en un
+     hueco vaciado, y es la regla de §10 —«brillo interior, inset arriba e
+     inset abajo»— traducida a SVG, que no tiene `inset`. Al revés el rebaje
+     se lee como una pastilla que sobresale. */
+  recta(rebajecanto, xM + s * 16, yV - 21, xM + s * (WT - 14), yV - 21);
+  recta(rebajeluz, xM + s * 16, yV + 23, xM + s * (WT - 14), yV + 23);
+
+  gNonio.textContent = '';
+  for (let i = 0; i < 10; i++) {
+    const l = document.createElementNS(NS, 'line');
+    l.setAttribute('class', 'nonio');
+    const x = xM + s * (10 + i * paso * 0.9);
+    recta(l, x, yT1, x, yT1 + 11);
+    gNonio.appendChild(l);
+  }
+
+  /* La lectura se ancla al extremo LEJANO del rebaje. Da igual cuántos
+     dígitos tenga: en todo el rango útil de `r` (60-420 px) el valor va de
+     12,0 a 110,0, o sea entre cuatro y cinco caracteres, y anclando a la
+     derecha los dígitos no se mueven cuando cambia la cuenta. `.tnum` es el
+     seguro complementario —con `--mono` resuelto a una familia monoespaciada
+     es redundante, pero el propio humo avisa de que ese rol puede caer a un
+     respaldo—. */
+  pon(elLect, { x: xM + s * (WT - 26), y: yV + 1,
+                'text-anchor': s > 0 ? 'end' : 'start' });
+
+  /* La leyenda se graba en el hueco de debajo, hacia DENTRO del vano: así no
+     puede salirse del lienzo por el lado por el que ya no cabía el taco. */
+  pon(legenda, { x: xF + s * 6, y: yB + 51,
+                 'text-anchor': s > 0 ? 'start' : 'end' });
+  legenda.textContent = String(cfg.texto || '');
+
+  /* --- la marca ---
+     UNA raya vertical que cruza la cota, no una cruz: la horizontal ya la
+     pone la línea de medida, y dos rayas simétricas del mismo largo sobre un
+     punto vuelven a ser una retícula de puntería. Esto es la marca de un
+     trazador sobre el eje que se está midiendo. */
+  const L = clamp(R * 0.22, 30, 60);
+  recta(rayav, cx, cy - L, cx, cy + L);
+  recta(surcov, cx + 1.5, cy - L, cx + 1.5, cy + L);
+  largoMarca = rayav.getTotalLength();
+  [rayav, surcov].forEach(el => { el.style.strokeDasharray = largoMarca; });
+
+  g.style.transformOrigin = `${cx}px ${cy}px`;
+}
+
+/* El compás en UNA función: `draw` sale de aquí y cualquier señal futura
+   tendría que salir de aquí también. Copiar la fórmula es exactamente cómo
+   un golpe acaba sonando dos fotogramas antes de que las caras se toquen. */
+function ritmo(cfg) {
+  const entrada = cfg.entrada > 0 ? cfg.entrada : 0.26;
+  const viaje = cfg.viaje > 0 ? cfg.viaje : 0.34;
+  const tViaje = entrada * 0.52;
+  return { entrada, viaje, tViaje, tContacto: tViaje + viaje };
+}
+
+Engine.register({
+  duration: 1.3,
+  defaults: {
+    x: 540, y: 820, r: 170,
+    texto: 'DETALLE',
+    lectura: '',        // anula el número derivado; vacío = lo mide el calibre
+    division: 13,       // paso de la graduación menor, en px
+    giro: 4,            // el ángulo con que se posa la herramienta
+    entrada: 0.26,      // llegada del cuerpo
+    viaje: 0.34,        // lo que tarda la corredera en atracar
+    salida: 0.30
+  },
+
+  setup(cfg) {
+    montar(cfg);
+
+    /* Se TIRA el degradado que hubiera antes de volver a pedirlo, y esto
+       arregla un fallo real que no da ningún error.
+
+       `Engine.gradienteMetal` lee los cinco stops del tema UNA sola vez —su
+       guarda es `if (!lg)`— y luego solo actualiza la caja. Pero el motor
+       llama a `setup({})` en `DOMContentLoaded` «para que al menos se vea algo
+       al abrirlo», y ese setup entra con `tema: 'carbon'`: cuando después
+       llega el setup de verdad con `tema: 'paper'`, el `<linearGradient>` ya
+       existe y conserva los stops del CARBÓN. Medido con una sonda: con
+       `tema: paper` los cuatro stops salían #8C5722 · #E0A05C · #CD7F32 ·
+       #9A6028 —o sea `--metal-1/3/4/5` de CARBÓN— cuando `_tokens.css`
+       colapsa los cinco a #C2410C en claro justamente porque «en claro un
+       degradado de bronce sobre papel se ve sucio». El tema decía una cosa y
+       el fotograma pintaba otra.
+
+       Afecta a TODA plantilla que use el ayudante, no solo a esta, así que el
+       arreglo bueno va en `_engine.js` —refrescar los stops cuando cambia
+       `dataset.tema`— y ahí no se toca desde aquí. Esto es el parche local.
+       Cuesta un nodo y es idempotente. */
+    const viejo = svg.querySelector('#metal');
+    if (viejo) viejo.remove();
+
+    /* UNA lámina de bronce para la viga, las dos mordazas y las divisiones de
+       registro. La `caja` NO es opcional: las divisiones de registro son
+       rectas VERTICALES —caja de ancho cero— y con `objectBoundingBox`, que
+       es el defecto, el SVG manda no dibujar nada. Sin caja desaparecen sin
+       un solo aviso en consola. La caja real la reescribe `draw` en cada
+       fotograma para mover la luz. */
+    Engine.gradienteMetal(svg, 'metal',
+      [M.x0, M.yV - 90, M.x1, M.yV + 90]);
+    return {};
+    /* Sin `cues` a propósito, y no por olvido: `dirigir.py` ya le asigna a
+       esta capa un `escaner` a 0,8 en `SFX_MICRO`, y el manual pide UNA señal
+       por evento. Publicar aquí el golpe del atraque daría dos sonidos en
+       0,5 s para el mismo hecho físico. Si algún día el plan deja de poner el
+       suyo, el instante está en `ritmo().tContacto`. */
+  },
+
+  draw(t, cfg) {
+    const dur = cfg.duration || 1.3;
+    const r = ritmo(cfg);
+    const cierre = Engine.sale(t, dur, cfg.salida);
+
+    /* --- llega la herramienta ---
+       `outExpo` y no `outCubic`: una herramienta que se posa entra deprisa y
+       frena, no arranca despacio. Y el giro de llegada es de 4°, no de 26:
+       veintiséis grados es un molinete de dibujo animado, cuatro es una mano
+       que apoya la pieza y la endereza. */
+    const pC = span(t, 0, r.entrada, Ease.outExpo);
+    g.style.transform =
+      `translate(${((1 - pC) * -38 * M.s).toFixed(2)}px, ` +
+      `${((1 - pC) * 12).toFixed(2)}px) rotate(${((1 - pC) * cfg.giro).toFixed(2)}deg)`;
+    g.style.opacity = (Math.min(1, pC * 3.2) * cierre).toFixed(3);
+
+    /* --- la corredera ATRACA ---
+       `inOutCubic` y no `outCubic`: lo que tiene masa arranca y para. Con
+       `outCubic` el taco sale disparado en el primer fotograma y el gesto se
+       lee como un barrido automático, que es lo contrario de una pieza
+       pesada deslizándose por su guía. */
+    const pV = span(t, r.tViaje, r.viaje, Ease.inOutCubic);
+    const apert = M.ab * (1 - pV);
+    corredera.setAttribute('transform',
+      `translate(${(M.s * apert).toFixed(2)} 0)`);
+
+    /* El golpe: al tocar, el cuerpo —que es lo pesado— retrocede 3,2 px en el
+       sentido en que venía la corredera y se asienta en 0,16 s. Sobre un vano
+       de 340 px es un 0,9 %, o sea muy por debajo del 6 % que §1 admite como
+       sobrepaso: no es un rebote, es el temblor de un contacto. */
+    const golpe = t >= r.tContacto
+      ? 1 - span(t, r.tContacto, 0.16, Ease.outCubic) : 0;
+    util.setAttribute('transform',
+      `translate(${(-M.s * 3.2 * golpe).toFixed(2)} 0)`);
+
+    /* --- la lectura ---
+       El número es la separación REAL de las caras dividida por diez, así que
+       cuenta mientras la corredera cierra —44,5 a 34,0 con los valores por
+       defecto— y se congela al atracar. Un instrumento cuyo número no depende
+       de nada es un adorno con dígitos. */
+    elLect.textContent = cfg.lectura
+      ? String(cfg.lectura)
+      : ((2 * M.R + apert) / 10).toFixed(1);
+
+    /* SEGUNDO TIEMPO: la medida se CONFIRMA.
+       ------------------------------------------------------------------
+       La lectura se congela al atracar, y con ella la capa: siete
+       fotogramas sin que cambie nada en un sexto de segundo, el 18 % del
+       plano. No es un fallo de la lectura —un calibre que sigue contando
+       después de tocar la pieza está mal—, es que faltaba lo que un
+       calibre hace DESPUÉS de tocar: se bloquea.
+
+       El número gana peso de 500 a 800 mientras la medida se asienta, y la
+       cota se afina —el trazo de 2 px baja a 1,4— como quien aprieta el
+       tornillo y la aguja deja de bailar. Nada de esto es un gesto nuevo:
+       es el mismo instrumento terminando su trabajo. */
+    const conf = Engine.reposo(t, r.tContacto, dur, cfg.salida, Ease.outCubic);
+    Engine.peso(elLect, Math.round(500 + 300 * conf));
+    const cotaf = document.getElementById('cotaf');
+    if (cotaf) cotaf.style.strokeWidth = (2 - 0.6 * conf).toFixed(2);
+
+    /* --- luz rasante sobre el bronce ---
+       §1 prohíbe la jerarquía por luz, así que esto no puede ser un destello:
+       es el reflejo de una lámina que ya estaba ahí, desplazándose porque la
+       herramienta se ha movido. El primer término lo arrastra la llegada; el
+       segundo, de periodo 2,7 s —más largo que la capa entera—, impide que se
+       quede clavado, que es lo que convierte un degradado de metal en una
+       calcomanía. */
+    /* Periodo 1,55 y no 2,7. La condición es que sea MÁS LARGO que la capa
+       —1,3 s— para que el reflejo no dé la vuelta y se note el bucle; 2,7 lo
+       cumplía de sobra y a cambio dejaba la luz casi parada: 2 de 255 en un
+       sexto de segundo, por debajo de lo que el codificador conserva. Con
+       1,55 sigue sin cerrar el ciclo y la lámina se lee moviéndose, que es lo
+       único de esta capa con superficie suficiente para notarse cuando la
+       corredera ya ha atracado. */
+    const luz = 260 * (1 - pC) + 110 * Math.sin(2 * Math.PI * t / 1.55);
+    Engine.gradienteMetal(svg, 'metal',
+      [M.x0 - 260 + luz, M.yV - 90, M.x1 + 260 + luz, M.yV + 90]);
+
+    /* --- la leyenda se GRABA ---
+       Un obturador con `clip-path` y no un fundido: una leyenda grabada no
+       aparece, se descubre según pasa la punta. De paso saca a esta plantilla
+       del montón de las 42 que solo animan `opacity` y `transform`. */
+    const pL = span(t, r.entrada * 0.55, r.entrada * 1.2, Ease.inOutCubic);
+    const anchoL = 560;
+    caja(rleg, M.xF + M.s * 6 - (M.s > 0 ? 0 : anchoL * pL),
+         M.xF + M.s * 6 + (M.s > 0 ? anchoL * pL : 0), M.yB + 20, M.yB + 70);
+    legenda.style.opacity = cierre.toFixed(3);
+
+    /* --- la cota ---
+       Une las dos caras y se acorta con ellas: es la medida que se está
+       tomando, no un adorno. Entra con el cuerpo y vive todo el plano. */
+    const caraM = M.xM + M.s * apert;
+    recta(cotaf, M.xF, M.cy, caraM, M.cy);
+    recta(cotas, M.xF, M.cy + 1.5, caraM, M.cy + 1.5);
+    gCota.style.opacity = (pC * cierre).toFixed(3);
+
+    /* --- se raya el punto ---
+       Al atracar, no antes: la marca es la CONSECUENCIA del contacto.
+       `outExpo` porque la punta de un buril sale disparada y frena; no tiene
+       masa que arrancar.
+
+       La puerta `t >= tContacto` no es redundante con el `dashoffset`: con el
+       trazo entero desplazado el `stroke-linecap: round` seguía pintando los
+       dos casquetes, y en los primeros fotogramas se veían DOS PUNTOS
+       flotando en mitad del vano —tres píxeles cada uno, invisibles en el
+       diff y perfectamente visibles en el fotograma compuesto—. Se quitó el
+       `round` y se puso la puerta. */
+    const traza = span(t, r.tContacto, 0.08, Ease.outExpo);
+    const d = (largoMarca * (1 - traza)).toFixed(2);
+    rayav.style.strokeDashoffset = d;
+    surcov.style.strokeDashoffset = d;
+    marca.style.opacity = (t >= r.tContacto ? cierre : 0).toFixed(3);
+  }
+});
+</script>
+</body>
+</html>

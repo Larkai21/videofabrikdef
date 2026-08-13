@@ -1,0 +1,717 @@
+<!-- hyperframes-registry-item: x-post -->
+<!doctype html>
+<html lang="en">
+  <head>
+<!-- /* PALETA-AJENA: inicio */ -->
+    <meta charset="UTF-8" />
+    <script src="_gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        background: transparent;
+        overflow: hidden;
+      }
+      body {
+        width: 1920px;
+        height: 1080px;
+        font-family: "Inter", sans-serif;
+      }
+
+      [data-composition-id="x-post"] .x-card {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 880px;
+        background: #15202b;
+        border-radius: 20px;
+        padding: 36px 36px 28px;
+        box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+        border: 1px solid #38444d;
+        overflow: hidden;
+      }
+
+      /* Bottom glow */
+      [data-composition-id="x-post"] .x-card::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 80px;
+        background: linear-gradient(to top, rgba(29, 155, 240, 0.08), transparent);
+        pointer-events: none;
+      }
+
+      /* Header row */
+      [data-composition-id="x-post"] .post-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        margin-bottom: 18px;
+        position: relative;
+      }
+
+      [data-composition-id="x-post"] .avatar {
+        width: 52px;
+        height: 52px;
+        flex-shrink: 0;
+        border-radius: 50%;
+        overflow: hidden;
+      }
+
+      [data-composition-id="x-post"] .avatar svg {
+        width: 52px;
+        height: 52px;
+        display: block;
+      }
+
+      [data-composition-id="x-post"] .user-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex: 1;
+      }
+
+      [data-composition-id="x-post"] .name-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      [data-composition-id="x-post"] .display-name {
+        font-size: 26px;
+        font-weight: 700;
+        color: #e7e9ea;
+        line-height: 1.3;
+      }
+
+      [data-composition-id="x-post"] .verified-badge svg {
+        width: 22px;
+        height: 22px;
+        display: block;
+      }
+
+      [data-composition-id="x-post"] .handle {
+        font-size: 22px;
+        font-weight: 400;
+        color: #8b98a5;
+        line-height: 1.3;
+      }
+
+      /* X logo top-right */
+      [data-composition-id="x-post"] .x-logo {
+        position: absolute;
+        top: 2px;
+        right: 0;
+        width: 32px;
+        height: 32px;
+      }
+
+      [data-composition-id="x-post"] .x-logo svg {
+        width: 32px;
+        height: 32px;
+        display: block;
+      }
+
+      /* Tweet body */
+      [data-composition-id="x-post"] .tweet-body {
+        font-size: 30px;
+        font-weight: 400;
+        color: #e7e9ea;
+        line-height: 1.45;
+        margin-bottom: 12px;
+        display: -webkit-box;
+        -webkit-line-clamp: 4;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+
+      [data-composition-id="x-post"] .hashtag {
+        color: #1d9bf0;
+      }
+
+      /* Timestamp */
+      [data-composition-id="x-post"] .timestamp {
+        font-size: 22px;
+        color: #8b98a5;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #38444d;
+        margin-bottom: 16px;
+      }
+
+      /* Metrics bar — matches real X spacing */
+      [data-composition-id="x-post"] .metrics-bar {
+        display: flex;
+        align-items: center;
+        padding: 0;
+        position: relative;
+        z-index: 1;
+      }
+
+      [data-composition-id="x-post"] .metrics-left {
+        display: flex;
+        align-items: center;
+        flex: 1;
+        justify-content: space-between;
+        padding-right: 60px;
+      }
+
+      [data-composition-id="x-post"] .metrics-right {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+      }
+
+      [data-composition-id="x-post"] .metric {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      [data-composition-id="x-post"] .metric-icon {
+        width: 35px;
+        height: 35px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      [data-composition-id="x-post"] .metric-icon svg {
+        width: 35px;
+        height: 35px;
+        display: block;
+      }
+
+      [data-composition-id="x-post"] .metric-count {
+        font-size: 20px;
+        font-weight: 400;
+        color: #8b98a5;
+      }
+    </style>
+    <link rel="stylesheet" href="_tokens.css">
+  <script src="_engine.js"></script>
+</head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="x-post"
+      data-width="1080"
+      data-height="1920"
+      data-start="0"
+      data-duration="5"
+    >
+      <div id="card" class="clip x-card" data-start="0" data-duration="5" data-track-index="0">
+        <!-- Header: prompt to replace display name, handle, and avatar -->
+        <div class="post-header">
+          <div class="avatar">
+            <svg viewBox="0 0 52 52" fill="none">
+              <circle cx="26" cy="26" r="26" fill="#536471" />
+              <circle cx="26" cy="21" r="10" fill="#8b98a5" />
+              <ellipse cx="26" cy="42" rx="16" ry="12" fill="#8b98a5" />
+            </svg>
+          </div>
+          <div class="user-info">
+            <div class="name-row">
+              <span class="display-name">Hyperframes</span>
+              <span class="verified-badge">
+                <svg viewBox="0 0 22 22" fill="none">
+                  <circle cx="11" cy="11" r="11" fill="#1d9bf0" />
+                  <path
+                    d="M9.5 14.25L6.25 11l1.06-1.06 2.19 2.19 4.69-4.69L15.25 8.5 9.5 14.25z"
+                    fill="#fff"
+                  />
+                </svg>
+              </span>
+            </div>
+            <span class="handle">@hyperframes</span>
+          </div>
+          <div class="x-logo">
+            <svg viewBox="0 0 24 24" fill="#e7e9ea">
+              <path
+                d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"
+              />
+            </svg>
+          </div>
+        </div>
+
+        <!-- Tweet body: prompt to replace with your content -->
+        <div class="tweet-body">
+          Prompt to replace this text with your tweet. Change the display name, handle, timestamp,
+          and engagement counts to match your content. <span class="hashtag">#YourHashtag</span>
+        </div>
+
+        <!-- Timestamp: prompt to replace -->
+        <div class="timestamp">1:10 PM &middot; Apr 7, 2026</div>
+
+        <!-- Metrics bar -->
+        <div class="metrics-bar">
+          <div class="metrics-left">
+            <!-- Reply -->
+            <div class="metric">
+              <div class="metric-icon">
+                <svg viewBox="0 0 24 24" fill="#8b98a5">
+                  <path
+                    d="M1.751 10c0-4.42 3.584-8 8.005-8h4.366c4.49 0 8.129 3.64 8.129 8.13 0 2.96-1.607 5.68-4.196 7.11l-8.054 4.46v-3.69h-.067c-4.49.1-8.183-3.51-8.183-8.01zm8.005-6c-3.317 0-6.005 2.69-6.005 6 0 3.37 2.77 6.08 6.138 6.01l.351-.01h1.761v2.3l5.087-2.81c1.951-1.08 3.163-3.13 3.163-5.36 0-3.39-2.744-6.13-6.129-6.13H9.756z"
+                  />
+                </svg>
+              </div>
+              <span class="metric-count">34</span>
+            </div>
+
+            <!-- Repost -->
+            <div class="metric">
+              <div class="metric-icon">
+                <svg viewBox="0 0 24 24" fill="#8b98a5">
+                  <path
+                    d="M4.5 3.88l4.432 4.14-1.364 1.46L5.5 7.55V16c0 1.1.896 2 2 2H13v2H7.5c-2.209 0-4-1.79-4-4V7.55L1.432 9.48.068 8.02 4.5 3.88zM16.5 6H11V4h5.5c2.209 0 4 1.79 4 4v8.45l2.068-1.93 1.364 1.46-4.432 4.14-4.432-4.14 1.364-1.46 2.068 1.93V8c0-1.1-.896-2-2-2z"
+                  />
+                </svg>
+              </div>
+              <span class="metric-count">2.3K</span>
+            </div>
+
+            <!-- Like -->
+            <div id="like-btn" class="metric">
+              <div class="metric-icon">
+                <svg viewBox="0 0 24 24">
+                  <!-- Outline heart (visible initially) -->
+                  <path
+                    id="heart-outline"
+                    d="M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.243.07-2.349.78-2.91 1.91-.552 1.12-.633 2.78.479 4.82 1.074 1.97 3.257 4.27 7.129 6.61 3.87-2.34 6.052-4.64 7.126-6.61 1.111-2.04 1.03-3.7.477-4.82-.561-1.13-1.666-1.84-2.908-1.91zm4.187 7.69c-1.351 2.48-4.001 5.12-8.379 7.67l-.503.3-.504-.3c-4.379-2.55-7.029-5.19-8.382-7.67-1.36-2.5-1.41-4.86-.514-6.67.887-1.79 2.647-2.91 4.601-3.01 1.651-.09 3.368.56 4.798 2.01 1.429-1.45 3.146-2.1 4.796-2.01 1.954.1 3.714 1.22 4.601 3.01.896 1.81.846 4.17-.514 6.67z"
+                    fill="#8b98a5"
+                  />
+                  <!-- Filled heart (hidden initially, shown on like) -->
+                  <path
+                    id="heart-filled"
+                    d="M20.884 13.19c-1.351 2.48-4.001 5.12-8.379 7.67l-.503.3-.504-.3c-4.379-2.55-7.029-5.19-8.382-7.67-1.36-2.5-1.41-4.86-.514-6.67.887-1.79 2.647-2.91 4.601-3.01 1.651-.09 3.368.56 4.798 2.01 1.429-1.45 3.146-2.1 4.796-2.01 1.954.1 3.714 1.22 4.601 3.01.896 1.81.846 4.17-.514 6.67z"
+                    fill="#f91880"
+                    opacity="0"
+                  />
+                </svg>
+              </div>
+              <span id="like-count" class="metric-count">10.9K</span>
+            </div>
+
+            <!-- Views -->
+            <div class="metric">
+              <div class="metric-icon">
+                <svg viewBox="0 0 24 24" fill="#8b98a5">
+                  <path
+                    d="M8.75 21V3h2v18h-2zM18 21V8.5h2V21h-2zM4 21l.004-10h2L6 21H4zm9.248 0v-7h2v7h-2z"
+                  />
+                </svg>
+              </div>
+              <span class="metric-count">150K</span>
+            </div>
+          </div>
+
+          <div class="metrics-right">
+            <!-- Bookmark -->
+            <div class="metric">
+              <div class="metric-icon">
+                <svg viewBox="0 0 24 24" fill="#8b98a5">
+                  <path
+                    d="M4 4.5C4 3.12 5.119 2 6.5 2h11C18.881 2 20 3.12 20 4.5v18.44l-8-5.71-8 5.71V4.5zM6.5 4c-.276 0-.5.22-.5.5v14.56l6-4.29 6 4.29V4.5c0-.28-.224-.5-.5-.5h-11z"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            <!-- Share -->
+            <div class="metric">
+              <div class="metric-icon">
+                <svg viewBox="0 0 24 24" fill="#8b98a5">
+                  <path
+                    d="M12 2.59l5.7 5.7-1.41 1.42L13 6.41V16h-2V6.41l-3.3 3.3-1.41-1.42L12 2.59zM21 15l-.02 3.51c0 1.38-1.12 2.49-2.5 2.49H5.5C4.11 21 3 19.88 3 18.5V15h2v3.5c0 .28.22.5.5.5h12.98c.28 0 .5-.22.5-.5L19 15h2z"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+
+      var tl = gsap.timeline({ paused: true });
+
+      var card = document.getElementById("card");
+      var likeBtn = document.getElementById("like-btn");
+      var heartOutline = document.getElementById("heart-outline");
+      var heartFilled = document.getElementById("heart-filled");
+      var likeCount = document.getElementById("like-count");
+
+      // Start off-screen below
+      gsap.set(card, { y: 400, opacity: 0 });
+
+      // Slide in from bottom
+      tl.to(
+        card,
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.6,
+          ease: "power3.out",
+        },
+        0.1,
+      );
+
+      // Like press-in
+      tl.to(
+        likeBtn,
+        {
+          scale: 0.85,
+          duration: 0.12,
+          ease: "power2.out",
+        },
+        1.5,
+      );
+
+      // Like release with spring bounce
+      tl.to(
+        likeBtn,
+        {
+          scale: 1,
+          duration: 0.4,
+          ease: "elastic.out(1, 0.4)",
+        },
+        1.62,
+      );
+
+      // Hide outline heart
+      tl.to(
+        heartOutline,
+        {
+          opacity: 0,
+          duration: 0.01,
+          ease: "none",
+        },
+        1.62,
+      );
+
+      // Show filled heart
+      tl.to(
+        heartFilled,
+        {
+          opacity: 1,
+          duration: 0.12,
+          ease: "none",
+        },
+        1.62,
+      );
+
+      // Like count turns pink + increments
+      tl.to(
+        likeCount,
+        {
+          color: "#f91880",
+          duration: 0.12,
+          ease: "none",
+          onStart: function () {
+            likeCount.textContent = "11.0K";
+          },
+        },
+        1.62,
+      );
+
+      // Slide out to bottom
+      tl.to(
+        card,
+        {
+          y: 400,
+          opacity: 0,
+          duration: 0.3,
+          ease: "power3.in",
+        },
+        4.2,
+      );
+
+      window.__timelines["x-post"] = tl;
+    </script>
+  
+
+<!-- /* PALETA-AJENA: fin */ -->
+
+
+
+
+
+
+
+
+<!-- PUENTE:inicio · generado por scripts/importar_bloque.js -->
+<style>
+  /* El lienzo de este repo, y la raíz TRANSPARENTE: si el fondo llega opaco,
+     omitBackground no lo recorta y los PNG salen sin alfa — el compositor
+     los pega como un rectángulo y tapa el metraje. */
+  html, body { width: 1080px; height: 1920px; margin: 0;
+               background: transparent !important; overflow: hidden; }
+  [data-composition-id="x-post"] { transform-origin: 50% 50%; }
+  /* El PLAFÓN DE AUTO-PREVISUALIZACIÓN. Varias piezas del catálogo traen un
+     fondo propio para poder mirarse solas —hf-hw-callout-circle lo llama
+     literalmente «self-preview scene» y es un degradado verde— y sobre
+     nuestro metraje eso no es un fondo: es una mancha que tapa el plano.
+     Se quita el relleno y se deja el contenido, que es lo que se quería. */
+  [id$="-scene"] { background: none !important; }
+</style>
+<script>
+(function () {
+  var ID = "x-post";
+  var RANURAS = {};
+  var raiz = document.querySelector('[data-composition-id="' + ID + '"]');
+  var tl = (window.__timelines || {})[ID] || null;
+
+  /* Maqueta a 1920x1080 y aquí el lienzo es 1080x1920: se escala al ancho y
+     se centra. Es un APAÑO declarado, no una solución — la buena es rehacer
+     la maqueta en vertical. config.encaje:false lo desactiva y
+     config.escala lo fuerza.
+     La medida sale de data-width/data-height y NO de offsetWidth: la raíz de
+     varios bloques mide 0x0 —es un ancla para hijos posicionados, no una
+     caja— y con la medida del DOM el encaje la mandaba a left:-420, fuera
+     del cuadro. Fotograma transparente, cero errores, y el humo diciendo
+     «no se mueve» porque no había nada que moviera. Por eso se envuelve en
+     una caja del tamaño DECLARADO: así los hijos absolutos tienen un
+     contenedor de verdad y la escala se aplica a algo con dimensiones. */
+  var caja = null;
+  function encaja(cfg) {
+    if (!raiz || cfg.encaje === false) return;
+    var w = +raiz.dataset.width || raiz.offsetWidth || 1920;
+    var h = +raiz.dataset.height || raiz.offsetHeight || 1080;
+    if (!caja) {
+      caja = document.createElement('div');
+      raiz.parentNode.insertBefore(caja, raiz);
+      caja.appendChild(raiz);
+    }
+    caja.style.cssText = 'position:absolute;left:0;top:0;width:' + w
+                       + 'px;height:' + h + 'px;transform-origin:0 0;';
+    raiz.style.position = 'absolute';
+    raiz.style.left = '0'; raiz.style.top = '0';
+    raiz.style.width = w + 'px'; raiz.style.height = h + 'px';
+    var k = cfg.escala || Math.min(1080 / w, 1920 / h);
+    /* DÓNDE, y no solo cuánto. Centrado es lo razonable por defecto, pero un
+       rótulo inferior centrado en un lienzo vertical queda en mitad de la
+       cara; y §18 dice que la banda de abajo la pinta la app. zona mueve la
+       caja ya escalada sin tocar la maqueta de dentro: arriba pega bajo la
+       banda superior (230 px), abajo se apoya sobre la inferior (1459 px). */
+    var alto = h * k;
+    var y = (1920 - alto) / 2;
+    if (cfg.zona === 'arriba') y = 230 + 40;
+    else if (cfg.zona === 'abajo') y = 1459 - 40 - alto;
+    caja.style.transform = 'translate(' + Math.round((1080 - w * k) / 2)
+      + 'px,' + Math.round(y) + 'px) scale(' + k + ')';
+  }
+
+  /* LA CAJA DE TINTA, para colocar.py.
+     Sin anclas() una capa es invisible para el colocador: no sabe cuánto
+     ocupa ni dónde, así que no puede apartarla del rostro ni avisar de que
+     cae bajo el caption de la app. Nuestras plantillas la declaran a mano
+     porque saben qué parte de sí mismas importa; un bloque importado no
+     puede saberlo, así que se MIDE: unión de los rectángulos visibles, ya en
+     coordenadas de lienzo —getBoundingClientRect incluye la transformación
+     del encaje—, descartando los contenedores que cubren casi todo.
+     Se llama después de seek, así que la caja es la del instante que se
+     esté mirando y no la del reposo. */
+  function tinta() {
+    if (!raiz) return null;
+    /* Dos pasadas. La primera descarta los contenedores que cubren casi todo
+       —si no, la caja de cualquier plantilla sería el lienzo entero y el dato
+       no diría nada—. Pero en las de dibujo a mano el contenido ES un <svg> a
+       pantalla completa y sus <path> devuelven cajas de cero: con el filtro
+       puesto, veintisiete plantillas se quedaban sin ancla. Si la primera
+       pasada no deja nada, se repite SIN filtro: una caja grande de más es
+       peor que ninguna, pero ninguna es peor que las dos. */
+    function une(filtra) {
+      var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      var todos = raiz.querySelectorAll('*');
+      for (var i = 0; i < todos.length; i++) {
+        var e = todos[i], s = getComputedStyle(e);
+        if (s.display === 'none' || s.visibility === 'hidden' ||
+            parseFloat(s.opacity) < 0.05) continue;
+        var r = e.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        if (filtra && r.width * r.height > 0.92 * 1080 * 1920) continue;
+        if (r.left < x0) x0 = r.left;
+        if (r.top < y0) y0 = r.top;
+        if (r.right > x1) x1 = r.right;
+        if (r.bottom > y1) y1 = r.bottom;
+      }
+      return x1 < x0 ? null : [x0, y0, x1, y1];
+    }
+    var c = une(true) || une(false);
+    if (!c) return null;
+    var x0 = c[0], y0 = c[1], x1 = c[2], y1 = c[3];
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0);
+    x1 = Math.min(1080, x1); y1 = Math.min(1920, y1);
+    return { bloque: { x: Math.round((x0 + x1) / 2), y: Math.round((y0 + y1) / 2),
+                       w: Math.round(x1 - x0), h: Math.round(y1 - y0) } };
+  }
+
+  /* LA SALIDA, que sus bloques no tienen: entran y se quedan puestos hasta
+     que la composición acaba. Aquí una capa vive dentro de su ventana y
+     tiene que irse, y no es cosmética — es lo que humo_plantillas.js
+     comprueba cuando muestrea tres instantes y exige que no sean el mismo
+     fotograma. Medido: x-post y macos-notification animan su entrada y dan
+     tres capturas idénticas después.
+     Es una salida GENÉRICA —se va bajando y encogiendo un pelo— y por eso
+     se puede apagar con config.salida:false cuando el bloque tenga la suya
+     propia. Determinista: solo depende de t. */
+  var SALIDA = 0.42;
+  /* La duración del GESTO, medida al importar. La sustituye el importador;
+     el valor de aquí es el de respaldo para quien abra el fichero suelto.
+     Va en una variable y no en dos sitios a propósito: la salida tiene que
+     caer dentro de la MISMA ventana que registra la plantilla, y cuando eran
+     dos números —la declarada por la timeline y la registrada— la salida se
+     programaba fuera del tramo que nadie llega a ver. */
+  /* El copy que el plan pide, repartido por orden sobre las ranuras que
+     declara TEXTOS. Lo que sobra se ignora; lo que falta se queda con lo que
+     el bloque traía.
+     Se aplica en CADA fotograma y no solo al montar, y no es por comodidad:
+     varios bloques animan su propio texto —un contador que sube, un
+     tecleado— así que su timeline reescribe el nodo en cada seek y el copy
+     del plan duraba un fotograma. Medido: la tarjeta pedía «−12» y salía el
+     «22» de la demo. */
+  function copia(cfg) {
+    for (var k in RANURAS) {
+      if (!cfg || !cfg[k] || !cfg[k].length) continue;
+      var nodos = document.querySelectorAll(RANURAS[k]);
+      for (var i = 0; i < nodos.length && i < cfg[k].length; i++) {
+        if (nodos[i].textContent !== cfg[k][i]) nodos[i].textContent = cfg[k][i];
+      }
+    }
+  }
+
+  var DUR = 1.25;   /* MEDIDO al importar */
+  var vida = DUR;
+
+  Engine.register({
+    duration: DUR,
+    /* Las ranuras se escriben LITERALES en los defaults, no con un
+       Object.assign: lint_config.py lee ese bloque con una expresión regular
+       —no ejecuta la plantilla— así que una clave calculada no existe para
+       él y el plan que la usa aborta por «clave que la plantilla no lee».
+       Las ranuras entran aquí porque lint_config.py --estricto
+       comprueba que toda clave del plan la lea de verdad su plantilla: sin
+       declararlas, pedir el copy por config es una clave muerta y el paso
+       aborta. */
+    defaults: { encaje: true, escala: null, zona: 'centro', salida: true,
+                tema: 'carbon', cue: null, cueGain: null },
+    setup: function (cfg) {
+      encaja(cfg);
+      vida = cfg.duration || DUR;
+      copia(cfg);
+      /* EL SONIDO: NINGUNO por defecto, y esto es una vuelta atrás.
+         Se publicaba un «aparicion» genérico en cada bloque importado para
+         que no entraran mudos. Sobre la pieza montada suena a lo que es: el
+         mismo golpe blando en 126 sitios, puesto por una regla que no sabe
+         qué está entrando. Un sonido que no significa nada es peor que el
+         silencio, porque el oído lo cuenta igual.
+         Quien sabe qué suena una capa es el guion —sfx en la capa— o la
+         tabla del director para las plantillas que conoce. Con cue en la
+         config se puede pedir uno a mano. */
+      return { cues: (!cfg.sinSonido && cfg.cue)
+                     ? [{ at: 0.04, sfx: cfg.cue, gain: cfg.cueGain || 0.5 }]
+                     : [] };
+    },
+    anclas: function () { return tinta(); },
+    /* El puente entero. Los dos motores hacen lo mismo —posicionar una
+       animación en el segundo t, sin tocar el reloj del navegador—, así que
+       no hay nada que traducir. */
+    /* La salida va en la raíz y el encaje en la caja que la envuelve: dos
+       transformaciones en dos nodos, para que no se pisen. */
+    draw: function (t, cfg) {
+      if (tl) tl.time(Math.max(0, Math.min(t, tl.duration())));
+      copia(cfg);
+      if (!raiz) return;
+      if (cfg && cfg.salida !== false && vida > SALIDA) {
+        var d = (t - (vida - SALIDA)) / SALIDA;
+        if (d > 0) {
+          var e = 1 - Math.min(1, d);
+          e = e * e * (3 - 2 * e);              /* suavizado, sin rebote */
+          raiz.style.opacity = e;
+          raiz.style.transform = 'translateY(' + ((1 - e) * -26).toFixed(2)
+                               + 'px) scale(' + (0.985 + 0.015 * e).toFixed(4) + ')';
+          return;
+        }
+      }
+      raiz.style.opacity = '';
+      raiz.style.transform = '';
+    }
+  });
+})();
+</script>
+<!-- PUENTE:fin -->
+
+
+
+
+
+
+<style>
+  /* VERTICAL DE VERDAD.
+     El bloque venía maquetado a 1920x1080: la tarjeta medía 880 px sobre un
+     lienzo de 1920 —un 46 %— y el puente la encogía otro 0,5625 hasta dejarla
+     en el 48 % del ancho de este lienzo. A ese tamaño la hora y las métricas
+     («34», «2.3K», «150K») son ilegibles en un teléfono, que es el único sitio
+     donde esto se ve.
+
+     Con la raíz declarada a 1080x1920 el puente ya no escala (factor 1), así
+     que aquí solo queda re-proporcionar la tarjeta al lienzo nuevo: 950 px de
+     ancho —el 88 %— y TODO lo de dentro multiplicado por ese mismo 950/880, de
+     forma que la maqueta original se respeta y lo que cambia es a qué se
+     refiere. El texto sube además al escalón de token más cercano, que es de
+     donde sale que las métricas pasen de 20 px a 23: sobre 1080 en vez de
+     sobre 1920, cada cuerpo acaba ocupando el doble del ancho de cuadro. */
+  [data-composition-id="x-post"] .x-card {
+    width: 950px;
+    padding: 40px 40px 32px;
+    border-radius: var(--s-5);
+    /* Un poco por encima del centro: deja el aire de abajo para el caption y
+       el CTA que pinta la app (BRAND_RULES §18) sin subirse a la banda de
+       arriba. La centrada la sigue haciendo el transform, que es de GSAP. */
+    top: 46%;
+  }
+
+  /* Cabecera */
+  [data-composition-id="x-post"] .post-header { gap: 16px; margin-bottom: 20px; }
+  [data-composition-id="x-post"] .avatar,
+  [data-composition-id="x-post"] .avatar svg { width: 58px; height: 58px; }
+  [data-composition-id="x-post"] .display-name { font-size: var(--t-md); }
+  [data-composition-id="x-post"] .verified-badge,
+  [data-composition-id="x-post"] .verified-badge svg { width: 26px; height: 26px; }
+  [data-composition-id="x-post"] .handle { font-size: var(--t-sm); }
+  [data-composition-id="x-post"] .x-logo,
+  [data-composition-id="x-post"] .x-logo svg { width: 36px; height: 36px; }
+
+  /* El cuerpo, que es lo que se lee */
+  [data-composition-id="x-post"] .tweet-body {
+    font-size: var(--t-lg);
+    margin-bottom: var(--s-3);
+  }
+  [data-composition-id="x-post"] .timestamp {
+    font-size: var(--t-sm);
+    padding-bottom: var(--s-5);
+    margin-bottom: var(--s-4);
+  }
+
+  /* Métricas: el motivo por el que esto no se leía */
+  [data-composition-id="x-post"] .metrics-left { padding-right: var(--s-7); }
+  [data-composition-id="x-post"] .metrics-right { gap: var(--s-5); }
+  [data-composition-id="x-post"] .metric { gap: var(--s-2); }
+  [data-composition-id="x-post"] .metric-icon,
+  [data-composition-id="x-post"] .metric-icon svg { width: 38px; height: 38px; }
+  [data-composition-id="x-post"] .metric-count { font-size: var(--t-sm); }
+
+  /* El resplandor inferior crece con la tarjeta o se queda en una banda fina */
+  [data-composition-id="x-post"] .x-card::after { height: 88px; }
+</style>
+
+</body>
+</html>

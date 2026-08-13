@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Entrada de diccionario</title>
+<!-- El gesto que hace esta plantilla, en una palabra: la entrada se IMPRIME.
+     `auditar_estilo.js` lo lee y cuenta cuántos gestos distintos declara el
+     catálogo; hoy declara CERO, así que la métrica no puede ver que 56
+     plantillas entran todas igual. -->
+<meta name="gesto" content="revelar:impresion">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+
+  /* ======================================================================
+     Era una TARJETA: `.vidrio-apple`, esquinas a 24 px, una barra de acento
+     pegada al canto izquierdo y el texto dentro. O sea la tarjeta con borde
+     redondeado y filete de color que dibuja cualquier framework — con un
+     agravante: el objeto que representa lleva cuatrocientos años teniendo
+     forma propia, y la tarjeta la tapaba entera.
+
+     Una definición de diccionario es una COLUMNA IMPRESA, y sus señas no son
+     decorativas: entrada en versal pesada, transcripción fonética, categoría
+     gramatical en cursiva de serif, acepción numerada con el número colgando
+     en el canalón, filete de margen y letra guía en el canto de la página.
+     Cada una de esas seis cosas dice «diccionario» sin escribir la palabra;
+     ninguna estaba.
+
+     Lo que se ha ido y por qué:
+
+       · `.vidrio-apple` y las esquinas redondeadas. Una hoja impresa tiene
+         cantos rectos. El relleno legible —§12 exige relleno o sombra sobre
+         metraje— lo da ahora `--scrim`, que es literalmente el token de
+         «halo de legibilidad tras el texto», más grano de impresión.
+       · La barra de acento a ras del canto. Un filete PEGADO al borde es un
+         borde de tarjeta; el mismo filete metido 26 px dentro, con papel a
+         los dos lados, es el filete de margen de una página. Es el mismo
+         objeto movido 26 px y cambia de género.
+       · El `font-size: 62px` suelto y los dos `letter-spacing` numéricos.
+
+     Y lo que se ha añadido porque faltaba movimiento, no adorno: la
+     plantilla estaba marcada como CONGELA. Medido sobre la versión anterior:
+     todo quedaba asentado a los 1,05 s de una capa de 4,2 s, así que 2,75 s
+     —el 65 % de su tiempo en pantalla— eran el MISMO fotograma byte a byte.
+
+     ----------------------------------------------------------------------
+     AQUÍ NO HAY UN SOLO `will-change`, Y ES A PROPÓSITO.
+
+     Los llevaba —nueve, uno por elemento animado, que es lo que se escribe
+     por costumbre— y ROMPÍAN LA REGLA DURA de este repo: mismo `t`, mismo
+     píxel. Medido: se capturan cinco instantes en orden y luego los mismos
+     cinco en otro orden, y se comparan los PNG.
+
+         con `will-change`   3 de 6 idénticos
+         sin `will-change`   6 de 6 idénticos
+
+     El DOM era idéntico en los seis casos —`draw` sí es función pura de `t`,
+     eso se comprobó aparte—, así que la diferencia estaba entera en la
+     RASTERIZACIÓN: `will-change` promueve el elemento a una capa compuesta
+     por la GPU, y la capa se cachea y se reutiliza entre fotogramas, de modo
+     que el píxel acaba dependiendo de por dónde ha pasado la captura antes.
+
+     Y la propiedad no estaba comprando nada: `will-change` es una pista para
+     compositar en tiempo real a 60 fps, y aquí no se compone en tiempo real
+     —Playwright salta a un instante, espera y fotografía—. Se pagaba la
+     única moneda que este pipeline no puede gastar a cambio de una
+     optimización que no se usa.
+
+     Ojo: no es un problema de esta plantilla. Lo declaran más del catálogo.
+     ====================================================================== */
+
+  .pagina {
+    position: relative;
+    /* La hoja recorta: una entrada larguísima con `overflow-wrap: anywhere`
+       puede pasarse un par de píxeles, y una letra saliéndose del papel
+       delataría que esto no es papel. */
+    overflow: hidden;
+    padding: var(--s-6) var(--s-6) var(--s-6) 0;
+    /* El papel. `--scrim` y no `--surface` a propósito: `--surface` es el
+       color de una superficie de interfaz y en tema claro es blanco puro,
+       que sobre metraje claro desaparece. `--scrim` está definido en los dos
+       temas COMO relleno de legibilidad —negro al 80 % en carbón, papel al
+       92 % en claro— que es exactamente el trabajo de esta hoja. */
+    background-color: var(--scrim);
+    /* Caída de tono de arriba abajo, muy corta: es la luz rasante sobre una
+       hoja apoyada. En `oklab` porque entre dos tonos de superficie el sRGB
+       pasa por un gris sucio. */
+    background-image: linear-gradient(178deg,
+        color-mix(in oklab, var(--surface) 52%, transparent) 0%,
+        transparent 62%);
+    /* Sombra larga y canto de luz arriba (§10). No hay borde: un borde de
+       1 px alrededor es la firma de la tarjeta que esto deja de ser. */
+    box-shadow: 0 26px 60px -18px var(--sombra),
+                inset 0 1px 0 var(--stroke);
+  }
+
+  /* El filete de margen. Metido dentro de la hoja, no en su canto, y con el
+     degradado de bronce del tema: `--metal-ang` hace que un filete de 2 px
+     tenga reflejo, que es lo que separa el metal del naranja plano (§2). */
+  .filete {
+    position: absolute; left: var(--s-5); top: var(--s-6); bottom: var(--s-6);
+    width: 2px; transform-origin: top center;
+    background-image: linear-gradient(var(--metal-ang),
+        var(--metal-1) 0%, var(--metal-3) 38%, var(--metal-4) 66%,
+        var(--metal-5) 100%);
+  }
+
+  /* La letra guía: la inicial de la entrada, grande, en la didone y arriba a
+     la derecha. Es la letra que encabeza la página en cualquier diccionario
+     impreso, y se DERIVA de la palabra —no es contenido inventado—. Va en
+     `--ink-ghost` porque su trabajo es ser marca de agua: si compitiera con
+     la entrada dejaría de ser el encabezamiento de la página y sería un
+     adorno.
+
+     Primero fue `--t-mega` (145 px) sangrando por el canto derecho, para
+     leerse como el índice de pulgar de un tomo. **Mirado, no era una letra**:
+     con 18 px de sangrado más el margen lateral del glifo, de la «C» quedaba
+     un arco y la forma se leía como una luna. Un símbolo que no se reconoce
+     no está diciendo «diccionario», está ocupando sitio. A 109 px y entera,
+     sí.
+
+     Y es el único uso de `--editorial` de esta plantilla junto a la
+     categoría: §3 lleva pidiendo que alguien use la didone que ya estaba
+     instalada y no usaba ninguna de las 56. */
+  .letra {
+    position: absolute; top: calc(-1 * var(--s-2)); right: var(--s-5);
+    font-family: var(--editorial); font-weight: var(--w-negro);
+    font-size: var(--t-hero); letter-spacing: var(--tr-hero);
+    line-height: 1; color: var(--ink-ghost);
+  }
+
+  /* El texto arranca pasado el canalón: 26 px de margen + 48 px de canalón.
+     En ese canalón cuelga el número de acepción, que es la sangría francesa
+     de cualquier diccionario. */
+  .cuerpo { position: relative;
+            padding-left: calc(var(--s-5) + var(--s-7));
+            padding-right: var(--s-5); }
+
+  /* El peso lo escribe `draw` sobre el eje variable; el que hay aquí es el
+     de reposo y el que mide el ajuste al ancho. Ver el comentario de allí:
+     la tinta no aparece, GANA CUERPO. */
+  .entrada {
+    font-family: var(--display); font-weight: var(--w-negro);
+    font-size: var(--t-2xl); letter-spacing: var(--tr-display);
+    line-height: 1.04; color: var(--ink); white-space: nowrap;
+  }
+
+  .gram { display: flex; align-items: center; gap: var(--s-3);
+          row-gap: var(--s-1); margin-top: var(--s-2); }
+  /* Fonética: mono FINA. A 200 la transcripción deja de pesar lo mismo que
+     la entrada y pasa a leerse como lo que es, una anotación técnica. */
+  .fon { font-family: var(--mono); font-weight: var(--w-fino);
+         font-size: var(--t-sm); letter-spacing: var(--tr-cuerpo);
+         color: var(--ink-faint); white-space: nowrap; }
+  /* Separador DIBUJADO, no un carácter: §8 prohíbe los dingbats del sistema
+     y un filete vertical de 1 px es además lo que lleva impreso una entrada
+     de diccionario entre la transcripción y la marca gramatical. */
+  .sep { width: var(--hairline); height: var(--s-5); background: var(--rule);
+         flex: 0 0 auto; }
+  /* Categoría en cursiva de serif y en minúscula. Antes iba en versales,
+     mono y color de acento, o sea con el aspecto de una etiqueta de
+     interfaz. En un diccionario la marca gramatical es SIEMPRE cursiva
+     minúscula, y esa cursiva es la voz que `--editorial` existe para dar. */
+  .cat { font-family: var(--editorial); font-style: italic;
+         font-weight: var(--w-libro); font-size: var(--t-md);
+         letter-spacing: var(--tr-texto); color: var(--ink-soft);
+         text-transform: lowercase; white-space: nowrap; }
+
+  /* El filete que cierra la cabecera. Nace EN el filete de margen —de ahí el
+     margen negativo de 48 px, que es justo el canalón— para que los dos se
+     lean como una sola escuadra impresa y no como dos líneas sueltas. */
+  .corte { display: block; height: var(--hairline); background: var(--rule);
+           margin: var(--s-4) 0 var(--s-4) calc(-1 * var(--s-7));
+           transform-origin: left center; }
+
+  .acepcion { position: relative; }
+  /* El número cuelga en el canalón, a la izquierda del texto: sangría
+     francesa. Es la señal más barata y más inequívoca de que lo que sigue es
+     una acepción y no un pie de foto. */
+  .num { position: absolute; right: 100%; margin-right: var(--s-3);
+         top: 0.42em;
+         font-family: var(--mono); font-weight: var(--w-medio);
+         font-size: var(--t-xs); letter-spacing: var(--tr-cuerpo);
+         color: var(--accent); }
+
+  .def { position: relative;
+         font-family: var(--subs); font-weight: var(--w-libro);
+         font-size: var(--t-lg); letter-spacing: var(--tr-texto);
+         line-height: 1.38; color: var(--ink); }
+  /* `inline-block` y no `block`: así la caja de la línea MIDE lo que mide el
+     texto, que es lo que necesitan las dos cosas que dependen de ella —el
+     barrido de tinta, que si no acabaría de revelar a mitad de recorrido en
+     las líneas cortas, y la guía de lectura, que tiene que parar donde para
+     la línea y no donde acaba la columna—. */
+  .def .ren { display: inline-block; }
+
+  /* La guía de lectura. Trazo de bronce que se desvanece por la cola: un
+     subrayado macizo de extremo a extremo sería una barra de progreso, y
+     esto no mide nada, sigue a alguien leyendo. */
+  .guia { position: absolute; left: 0; height: 2px;
+          background-image: linear-gradient(90deg,
+              color-mix(in oklab, var(--accent) 15%, transparent) 0%,
+              var(--accent) 78%, var(--accent) 100%);
+  }
+</style></head>
+<body>
+<div class="stage"><div class="pagina tarjeta" id="pagina">
+  <span class="letra" id="letra"></span>
+  <i class="filete" id="filete"></i>
+  <div class="cuerpo">
+    <h1 class="entrada" id="pal"></h1>
+    <div class="gram" id="gram">
+      <span class="fon" id="fon"></span>
+      <i class="sep" id="sep"></i>
+      <span class="cat" id="cat"></span>
+    </div>
+    <i class="corte" id="corte"></i>
+    <div class="acepcion">
+      <span class="num tnum" id="num">1</span>
+      <div class="def" id="def"><i class="guia" id="guia"></i></div>
+    </div>
+  </div>
+</div></div>
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+const pagina = document.getElementById('pagina');
+const letra  = document.getElementById('letra');
+const filete = document.getElementById('filete');
+const pal    = document.getElementById('pal');
+const gram   = document.getElementById('gram');
+const sep    = document.getElementById('sep');
+const corte  = document.getElementById('corte');
+const num    = document.getElementById('num');
+const def    = document.getElementById('def');
+const guia   = document.getElementById('guia');
+
+/* Una fila por línea MAQUETADA de la acepción: el nodo, su caja dentro de
+   `.def` y cuánto texto lleva. Lo miden `setup` y nadie más — medir dentro de
+   `draw` obligaría a leer geometría 105 veces por capa y, peor, devolvería
+   cajas distintas según el instante, porque en `draw` las líneas están
+   recortadas por `clip-path`. */
+let lineas = [];
+
+/* La escala de la entrada, de mayor a menor. Se BAJA por pasos de la escala
+   tipográfica en vez de calcular un tamaño a medida: un cuerpo interpolado
+   sale de la escala de `_tokens.css` y rompe la costura de §7 entre texto y
+   display, que es justo lo que esa escala existe para sostener. */
+const ESCALA = ['--t-2xl', '--t-xl', '--t-lg'];
+
+Engine.register({
+  duration: 4.2,
+  defaults: {
+    palabra: 'Comodización', fonetica: '/ko.mo.ði.θaˈθjon/',
+    categoria: 'sustantivo',
+    definicion: 'Proceso por el que algo deja de ser una ventaja y pasa a ser un requisito.',
+    /* `x` e `y` no los lee nadie desde que la posición la pone `.tarjeta`.
+       Se quedan porque quitar una clave del contrato rompe cualquier plan
+       escrito a mano que la traiga (§11 del manual de plantillas). */
+    x: 90, y: 640, entrada: 0.5, salida: 0.4,
+    letra: true,      // la letra guía del canto de la página
+    lectura: true     // la guía que recorre la acepción mientras se lee
+  },
+  setup(cfg) {
+    /* La posición la pone `.tarjeta`: el eje X es siempre 50 % y la banda la
+       decide `cfg.zona`. Fijar `left`/`top` aquí volvía a descentrar la
+       tarjeta en cuanto cambiaba el formato. */
+    /* `cfg.ancho` lo aplica `_engine.js` sobre el envoltorio `.tarjeta`, que
+       es quien lleva el `max-width`. Ponerlo aquí no haría nada. */
+    const palabra = String(cfg.palabra || '');
+    pal.textContent = palabra;
+    document.getElementById('fon').textContent = cfg.fonetica || '';
+    document.getElementById('cat').textContent = cfg.categoria || '';
+
+    /* La letra guía SALE de la entrada. `toLocaleUpperCase('es')` y no
+       `toUpperCase()`: con la configuración que reparte `dirigir.py` la
+       palabra llega ya capitalizada, pero un plan a mano puede traerla en
+       minúscula y con tilde, y ahí las dos funciones no coinciden. */
+    const inicial = palabra.trim().slice(0, 1).toLocaleUpperCase('es');
+    letra.textContent = inicial;
+    letra.style.display = (cfg.letra === false || !inicial) ? 'none' : '';
+
+    /* Sin fonética o sin categoría el filete separador sobra: dos elementos
+       de los que solo hay uno no se separan. Se ocultan las cajas en vez de
+       vaciarlas para que el `gap` del flex no deje aire de más. */
+    const hayFon = !!(cfg.fonetica || '').trim();
+    const hayCat = !!(cfg.categoria || '').trim();
+    document.getElementById('fon').style.display = hayFon ? '' : 'none';
+    document.getElementById('cat').style.display = hayCat ? '' : 'none';
+    sep.style.display = (hayFon && hayCat) ? '' : 'none';
+    gram.style.display = (hayFon || hayCat) ? 'flex' : 'none';
+    gram.style.flexWrap = 'nowrap';
+
+    /* La letra guía está POSICIONADA, así que no ocupa sitio en el flujo y
+       la cabecera se le mete debajo. Con la configuración por defecto no se
+       nota; con `ancho: 720` y una entrada larga sí, y lo delató un
+       fotograma: «sustantivo femenino» pasaba por encima de la S y se cortaba
+       contra el canto de la hoja. Se le reserva su columna a la entrada y a
+       la línea gramatical —y solo a ellas, porque la letra ocupa los 109 px
+       de arriba y la acepción empieza más abajo: reservarla también allí
+       estrecharía la columna de lectura 100 px por nada—.
+
+       Va en `margin-right` y no en `padding-right` a propósito: el margen
+       reduce el ancho USADO del bloque, así que el `clientWidth` con el que
+       se mide el desbordamiento justo aquí abajo ya sale descontado. Con
+       padding habría que restarlo a mano y esa resta es donde se cuela el
+       fallo. */
+    const hueco = letra.style.display === 'none' ? 0
+      : Math.ceil(letra.getBoundingClientRect().width) + 18;   /* --s-4 */
+    pal.style.marginRight = hueco + 'px';
+    gram.style.marginRight = hueco + 'px';
+
+    /* Ajuste de la entrada al ancho. Se mide con el peso MÁS GORDO —800, el
+       de reposo— porque es el ancho máximo que va a ocupar: `draw` arranca la
+       animación del eje en 300, así que midiendo ahí cabría al entrar y se
+       saldría justo al asentarse, que es cuando se lee. Mismo razonamiento
+       que en `capitulos.html`. */
+    pal.style.fontVariationSettings = '';
+    pal.style.fontWeight = '';
+    pal.style.whiteSpace = 'nowrap';
+    pal.style.overflowWrap = '';
+    let i = 0;
+    pal.style.fontSize = 'var(' + ESCALA[0] + ')';
+    while (i < ESCALA.length - 1 && pal.scrollWidth > pal.clientWidth) {
+      pal.style.fontSize = 'var(' + ESCALA[++i] + ')';
+    }
+    /* Si ni en el escalón más bajo cabe en una línea, se deja partir. Antes
+       que una entrada cortada por el canto, dos líneas. */
+    if (pal.scrollWidth > pal.clientWidth) {
+      pal.style.whiteSpace = 'normal';
+      pal.style.overflowWrap = 'anywhere';
+    }
+
+    /* Y si la transcripción y la marca gramatical no caben juntas, la marca
+       baja a su propia línea. El filete que las separa desaparece entonces:
+       un separador vertical entre dos cosas que ya están en renglones
+       distintos no separa nada, solo cuelga al final de la primera. */
+    if (gram.scrollWidth > gram.clientWidth) {
+      gram.style.flexWrap = 'wrap';
+      sep.style.display = 'none';
+    }
+
+    /* Mismo truco que en `cita`: se deja maquetar al navegador y luego se
+       agrupa por `offsetTop`. Calcular los saltos a mano es reimplementar
+       peor lo que el motor de maquetación ya hace bien. */
+    [...def.querySelectorAll('.linea')].forEach(n => n.remove());
+    const sueltas = document.createElement('div');
+    def.appendChild(sueltas);
+    const palabras = String(cfg.definicion || '').split(/\s+/)
+      .filter(Boolean).map(w => {
+        const s = document.createElement('span');
+        s.textContent = w; s.style.display = 'inline-block';
+        sueltas.appendChild(s);
+        sueltas.appendChild(document.createTextNode(' '));
+        return s;
+      });
+    const filas = new Map();
+    palabras.forEach(s => {
+      const y = Math.round(s.offsetTop);
+      if (!filas.has(y)) filas.set(y, []);
+      filas.get(y).push(s);
+    });
+    const orden = [...filas.keys()].sort((a, b) => a - b);
+    sueltas.remove();
+    lineas = orden.map(y => {
+      const cont = document.createElement('div'); cont.className = 'linea';
+      const ren = document.createElement('span'); ren.className = 'ren';
+      filas.get(y).forEach((s, k) => {
+        if (k) ren.appendChild(document.createTextNode(' '));
+        ren.appendChild(s);
+      });
+      cont.appendChild(ren); def.appendChild(cont);
+      return { cont, ren, letras: filas.get(y).reduce(
+                 (a, s) => a + s.textContent.length + 1, 0) };
+    });
+    /* La geometría se lee DESPUÉS de insertarlas todas, no dentro del `map`:
+       cada `appendChild` invalida el `offsetTop` de las siguientes y medir
+       sobre la marcha da la caja de una maquetación a medio hacer. */
+    lineas.forEach(L => {
+      L.top = L.cont.offsetTop;
+      L.alto = L.cont.offsetHeight;
+      L.ancho = L.ren.getBoundingClientRect().width;
+    });
+
+    /* Grano de impresión. Va sobre la hoja ENTERA —papel y tinta— porque en
+       una página impresa la trama del papel también atraviesa las letras;
+       aplicarlo solo al fondo delata que el texto está pegado encima.
+       `multiply` solo puede oscurecer, que es lo que hace un grano de papel
+       y no un ruido de vídeo. */
+    Engine.grano(pagina, { px: 220, semilla: 23, op: 0.26 });
+
+    /* No devuelve `cues`, y es una decisión y no un olvido: `dirigir.py:631`
+       ya le asigna a esta plantilla `("deslizar", 0.8)` al colocarla, así que
+       una señal propia en la entrada sonaría DOS veces sobre el mismo gesto.
+       §14 pide una señal por evento, no dos por el mismo. */
+  },
+  draw(t, cfg) {
+    const fin = cfg.duration || 4.2;
+    const ent = cfg.entrada === undefined ? 0.5 : cfg.entrada;
+
+    /* --- la hoja se posa ---------------------------------------------
+       `outExpo` y no `outCubic`: una hoja que se deja sobre una mesa llega
+       y se para en seco, no frena durante medio segundo. Medido sobre la
+       ventana de entrada, la distancia que queda por recorrer a mitad de
+       camino es del 12,5 % con `outCubic` y del 3,1 % con `outExpo`; esa
+       diferencia es todo el peso del gesto. */
+    const asiento = span(t, 0, ent * 1.1, Ease.outExpo);
+    const ap = Engine.entra(t, ent);
+    const cierre = Engine.sale(t, fin, cfg.salida);
+
+    /* Flotación de reposo (§10) sobre la hoja ENTERA y no sobre cada parte.
+       La norma dice «cada elemento deriva con su propio periodo», y aquí eso
+       sería un error: la entrada, la fonética y la acepción están IMPRESAS
+       en el mismo papel, así que derivar por separado las despegaría de él y
+       convertiría una página en tres rótulos flotando juntos. El objeto es
+       uno y deriva uno. Lo que mantiene vivo el reposo es la guía de lectura
+       de abajo, que es movimiento con significado y no deriva. */
+    const fl = Engine.flota(t, 0, { amp: 2.6, periodo: 8.6, semilla: 17 });
+
+    pagina.style.opacity = ap * cierre;
+    pagina.style.transform =
+      'translate(' + fl.x.toFixed(2) + 'px, ' +
+      ((1 - asiento) * 16 + fl.y - (1 - cierre) * 10).toFixed(2) + 'px) ' +
+      'scale(' + (1 + (1 - asiento) * 0.012).toFixed(4) + ')';
+
+    /* --- se imprime, y en el orden en que se imprimiría ---------------
+       Primero el filete de margen —la escuadra de la caja—, luego la
+       entrada, luego la línea gramatical, luego el corte y por último la
+       acepción. `inOutCubic` en los dos trazos: un filete tirado con regla
+       arranca y termina despacio; con `outCubic` sale disparado en el primer
+       fotograma y parece un barrido automático. */
+    filete.style.transform =
+      'scaleY(' + span(t, ent * 0.30, ent * 0.75, Ease.inOutCubic).toFixed(4) + ')';
+    corte.style.transform =
+      'scaleX(' + span(t, ent * 1.00, ent * 0.90, Ease.inOutCubic).toFixed(4) + ')';
+
+    letra.style.opacity = span(t, ent * 0.10, ent * 1.20).toFixed(3);
+
+    /* La entrada no aparece: GANA CUERPO. El eje variable de Plus Jakarta va
+       de 200 a 800 y aquí recorre de 300 a 800 mientras la opacidad ya está
+       resuelta, así que lo que se ve es la tinta cargando, no un rótulo
+       encendiéndose. Es la jerarquía por PESO que pide §1 —«contraste y peso
+       tipográfico, nunca luz»— y no se puede imitar con dos ficheros
+       estáticos: entre 300 y 800 hay una transición continua. */
+    const cuerpo = span(t, ent * 0.42, ent * 1.30, Ease.outExpo);
+    pal.style.opacity = span(t, ent * 0.30, ent * 0.45).toFixed(3);
+    Engine.peso(pal, Math.round(300 + 500 * cuerpo));
+
+    /* El `transform` se RETIRA al llegar, no se deja en `translateX(0px)`.
+       Parece lo mismo y no lo es: un transform, aunque sea la identidad, saca
+       al elemento del camino normal de rasterización de texto, y la mono a
+       peso 200 de la fonética salía con hasta 3/255 de diferencia según el
+       orden en que se hubieran capturado los fotogramas anteriores —1470
+       píxeles de 2,07 M, todos en ese renglón—. Es el mismo fallo que los
+       `will-change` de arriba, en pequeño, y no lo delata ningún log: hay que
+       capturar el mismo instante dos veces y restar. */
+    const g = span(t, ent * 0.90, ent * 0.80, Ease.inOutCubic);
+    gram.style.opacity = g.toFixed(3);
+    gram.style.transform = g >= 1 ? 'none'
+      : 'translateX(' + ((1 - g) * -12).toFixed(2) + 'px)';
+    num.style.opacity = span(t, ent * 1.25, ent * 0.50).toFixed(3);
+
+    /* Barrido de tinta por línea, de izquierda a derecha. Un `clip-path` y
+       no el `translateY` dentro de una caja con `overflow:hidden` que había
+       antes: aquello es el subtítulo que sube, un gesto de vídeo. Esto es un
+       rodillo, que es como llega la tinta a un papel. */
+    const T0 = ent * 1.15, PASO = 0.11, TINTA = 0.42;
+    lineas.forEach((L, i) => {
+      const p = span(t, T0 + i * PASO, TINTA, Ease.inOutCubic);
+      L.ren.style.clipPath = 'inset(0 ' + ((1 - p) * 100).toFixed(2) + '% 0 0)';
+    });
+
+    /* --- la guía de lectura ------------------------------------------
+       Aquí estaba el fallo gordo de la versión anterior, y no daba ningún
+       error: a los 1,05 s no quedaba nada por animar y los 2,75 s restantes
+       —el 65 % de la capa— eran el mismo fotograma repetido. `humo` lo
+       detecta comparando hashes de tres instantes; a ojo se lee como una
+       captura pegada sobre el vídeo.
+
+       El reposo no se rellena con un efecto: se rellena con lo que el objeto
+       HACE, que es leerse. Una guía de bronce recorre cada línea a ritmo de
+       lectura y vuelve al margen en la siguiente, como el dedo sobre la
+       página. El reparto del tiempo es proporcional a las LETRAS de cada
+       línea, no a partes iguales: una línea corta se lee antes, y con
+       reparto igual la guía se arrastraba en la última.
+
+       Es función pura de `t` —posición y anchura salen de una regla de tres
+       sobre la ventana, sin acumular nada entre fotogramas—, que es lo que
+       exige capturar instantes sueltos. */
+    const ini = T0 + Math.max(0, lineas.length - 1) * PASO + TINTA;
+    const acaba = fin - (cfg.salida || 0);
+    const total = lineas.reduce((a, L) => a + L.letras, 0) || 1;
+    if (cfg.lectura === false || !lineas.length || acaba - ini < 0.3) {
+      /* Capa demasiado corta para leer nada: antes que una guía que cruza en
+         dos fotogramas, ninguna. */
+      guia.style.width = '0px';
+    } else {
+      const q = clamp((t - ini) / (acaba - ini), 0, 1);
+      let acc = 0, j = lineas.length - 1, local = 1;
+      for (let i = 0; i < lineas.length; i++) {
+        const w = Math.max(lineas[i].letras / total, 1e-6);
+        if (q <= acc + w || i === lineas.length - 1) {
+          j = i; local = clamp((q - acc) / w, 0, 1); break;
+        }
+        acc += w;
+      }
+      guia.style.top = (lineas[j].top + lineas[j].alto - 3).toFixed(1) + 'px';
+      guia.style.width = (local * lineas[j].ancho).toFixed(1) + 'px';
+      /* Y la línea que se está leyendo lleva la tinta entera mientras las
+         otras recedan un punto. Contraste, no luz: subir el brillo de la
+         línea activa sería el halo que §1 prohíbe. */
+      lineas.forEach((L, i) => {
+        L.cont.style.color = i === j
+          ? 'var(--ink)'
+          : 'color-mix(in oklab, var(--ink) 70%, var(--ink-faint))';
+      });
+    }
+  },
+  anclas() {
+    const b = pagina.getBoundingClientRect();
+    return { caja: { x: Math.round(b.left + b.width / 2),
+                     y: Math.round(b.top + b.height / 2),
+                     w: Math.round(b.width), h: Math.round(b.height) } };
+  }
+});
+</script></body></html>

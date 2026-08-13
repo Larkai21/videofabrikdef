@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Regla de capítulos</title>
+<meta name="gesto" content="trazar:regla">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+
+  /* ======================================================================
+     Era una barra de progreso segmentada: un carril redondeado por capítulo,
+     el terminado lleno de acento, y UN solo rótulo —el del capítulo en
+     curso— apareciendo y desapareciendo por opacidad.
+
+     Dos cosas mal.
+
+     La forma es la de cualquier reproductor: carriles con `border-radius:
+     999px` es exactamente lo que dibuja YouTube encima del vídeo, así que la
+     pieza lleva puesto el cromo de la plataforma donde se va a publicar.
+
+     Y el rótulo único desperdicia lo único que un índice puede dar: si solo
+     se ve dónde estás, la barra no dice nada que la propia barra no dijera.
+     Con los CUATRO títulos siempre en pantalla, el espectador tiene el mapa
+     del vídeo entero desde el primer segundo — y eso es una razón para
+     quedarse, no un adorno.
+
+     Ahora es una REGLA DE INSTRUMENTO: una línea con su graduación, divisiones
+     mayores en las fronteras de capítulo, menores a un paso redondo, y un
+     índice de bronce que corre por encima con su lectura. Un calibre, no un
+     reproductor.
+     ====================================================================== */
+
+  .regla { position: absolute; left: var(--s-5); right: var(--s-5);
+           will-change: opacity, transform; }
+
+  .base { position: absolute; left: 0; right: 0; top: 0; height: 2px;
+          background: var(--rule); }
+
+  /* El bronce recorrido. Va POR ENCIMA de la base y con la misma altura: es
+     la parte de la escala que ya se ha usado, no una barra aparte. */
+  .lleno { position: absolute; left: 0; top: 0; height: 2px; width: 100%;
+           transform-origin: left center;
+           background-image: linear-gradient(90deg,
+             var(--metal-1), var(--metal-3) 55%, var(--metal-4));
+           will-change: transform; }
+
+  .marca { position: absolute; top: 0; width: 1px; background: var(--rule); }
+  /* En `--rule` la graduación solo se veía donde el bronce ya había pasado
+     —el resto de la escala quedaba a 1,3:1 sobre metraje oscuro—, o sea que
+     justo la parte que dice CUÁNTO QUEDA era invisible. */
+  .marca.menor  { height: 7px; background: var(--ink-faint); opacity: 0.5; }
+  /* La división mayor baja además POR DEBAJO de la línea, que es como se
+     marca una frontera en una escala grabada. */
+  .marca.mayor  { height: 15px; width: 2px; background: var(--ink-faint);
+                  margin-top: -6px; }
+
+  /* El índice: la aguja del calibre. Cruza la escala entera y lleva la
+     lectura colgando por arriba. */
+  .indice { position: absolute; top: -9px; width: 2px; height: 24px;
+            margin-left: -1px;
+            background-image: linear-gradient(180deg,
+              var(--metal-3), var(--metal-4) 50%, var(--metal-1));
+            will-change: transform; }
+  .lectura {
+    position: absolute; top: -34px; transform: translateX(-50%);
+    font-family: var(--mono); font-size: var(--t-2xs);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-soft); white-space: nowrap;
+    will-change: transform;
+  }
+
+  /* Los títulos, TODOS, siempre. Cada uno en su tramo de la escala y con el
+     ancho de su capítulo, así que la fila es en sí misma otra lectura de las
+     proporciones de la pieza. */
+  .nombres { position: absolute; left: 0; right: 0; display: flex; }
+  .nom {
+    /* `min-width` lo escribe `setup` con el ancho MEDIDO del rótulo. Ver el
+       comentario de allí: en `ch` es adivinar. */
+    flex: 1 1 0; padding-right: var(--s-3);
+    font-family: var(--mono); font-size: var(--t-2xs);
+    letter-spacing: var(--tr-caps); text-transform: uppercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    /* El peso lo escribe `draw` sobre el eje variable. Es la jerarquía dentro
+       de la línea que pide §1 —contraste y peso, nunca luz— y un gesto que no
+       se puede imitar con dos ficheros estáticos: entre 200 y 700 hay una
+       transición continua, y con dos pesos sueltos habría un salto. */
+    will-change: font-variation-settings, color;
+  }
+  .nom b { font-weight: inherit; color: var(--accent); padding-right: 0.5em; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="regla" id="regla">
+    <div class="base"></div>
+    <div class="lleno" id="lleno"></div>
+    <div class="indice" id="indice"></div>
+    <div class="lectura" id="lectura"></div>
+    <div class="nombres" id="nombres"></div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const regla = document.getElementById('regla');
+const lleno = document.getElementById('lleno');
+const indice = document.getElementById('indice');
+const lectura = document.getElementById('lectura');
+const nombres = document.getElementById('nombres');
+let caps = [], total = 1, rotulos = [];
+
+/* Paso de la graduación menor. Se elige de una lista de divisiones REDONDAS
+   —las mismas que usa cualquier escala impresa— buscando la más fina que no
+   pase de 44 marcas. Una escala con 300 rayitas es una textura, no una
+   graduación; una con seis no permite estimar nada. */
+const PASOS = [1, 2, 5, 10, 15, 30, 60, 120, 300];
+function pasoPara(dur) {
+  for (const p of PASOS) if (dur / p <= 44) return p;
+  return PASOS[PASOS.length - 1];
+}
+
+function reloj(s) {
+  const m = Math.floor(s / 60), r = Math.floor(s % 60);
+  return m + ':' + String(r).padStart(2, '0');
+}
+
+Engine.register({
+  duration: 20,
+  defaults: {
+    /* [{ nom, dur }] — duraciones en segundos, se reparten proporcional */
+    capitulos: [
+      { nom: 'El problema', dur: 6 },
+      { nom: 'La medición', dur: 8 },
+      { nom: 'El resultado', dur: 6 }
+    ],
+    y: 120,          // altura de la regla
+    entrada: 0.6,
+    salida: 0.5,
+    restante: true,  // la lectura cuenta atrás del capítulo en vez del total
+    opacidad: 0.9    // es CROMO: no compite con el gráfico de contenido
+  },
+
+  setup(cfg) {
+    caps = cfg.capitulos || [];
+    total = caps.reduce((a, c) => a + (c.dur || 1), 0) || 1;
+    regla.style.top = cfg.y + 'px';
+    nombres.style.top = '26px';
+
+    /* Se limpian las marcas anteriores sin tocar el resto: la regla, el
+       relleno y el índice viven en el HTML y no se reconstruyen. */
+    [...regla.querySelectorAll('.marca')].forEach(n => n.remove());
+
+    const paso = pasoPara(total);
+    for (let s = paso; s < total; s += paso) {
+      const m = document.createElement('i');
+      m.className = 'marca menor';
+      m.style.left = (s / total * 100).toFixed(3) + '%';
+      regla.appendChild(m);
+    }
+    /* Las mayores van DESPUÉS para quedar por encima de cualquier menor que
+       caiga en el mismo sitio — que pasa siempre que la duración de un
+       capítulo es múltiplo del paso, o sea a menudo. */
+    let acc = 0;
+    caps.forEach((c, i) => {
+      if (i > 0) {
+        const m = document.createElement('i');
+        m.className = 'marca mayor';
+        m.style.left = (acc / total * 100).toFixed(3) + '%';
+        regla.appendChild(m);
+      }
+      acc += c.dur || 1;
+    });
+
+    nombres.innerHTML = '';
+    rotulos = caps.map((c, i) => {
+      const el = document.createElement('div');
+      el.className = 'nom';
+      el.style.flex = ((c.dur || 1) / total) + ' 1 0';
+      el.innerHTML = '<b>' + String(i + 1).padStart(2, '0') + '</b>';
+      el.appendChild(document.createTextNode(c.nom || ''));
+      nombres.appendChild(el);
+      return el;
+    });
+
+    /* El ancho de cada rótulo es el de su capítulo, para que la fila sea otra
+       lectura de las proporciones de la pieza... hasta que deja de poder
+       serlo. El acto de gancho es el 10 %: en 108 px no cabe NINGUNA palabra,
+       y «SEGU…» no es un título, es un fallo.
+
+       Así que cada rótulo recibe un `min-width` igual a lo que MIDE, y flex
+       le quita el sobrante a los anchos. Medido y no en `ch`: `ch` es el
+       ancho del cero y no cuenta el tracking, así que con 0,14em por letra un
+       mínimo de 13ch se queda 25 px corto — probado, y seguía saliendo
+       «SEGUR…». Estimar caracteres por píxel es como se llega a un texto
+       cortado en la máquina de al lado.
+
+       Se mide al peso MÁS GORDO —700, el del capítulo activo— porque es el
+       ancho máximo que va a ocupar: midiendo en 200 cabría en reposo y se
+       cortaría justo al activarse, que es cuando importa.
+
+       Se pierde exactitud en la proporción —el rótulo ya no acaba justo en su
+       frontera— y se gana el título. Las divisiones de la escala siguen
+       diciendo la proporción exacta, que es su trabajo; el de los rótulos es
+       decir qué hay. */
+    /* Se guardan las DOS: desde que `Engine.peso` escribe también
+       `font-weight`, restaurar solo el eje dejaría el peso de la sonda —700—
+       clavado en todos los rótulos. */
+    const previos = rotulos.map(el => [el.style.fontVariationSettings,
+                                       el.style.fontWeight]);
+    rotulos.forEach(el => {
+      Engine.peso(el, 700);
+      el.style.minWidth = '0px';
+    });
+    const anchos = rotulos.map(el => Math.ceil(el.scrollWidth) + 2);
+    const disponible = nombres.clientWidth;
+    if (anchos.reduce((a, b) => a + b, 0) <= disponible) {
+      rotulos.forEach((el, i) => { el.style.minWidth = anchos[i] + 'px'; });
+    } else {
+      /* No caben ni recortados a su medida: se le quita la última palabra al
+         más largo hasta que la suma entre. Antes que una fila de textos
+         partidos, títulos de una palabra. */
+      const palabras = caps.map(c => String(c.nom || '').split(/\s+/).filter(Boolean));
+      let vueltas = 0;
+      while (anchos.reduce((a, b) => a + b, 0) > disponible && vueltas++ < 12) {
+        let j = -1, max = 0;
+        palabras.forEach((p, i) => {
+          if (p.length > 1 && anchos[i] > max) { max = anchos[i]; j = i; }
+        });
+        if (j < 0) break;
+        palabras[j].pop();
+        rotulos[j].lastChild.textContent = palabras[j].join(' ');
+        anchos[j] = Math.ceil(rotulos[j].scrollWidth) + 2;
+      }
+      rotulos.forEach((el, i) => { el.style.minWidth = anchos[i] + 'px'; });
+    }
+    rotulos.forEach((el, i) => {
+      el.style.fontVariationSettings = previos[i][0];
+      el.style.fontWeight = previos[i][1];
+    });
+  },
+
+  anclas() {
+    const b = regla.getBoundingClientRect();
+    return { regla: { x: Math.round(b.left + b.width / 2),
+                      y: Math.round(b.top + b.height / 2),
+                      w: Math.round(b.width), h: Math.round(b.height) } };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 20;
+    const ap = Engine.entra(t, cfg.entrada);
+    const cierre = Engine.sale(t, fin, cfg.salida);
+    regla.style.opacity = ap * cierre * (cfg.opacidad !== undefined ? cfg.opacidad : 0.9);
+    regla.style.transform = `translateY(${((1 - ap) * -14).toFixed(2)}px)`;
+
+    /* El reloj de la escala ignora la entrada y la salida: si el progreso
+       arrancara con la aparición, el primer capítulo se comería su propia
+       animación. */
+    const p = clamp(t / total, 0, 1);
+    lleno.style.transform = `scaleX(${p.toFixed(4)})`;
+    indice.style.left = (p * 100).toFixed(3) + '%';
+    lectura.style.left = (p * 100).toFixed(3) + '%';
+
+    let acc = 0, activo = 0, restante = 0;
+    caps.forEach((c, i) => {
+      const d = c.dur || 1;
+      if (t >= acc && t < acc + d) { activo = i; restante = acc + d - t; }
+      acc += d;
+    });
+    if (t >= acc) { activo = caps.length - 1; restante = 0; }
+    lectura.textContent = cfg.restante ? Math.ceil(restante) + ' S'
+                                       : reloj(t) + ' / ' + reloj(total);
+
+    /* Los cuatro títulos siempre a la vista. Lo que cambia es el PESO, y de
+       forma continua: cada rótulo lleva su propia distancia al capítulo
+       activo, así que el que va a entrar ya está engordando cuando el índice
+       llega a su frontera. Con dos pesos sueltos habría un corte; con el eje
+       variable hay una transición, y esa transición es la que dice hacia
+       dónde va la pieza.
+
+       El acento se reserva para el número del capítulo activo. El título no
+       se enciende: se pone en pie. */
+    const cerca = i => {
+      let a = 0;
+      for (let k = 0; k < i; k++) a += caps[k].dur || 1;
+      const d = caps[i].dur || 1;
+      /* 0 en el centro del capítulo, 1 a un capítulo de distancia. */
+      return clamp(Math.abs(t - (a + d / 2)) / Math.max(d, 0.001), 0, 1);
+    };
+    rotulos.forEach((el, i) => {
+      const k = 1 - cerca(i);
+      Engine.peso(el, Math.round(200 + 500 * k));
+      el.style.color = `color-mix(in oklab, var(--ink) ${(k * 100).toFixed(0)}%,` +
+                       ` var(--ink-faint))`;
+      const b = el.querySelector('b');
+      if (b) b.style.opacity = (0.35 + 0.65 * (i === activo ? 1 : k)).toFixed(2);
+    });
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Transcripción de una conversación</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+
+  .hilo {
+    position: absolute; left: var(--s-6); right: var(--s-6);
+    display: flex; flex-direction: column; gap: var(--s-6);
+    --gutter: 148px;
+  }
+
+  /* La regla del margen es UNA sola y recorre la transcripción entera, con el
+     segmento del turno que habla en bronce por encima. Una regla por turno
+     dejaba un tic de 30 px suelto al lado de cada línea: eso no es un margen,
+     es una viñeta. Y ver el alto completo desde el principio dice cuánto
+     queda de conversación, que es información que el espectador quiere.
+
+     Es la misma pareja vía/traza de `pasos-flow`, y por eso se parecen: el
+     recorrido gris está entero desde el primer fotograma y lo que avanza es
+     el metal. */
+  .riel {
+    position: absolute; top: 0; bottom: 0;
+    left: calc(var(--gutter) + var(--s-5) / 2 - 1px);
+    width: 2px; background: var(--rule);
+    transform-origin: 50% 0;
+    will-change: transform, opacity;
+  }
+
+  /* ======================================================================
+     Era iMessage.
+     Burbuja de acento alineada a la derecha, burbuja gris a la izquierda,
+     esquina cuadrada haciendo de rabito, tres puntos rebotando y un
+     `#FFFFFF` a pelo. Dibujado píxel a píxel, es la captura de pantalla de
+     otra empresa — y encima de UNA en concreto, así que cualquier pieza que
+     lo use está citando a Apple sin querer.
+
+     Un intercambio con un modelo no es una conversación de móvil: es una
+     TRANSCRIPCIÓN. Y una transcripción tiene una forma propia y muy vieja,
+     la de la entrevista impresa: quién habla cuelga del margen izquierdo,
+     una regla separa el margen del cuerpo, y todo el texto se lee en UNA
+     columna, sin ir saltando de lado.
+
+     Eso además arregla un problema real del original: con las burbujas
+     alternándose, la mirada rebota de un borde a otro en cada turno, y en
+     vertical —donde la columna ya es estrecha— eso cuesta una línea de
+     lectura por turno.
+     ====================================================================== */
+  .entrada {
+    position: relative;
+    display: grid; grid-template-columns: var(--gutter) 1fr;
+    column-gap: var(--s-5);
+  }
+
+  /* La etiqueta CUELGA del margen: alineada a la derecha contra la regla, y
+     con la línea base del texto que le toca. */
+  .etiqueta {
+    grid-column: 1;
+    text-align: right;
+    font-family: var(--mono);
+    font-size: var(--t-xs);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps-ancho);
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    padding-top: 0.42em;      /* baja la caja alta hasta la x del cuerpo */
+    will-change: opacity;
+  }
+
+  /* El segmento de bronce del turno. Se TRAZA hacia abajo antes de que
+     aparezca nada: es rayar la hoja antes de escribir en ella, y es lo que
+     sustituye a la entrada por `translateY + scale` que comparten 43 de las
+     56 plantillas. */
+  .regla {
+    position: absolute; top: 0; bottom: 0;
+    left: calc(var(--gutter) + var(--s-5) / 2 - 1px);
+    width: 2px;
+    transform-origin: 50% 0;
+    background-image: linear-gradient(180deg,
+      var(--metal-3), var(--metal-4) 30%, var(--metal-1) 100%);
+    will-change: transform, opacity;
+  }
+
+  .cuerpo { grid-column: 2; min-width: 0; }
+
+  .txt {
+    /* pre-wrap conserva los saltos del guion sin colapsar espacios */
+    white-space: pre-wrap;
+    line-height: 1.36;
+  }
+
+  /* La PREGUNTA en la didone en cursiva: es la voz que entra, y §1 reserva
+     `--editorial` exactamente para eso. Al ir en otra familia y otra caja no
+     hace falta ni color ni alineación para saber quién habla. */
+  .entrada[data-de="user"] .txt {
+    font-family: var(--editorial);
+    font-style: italic;
+    font-weight: var(--w-libro);
+    font-size: var(--t-lg);
+    letter-spacing: var(--tr-cuerpo);
+    color: var(--ink-soft);
+  }
+
+  /* La RESPUESTA en cuerpo de lectura y medida estrecha. `max-width` en `ch`
+     y no en píxeles: la medida cómoda de una columna se mide en caracteres,
+     no en centímetros, y así sigue siendo cómoda si cambia el cuerpo. */
+  .entrada[data-de="model"] .txt {
+    font-family: var(--subs);
+    font-weight: var(--w-libro);
+    font-size: var(--t-md);
+    letter-spacing: var(--tr-cuerpo);
+    color: var(--ink);
+    max-width: 34ch;
+  }
+
+  /* Cursor de escritura. Un filete, no un bloque: sobre texto de lectura un
+     bloque de 10 px tapa la letra siguiente. */
+  .caret {
+    display: inline-block; width: 3px; height: 0.92em;
+    background: var(--accent); vertical-align: -0.10em;
+    margin-left: 3px;
+  }
+
+  /* La PAUTA: mientras el modelo «piensa», se raya la línea donde va a
+     escribir. Eran tres puntos rebotando, que es el indicador de iMessage y
+     de todos sus imitadores. Rayar la pauta antes de escribir es lo que se
+     hace en una hoja, dice lo mismo —«aquí viene texto»— y no es de nadie. */
+  .pauta {
+    height: 2px; margin-top: 0.55em;
+    background: var(--rule);
+    will-change: width, opacity;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="hilo" id="hilo"></div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, typed, clamp } = Engine;
+
+const hilo = document.getElementById('hilo');
+let filas = [], riel = null;
+
+Engine.register({
+  duration: 9,
+  defaults: {
+    y: 520,
+    salida: 0.5,
+    cps: 34,
+    pensar: 0.7,          // cuánto "piensa" el modelo antes de responder
+    rotulos: { user: 'TÚ', model: 'CLAUDE' },
+    mensajes: [
+      { de: 'user',  txt: '¿Cabe un repositorio entero en el contexto?', at: 0.2 },
+      { de: 'model', txt: 'Sí. Con un millón de tokens no hace falta\ntrocearlo ni resumirlo.', at: 2.4 }
+    ]
+  },
+
+  setup(cfg) {
+    hilo.style.top = cfg.y + 'px';
+    hilo.innerHTML = '<div class="riel" id="riel"></div>';
+    riel = document.getElementById('riel');
+    const rot = cfg.rotulos || {};
+    filas = (cfg.mensajes || []).map(m => {
+      const fila = document.createElement('div');
+      fila.className = 'entrada';
+      fila.dataset.de = m.de;
+      fila.innerHTML =
+        `<div class="etiqueta">${m.rotulo || rot[m.de] || m.de}</div>` +
+        `<div class="regla"></div>` +
+        `<div class="cuerpo"><div class="txt"></div>` +
+        (m.de === 'model' ? `<div class="pauta"></div>` : '') + `</div>`;
+      hilo.appendChild(fila);
+      /* El alto de la respuesta se RESERVA midiendo el texto completo aquí.
+         Sin reserva, la columna crece de una a dos líneas mientras se teclea
+         y todo lo que hay debajo —incluida la regla del margen— da un salto a
+         mitad de frase. Es el mismo motivo por el que la versión anterior
+         mantenía la burbuja a tamaño completo: lo que se revela es el TEXTO,
+         no la caja. */
+      const t0 = fila.querySelector('.txt');
+      if (m.de === 'model') {
+        t0.textContent = m.txt;
+        t0.style.minHeight = t0.offsetHeight + 'px';
+        t0.textContent = '';
+      }
+      return { m, fila,
+               etiqueta: fila.querySelector('.etiqueta'),
+               regla: fila.querySelector('.regla'),
+               pauta: fila.querySelector('.pauta'),
+               txt: fila.querySelector('.txt') };
+    });
+
+    /* Dos señales por turno, y ninguna por carácter: a 34 pulsaciones por
+       segundo, teclear cada letra es un zumbido y no un sonido. Es el mismo
+       razonamiento que ya está escrito en `terminal.html` y en `odometro`.
+
+       La pregunta entra con un `clic` —alguien ha pulsado enviar— y la
+       respuesta cierra con un `tecleo` cuando termina de escribirse. El
+       instante sale de la MISMA expresión que usa `draw` para decidir cuántos
+       caracteres se ven (`ini + longitud/cps`), no de una copia: si mañana
+       cambia la velocidad, la señal se mueve con ella. */
+    const cues = [];
+    (cfg.mensajes || []).forEach(m => {
+      const at = m.at || 0;
+      if (m.de === 'user') {
+        cues.push({ at: +at.toFixed(3), sfx: 'clic', gain: 0.5 });
+      } else {
+        const ini = at + (m.pensar !== undefined ? m.pensar : cfg.pensar);
+        const cps = m.cps || cfg.cps;
+        cues.push({ at: +(ini + (m.txt || '').length / cps).toFixed(3),
+                    sfx: 'tecleo', gain: 0.8 });
+      }
+    });
+    return { cues: cfg.sinSonido ? [] : cues };
+  },
+
+  anclas() {
+    const caja = el => {
+      const b = el.getBoundingClientRect();
+      return { x: Math.round(b.left + b.width / 2),
+               y: Math.round(b.top + b.height / 2),
+               w: Math.round(b.width), h: Math.round(b.height) };
+    };
+    const a = {};
+    filas.forEach((f, i) => { a['turno' + i] = caja(f.fila); });
+    if (filas.length) a.hilo = caja(hilo);
+    return a;
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 9;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+
+    /* La regla se raya de arriba abajo antes que nada: es preparar la hoja. */
+    if (riel) {
+      const p = span(t, 0, 0.62, Ease.outCubic);
+      riel.style.transform = `scaleY(${p.toFixed(3)})`;
+      riel.style.opacity = cierre;
+    }
+
+    filas.forEach((f, iF) => {
+      const { m } = f;
+      const at = m.at || 0;
+
+      /* Primero se RAYA el margen, después entra quien habla y por último el
+         texto. Tres tiempos dentro de un mismo turno, en vez de un bloque
+         entero deslizándose: el gesto es «se prepara la hoja y se escribe»,
+         que es lo que la plantilla dice ser. */
+      const raya = span(t, at, 0.34, Ease.inOutCubic);
+      f.regla.style.transform = `scaleY(${raya.toFixed(3)})`;
+      f.regla.style.opacity = cierre * (raya > 0 ? 1 : 0);
+
+      const eti = span(t, at + 0.16, 0.26, Ease.outCubic);
+      f.etiqueta.style.opacity = eti * cierre;
+
+      const e = span(t, at + 0.22, 0.3, Ease.outCubic);
+      f.txt.style.opacity = e * cierre;
+      /* Flotación de reposo (§10). Va en la COLUMNA de texto y no en la fila:
+         la regla del margen se calcula con la maquetación de la fila, y si la
+         fila derivara, el segmento de bronce se despegaría del raíl gris.
+         Sin esto la transcripción se quedaba congelada byte a byte en cuanto
+         terminaba de teclearse la respuesta —el humo lo marcaba—, que es
+         justamente la mitad del tiempo que la capa está en pantalla. */
+      const fl = Engine.flota(t, iF, { amp: 2.6, periodo: 9.8, semilla: 2 });
+      f.txt.style.transform =
+        `translate(${fl.x.toFixed(2)}px, ${fl.y.toFixed(2)}px)`;
+
+      if (m.de === 'user') {
+        /* La pregunta ya está escrita: quien pregunta pulsa enviar y aparece
+           entera. Teclearla haría que el espectador la leyera dos veces. */
+        f.txt.textContent = m.txt;
+        return;
+      }
+
+      const iniTexto = at + (m.pensar !== undefined ? m.pensar : cfg.pensar);
+      const visible = t < iniTexto ? '' : typed(m.txt, t, iniTexto, m.cps || cfg.cps);
+      const escribiendo = visible.length < m.txt.length;
+      f.txt.innerHTML = visible.replace(/</g, '&lt;') +
+                        (t >= iniTexto && escribiendo ? '<span class="caret"></span>' : '');
+
+      /* La pauta se raya mientras piensa y se retira en cuanto hay texto que
+         leer: dejarla debajo la convertiría en un subrayado. */
+      if (f.pauta) {
+        const p = span(t, at + 0.28, Math.max(0.2, iniTexto - at - 0.28),
+                       Ease.outCubic);
+        const va = 1 - span(t, iniTexto, 0.22, Ease.outCubic);
+        f.pauta.style.width = (p * 62) + '%';
+        f.pauta.style.opacity = (p * va * cierre * 0.85).toFixed(3);
+      }
+    });
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+{
+ "acierto": {
+  "dur": 0.75,
+  "pico_dB": -8.1,
+  "rms_dB": -21.0
+ },
+ "aire": {
+  "dur": 2.4,
+  "pico_dB": -7.0,
+  "rms_dB": -22.5
+ },
+ "aparicion": {
+  "dur": 0.45,
+  "pico_dB": -12.0,
+  "rms_dB": -21.0
+ },
+ "barrido": {
+  "dur": 0.6,
+  "pico_dB": -8.2,
+  "rms_dB": -21.0
+ },
+ "cama": {
+  "dur": 12.0,
+  "pico_dB": -13.1,
+  "rms_dB": -22.5
+ },
+ "clic": {
+  "dur": 0.09,
+  "pico_dB": -6.0,
+  "rms_dB": -23.5
+ },
+ "deslizar": {
+  "dur": 0.32,
+  "pico_dB": -6.0,
+  "rms_dB": -22.6
+ },
+ "destello": {
+  "dur": 0.22,
+  "pico_dB": -6.0,
+  "rms_dB": -22.4
+ },
+ "escaner": {
+  "dur": 0.9,
+  "pico_dB": -8.8,
+  "rms_dB": -21.0
+ },
+ "fallo": {
+  "dur": 0.7,
+  "pico_dB": -6.0,
+  "rms_dB": -21.0
+ },
+ "impacto": {
+  "dur": 0.5,
+  "pico_dB": -8.1,
+  "rms_dB": -21.0
+ },
+ "lecho": {
+  "dur": 4.0,
+  "pico_dB": -38.9,
+  "rms_dB": -54.4
+ },
+ "notificacion": {
+  "dur": 0.42,
+  "pico_dB": -8.6,
+  "rms_dB": -21.0
+ },
+ "pop": {
+  "dur": 0.16,
+  "pico_dB": -6.0,
+  "rms_dB": -19.7
+ },
+ "preimpacto": {
+  "dur": 0.7,
+  "pico_dB": -6.0,
+  "rms_dB": -22.7
+ },
+ "resolucion": {
+  "dur": 1.6,
+  "pico_dB": -8.1,
+  "rms_dB": -22.5
+ },
+ "riser": {
+  "dur": 1.8,
+  "pico_dB": -7.6,
+  "rms_dB": -22.5
+ },
+ "subgrave": {
+  "dur": 1.2,
+  "pico_dB": -9.7,
+  "rms_dB": -22.5
+ },
+ "suscribir": {
+  "dur": 0.55,
+  "pico_dB": -6.0,
+  "rms_dB": -21.0
+ },
+ "tecleo": {
+  "dur": 0.045,
+  "pico_dB": -6.0,
+  "rms_dB": -25.4
+ },
+ "tic": {
+  "dur": 0.055,
+  "pico_dB": -6.0,
+  "rms_dB": -22.8
+ }
+}

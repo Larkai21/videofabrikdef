@@ -1,0 +1,71 @@
+name: nivel rápido
+
+# Su valor real es lo que un hook local no puede dar: corre sobre un CLON
+# LIMPIO. Es lo que habría gritado el día que CLAUDE.md documentó `galeria.js`
+# sin que estuviera trackeado.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rapido:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # El README promete «Node 20 o superior» y `make ci` corre
+      # auditar_estilo.js. Se fija aquí en vez de heredar el que traiga la
+      # imagen del runner: así la promesa del README queda comprobada. No hace
+      # falta `npm install` — ese script solo usa fs y path, y Playwright, la
+      # única dependencia de npm, vive en el nivel `render`, que no entra aquí.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # SIN ESTO EL CI NACE ROJO. Medido: 27 pruebas del nivel rápido fallan
+      # sin ffmpeg —18 llevan la marca `ffmpeg` y las 9 de test_oro.py lo usan
+      # a través de clean_transcript—, y la marca NO las salta: conftest.py la
+      # registra para poder seleccionarlas, no para excusarlas. Un nivel que en
+      # el CI comprueba menos que en local, y en silencio, es peor que no
+      # tenerlo.
+      #
+      # (El comentario del target `ci` del Makefile dice «sin ffmpeg». Era
+      # verdad cuando se escribió; hoy el nivel rápido lo exige.)
+      - name: ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffmpeg -version | head -1
+
+      # Los 16 sitios del repo que localizan ffmpeg comparten el mismo valor
+      # por defecto de Homebrew —/opt/homebrew/bin/ffmpeg— que en Linux no
+      # existe, y ninguno cae al PATH. La variable de entorno es lo único que
+      # los dieciséis respetan YA, así que es la palanca honesta: hacer que la
+      # resolución mire el PATH es tocar catorce ficheros compartidos y no cabe
+      # en el cambio que enciende el CI.
+      #
+      # La ruta se PREGUNTA en vez de escribirse a mano: si un día la imagen
+      # del runner mueve el binario, esto sigue en verde y el log dice dónde
+      # ha quedado.
+      - name: dónde ha quedado ffmpeg
+        run: |
+          echo "FFMPEG_BIN=$(command -v ffmpeg)"   >> "$GITHUB_ENV"
+          echo "FFPROBE_BIN=$(command -v ffprobe)" >> "$GITHUB_ENV"
+
+      - run: pip install -q -r requirements-dev.txt
+
+      # `PY=python` porque en un runner no hay .venv; el Makefile declara PY
+      # con `?=` justamente para que esto se pueda sobrescribir.
+      - run: make PY=python ci

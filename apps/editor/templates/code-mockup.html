@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Listado grabado — Carbon &amp; Bronze</title>
+<meta name="gesto" content="trazar:listado">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* ======================================================================
+     QUÉ ERA · una ventana de editor. Carcasa de MacBook con bisel doble y
+     base, tres luces de semáforo de macOS, pestaña con el nombre del
+     fichero, y abajo una barra de progreso con su porcentaje.
+
+     Todo eso es cromo de OTRA marca. Los tres puntos son la barra de
+     título de macOS —o sea que la pieza lleva puesto el logotipo del
+     sistema operativo de al lado—, y la barra de progreso con `%` es el
+     mismo objeto que dibuja cualquier instalador. Quitando el texto, este
+     gráfico no se distinguía de una captura de VS Code, que es exactamente
+     el criterio que hay que superar.
+
+     QUÉ ES · un LISTADO GRABADO en una placa. Lo que hace que algo se lea
+     como código no es una ventana: es el canal numerado, la retícula
+     monoespaciada y la sangría. Así que se queda con eso y se le da el
+     material de la casa:
+
+       · el canal de números es una REGLA GRABADA — fresado, con su
+         graduación, divisiones mayores cada cinco líneas y un índice de
+         bronce que baja línea a línea mientras se escribe. El progreso lo
+         dice la regla, que es un instrumento; la barra de porcentaje sobra
+         y se ha ido con la ventana.
+       · el margen lleva una MARCA DE CAMBIO, como un diff: la línea nueva
+         y la modificada se declaran, y el pie las cuenta. Un fragmento de
+         código en un vídeo casi siempre está ahí porque ALGO CAMBIÓ, y eso
+         no se veía por ningún lado.
+       · el resaltado va por PESO además de por color, sobre el eje
+         variable de Geist Mono: 200 en el comentario y 620 en la palabra
+         clave, o sea 420 puntos dentro de la misma línea. Se lee en escala
+         de grises, que es donde un resaltado solo-por-color desaparece.
+       · el cursor es un FILETE de 2 px con veta de metal, no el bloque de
+         11 px de antes.
+
+     La sombra también estaba fuera de norma: `0 40px 90px` son 90 px de
+     difuminado y §1 pone el límite en ~48. Ahora es la sombra de contacto
+     más la lejana, las dos por debajo del límite.
+     ====================================================================== */
+
+  /* El anclaje es configurable: en primeros planos muy cerrados hay que
+     poder sacar la placa de encima de la cara. */
+  .stage { position: absolute; inset: 0; display: grid; justify-items: center; }
+  .stage.centro { align-items: center; }
+  .stage.arriba { align-items: start; }
+  .stage.abajo  { align-items: end; }
+
+  .plato { position: relative; width: 940px; transform-origin: 50% 50%;
+           will-change: opacity, transform; }
+
+  /* El canto de bronce con `.filete-metal` y no con `border: 1px solid`:
+     es la forma 3 del metal de `_tokens.css`, un degradado real de un
+     píxel que respeta el radio. Un borde plano naranja es justo lo que §2
+     prohíbe cuando dice que el bronce nunca es un plano naranja. */
+  .filete { border-radius: var(--r-lg); }
+  .cara {
+    position: relative;
+    overflow: hidden;
+    border-radius: inherit;
+    box-shadow: 0 10px 26px var(--sombra), 0 22px 44px var(--sombra);
+  }
+  /* La textura vive en una capa PROPIA, detrás del contenido. Puesta sobre
+     `.cara` el grano multiplicaría también el texto y lo ensuciaría. */
+  .fondo { position: absolute; inset: 0; background: var(--surface); }
+
+  /* --- cabecera: una inscripción, no una pestaña --- */
+  .cabecera {
+    position: relative;
+    display: flex; align-items: baseline; gap: var(--s-3);
+    padding: var(--s-4) var(--s-5) var(--s-3);
+    border-bottom: var(--hairline) solid var(--rule);
+    font-family: var(--mono); font-size: var(--t-xs);
+    letter-spacing: var(--tr-cuerpo);
+  }
+  /* Jerarquía DENTRO de la línea, por peso: la carpeta calla y el fichero
+     carga. Es lo que pide §1 —contraste y peso, nunca luz— y lo que la
+     versión anterior resolvía subiendo el cuerpo de letra.
+     La cursiva de la carpeta es el mismo recurso que la del comentario: lo
+     que acompaña se dice de lado. Son 300 puntos de peso más un cambio de
+     estilo, o sea dos señales, en una tipografía de un solo cuerpo. */
+  .dir  { color: var(--ink-faint); font-variation-settings: "wght" 300;
+          font-style: italic; }
+  .arch { color: var(--ink);       font-variation-settings: "wght" 600;
+          font-style: normal; }
+
+  .rama { margin-left: auto; display: flex; align-items: center; gap: var(--s-2);
+          color: var(--ink-soft); font-variation-settings: "wght" 400;
+          letter-spacing: var(--tr-caps); text-transform: uppercase;
+          font-size: var(--t-2xs); will-change: transform; }
+  .rama svg { display: block; width: 26px; height: 26px; }
+
+  /* --- cuerpo: dos columnas que comparten interlínea --- */
+  .cuerpo {
+    position: relative;
+    display: grid; grid-template-columns: auto 1fr;
+    padding: var(--s-5) var(--s-5) var(--s-6);
+    font-family: var(--mono);
+    /* `--fit` es un FACTOR, no un tamaño: el tamaño sigue saliendo del
+       token. Antes `setup` escribía `fontSize = tam + 'px'`, o sea que el
+       ajuste automático se cargaba la escala tipográfica sin decirlo. */
+    --fit: 1;
+    --cuerpo-tam: calc(var(--t-md) * var(--fit));
+    /* La interlínea va en LONGITUD y no en número: un número se hereda como
+       factor y cada hijo lo multiplica por SU cuerpo, así que los números
+       del canal —que van al 74 %— dejarían de casar con su línea de código.
+       Como longitud se hereda ya resuelta y las dos columnas comparten
+       retícula pase lo que pase. */
+    --lh: calc(var(--cuerpo-tam) * 1.62);
+    font-size: var(--cuerpo-tam);
+    line-height: var(--lh);
+  }
+
+  /* --- el canal: una regla grabada --- */
+  .canal {
+    position: relative;
+    background: var(--surface-2);
+    padding-right: var(--s-2);
+    margin: calc(var(--s-3) * -1) 0;
+    padding-top: var(--s-3); padding-bottom: var(--s-3);
+    border-radius: var(--r-sm) 0 0 var(--r-sm);
+  }
+  .g { position: relative; display: flex; align-items: center; }
+  /* `align-self: stretch` y no la altura por defecto: un ítem de flex sin
+     contenido en línea mide CERO de alto —su único hijo está posicionado en
+     absoluto— así que la barra, que va al 62 % de esa altura, no se dibujaba.
+     Ni error ni aviso: el nodo estaba en el DOM con su color puesto. */
+  .dif { width: 16px; flex: none; position: relative; align-self: stretch; }
+  /* La marca de cambio es una BARRA dibujada, no un `+` de teclado. Se
+     escala desde el centro cuando la línea aterriza. */
+  .dif > i { position: absolute; left: 5px; top: 19%; width: 3px;
+             height: 62%; border-radius: 1px;
+             transform-origin: 50% 50%; will-change: transform; }
+  .num {
+    width: 3.2em; flex: none; text-align: right;
+    /* El hueco de la derecha es el que ocupa la graduación. Sin él el trazo
+       cae ENCIMA de la cifra y se lee como un tachado, que era justo lo
+       contrario de lo que dice: la línea 145 parecía borrada. */
+    margin-right: 22px;
+    font-size: 0.74em; font-variant-numeric: tabular-nums;
+    letter-spacing: var(--tr-cuerpo);
+    will-change: color, font-variation-settings;
+  }
+  /* La graduación. Trazos de verdad, con su división mayor cada cinco
+     líneas: es lo que distingue una regla de una lista numerada. El trazo
+     acaba EN el canto, así que el mayor lo toca y el menor se queda corto —
+     como en una regla grabada. */
+  .tick { position: absolute; right: calc(var(--s-2) * -1); top: 50%;
+          height: 1px; width: 7px; margin-top: -0.5px;
+          background: var(--ink-ghost);
+          will-change: width, background-color; }
+  .g.mayor .tick { height: 2px; width: 15px; margin-top: -1px;
+                   background: var(--ink-faint); }
+
+  /* El canto fresado del canal. Lleva veta y la veta se MUEVE: el metal
+     real cambia con la luz, y esto es lo único que sigue vivo cuando el
+     tecleado ya ha terminado. Se anima `background-position`, que no es ni
+     opacidad ni transform. */
+  .rail {
+    position: absolute; top: 0; bottom: 0; right: 0; width: 2px;
+    background-image: linear-gradient(180deg,
+      var(--metal-1) 0%, var(--metal-3) 28%, var(--metal-4) 55%,
+      var(--metal-2) 78%, var(--metal-5) 100%);
+    background-size: 100% 240%;
+    opacity: 0.55;
+    will-change: background-position;
+  }
+  /* El índice del calibre: el tramo de regla que se está grabando ahora. */
+  .indice {
+    position: absolute; right: -1px; width: 4px; height: var(--lh);
+    top: var(--s-3);
+    background-image: linear-gradient(180deg,
+      var(--metal-3), var(--metal-4) 55%, var(--metal-1));
+    transform: translateY(calc(var(--lh) * var(--fila, 0)));
+    will-change: transform, opacity;
+  }
+
+  /* --- la columna de código --- */
+  .codigo { padding-left: var(--s-4); min-width: 0; }
+  .lc { white-space: pre; }
+  /* El peso es el segundo canal del resaltado. `calc(var(--wl) + var(--wb))`
+     está MEDIDO en este Chromium: da el mismo ráster que el literal, byte a
+     byte, así que la clase pone la voz (`--wl`) y `draw` pone el énfasis de
+     la línea viva (`--wb`) sin que ninguna de las dos pise a la otra.
+     Y va con `font-variation-settings` y no con `font-weight`: con las
+     estáticas instaladas al lado de la variable, `font-weight: 200` acaba
+     rasterizando como un 300 —comprobado— mientras que el eje sí llega. */
+  .txt { color: var(--ink); --wl: 340; --wb: 0;
+         font-variation-settings: "wght" calc(var(--wl) + var(--wb)); }
+  .txt span { font-variation-settings: "wght" calc(var(--wl) + var(--wb)); }
+  .kw   { color: var(--syn-kw);  --wl: 620; }
+  .num2 { color: var(--syn-num); --wl: 520; font-variant-numeric: tabular-nums; }
+  .fn   { color: var(--syn-fn);  --wl: 480; }
+  .str  { color: var(--syn-str); --wl: 380; }
+  .com  { color: var(--syn-com); --wl: 200; font-style: italic; }
+  /* La línea retirada se apaga y adelgaza. Tiene que ganar a la clase del
+     token —de ahí el selector de dos clases— o la palabra clave de una línea
+     borrada seguiría gritando a 620. */
+  .retirada { opacity: 0.5; }
+  .retirada .txt, .retirada .txt span { --wl: 240; }
+
+  /* El cursor: un filete con veta, del ancho de un canto de bronce. El
+     bloque de 11 px de antes es el cursor de una terminal, y esto no es una
+     terminal — `terminal.html` ya existe y ese es su sitio. */
+  .caret { display: inline-block; width: 2px; height: 1.05em;
+           vertical-align: -0.18em; margin-left: 1px;
+           background-image: linear-gradient(180deg,
+             var(--metal-3), var(--metal-4) 60%, var(--metal-1)); }
+
+  /* --- pie: una lectura, no una barra de progreso --- */
+  .pie {
+    position: relative;
+    display: flex; align-items: center; gap: var(--s-4);
+    padding: var(--s-3) var(--s-5);
+    border-top: var(--hairline) solid var(--rule);
+    font-family: var(--mono); font-size: var(--t-2xs);
+    letter-spacing: var(--tr-caps); text-transform: uppercase;
+    color: var(--ink-faint); font-variation-settings: "wght" 500;
+  }
+  .lectura { margin-left: auto; display: flex; align-items: center;
+             gap: var(--s-3); will-change: transform; }
+  .sum-mas { color: var(--accent); }
+  .sum-mod { color: var(--accent-2); }
+  .bytes { color: var(--ink-soft); letter-spacing: var(--tr-cuerpo); }
+</style>
+</head>
+<body>
+<div class="stage centro" id="stage">
+  <div class="plato" id="plato">
+    <div class="filete filete-metal">
+      <div class="cara">
+        <i class="fondo" id="fondo"></i>
+
+        <header class="cabecera">
+          <span><i class="dir" id="dir"></i><b class="arch" id="archivo">agent.py</b></span>
+          <span class="rama" id="rama">
+            <svg viewBox="0 0 26 26" fill="none" id="svgRama">
+              <path id="pRama" stroke-width="2" stroke-linecap="round" fill="none"
+                    d="M7 6.5 V19.5 M7 12.5 h6 a4 4 0 0 0 4-4 V6.5"/>
+              <circle id="cRama1" cx="7"  cy="21.5" r="2.2" stroke-width="2" fill="none"/>
+              <circle id="cRama2" cx="17" cy="4.4"  r="2.2" stroke-width="2" fill="none"/>
+            </svg>
+            <em id="ramaTxt" style="font-style:normal">main</em>
+          </span>
+        </header>
+
+        <div class="cuerpo" id="cuerpo">
+          <div class="canal" id="canal">
+            <div class="rail" id="rail"></div>
+            <div class="indice" id="indice"></div>
+          </div>
+          <div class="codigo" id="codigo"></div>
+        </div>
+
+        <footer class="pie">
+          <span id="estadoTxt">M4 PRO · LOCAL</span>
+          <span class="lectura" id="lectura">
+            <i class="sum-mas" id="sumMas" style="font-style:normal"></i>
+            <i class="sum-mod" id="sumMod" style="font-style:normal"></i>
+            <span class="bytes tnum" id="bytes"></span>
+          </span>
+        </footer>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, typed, clamp } = Engine;
+
+const plato   = document.getElementById('plato');
+const cuerpo  = document.getElementById('cuerpo');
+const canal   = document.getElementById('canal');
+const elCod   = document.getElementById('codigo');
+const rail    = document.getElementById('rail');
+const indice  = document.getElementById('indice');
+const elRama  = document.getElementById('rama');
+const elLect  = document.getElementById('lectura');
+const elBytes = document.getElementById('bytes');
+const elMas   = document.getElementById('sumMas');
+const elMod   = document.getElementById('sumMod');
+
+/* Coloreado en UNA pasada sobre texto crudo. Encadenar .replace() sobre
+   HTML ya generado haría que el regex de keywords matchease el `class`
+   de <span class="...">, destrozando el marcado desde dentro. */
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const RE_TOKEN = new RegExp([
+  '(#[^\\n]*|//[^\\n]*)',
+  '("(?:[^"\\\\]|\\\\.)*"|\'(?:[^\'\\\\]|\\\\.)*\')',
+  '\\b(def|class|return|import|from|for|in|if|elif|else|await|async|fn|let|' +
+    'const|var|function|export|struct|impl|pub|match|use|None|True|False)\\b',
+  '\\b(\\d+(?:\\.\\d+)?)\\b',
+  '([A-Za-z_]\\w*)(?=\\()'
+].join('|'), 'g');
+
+function pintar(linea) {
+  let fuera = '', ultimo = 0, m;
+  RE_TOKEN.lastIndex = 0;
+  while ((m = RE_TOKEN.exec(linea)) !== null) {
+    fuera += esc(linea.slice(ultimo, m.index));
+    const cls = m[1] ? 'com' : m[2] ? 'str' : m[3] ? 'kw' : m[4] ? 'num2' : 'fn';
+    fuera += '<span class="' + cls + '">' + esc(m[0]) + '</span>';
+    ultimo = m.index + m[0].length;
+  }
+  return fuera + esc(linea.slice(ultimo));
+}
+
+/* Aire entre líneas. Es el hueco por el que el índice del canal baja de una
+   línea a la siguiente, así que no es un número suelto: se usa en las tres
+   partes que tienen que coincidir —cues, texto e índice—. */
+const PAUSA = 0.09;
+
+/* EL COMPÁS, en un solo sitio.
+   Antes el reloj del tecleado se acumulaba DOS veces: una en `setup` para
+   colocar los `tecleo` y otra en `draw` para el texto, con un comentario
+   pidiendo que no se separaran. Dos copias de la misma suma es exactamente
+   como se desincronizan: cambiar el ritmo en una y no en la otra no da
+   ningún error, solo un sonido que llega tarde. Ahora lo calcula esta
+   función y las dos lo leen. */
+function compas(codigo, cps) {
+  let reloj = 0.4;
+  return (codigo || []).map(bruto => {
+    const es = typeof bruto === 'string';
+    const txt = es ? bruto : String(bruto.txt !== undefined ? bruto.txt : '');
+    const ini = reloj;
+    const fin = ini + txt.length / (cps || 44);
+    reloj = fin + PAUSA;
+    return { src: txt, marca: es ? '' : (bruto.marca || ''), ini, fin };
+  });
+}
+
+let lineas = [];
+
+Engine.register({
+  duration: 7,
+  defaults: {
+    archivo: 'scripts/editar.py',
+    rama: 'main',
+    estado: 'M4 PRO · LOCAL',
+    cps: 44,
+    anclaje: 'centro',   // centro | arriba | abajo
+    escala: 1.0,         // reducir en planos cerrados
+    margen: 90,          // separación del borde cuando no va centrado
+    /* Por qué NO empieza en 1: lo que se enseña en un vídeo es un FRAGMENTO
+       de un fichero real, y un fragmento no empieza en la primera línea. El
+       número de partida hace además que la división mayor de la regla —cada
+       cinco— caiga donde caería de verdad. */
+    primera: 141,
+    /* Una entrada puede ser un string —como siempre— o `{txt, marca}` con
+       marca `+` (línea nueva), `~` (modificada) o `-` (retirada). Es una
+       AMPLIACIÓN del contrato: los planes que pasan strings siguen
+       funcionando exactamente igual, sin marca. */
+    codigo: [
+      '# todo el procesado ocurre en la maquina',
+      'def editar(video: str) -> str:',
+      '    t = transcribir(video)      # mlx-whisper',
+      { txt: '    t = limpiar(t)              # silencios y tomas falsas',
+        marca: '+' },
+      { txt: '    componer(t, lut=CARBON)', marca: '~' },
+      '    return "listo"'
+    ],
+    entrada: 0.5,
+    salida: 0.45
+  },
+
+  setup(cfg) {
+    const stage = document.getElementById('stage');
+    stage.className = 'stage ' + (cfg.anclaje || 'centro');
+    stage.style.paddingTop = cfg.anclaje === 'arriba' ? cfg.margen + 'px' : '0';
+    stage.style.paddingBottom = cfg.anclaje === 'abajo' ? cfg.margen + 'px' : '0';
+
+    /* La ruta se parte por la última barra: la carpeta calla y el fichero
+       carga. Un `archivo` sin barra —que es lo que pasan hoy todos los
+       planes— deja la carpeta vacía y se comporta como antes. */
+    const ruta = String(cfg.archivo || '');
+    const corte = ruta.lastIndexOf('/');
+    document.getElementById('dir').textContent = corte >= 0 ? ruta.slice(0, corte + 1) : '';
+    document.getElementById('archivo').textContent = corte >= 0 ? ruta.slice(corte + 1) : ruta;
+    document.getElementById('ramaTxt').textContent = cfg.rama;
+    document.getElementById('estadoTxt').textContent = cfg.estado;
+
+    /* El bronce del icono de rama sale del degradado del TEMA, no de un
+       color plano. La CAJA es obligatoria: el trazo de la rama es en su
+       mayor parte recto, y un `linearGradient` sin caja usa la caja del
+       objeto — que en una recta tiene ancho o alto CERO y entonces el SVG
+       no dibuja nada. Sin error y sin aviso: el `path` está, con su `d` y
+       su `stroke-width`, y no pinta un píxel. */
+    const svg = document.getElementById('svgRama');
+    const idm = Engine.gradienteMetal(svg, 'metalRama', [0, 0, 26, 26]);
+    ['pRama', 'cRama1', 'cRama2'].forEach(id => {
+      document.getElementById(id).setAttribute('stroke', 'url(#' + idm + ')');
+    });
+
+    /* Textura de impresión sobre la superficie de la placa, en su capa
+       propia y por debajo del contenido. 48 de 56 plantillas no tienen
+       ninguna: un plano de color con un filete de 1 px es la firma de una
+       demo de CSS, no la de un objeto. */
+    Engine.grano(document.getElementById('fondo'),
+                 { px: 256, semilla: 11, op: 0.30 });
+
+    lineas = compas(cfg.codigo, cfg.cps);
+    const primera = Number(cfg.primera) || 1;
+
+    [...canal.querySelectorAll('.g')].forEach(n => n.remove());
+    elCod.innerHTML = '';
+    lineas.forEach((l, i) => {
+      const n = primera + i;
+      const g = document.createElement('div');
+      /* División mayor cada cinco líneas, contando por el número REAL de
+         línea y no por la posición dentro del fragmento: si no, la
+         graduación diría una cosa y los números otra. */
+      g.className = 'g' + (n % 5 === 0 ? ' mayor' : '');
+      g.innerHTML = '<i class="dif"><i></i></i>' +
+                    '<span class="num">' + n + '</span>' +
+                    '<i class="tick"></i>';
+      canal.appendChild(g);
+
+      const lc = document.createElement('div');
+      lc.className = 'lc' + (l.marca === '-' ? ' retirada' : '');
+      lc.innerHTML = '<span class="txt"></span>';
+      elCod.appendChild(lc);
+
+      l.fila = g;
+      l.num = g.querySelector('.num');
+      l.tick = g.querySelector('.tick');
+      l.barra = g.querySelector('.dif > i');
+      l.txt = lc.querySelector('.txt');
+      l.nodo = lc;
+
+      /* Los dos acentos, y no el verde y el rojo de un diff de terminal:
+         `_tokens.css` ya fija que el cálido es lo principal y el frío lo
+         comparado. Lo retirado no lleva acento — no está, así que no puede
+         reclamar atención. */
+      l.barra.style.background = l.marca === '+' ? 'var(--accent)'
+                              : l.marca === '~' ? 'var(--accent-2)'
+                              : l.marca === '-' ? 'var(--ink-ghost)' : 'transparent';
+    });
+
+    /* Las tres cuentas por separado. Juntar `~` con `-` en un mismo número
+       —como hacía la primera versión de este pie— dice «~2» cuando lo que
+       hay es una línea tocada y otra quitada, que no es lo mismo: el pie
+       tiene que poder leerse sin mirar el margen. */
+    const cuenta = m => lineas.filter(l => l.marca === m).length;
+    const mas = cuenta('+'), mod = cuenta('~'), men = cuenta('-');
+    elMas.textContent = mas ? '+' + mas : '';
+    elMod.textContent = [mod ? '~' + mod : '', men ? '-' + men : '']
+      .filter(Boolean).join(' ');
+
+    /* Un `tecleo` por LÍNEA terminada, no por carácter: a `cps` pulsaciones
+       por segundo una línea de cuarenta caracteres serían cuarenta señales
+       en segundo y medio, o sea un zumbido.
+
+       Y con TOPE DE SEIS, que es lo que manda la norma de sonido y esto
+       incumplía en silencio: con diez líneas emitía diez señales. Cuando
+       sobran, se reparten en índices equiespaciados en vez de cortar por la
+       sexta, que dejaría la segunda mitad muda. */
+    const _cues = lineas.map(l => ({ at: +l.fin.toFixed(3), sfx: 'tecleo', gain: 0.85 }));
+    const TOPE = 6;
+    const cues = _cues.length <= TOPE ? _cues
+      : Array.from({ length: TOPE }, (_, k) =>
+          _cues[Math.round(k * (_cues.length - 1) / (TOPE - 1))]);
+
+    /* Ajuste automático al ancho.
+       Con `white-space: pre` una línea larga se sale de la placa y se corta
+       sin avisar. OJO con cómo se mide: scrollWidth NO sirve aquí — en un
+       hijo de grid con overflow visible devuelve el ancho de la caja, igual
+       para todas las líneas. Hay que medir con un span absoluto, fuera del
+       flujo, que sí se dimensiona a su contenido.
+
+       El resultado se escribe como FACTOR (`--fit`) y no como `fontSize` en
+       píxeles: así el tamaño sigue derivando de `--t-md` y el ajuste es lo
+       que dice ser, una reducción, en vez de un número suelto que se salta
+       la escala. */
+    cuerpo.style.setProperty('--fit', '1');
+    const cs = getComputedStyle(elCod);
+    const disponible = elCod.clientWidth - parseFloat(cs.paddingLeft);
+    const tokenPx = parseFloat(cs.fontSize) || 27;
+
+    const regla = document.createElement('span');
+    regla.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;' +
+                          'left:-9999px;top:0;';
+    regla.style.font = cs.font;
+    elCod.appendChild(regla);
+    const base = cfg.tam ? Number(cfg.tam) : tokenPx;   // `tam` sigue valiendo
+    regla.style.fontSize = base + 'px';
+    regla.textContent = lineas.reduce((a, l) => l.src.length > a.length ? l.src : a, '');
+    const anchoBase = regla.getBoundingClientRect().width;
+    regla.remove();
+
+    let fit = base / tokenPx;
+    if (anchoBase > disponible && anchoBase > 0) {
+      fit = Math.max(0.5, fit * disponible / anchoBase);
+      console.warn('code-mockup: cuerpo al ' + (fit * 100).toFixed(0) +
+                   ' % para que quepa la línea más larga');
+    }
+    cuerpo.style.setProperty('--fit', fit.toFixed(4));
+
+    return { cues: cfg.sinSonido ? [] : cues };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 7;
+    const ap = Engine.entra(t, cfg.entrada);
+    const cierre = Engine.sale(t, fin, cfg.salida);
+
+    /* §10 pide flotación de reposo, y esta plantilla era una de las que se
+       quedaban congeladas: cuando el tecleado termina —a 4,7 s de los 8 de
+       la ficha— no se movía ni un píxel hasta la salida. La placa deriva
+       COMO UN BLOQUE, y los dos rótulos con su propio periodo: hacer flotar
+       cada línea de código por separado rompería la retícula monoespaciada,
+       que es justo lo que hace que esto se lea como código. */
+    const f = Engine.flota(t, 0, { amp: 2.6, periodo: 8.2, semilla: 5 });
+    plato.style.opacity = ap * cierre;
+    const esc = (cfg.escala || 1) * (0.985 + 0.015 * ap);
+    plato.style.transform =
+      `translate(${f.x.toFixed(2)}px, ${((1 - ap) * 14 + f.y).toFixed(2)}px) scale(${esc})`;
+
+    const fr = Engine.flota(t, 1, { amp: 1.6, periodo: 6.1, semilla: 5 });
+    elRama.style.transform = `translate(${fr.x.toFixed(2)}px, ${fr.y.toFixed(2)}px)`;
+    const fp = Engine.flota(t, 2, { amp: 1.4, periodo: 7.3, semilla: 5 });
+    elLect.style.transform = `translate(${fp.x.toFixed(2)}px, ${fp.y.toFixed(2)}px)`;
+
+    /* La veta del canto, muy lenta. No es un barrido de luz —eso es lo que
+       §1 prohíbe—: es el reflejo de una lámina de metal cambiando con el
+       ángulo, en 2 px de ancho y con periodo de 9,3 s. */
+    rail.style.backgroundPosition =
+      '0 ' + (50 + 50 * Math.sin(2 * Math.PI * t / 9.3)).toFixed(2) + '%';
+
+    const ultima = lineas.length - 1;
+    let escritos = 0, totales = 0, pos = 0, arrancado = false;
+
+    lineas.forEach((l, i) => {
+      const visible = typed(l.src, t, l.ini, cfg.cps);
+      escritos += visible.length;
+      totales += l.src.length;
+
+      /* `act` vale 1 mientras se escribe la línea y baja a 0 en los 0,45 s
+         siguientes. Es función pura de `t`: nada se acumula entre
+         fotogramas, así que un salto a un instante suelto —que es como
+         captura Playwright— da el mismo píxel que llegar hasta ahí. */
+      const act = t < l.ini ? 0 : clamp(1 - (t - l.fin) / 0.45, 0, 1);
+      const escribiendo = t >= l.ini && visible.length < l.src.length;
+      const parado = i === ultima && t >= l.fin;
+
+      /* El cursor respira cuando ya no escribe: entre 0,55 y 1 con periodo
+         de 2,6 s. Es lo poco que queda vivo en la cola de la capa, junto a
+         la veta y la flotación. */
+      const op = parado ? (0.775 + 0.225 * Math.cos(2 * Math.PI * t / 2.6)) : 1;
+      const cursor = (escribiendo || parado)
+        ? '<i class="caret" style="opacity:' + op.toFixed(3) + '"></i>' : '';
+      l.txt.innerHTML = pintar(visible) + cursor;
+
+      /* El énfasis de la línea viva: +120 puntos de peso sobre el que ya
+         tiene cada tipo de token, sin tocar su color. Un salto de peso es
+         la jerarquía que pide §1; encender el color sería la que prohíbe. */
+      l.nodo.style.setProperty('--wb', Math.round(120 * act));
+
+      /* El número y su trazo son la LECTURA de la regla: el activo se pone
+         de pie y toma el bronce, y el trazo menor crece hasta la medida del
+         mayor. Se interpola en oklab porque entre dos acentos el sRGB pasa
+         por un gris barro. */
+      const suelo = l.fila.classList.contains('mayor') ? 500 : 260;
+      const tinta = l.fila.classList.contains('mayor') ? 'var(--ink-soft)'
+                                                       : 'var(--ink-faint)';
+      Engine.peso(l.num, Math.round(suelo + 240 * act));
+      l.num.style.color =
+        `color-mix(in oklab, var(--accent) ${(act * 100).toFixed(0)}%, ${tinta})`;
+      if (!l.fila.classList.contains('mayor')) {
+        l.tick.style.width = (7 + 8 * act).toFixed(1) + 'px';
+      }
+      l.tick.style.backgroundColor =
+        `color-mix(in oklab, var(--accent) ${(act * 70).toFixed(0)}%, ${tinta})`;
+
+      /* La marca de cambio se estampa cuando la línea aterriza: crece desde
+         el centro en 0,22 s con `outBack6`, el sobrepaso del 6 % que es lo
+         máximo que permite §10. */
+      const sello = span(t, l.ini, 0.22, Ease.outBack6);
+      l.barra.style.transform = `scaleY(${(t >= l.ini ? sello : 0).toFixed(3)})`;
+
+      if (t >= l.ini) {
+        arrancado = true;
+        /* El índice baja durante la PAUSA entre líneas, con `inOutCubic`:
+           un cabezal que avanza arranca despacio y frena despacio. Con
+           `outCubic` saldría disparado en el primer fotograma del hueco y
+           parecería un salto. */
+        pos = i + (i < ultima ? span(t, l.fin, PAUSA, Ease.inOutCubic) : 0);
+      }
+    });
+
+    indice.style.setProperty('--fila', pos.toFixed(4));
+    indice.style.opacity = arrancado ? '1' : '0';
+
+    /* La lectura del pie: bytes escritos sobre el total. Cuenta como cuenta
+       una máquina, con cifras tabulares y ancho fijo, y sustituye a la barra
+       de progreso con porcentaje — que es el mismo objeto que dibuja
+       cualquier instalador. El progreso ya lo dice la regla. */
+    const anchoCifra = String(totales).length;
+    elBytes.textContent = String(escritos).padStart(anchoCifra, '0') +
+                          '/' + totales + ' B';
+  }
+});
+</script>
+</body>
+</html>

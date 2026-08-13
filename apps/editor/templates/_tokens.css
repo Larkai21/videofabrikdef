@@ -1,0 +1,740 @@
+/* =====================================================================
+   SISTEMA DE DISEÑO — tokens compartidos
+   ---------------------------------------------------------------------
+   Tres capas, y el orden importa:
+
+     1. SEMÁNTICOS   cambian con el tema. Nombran el ROL, no el color:
+                     --ink, no --ivory. Un token que se llama como su
+                     color deja de tener sentido en cuanto hay dos temas.
+     2. INVARIANTES  iguales en todos los temas: escala tipográfica,
+                     espaciado, radios y lenguaje de movimiento.
+     3. TEMAS        :root[data-tema="..."] redefine SOLO la capa 1.
+
+   El tema lo pone _engine.js en <html data-tema>, así que ninguna
+   plantilla necesita saber nada del asunto.
+
+   REGLA: prohibido escribir un HEX dentro de una plantilla. Si un color
+   no tiene token, se añade aquí. Es lo que impedía tener temas.
+   ===================================================================== */
+
+:root {
+  /* --- VELOS DE TRANSICIÓN -------------------------------------------
+     Una hoja que tapa la pantalla es un objeto físico, no texto: su
+     trabajo es cubrir. Antes usaba `--ink`, y en tema oscuro la tinta es
+     casi blanca — un corte a "negro" salía como un fogonazo blanco. Estos
+     dos valores son fijos en los dos temas, a propósito. */
+  --velo-oscuro: #16161A;
+  --velo-claro:  #F7F3EC;
+
+  /* ---------- 2 · INVARIANTES ---------- */
+
+  /* ---------- escala tipográfica (lienzo 1080x1920) ----------
+     DOS escalas y no una, con una costura declarada entre ellas.
+
+     Los ratios de la lista anterior eran 1,158 · 1,182 · 1,269 · 1,394 ·
+     1,348 · 1,290 · 1,250 · 2,100. No es ruido: son dos escalas distintas
+     entrelazadas mal. Los pasos bajos iban a ~1,2 y los altos a ~1,3, porque
+     resuelven dos problemas que no son el mismo:
+
+       · los tamaños de TEXTO conviven en la misma caja —un rótulo de 19 junto
+         a un cuerpo de 26—, así que necesitan pasos finos o el salto grita;
+       · los de DISPLAY viven solos y su trabajo es ser inconfundibles, así que
+         necesitan pasos grandes.
+
+     Una sola razón no puede servir a las dos, y forzarla es exactamente lo que
+     produjo la lista de antes. Se anclan en los dos valores más usados hoy —19
+     px con 22 usos y 46 px con 5— para que migrar cueste casi nada: NINGÚN
+     token se mueve más de 2 px salvo `--t-mega`, que tenía un solo uso. */
+
+  /* texto · razón 1,2 desde 19px */
+  --t-2xs:  16px;   /* 15,8 · unidad, pie de nota, sello */
+  --t-xs:   19px;   /* 19,0 · rótulo mono, etiqueta        (sin cambio) */
+  --t-sm:   23px;   /* 22,8 · cuerpo secundario            (era 22) */
+  --t-md:   27px;   /* 27,4 · cuerpo                       (era 26) */
+  --t-lg:   33px;   /* 32,8 · entradilla                   (sin cambio) */
+
+  /* La COSTURA: 33 -> 46 es 1,394, y es deliberada. Separa lo que se lee de
+     lo que se mira. */
+
+  /* display · razón 1,333 desde 46px */
+  --t-xl:    46px;  /*  46,0 · titular corto               (sin cambio) */
+  --t-2xl:   61px;  /*  61,3 · titular                     (era 62) */
+  --t-3xl:   82px;  /*  81,8 · titular a plena página      (era 80) */
+  --t-hero: 109px;  /* 109,0 · cifra protagonista          (era 100) */
+  --t-mega: 145px;  /* 145,4 · cifra que ocupa el plano    (era 210) */
+  --t-titan:194px;  /* 193,8 · el número de chapter-card   (nuevo) */
+
+  /* ---------- tracking ----------
+     El tracking NO es una preferencia: es una corrección óptica. Cuanto mayor
+     el cuerpo, más sobra el aire entre letras, y al revés. Había TREINTA valores
+     distintos de `letter-spacing` en el catálogo y ni un token — y no era
+     indisciplina: era que cada plantilla re-derivaba A OJO esta misma curva.
+     Se publica la curva y se acaban las aproximaciones. */
+  --tr-titan:      -0.045em;  /* >= 145px */
+  --tr-hero:       -0.03em;   /* 82-144  */
+  --tr-display:    -0.02em;   /* 46-81   */
+  --tr-texto:      -0.01em;   /* 27-45   */
+  --tr-cuerpo:      0;        /* 16-26   */
+  --tr-caps:        0.14em;   /* caja alta y mono: necesitan aire */
+  --tr-caps-ancho:  0.24em;   /* etiqueta de una o dos palabras, como sello */
+
+  /* ---------- pesos ----------
+     El peso pasa de adorno a ser LA jerarquía. Hoy 800 aparece 41 veces, 700
+     dieciséis, 600 doce, 500 nueve, 900 dos y 400 dos — y ni un solo 300 o 200,
+     con Geist Light y Thin instaladas. Es un sistema con un solo escalón.
+
+     La regla que esto habilita, y que es la respuesta a §1 cuando dice que se
+     destaca «con contraste y peso tipográfico, nunca con luz»:
+
+       Un titular consigue su jerarquía DENTRO DE LA LÍNEA, con un salto de al
+       menos 400 puntos de peso o un cambio a `--editorial` en cursiva sobre
+       una o dos palabras. NUNCA subiendo el cuerpo ni encendiendo un color.
+       `--display` a 800 en toda la línea no es jerarquía: es volumen. */
+  --w-fino:   200;  /* dato de fondo, unidad, valor pendiente */
+  --w-claro:  300;  /* la mitad callada de un contraste en la misma línea */
+  --w-libro:  400;  /* cuerpo, y el peso natural de --editorial */
+  --w-medio:  500;  /* mono de datos */
+  --w-fuerte: 700;  /* la palabra que carga */
+  --w-negro:  800;  /* titular */
+  --w-solido: 900;  /* la cifra, y solo la cifra */
+
+  /* espaciado */
+  --s-1:  6px;
+  --s-2: 10px;
+  --s-3: 14px;
+  --s-4: 18px;
+  --s-5: 26px;
+  --s-6: 34px;
+  --s-7: 48px;
+  --s-8: 64px;
+
+  /* Ángulo del cepillado. Es un TOKEN y no una constante: el metal cepillado
+     real cambia con el ángulo de visión, y un degradado clavado en 115° es
+     una calcomanía. Vive aquí, dentro de `:root`, y no suelto en la hoja —
+     una declaración de custom property fuera de un selector es CSS inválido y
+     el navegador la descarta ENTERA, arrastrando consigo cualquier
+     `linear-gradient(var(--metal-ang), …)` que la use. Se descubrió porque las
+     hojas de bronce salían con `background-image: none`. */
+  --metal-ang: 115deg;
+
+  /* geometría */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+  --hairline: 1px;
+
+  /* lenguaje de movimiento: un solo ritmo para todo el sistema.
+     Las plantillas lo consumen desde JS vía Engine, no por CSS. */
+  --dur-entrada: 0.42s;
+  --dur-salida:  0.35s;
+
+  /* ---------- 1 · SEMÁNTICOS (valores del tema por defecto) ---------- */
+  /* carbon es el defecto para no romper lo ya montado */
+  --bg:          #16161A;
+  --surface:     #1F1F24;
+  --surface-2:   #191920;
+  --chrome:      #1C1C22;
+  --chrome-2:    #26262E;
+  --chrome-3:    #121216;
+
+  --ink:         #EDE8DF;
+  --ink-soft:    #9E9A92;
+  --ink-faint:   #6A665F;
+  --ink-ghost:   #443F3A;
+
+  --rule:        #2E2C30;
+  --stroke:      rgba(237, 232, 223, 0.11);
+  --grid:        #1E1E22;
+
+  --accent:      #6FA0D6;
+  /* Cardenillo: el bronce oxidado. Es el SEGUNDO acento de carbon y antes era
+     #B87333, un cobre a ΔE 9,2 del bronce — o sea el mismo color otra vez. Todo
+     componente que usara `--accent-2` para DIFERENCIAR algo perdía esa función
+     en tema oscuro: el foco del mapa de calor, la comparativa A/B, los números
+     de tabla, las líneas `ok` del terminal y las anotaciones `frio`.
+     Medido, frente al bronce #CD7F32:
+       ΔE 9,2 -> 73,7            (paper llega a 97,2: ahora los dos diferencian)
+       saturación 0,57 -> 0,33   (el bronce es 0,61, así que este RECEDE)
+       contraste 4,9 -> 5,7:1    (sobre #121212; 5,0:1 sobre el grafito)
+       peso -1,1 -> -0,3         (respecto a los 6,0:1 del bronce)
+     Los dos últimos números son los que descartaron las alternativas: el verde
+     de paper tal cual se queda en 3,4:1 y no llega al 4,5 que necesita el
+     texto, y los tonos más claros salen MÁS brillantes que el propio bronce,
+     que es justo lo que un segundo acento no debe hacer.
+     Y no es un color importado: es lo que le pasa al bronce con el tiempo, así
+     que sigue dentro del material de §1. Su matiz (171°) coincide con el del
+     acento-2 de paper (175°), de modo que los dos temas significan lo mismo:
+     acento cálido, acento-2 frío. Ojo: `--metal-2` sigue siendo #B87333 porque
+     es un stop del degradado metálico, no un acento. */
+  --accent-2:    #C97068;
+
+  /* ---------- señal ----------
+     Verde de correcto y rojo de fallo. NO son colores de marca y no cambian
+     con ella: un visto verde y un choque rojo significan lo que significan en
+     cualquier paleta, y volverlos bronce sería quitarles el sentido para ganar
+     coherencia. Existen como tokens —y no a pelo dentro de cinco plantillas—
+     para que se puedan ajustar de una vez si algún día chirrían contra el
+     fondo, que es distinto de poder cambiarlos de significado. */
+  --senal-ok: #3DD68C;
+  --senal-no: #E5484D;
+  --accent-soft: rgba(111, 160, 214, 0.13);
+  --accent-line: rgba(111, 160, 214, 0.44);
+
+  /* stops del acabado metálico: en tema plano se colapsan al acento */
+  --metal-1: #2E5C86;
+  --metal-2: #4A7FB0;
+  --metal-3: #9BC2E4;
+  --metal-4: #6FA0D6;
+  --metal-5: #27506E;
+
+  /* resaltado de sintaxis */
+  --syn-kw:  #6FA0D6;
+  --syn-fn:  #C9D8E4;
+  --syn-str: #A8B0A0;
+  --syn-num: #C97068;
+  --syn-com: #6A665F;
+
+  /* semáforo de la barra de ventana, apagado a propósito */
+  --luz-1: #3C4A5E;
+  --luz-2: #5E5240;
+  --luz-3: #3F5A46;
+
+  /* Tintas de rotulador. CINCO y no una, porque una frase con tres marcas
+     del mismo color se lee como un solo bloque: el rotulador sirve para
+     JERARQUIZAR y con un color no puede. Salen de la paleta —bronce,
+     cardenillo y los tres del semáforo— así que hay variedad sin salirse ni un
+     grado de §1.
+
+     Antes era un `#E9C46A` escrito a pelo dentro de la plantilla, que además
+     no estaba en ninguna paleta: un color huérfano, y una infracción de la
+     regla de §7 que prohíbe los HEX dentro de una plantilla. */
+  --rotu-1: rgba(111, 160, 214, 0.50);   /* bronce      · lo principal */
+  --rotu-2: rgba(201, 112, 104, 0.46);   /* cardenillo  · lo comparado */
+  --rotu-3: rgba(201, 162, 39, 0.46);    /* ámbar       · la advertencia */
+  --rotu-4: rgba(140, 90, 84, 0.56);    /* rojo apagado· lo que falla */
+  --rotu-5: rgba(71, 120, 90, 0.52);     /* verde       · lo que funciona */
+  /* Cómo se mezcla el trazo con el texto. `multiply` es correcto sobre papel
+     y está MAL en carbón: sobre fondo oscuro multiplicar OSCURECE el texto, o
+     sea que el rotulador lo borra en vez de resaltarlo. */
+  --rotu-mezcla: screen;
+
+  --pista:  #26262E;   /* canal de las barras de progreso */
+  --sombra: rgba(0, 0, 0, 0.55);
+  --vineta: rgba(0, 0, 0, 0.55);   /* hundido de bordes en el fondo */
+  --scrim:  rgba(22, 22, 26, 0.82);   /* halo de legibilidad tras el texto */
+
+  /* Sobre superficie clara el texto va en tinta y sobre oscura en marfil.
+     Lo usan los overlays que llevan relleno sólido. */
+  --sobre-relleno: #EDE8DF;
+
+  /* ---------- roles tipográficos ----------
+     CUATRO roles, no tres familias. El nombre dice QUÉ HACE el texto, no qué
+     fuente lleva: es la misma razón por la que `--ink` no se llama `--marfil`.
+
+       --display    AFIRMA.  Titular, cifra, la palabra que carga el plano.
+       --editorial  MATIZA.  Cita, nombre propio, la voz que entra en cursiva
+                             dentro de un titular.
+       --subs       NARRA.   Cuerpo, descripción, subtítulo. Se lee, no se mira.
+       --mono       MIDE.    Dato, ruta, código, unidad, tiempo.
+
+     El contraste de VOZ lo da el par display/editorial: una grotesca
+     geométrica contra una didone de alto contraste. Es la única pareja que §1
+     permite —«contraste y peso tipográfico, nunca luz»— y **ya estaba
+     instalada sin que nadie lo supiera**: Playfair Display es variable
+     (400-900) y tenía CERO usos en las 56 plantillas.
+
+     `--display` es el mismo en los dos temas a propósito. Antes `paper` lo
+     conmutaba a Instrument Serif, así que los dos temas hablaban con bocas
+     distintas; §7 ya establece que «el tema redefine solo la capa semántica»,
+     o sea el color, y una familia no es color: es voz. Un titular debe DECIR
+     lo mismo en los dos temas y solo cambiar de tinta. Instrument Serif se
+     queda como respaldo declarado de `--editorial`, que es su sitio honesto:
+     es estática, un solo peso, así que no puede participar en el sistema de
+     pesos de arriba — y un rol que no participa en el sistema no es un rol,
+     es una excepción. */
+  --display:   "Plus Jakarta Sans", "Geist", Inter, system-ui, sans-serif;
+  --editorial: "Playfair Display", "Instrument Serif", Georgia, serif;
+  --subs:      "Geist", Inter, "SF Pro Text", system-ui, sans-serif;
+  --mono:      "Geist Mono", "JetBrains Mono", "SF Mono", Menlo, monospace;
+}
+
+
+/* =====================================================================
+   3 · TEMAS
+   ===================================================================== */
+
+/* ---------- CARBON & BRONZE ---------- */
+/* Explícito además de por defecto, para poder pedirlo por nombre. */
+:root[data-tema="carbon"] {
+  --bg:          #16161A;
+  --surface:     #1F1F24;
+  --surface-2:   #191920;
+  --chrome:      #1C1C22;
+  --chrome-2:    #26262E;
+  --chrome-3:    #121216;
+
+  --ink:         #EDE8DF;
+  --ink-soft:    #9E9A92;
+  --ink-faint:   #6A665F;
+  --ink-ghost:   #443F3A;
+
+  --rule:        #2E2C30;
+  --stroke:      rgba(237, 232, 223, 0.11);
+  --grid:        #1E1E22;
+
+  --accent:      #6FA0D6;
+  /* Cardenillo: el bronce oxidado. Es el SEGUNDO acento de carbon y antes era
+     #B87333, un cobre a ΔE 9,2 del bronce — o sea el mismo color otra vez. Todo
+     componente que usara `--accent-2` para DIFERENCIAR algo perdía esa función
+     en tema oscuro: el foco del mapa de calor, la comparativa A/B, los números
+     de tabla, las líneas `ok` del terminal y las anotaciones `frio`.
+     Medido, frente al bronce #CD7F32:
+       ΔE 9,2 -> 73,7            (paper llega a 97,2: ahora los dos diferencian)
+       saturación 0,57 -> 0,33   (el bronce es 0,61, así que este RECEDE)
+       contraste 4,9 -> 5,7:1    (sobre #121212; 5,0:1 sobre el grafito)
+       peso -1,1 -> -0,3         (respecto a los 6,0:1 del bronce)
+     Los dos últimos números son los que descartaron las alternativas: el verde
+     de paper tal cual se queda en 3,4:1 y no llega al 4,5 que necesita el
+     texto, y los tonos más claros salen MÁS brillantes que el propio bronce,
+     que es justo lo que un segundo acento no debe hacer.
+     Y no es un color importado: es lo que le pasa al bronce con el tiempo, así
+     que sigue dentro del material de §1. Su matiz (171°) coincide con el del
+     acento-2 de paper (175°), de modo que los dos temas significan lo mismo:
+     acento cálido, acento-2 frío. Ojo: `--metal-2` sigue siendo #B87333 porque
+     es un stop del degradado metálico, no un acento. */
+  --accent-2:    #C97068;
+
+  /* ---------- señal ----------
+     Verde de correcto y rojo de fallo. NO son colores de marca y no cambian
+     con ella: un visto verde y un choque rojo significan lo que significan en
+     cualquier paleta, y volverlos bronce sería quitarles el sentido para ganar
+     coherencia. Existen como tokens —y no a pelo dentro de cinco plantillas—
+     para que se puedan ajustar de una vez si algún día chirrían contra el
+     fondo, que es distinto de poder cambiarlos de significado. */
+  --senal-ok: #3DD68C;
+  --senal-no: #E5484D;
+  --accent-soft: rgba(111, 160, 214, 0.13);
+  --accent-line: rgba(111, 160, 214, 0.44);
+
+  --metal-1: #2E5C86;  --metal-2: #4A7FB0;  --metal-3: #9BC2E4;
+  --metal-4: #6FA0D6;  --metal-5: #27506E;
+
+  --syn-kw: #6FA0D6;  --syn-fn: #C9D8E4;  --syn-str: #A8B0A0;
+  --syn-num: #C97068; --syn-com: #6A665F;
+
+  --luz-1: #3C4A5E; --luz-2: #5E5240; --luz-3: #3F5A46;
+  --pista: #26262E;
+  --sombra: rgba(0, 0, 0, 0.55);
+  --vineta: rgba(0, 0, 0, 0.55);
+  --scrim:  rgba(22, 22, 26, 0.82);
+  --sobre-relleno: #EDE8DF;
+
+  --display:   "Plus Jakarta Sans", "Geist", Inter, system-ui, sans-serif;
+  --editorial: "Playfair Display", "Instrument Serif", Georgia, serif;
+  --subs:      "Geist", Inter, "SF Pro Text", system-ui, sans-serif;
+  --mono:      "Geist Mono", "JetBrains Mono", "SF Mono", Menlo, monospace;
+}
+
+
+/* ---------- PAPER & INK ---------- */
+/* Papel cálido, tinta y naranja quemado. Registro editorial: titulares en
+   serif de alto contraste, interfaz neutra. */
+:root[data-tema="paper"] {
+  --bg:          #EDE8DF;
+  --surface:     #F7F3EC;
+  --surface-2:   #E3DCD0;
+  --chrome:      #E7E0D4;
+  --chrome-2:    #D6CCBC;
+  --chrome-3:    #BFB3A0;
+
+  --ink:         #16161A;
+  --ink-soft:    #4A4650;
+  --ink-faint:   #8A8478;
+  --ink-ghost:   #BEB6A8;
+
+  --rule:        #CFC6B7;
+  --stroke:      rgba(22, 22, 26, 0.16);
+  --grid:        #E3DCD0;
+
+  --accent:      #1F4E79;
+  --accent-2:    #8A3A32;
+
+  /* ---------- señal ----------
+     Verde de correcto y rojo de fallo. NO son colores de marca y no cambian
+     con ella: un visto verde y un choque rojo significan lo que significan en
+     cualquier paleta, y volverlos bronce sería quitarles el sentido para ganar
+     coherencia. Existen como tokens —y no a pelo dentro de cinco plantillas—
+     para que se puedan ajustar de una vez si algún día chirrían contra el
+     fondo, que es distinto de poder cambiarlos de significado. */
+  --senal-ok: #256B43;
+  --senal-no: #C0261F;
+  --accent-soft: rgba(31, 78, 121, 0.11);
+  --accent-line: rgba(31, 78, 121, 0.40);
+
+  /* Sin metal: en claro un degradado de bronce sobre papel se ve sucio,
+     no metálico. Los cinco stops se colapsan al acento para que
+     .brushed-text siga funcionando pero devuelva color plano. */
+  --metal-1: #153A5C;  --metal-2: #1F4E79;  --metal-3: #5A8AB8;
+  --metal-4: #2C6394;  --metal-5: #153A5C;
+
+  --syn-kw:  #1F4E79;
+  --syn-fn:  #8A3A32;
+  --syn-str: #256B43;
+  --syn-num: #8A3A32;
+  --syn-com: #8A8478;
+
+  --luz-1: #C8D6E4; --luz-2: #E4D8C0; --luz-3: #C6DCC8;
+  --pista: #DDD5C7;
+  --sombra: rgba(48, 40, 28, 0.20);
+  /* En claro la viñeta va cálida y suave: una viñeta negra sobre papel
+     se lee como suciedad. Y el scrim del texto es CLARO, porque lo que
+     hay que separar del metraje es tinta oscura, no marfil. */
+  --vineta: rgba(48, 40, 28, 0.10);
+  --scrim:  rgba(247, 243, 236, 0.86);
+
+  /* los overlays de relleno sólido llevan tinta, no marfil */
+  --sobre-relleno: #F7F3EC;
+
+  /* Sobre papel el rotulador SÍ multiplica: es lo que hace un fieltro
+     sobre una hoja. En carbón sería borrar el texto. */
+  --rotu-mezcla: multiply;
+  --rotu-1: rgba(31, 78, 121, 0.26);
+  --rotu-2: rgba(138, 58, 50, 0.24);
+  --rotu-3: rgba(201, 162, 39, 0.30);
+  --rotu-4: rgba(120, 60, 50, 0.22);
+  --rotu-5: rgba(37, 107, 67, 0.24);
+
+  /* `paper` NO conmuta la familia de display, y es un cambio deliberado.
+     Antes ponía Instrument Serif aquí, así que los dos temas hablaban con
+     bocas distintas: el mismo titular decía una cosa en carbón y otra en
+     papel. §7 ya establece que el tema redefine solo la capa SEMÁNTICA —el
+     color—, y una familia no es color: es voz.
+     El serif sigue estando, en `--editorial`, que es donde tiene trabajo. */
+}
+
+
+/* =====================================================================
+   BASE
+   ===================================================================== */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  /* El cuerpo SIGUE al lienzo. Antes estaba fijado a 1080x1920, así que
+     cualquier plantilla que midiera contra él se descolocaba al renderizar
+     en 16:9: el sistema decía soportar varios formatos y en realidad tenía
+     el vertical escrito en el CSS. */
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: transparent;      /* alpha real: lo exige omitBackground */
+  font-family: var(--display);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+/* Rejilla técnica. Solo para plantillas con superficie propia; los
+   overlays puros (PIP, karaoke, pills) NO deben usarla. */
+.grid-bg {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.5;
+  mask-image: radial-gradient(ellipse at 50% 38%, #000 32%, transparent 80%);
+}
+
+/* Acabado metálico. En tema claro los stops son idénticos, así que
+   devuelve color plano sin necesidad de cambiar el marcado. */
+/* ======================================================================
+   EL METAL EN SUS CUATRO FORMAS
+   ----------------------------------------------------------------------
+   §2 dice, sin rodeos: «El bronce nunca es un plano naranja. Usa `.brushed` /
+   `.brushed-text`, que aplican el gradiente diagonal que lo hace leer como
+   metal.» Medido: se cumplía **2 veces de 108**, y las dos en el mismo fichero.
+
+   La causa no era desobediencia. `.brushed` es una clase de `background-image`,
+   así que solo funciona donde el color va de FONDO. Un filete de 1 px, un
+   `stroke` de SVG o un color de texto no pueden usarla — y el 80 % del bronce
+   del catálogo son filetes y trazos. La norma pedía metal y solo entregaba una
+   de las cuatro formas en que el metal aparece en pantalla. Aquí están las
+   otras tres.
+
+   El ÁNGULO es un token y no una constante: el metal cepillado real cambia con
+   el ángulo de visión, y un degradado clavado en 115° es una calcomanía.
+   ====================================================================== */
+
+/* 1 · RELLENO */
+.brushed {
+  background-image: linear-gradient(
+    var(--metal-ang), var(--metal-1) 0%, var(--metal-2) 22%, var(--metal-3) 46%,
+    var(--metal-4) 62%, var(--metal-5) 88%);
+}
+
+/* 3 · FILETE.
+   No se usa `border-image`: no respeta `border-radius`, y aquí todas las
+   tarjetas son redondeadas. El truco correcto es un envoltorio con el
+   degradado, 1 px de relleno, y el hijo con el color de superficie encima. */
+.filete-metal {
+  background-image: linear-gradient(
+    var(--metal-ang), var(--metal-1) 0%, var(--metal-3) 45%,
+    var(--metal-4) 70%, var(--metal-5) 100%);
+  padding: var(--hairline);
+  border-radius: inherit;
+}
+.filete-metal > * {
+  background: var(--surface);
+  border-radius: inherit;
+}
+
+/* 4 · TRAZO SVG.
+   Un `<linearGradient>` no puede ser una variable CSS, así que se INYECTA:
+   `Engine.gradienteMetal(svg)` lee los cinco stops del tema activo y escribe
+   los `<defs>`. Con eso los conectores, los anillos y los checks pueden hacer
+   `stroke="url(#metal)"`, que desbloquea el metal en las ocho plantillas de
+   trazo de golpe. La clase de abajo es solo el respaldo cuando no hay JS. */
+.trazo-metal { stroke: var(--metal-4); }
+.brushed-text {
+  background-image: linear-gradient(
+    var(--metal-ang), var(--metal-1) 0%, var(--metal-4) 34%, var(--metal-3) 55%,
+    var(--metal-2) 78%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ---------- textura ----------
+   Solo 3 de 56 plantillas tenían grano o trama. Las otras 53 son planos de
+   color con un filete de 1 px, que es la firma visual de una demo de CSS —
+   grano más filete es la de un objeto impreso. No son sobrias: son planas, y
+   sobrio y plano no son lo mismo.
+
+   El grano se aplica desde JS (`Engine.grano`) porque la teja se rasteriza en
+   un canvas. La TRAMA sí es CSS pura: un rayado de mecanizado de 1 px cada 3,
+   que `security-pipeline-nodes` ya hacía a mano. */
+.trama {
+  background-image: repeating-linear-gradient(
+    var(--metal-ang), transparent 0 2px, var(--stroke) 2px 3px);
+  background-blend-mode: overlay;
+}
+/* Densidad por dato: sirve para codificar un valor DOS veces —tono y trama—,
+   de modo que un gráfico se lea también en escala de grises. */
+.trama[data-densidad="alta"] {
+  background-image: repeating-linear-gradient(
+    var(--metal-ang), transparent 0 1px, var(--stroke) 1px 2px);
+}
+.trama[data-densidad="baja"] {
+  background-image: repeating-linear-gradient(
+    var(--metal-ang), transparent 0 4px, var(--stroke) 4px 5px);
+}
+
+.mono { font-family: var(--mono); }
+.tnum { font-variant-numeric: tabular-nums; }
+
+.edge-accent { border: var(--hairline) solid var(--accent); }
+.lift        { box-shadow: 0 18px 48px var(--sombra); }
+.lift-soft   { box-shadow: 0 10px 28px var(--sombra); }
+
+/* Relleno sólido para texto sobre metraje arbitrario.
+   En claro, texto claro sobre imagen clara desaparece: la legibilidad la
+   da el relleno opaco, no el borde ni la sombra. */
+.chip {
+  background: var(--surface);
+  color: var(--sobre-relleno);
+  border: var(--hairline) solid var(--stroke);
+}
+
+
+/* =====================================================================
+   LIQUID GLASS
+   ---------------------------------------------------------------------
+   El efecto NO se puede hacer solo con backdrop-filter: al capturar con
+   omitBackground no hay píxeles detrás que muestrear y el cristal sale
+   como una pastilla gris muerta. Comprobado.
+
+   Por eso la refracción se delega a ffmpeg y la plantilla emite DOS
+   pasadas de la misma composición:
+
+     data-modo="detalle"  brillos, borde, reflejo y contenido
+     data-modo="mascara"  la silueta en blanco, nada más
+
+   ffmpeg difumina el metraje, lo recorta con la silueta y le pone el
+   detalle encima. El "fondo" que refracta pasa a ser el vídeo real, que
+   es mejor que los blobs sintéticos del original.
+   ===================================================================== */
+
+.cristal {
+  position: relative;
+  background: var(--glass-bg);
+  border-radius: var(--r-pill);
+  box-shadow:
+    0 40px 80px -20px var(--glass-shadow),          /* sombra lejana */
+    0 10px 30px -10px var(--glass-shadow),          /* sombra de contacto */
+    inset 0 2px 3px -1px var(--glass-highlight),    /* canto duro superior */
+    inset 0 -2px 4px -1px var(--glass-caustic),     /* cáustica inferior */
+    inset 0 0 0 1px var(--glass-border);            /* borde interior */
+  isolation: isolate;
+}
+
+/* El reflejo "mojado": una lente abombada en la mitad superior. El radio
+   asimétrico es lo que le da la forma de gota; con un radio uniforme se
+   ve como una barra de brillo, no como cristal. */
+.cristal::before {
+  content: '';
+  position: absolute;
+  top: 1px; left: 1px; right: 1px; height: 46%;
+  border-radius: var(--r-pill) var(--r-pill) 24px 24px /
+                 var(--r-pill) var(--r-pill) 12px 12px;
+  background: linear-gradient(180deg,
+              var(--glass-reflection) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Cono de luz. En una web lo mueve el ratón; en vídeo no hay ratón, así
+   que lo desplaza el tiempo desde el draw() de cada plantilla. */
+.cristal > .glare {
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  z-index: 1;
+  background: radial-gradient(circle 120px at var(--gx, 50%) var(--gy, 40%),
+              var(--glass-glare) 0%, transparent 100%);
+}
+
+.cristal > .contenido { position: relative; z-index: 3; }
+
+/* ---------- pasada de máscara ---------- */
+/* Todo invisible salvo la silueta de los cristales, en blanco puro. */
+body[data-modo="mascara"] * { visibility: hidden; }
+body[data-modo="mascara"] .cristal,
+body[data-modo="mascara"] .silueta {
+  visibility: visible;
+  background: #FFFFFF;
+  box-shadow: none;
+  border: 0;
+}
+body[data-modo="mascara"] .cristal * { visibility: hidden; }
+body[data-modo="mascara"] .silueta * { visibility: hidden; }
+body[data-modo="mascara"] .cristal::before { display: none; }
+
+/* `.silueta` es una región de máscara SIN vidrio: le dice a ffmpeg «trata
+   esta zona del metraje» y no pinta nada en la pasada de detalle. La máscara
+   servía solo para el cristal, y el cristal es UN uso de ella: la cortinilla
+   de `antes-despues.html` necesita exactamente la misma silueta para revelar
+   el metraje sin grading, pero con una tesela de cristal encima el panel se
+   vería como una pastilla difuminada en vez de como un lado de la comparación.
+   Separarlas cuesta dos selectores y evita que quien quiera una máscara tenga
+   que heredar un aspecto. */
+body[data-modo="mascara"] .silueta { border-radius: 0; }
+
+/* ---------- tokens del cristal, por tema ---------- */
+:root, :root[data-tema="carbon"] {
+  --glass-bg:         rgba(255, 255, 255, 0.10);
+  --glass-border:     rgba(255, 255, 255, 0.30);
+  --glass-shadow:     rgba(0, 0, 0, 0.34);
+  --glass-highlight:  rgba(255, 255, 255, 0.72);
+  --glass-caustic:    rgba(255, 255, 255, 0.32);
+  --glass-reflection: rgba(255, 255, 255, 0.42);
+  --glass-glare:      rgba(255, 255, 255, 0.45);
+  --glass-blur:       26;     /* sigma para gblur en ffmpeg */
+  --glass-sat:        1.85;
+  --pill-bg:          rgba(255, 255, 255, 0.22);
+  --dock-ink:         rgba(245, 245, 245, 0.62);
+  --dock-ink-activo:  rgba(255, 255, 255, 0.98);
+}
+:root[data-tema="paper"] {
+  /* Sobre papel el cristal tiñe hacia el acento y la sombra es cálida:
+     un cristal gris sobre fondo claro se ve sucio. */
+  --glass-bg:         rgba(255, 255, 255, 0.30);
+  --glass-border:     rgba(255, 255, 255, 0.85);
+  --glass-shadow:     rgba(120, 100, 78, 0.26);
+  --glass-highlight:  rgba(255, 255, 255, 0.95);
+  --glass-caustic:    rgba(255, 255, 255, 0.55);
+  --glass-reflection: rgba(255, 255, 255, 0.70);
+  --glass-glare:      rgba(255, 255, 255, 0.60);
+  --glass-blur:       22;
+  --glass-sat:        1.35;
+  --pill-bg:          rgba(255, 255, 255, 0.78);
+  --dock-ink:         rgba(22, 24, 29, 0.52);
+  --dock-ink-activo:  rgba(22, 24, 29, 0.96);
+}
+
+
+/* =====================================================================
+   GARANTÍA DE CANAL ALFA
+   ---------------------------------------------------------------------
+   Si una plantilla llega a cubrir el cuadro entero (una transición, un
+   destello a pantalla completa), Chromium codifica ESE png sin alfa. La
+   secuencia pasa a mezclar rgba y rgb24, ffmpeg reconfigura el grafo a
+   mitad de encode y el archivo sale TRUNCADO, sin átomo moov.
+
+   OJO con cómo se arregla: poner un píxel casi transparente ENCIMA no
+   sirve — compuesto sobre una superficie opaca el resultado sigue siendo
+   alfa 255. Hay que impedir que exista ningún píxel opaco, y eso se
+   consigue bajando la opacidad del propio lienzo: 254/255 en vez de 255.
+   Imperceptible, y evita un fallo que tira el render entero sin decir
+   por qué.
+   ===================================================================== */
+body { opacity: 0.998; }
+
+
+/* ==========================================================================
+   § TARJETA CENTRADA — contenedor canónico
+
+   Una regla y no doce. Antes cada plantilla se centraba a su manera: unas
+   con `place-items: center`, otras con `left` y `margin` calculados a mano.
+   El resultado era que al moverlas de banda o de formato, unas quedaban
+   centradas y otras no, y había que ir corrigiendo una por una.
+
+   El eje X es SIEMPRE 50 %. Lo único que decide la evitación de rostro es
+   la banda vertical: `data-zona="arriba"` o `"abajo"`.
+   ========================================================================== */
+.tarjeta {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.tarjeta[data-zona="arriba"] { top: 120px; bottom: auto; }
+.tarjeta[data-zona="abajo"]  { bottom: 280px; top: auto; }
+.tarjeta[data-zona="centro"] { top: 50%; transform: translate(-50%, -50%); }
+
+/* `.tarjeta` POSICIONA y NUNCA anima; el que anima es su hijo directo.
+   Tienen que ser dos elementos: las plantillas escriben `style.transform`
+   en su tarjeta para entrar, y eso borra el `translateX(-50%)` que la
+   centra — la tarjeta se quedaba clavada por su borde izquierdo, medio
+   fuera de cuadro, desde el primer fotograma. La separación la hace
+   `_engine.js` al preparar la plantilla, así que una plantilla nueva solo
+   tiene que poner `class="tarjeta"` y olvidarse. */
+.tarjeta-cont { width: 100%; }
+
+/* Ancho propio del componente, cuando lo declara con `cfg.ancho`. */
+.tarjeta[data-ancho] { max-width: var(--ancho-max, 900px); }
+
+/* Vidrio Apple. El `backdrop-filter` NO se incluye a propósito: no
+   sobrevive a la captura con alfa —sin píxeles detrás no hay nada que
+   muestrear— y saldría un panel gris. El desenfoque real lo aporta el
+   compositor con `cristal: true`. Lo que sí sobrevive, y es lo que da el
+   aspecto, es el fondo translúcido, el filete de luz y las sombras. */
+.vidrio-apple {
+  background: rgba(18, 18, 22, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4),
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+}
+/* Sobre tema claro el mismo cristal en negativo, o el texto no se lee. */
+:root[data-tema="paper"] .vidrio-apple {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.18),
+              inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Glass Dock</title>
+<meta name="gesto" content="crecer:dock">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+
+  .dock {
+    position: absolute; left: 50%;
+    transform: translateX(-50%);
+    display: flex; align-items: center;
+    padding: 8px;
+    gap: 2px;
+    /* .cristal aporta fondo, sombras multicapa, borde interior y el
+       reflejo abombado. Ver _tokens.css § LIQUID GLASS. */
+  }
+
+  /* La pastilla que se desliza bajo la opción activa. Va DEBAJO del texto
+     pero encima del reflejo, para que parezca sumergida en el cristal. */
+  .pastilla {
+    position: absolute;
+    top: 8px; left: 0; height: 52px;
+    border-radius: var(--r-pill);
+    background: var(--pill-bg);
+    box-shadow:
+      0 4px 12px var(--glass-shadow),
+      0 1px 2px var(--glass-shadow),
+      inset 0 1px 1px var(--glass-highlight);
+    z-index: 2;
+  }
+
+  .btn {
+    position: relative;
+    z-index: 3;
+    height: 52px;
+    padding: 0 26px;
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--subs);
+    font-size: var(--t-md);
+    font-weight: 600;
+    letter-spacing: var(--tr-cuerpo);
+    color: var(--dock-ink);
+    white-space: nowrap;
+  }
+  .btn.activo { color: var(--dock-ink-activo); }
+  /* LA MARCA. Eran `◴ ✂ ▤`: glifos de la fuente del sistema, o sea que ni
+     son de esta marca ni están dibujados por nadie —y en una máquina sin esa
+     fuente salen cuadritos—. Ahora es un SVG de 18 px con trazo de 1,8, que
+     es lo mismo que cuesta y es una pieza propia.
+
+     Se dibuja con `stroke` y no con relleno para que comparta gramática con
+     los conectores, los anillos y los checks del resto del catálogo, y para
+     que herede `currentColor`: la marca del botón activo se aclara con su
+     texto sin una sola regla más. */
+  .btn .ico { display: block; width: 18px; height: 18px; flex: none;
+              opacity: 0.9; }
+  .btn .ico svg { display: block; width: 100%; height: 100%; }
+  .btn .ico path, .btn .ico circle, .btn .ico line, .btn .ico rect {
+    fill: none; stroke: currentColor; stroke-width: 1.8;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+
+  .sep {
+    width: 1px; height: 26px; margin: 0 6px;
+    background: var(--stroke); z-index: 3; position: relative;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="dock cristal" id="dock">
+    <div class="glare" id="glare"></div>
+    <span class="pastilla" id="pastilla"></span>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const dock = document.getElementById('dock');
+const glare = document.getElementById('glare');
+const pastilla = document.getElementById('pastilla');
+let botones = [];
+
+/* Muelle: se pasa de rosca y vuelve. Es el gesto que hace que la pastilla
+   parezca tener masa en vez de teletransportarse.
+
+   Estaba reimplementado a mano con `1.70158 * 1.12`, que da un **12,1 % de
+   sobrepaso** — el doble del 6 % que permite §10, y encima duplicando una
+   curva que el motor ya tiene. Ahora usa `Ease.outBack6`, calibrado
+   numéricamente a ese 6 %. El gesto sigue siendo el mismo; lo que cambia es
+   que ya no se sale de la marca. */
+const muelle = t => Engine.Ease.outBack6(Engine.clamp(t, 0, 1));
+
+/* Las marcas del dock, dibujadas. Tres trazos cada una como mucho: a 18 px
+   sobre metraje, un icono con detalle se convierte en una mancha. */
+const MARCAS = {
+  onda:  '<path d="M1 9h2.4l2-5 2.6 10 2.4-7.2 1.8 4.2H17"/>',
+  corte: '<circle cx="4.4" cy="13.2" r="2.6"/><circle cx="13.6" cy="13.2" r="2.6"/>' +
+         '<path d="M6.3 11.3 14.4 2.4M11.7 11.3 3.6 2.4"/>',
+  capas: '<path d="M9 1.6 16.4 5.6 9 9.6 1.6 5.6z"/><path d="M1.6 9.4 9 13.4l7.4-4"/>' +
+         '<path d="M1.6 12.9 9 16.9l7.4-4"/>',
+  reloj: '<circle cx="9" cy="9" r="7.2"/><path d="M9 4.6V9l3.2 2"/>',
+  marca: '<path d="M2.4 9.6 6.8 14 15.6 4.4"/>',
+  filtro:'<path d="M1.8 2.6h14.4L10.6 9.4v5.4l-3.2 1.6V9.4z"/>',
+};
+
+Engine.register({
+  duration: 8,
+  defaults: {
+    y: 1560,
+    /* `ico` pasa de glifo a NOMBRE de marca dibujada. Un string que no esté
+       en `MARCAS` se sigue componiendo como texto, así que un plan viejo con
+       `ico: '✂'` no se rompe — solo deja de ser lo recomendado. */
+    items: [
+      { txt: 'Transcribe', ico: 'onda' },
+      { txt: 'Corta', ico: 'corte' },
+      { txt: 'Monta', ico: 'capas' }
+    ],
+    /* Cada salto: en qué segundo se mueve la pastilla y a qué índice. */
+    saltos: [ { at: 0.6, i: 0 }, { at: 2.6, i: 1 }, { at: 4.6, i: 2 } ],
+    salto_dur: 0.55,
+    entrada: 0.55,
+    salida: 0.45
+  },
+
+  setup(cfg) {
+    dock.style.top = cfg.y + 'px';
+    /* se reconstruye el contenido dejando la pastilla y el glare */
+    [...dock.querySelectorAll('.btn, .sep')].forEach(n => n.remove());
+    botones = cfg.items.map((it, i) => {
+      if (i > 0 && it.sep) {
+        const s = document.createElement('span');
+        s.className = 'sep';
+        dock.appendChild(s);
+      }
+      const b = document.createElement('span');
+      b.className = 'btn';
+      const marca = MARCAS[it.ico];
+      b.innerHTML =
+        (it.ico ? `<span class="ico">${marca
+            ? `<svg viewBox="0 0 18 18">${marca}</svg>` : it.ico}</span>` : '') +
+        `<span>${it.txt}</span>`;
+      dock.appendChild(b);
+      return b;
+    });
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 8;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+
+    /* el dock entra escalando desde abajo, como un panel que aterriza */
+    const e = Engine.entra(t, cfg.entrada);
+    dock.style.opacity = e * cierre;
+    /* Flotación de reposo (§10). El dock es cromo que persiste, así que en
+       cuanto la pastilla acaba de saltar se queda quieto el resto de la capa:
+       medido, el 39 % con la ficha real. Deriva poco —es una pieza pesada— y
+       con un periodo largo. */
+    const fl = Engine.flota(t, 3, { amp: 3.2, periodo: 6.8, semilla: 14 });
+    dock.style.transform =
+      `translateX(-50%) translate(${fl.x.toFixed(2)}px, ` +
+      `${((1 - e) * 26 + fl.y).toFixed(2)}px) scale(${(0.94 + 0.06 * e).toFixed(4)})`;
+
+    /* --- pastilla deslizante --- */
+    const saltos = cfg.saltos || [];
+    let desde = saltos.length ? saltos[0].i : 0;
+    let hasta = desde, p = 1;
+    for (let k = 0; k < saltos.length; k++) {
+      if (t >= saltos[k].at) {
+        desde = k > 0 ? saltos[k - 1].i : saltos[k].i;
+        hasta = saltos[k].i;
+        p = clamp((t - saltos[k].at) / cfg.salto_dur, 0, 1);
+      }
+    }
+    const a = botones[desde], b = botones[hasta];
+    if (a && b) {
+      const m = muelle(p);
+      const x = a.offsetLeft + (b.offsetLeft - a.offsetLeft) * m;
+      const w = a.offsetWidth + (b.offsetWidth - a.offsetWidth) * m;
+      pastilla.style.transform = `translateX(${x}px)`;
+      pastilla.style.width = w + 'px';
+      pastilla.style.opacity = span(t, saltos.length ? saltos[0].at : 0,
+                                    0.3, Ease.outCubic) * cierre;
+      botones.forEach((el, i) => el.classList.toggle('activo', i === hasta && p > 0.5));
+    }
+
+    /* El cono de luz lo mueve el tiempo, no el ratón: recorre el dock
+       despacio y da la sensación de que la luz del entorno se refleja. */
+    /* 0,26 y no 0,16 vueltas por segundo. Medido: a 0,16 el reflejo movía la
+       imagen 9 de 255 a medio segundo, justo por encima del umbral de 6 con
+       el que el cuantizador de H.264 se lo come — o sea que existía en el PNG
+       y no llegaba al vídeo. Un reflejo que no se ve no es un reflejo.
+
+       Y el eje vertical cambia con OTRO periodo, inconmensurable con el
+       horizontal: con los dos en fase el cono recorre siempre la misma
+       diagonal y el bucle se nota a los diez segundos. */
+    const fase = (t * 0.26) % 1;
+    glare.style.setProperty('--gx', (fase * 130 - 15) + '%');
+    glare.style.setProperty('--gy', (38 + Math.sin(t * 0.53) * 16) + '%');
+  }
+});
+</script>
+</body>
+</html>

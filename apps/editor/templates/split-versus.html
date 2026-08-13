@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Pantalla dividida A vs B</title>
+<meta name="gesto" content="revelar:corte">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* =====================================================================
+     UNA JUNTA MECANIZADA, NO DOS RECTÁNGULOS DE COLOR
+     ---------------------------------------------------------------------
+     Lo que había era la pantalla partida de miniatura de YouTube: mitad
+     oscura, mitad naranja, y una pastilla blanca con «VS» encima de la
+     costura. Tres planos de color y un adhesivo. Todo lo que se movía era
+     `opacity` y `transform`, y de los tres instantes que captura el humo dos
+     salían IDÉNTICOS byte a byte: media vida en pantalla congelada.
+
+     Aquí el objeto es otro: **dos placas del MISMO metal a tope, unidas por
+     un canto de bronce**. Una está oxidada —cardenillo, mecanizado grueso,
+     grano— y la otra acabada —trama fina, barrido especular, filete vivo—.
+     No son dos colores: son dos ESTADOS del material de la marca, que es lo
+     que `_tokens.css` ya cuenta cuando explica que `--accent-2` es «lo que
+     le pasa al bronce con el tiempo».
+
+     La confrontación no la dice una pastilla: la dicen el canto —que tiene
+     grosor, bisel y sombra a los DOS lados— y un salto de 500 puntos de peso
+     tipográfico entre los dos titulares, que es exactamente lo que §1 pide
+     cuando dice «contraste y peso, nunca luz».
+     ===================================================================== */
+
+  .stage { position: absolute; inset: 0; overflow: hidden;
+           display: grid; place-items: center; }
+
+  .par { position: relative; display: flex; align-items: stretch;
+         width: 100%; max-width: 980px; }
+
+  /* --------------------------------------------------------------------
+     LAS PLACAS
+     -------------------------------------------------------------------- */
+  /* `overflow: hidden` no es cosmético: dentro van tres capas de material
+     —lavado, trama y grano— que se salen de la caja redondeada. */
+  .lado {
+    position: relative; flex: 1 1 0;
+    padding: var(--s-6) var(--s-5);
+    overflow: hidden;
+    will-change: clip-path, transform, filter;
+  }
+  /* El aire del lado de la junta es mayor que el del exterior (64 frente a
+     26 px): el canto ocupa sitio real y un texto pegado a él se lee como un
+     error de maquetación, no como una junta. 64 y no 48 porque el buje mide
+     96 px y sobresale 48 a cada lado del eje — con 48 de aire el titular de
+     la placa nueva arrancaba PEGADO al buje; se vio en el fotograma, no en
+     el número. */
+  .lado.a { padding-right: var(--s-8);
+            border-radius: var(--r-md) 0 0 var(--r-md); }
+  .lado.b { padding-left:  var(--s-8);
+            border-radius: 0 var(--r-md) var(--r-md) 0; }
+
+  /* El campo es el MATERIAL y va en su propia capa, debajo del texto: si el
+     lavado y la trama vivieran en `.lado`, atenuar la placa vieja atenuaría
+     también su titular, y el titular tiene que seguir legible —la placa que
+     pierde el argumento no es la placa que desaparece—. */
+  /* `-10px` y no `0`: el campo DERIVA por su cuenta (§10) y con la caja al
+     ras, dos píxeles de deriva descubrían el borde de la placa. Sobra por
+     los cuatro lados y `.lado` lo recorta.
+
+     EL COLOR DE LA PLACA VA AQUÍ, y no en `.lado`, por una razón que no da
+     ningún error y tira la plantilla entera: al darle `transform` al campo
+     —para que derive— el campo pasa a ser un CONTEXTO DE APILADO, y el
+     `mix-blend-mode: multiply` del grano deja de ver el fondo de `.lado`.
+     Multiplicando contra nada, la teja de ruido se pinta tal cual: la placa
+     vieja salía como un campo GRIS CLARO con el titular casi borrado. Se vio
+     en el fotograma; el humo la daba por buena —se mueve, tiene ancla y su
+     PNG pesa 311 KB—. Con el relleno dentro del mismo contexto, el grano
+     vuelve a tener contra qué multiplicar. */
+  .campo { position: absolute; inset: -10px; will-change: transform; }
+  .lado.a .campo { background-color: var(--surface-2); }
+  .lado.b .campo { background-color: var(--surface); }
+  .capa  { position: absolute; inset: 0; pointer-events: none; }
+
+  .txt { position: relative; z-index: 1; }
+
+  /* --------------------------------------------------------------------
+     EL CANTO
+     ---------------------------------------------------------------------
+     Es el protagonista y por eso es un objeto con tres partes: la lámina de
+     bronce (`.brushed`, el mismo degradado del sistema), el bisel que
+     recoge la luz, y una sombra a CADA lado —el canto está por encima del
+     plano de las dos placas, así que arroja sombra sobre las dos—.
+
+     Sobresale 10 px por arriba y por abajo a propósito: una regla de trazar
+     es más larga que la pieza que divide. Cuando termina exactamente en el
+     borde parece un `border-right`, que es lo que era.
+     -------------------------------------------------------------------- */
+  .canto {
+    position: absolute; left: 50%; top: -10px; bottom: -10px;
+    transform: translateX(-50%);
+    border-radius: 2px;
+    z-index: 3;
+    will-change: width, clip-path, box-shadow;
+  }
+  .bisel {
+    position: absolute; inset: 0; border-radius: inherit;
+    background-image: linear-gradient(180deg,
+      transparent 0%, var(--glass-highlight) 46%, transparent 100%);
+    background-size: 100% 44%;
+    background-repeat: no-repeat;
+    mix-blend-mode: screen;
+  }
+
+  /* --------------------------------------------------------------------
+     EL BUJE «VS»
+     ---------------------------------------------------------------------
+     Antes era un círculo blanco de 96 px con la palabra dentro: un adhesivo
+     pegado sobre la costura. Ahora es una pieza mecanizada que va MONTADA en
+     el canto —rectángulo achaflanado, misma lámina de bronce, letras
+     grabadas con su reflejo de 1 px debajo—. La diferencia entre las dos
+     cosas es la que hay entre una pegatina y un remache.
+     -------------------------------------------------------------------- */
+  .buje {
+    position: absolute; left: 50%; top: 50%;
+    width: 96px; height: 60px;
+    border-radius: var(--r-sm);
+    display: grid; place-items: center;
+    z-index: 4;
+    will-change: transform, opacity, box-shadow;
+  }
+  .vs {
+    font-family: var(--display);
+    font-weight: var(--w-solido);
+    font-size: var(--t-md);
+    letter-spacing: var(--tr-caps);
+    /* Grabado: tinta oscura teñida del propio metal y un filo de luz justo
+       debajo. No es un halo —§1 prohíbe el resplandor de acento— sino el
+       borde iluminado de un rebaje de 1 px, que es lo que se ve de verdad en
+       una pieza fresada. */
+    color: color-mix(in oklab, var(--velo-oscuro) 82%, var(--accent));
+    text-shadow: 0 1px 0 var(--glass-highlight);
+  }
+
+  /* --------------------------------------------------------------------
+     TIPOGRAFÍA — la jerarquía vive DENTRO de la línea
+     ---------------------------------------------------------------------
+     Los tres tamaños sueltos en px de antes (54 y 30) entran en la escala:
+     54 -> `--t-xl` (46 px, la banda de titular corto) y 30 -> `--t-md`. Con
+     eso el tracking deja de estar a ojo: `--tr-display` es la corrección que
+     la curva de `_tokens.css` publica para 46-81 px, y era -0,03em escrito a
+     mano, o sea la de 82-144. Los dos `letter-spacing` numéricos que quedaban
+     —0.24em y -0.03em— son ahora `--tr-caps-ancho` y `--tr-display`.
+     -------------------------------------------------------------------- */
+  .rot { display: flex; align-items: center; gap: var(--s-2);
+         font-family: var(--mono); font-size: var(--t-xs);
+         font-weight: var(--w-medio);
+         letter-spacing: var(--tr-caps-ancho); text-transform: uppercase;
+         color: var(--ink-soft); }
+  /* La marca del rótulo: 26x2 px de la MISMA pieza en sus dos estados.
+     Cardenillo a la izquierda, bronce vivo a la derecha. Es la tesis entera
+     en dos píxeles de alto, y no cuesta un glifo del sistema —§1 prohíbe los
+     dingbats, y un `▸` es además la firma de que nadie dibujó nada—. */
+  .marca { width: 26px; height: 2px; flex: none; }
+  .lado.a .marca { background: var(--accent-2); }
+  .lado.b .marca { background-image: linear-gradient(var(--metal-ang),
+                     var(--metal-1), var(--metal-3) 55%, var(--metal-5)); }
+
+  .tit { font-family: var(--display);
+         font-size: var(--t-xl); line-height: 1.06;
+         letter-spacing: var(--tr-display);
+         margin: var(--s-2) 0 var(--s-3); }
+  /* `--ink-soft` y no `--ink-faint`, con el número delante: sobre
+     `--surface-2` el faint da 2,8:1 en carbón y 2,1:1 en papel —por debajo
+     incluso del 3:1 de texto grande—, mientras que el soft da 5,5:1 y 4,0:1.
+     La placa vieja tiene que RECEDER, no borrarse. */
+  .lado.a .tit { color: var(--ink-soft); font-weight: var(--w-claro); }
+  .lado.b .tit { color: var(--ink);      font-weight: var(--w-negro); }
+
+  /* Los dos pies hablan con VOCES distintas y no con dos grises: el de la
+     placa vieja en `--editorial` cursiva —el rol que MATIZA, una nota al
+     margen— y el de la nueva en `--subs`, que es el que NARRA. Es la pareja
+     que §1 sanciona, y estaba instalada sin usarse. */
+  .pie { font-size: var(--t-md); color: var(--ink-soft); line-height: 1.25; }
+  .lado.a .pie { font-family: var(--editorial); font-style: italic;
+                 font-weight: var(--w-libro); }
+  .lado.b .pie { font-family: var(--subs); font-weight: var(--w-medio); }
+</style></head>
+<body>
+<div class="stage"><div class="par" id="par">
+  <div class="lado a" id="la">
+    <div class="campo" id="ca"><i class="capa trama" data-densidad="alta"></i></div>
+    <div class="txt">
+      <div class="rot"><i class="marca"></i><span id="ra"></span></div>
+      <div class="tit" id="ta"></div><div class="pie" id="pa"></div>
+    </div>
+  </div>
+  <div class="lado b" id="lb">
+    <div class="campo" id="cb">
+      <i class="capa trama" data-densidad="baja"></i>
+      <i class="capa luz" id="luz"></i>
+    </div>
+    <div class="txt">
+      <div class="rot"><i class="marca"></i><span id="rb"></span></div>
+      <div class="tit" id="tb"></div><div class="pie" id="pb"></div>
+    </div>
+  </div>
+  <div class="canto brushed" id="canto"><i class="bisel" id="bisel"></i></div>
+  <div class="buje brushed" id="buje"><span class="vs" id="vs">VS</span></div>
+</div></div>
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+const par = document.getElementById('par');
+const la = document.getElementById('la'), lb = document.getElementById('lb');
+const ca = document.getElementById('ca'), cb = document.getElementById('cb');
+const canto = document.getElementById('canto'), bisel = document.getElementById('bisel');
+const buje = document.getElementById('buje'), luz = document.getElementById('luz');
+const ta = document.getElementById('ta'), tb = document.getElementById('tb');
+let granoA = null, granoB = null;
+
+/* Grosor final del canto, en px de maquetación. No es configurable a
+   propósito: es la medida de la pieza, igual que los 64 px de la estación de
+   `pasos-flow`, y exponerla invitaría a montar un canto de 40 px que ya no
+   es un canto sino una tercera columna. */
+const GROSOR = 13;
+
+/* ---------------------------------------------------------------------
+   LAS FASES, EN UN SOLO SITIO
+   ---------------------------------------------------------------------
+   `setup` publica las señales de sonido con estos mismos números y `draw`
+   dibuja con ellos. La norma de §sonido dice que el instante tiene que salir
+   de la MISMA expresión que usa `draw`, y copiar la fórmula es exactamente
+   cómo se desincronizan un gráfico y su golpe: se cambia el ritmo en un sitio
+   y el sonido se queda donde estaba, sin que nada dé error.
+   Cada entrada es `[inicio, duración]`.
+   --------------------------------------------------------------------- */
+function fases(cfg) {
+  const e = cfg.entrada;
+  return {
+    corte:  [0,               e * 0.55],   // el trazo recorre el eje
+    placaA: [e * 0.20,        e],          // la placa vieja sale de bajo el canto
+    placaB: [e * 0.44,        e],          // la nueva después: ANTES y LUEGO ahora
+    grosor: [e * 0.50,        e * 0.95],   // el trazo gana cuerpo y pasa a canto
+    buje:   [cfg.vsEn,        0.42],
+    peso:   [cfg.vsEn + 0.14, 0.62],       // el argumento se decide
+    luz:    [cfg.espera,      cfg.barrido] // el barrido especular sobre la placa nueva
+  };
+}
+
+Engine.register({
+  duration: 4.5,
+  defaults: {
+    a: { rotulo: 'ANTES', titulo: 'Forma tradicional', pie: 'lenta y cara' },
+    b: { rotulo: 'AHORA', titulo: 'Forma nueva', pie: 'en tu máquina' },
+    entrada: 0.5, salida: 0.4, vsEn: 0.55,
+    /* Dos claves NUEVAS, las dos ya clasificadas en `reloj.SEMANTICA`
+       —`espera` es posición y `barrido` duración—, así que `silencios.py`
+       las remapea sin tocar nada. Inventar un nombre propio para esto es lo
+       que deja gráficos desplazados sin un solo error en el log. */
+    espera: 1.25, barrido: 0.9,
+    vs: 'VS'
+  },
+
+  setup(cfg) {
+    const p = (k, d) => { document.getElementById('r' + k).textContent = d.rotulo || '';
+                          document.getElementById('t' + k).textContent = d.titulo || '';
+                          document.getElementById('p' + k).textContent = d.pie || ''; };
+    p('a', cfg.a || {}); p('b', cfg.b || {});
+    document.getElementById('vs').textContent = cfg.vs || 'VS';
+
+    /* --- el óxido de la placa vieja -------------------------------------
+       Cinco manchas de cardenillo repartidas con `Engine.noise`, NUNCA con
+       `Math.random`: el catálogo se rasteriza fotograma a fotograma y una
+       semilla distinta por captura haría hervir la corrosión. Con índices
+       fijos el mismo `t` da el mismo píxel, que es la única regla dura del
+       motor.
+
+       Se mezcla `in oklab` y no en sRGB por lo mismo que `mapa-calor`: entre
+       el cardenillo y el gris de la placa, sRGB pasa por un barro con la
+       saturación hundida. */
+    const manchas = [];
+    for (let i = 0; i < 6; i++) {
+      const x = 4 + Engine.noise(i * 4 + 1, 21) * 92;
+      const y = 2 + Engine.noise(i * 4 + 2, 21) * 96;
+      const r = 95 + Engine.noise(i * 4 + 3, 21) * 175;
+      /* 10-24 % y no 16-34: en papel `--accent-2` es un verde oscuro y a 34 %
+         sobre blanco las manchas dejaban de leerse como pátina y pasaban a
+         leerse como acuarela. El corte al 82 % del radio, en vez de al 72,
+         es lo que quita el canto circular. */
+      const a = 10 + Math.round(Engine.noise(i * 4 + 4, 21) * 14);
+      manchas.push('radial-gradient(circle ' + r.toFixed(0) + 'px at ' +
+        x.toFixed(1) + '% ' + y.toFixed(1) + '%, ' +
+        'color-mix(in oklab, var(--accent-2) ' + a + '%, transparent) 0%, ' +
+        'transparent 82%)');
+    }
+    ca.style.backgroundImage = manchas.join(', ');
+
+    /* La placa acabada lleva un lavado cálido del mismo bronce, en el ángulo
+       del cepillado: es la MISMA luz que recorre el canto, no un degradado
+       decorativo con su propio norte. */
+    cb.style.backgroundImage =
+      'linear-gradient(var(--metal-ang), var(--accent-soft) 0%, transparent 58%)';
+
+    /* La banda especular. Se mueve por `background-position`, que es una
+       propiedad de MATERIAL: mover una capa con `transform` da el mismo
+       píxel y dice otra cosa —una lámina que pasa por delante en vez de una
+       luz que recorre la superficie—. */
+    luz.style.backgroundImage =
+      'linear-gradient(105deg, transparent 34%, ' +
+      'color-mix(in oklab, var(--metal-3) 34%, transparent) 50%, ' +
+      'transparent 66%)';
+    luz.style.backgroundSize = '260% 100%';
+    luz.style.backgroundRepeat = 'no-repeat';
+
+    /* Grano de impresión: fuerte en la placa vieja, casi nada en la nueva.
+       Es la tercera capa de textura y la que separa «superficie mate» de
+       «plano de color» — 48 de 56 plantillas no tienen ninguna. */
+    granoA = Engine.grano(ca, { px: 256, semilla: 17, op: 0.55 });
+    granoB = Engine.grano(cb, { px: 256, semilla: 29, op: 0.16 });
+
+    /* Cuatro señales, una por EVENTO y ninguna por fotograma. El `impacto`
+       del buje es el único golpe: es lo único que llega a algún sitio. */
+    const f = fases(cfg);
+    const cues = [
+      { at: +(f.corte[0] + f.corte[1] * 0.15).toFixed(3), sfx: 'clic',     gain: 0.45 },
+      { at: +(f.placaA[0]).toFixed(3),                    sfx: 'deslizar', gain: 0.55 },
+      { at: +(f.buje[0] + f.buje[1]).toFixed(3),          sfx: 'impacto',  gain: 0.62 },
+      { at: +(f.luz[0] + f.luz[1] * 0.5).toFixed(3),      sfx: 'destello', gain: 0.38 }
+    ];
+    return { cues: cfg.sinSonido ? [] : cues };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 4.5;
+    const cierre = Engine.sale(t, fin, cfg.salida);
+    const f = fases(cfg);
+
+    /* --- el corte -------------------------------------------------------
+       `inOutCubic` y no `outCubic`: una punta que traza arranca contra el
+       material y frena contra él. Con `outCubic` el trazo aparece hecho a
+       medias en el primer fotograma y se lee como un barrido automático, que
+       es justo lo que esto no es. Se abre desde el centro hacia los dos
+       extremos porque el canto se apoya en la junta, no en un borde. */
+    const pc = span(t, f.corte[0], f.corte[1], Ease.inOutCubic);
+    canto.style.clipPath = 'inset(' + ((1 - pc) * 50).toFixed(2) + '% 0 ' +
+                                      ((1 - pc) * 50).toFixed(2) + '% 0)';
+
+    /* El trazo GANA CUERPO: 2 px de raya a 13 px de canto. Se anima `width`
+       y no `scaleX` a propósito — con escala, el degradado de bronce se
+       estira con la pieza y el reflejo se deforma, que es la delación
+       clásica de que el metal está pintado. */
+    const pg = span(t, f.grosor[0], f.grosor[1], Ease.outCubic);
+    canto.style.width = (2 + (GROSOR - 2) * pg).toFixed(2) + 'px';
+    /* Sombra a los DOS lados: el canto está por encima del plano de las dos
+       placas. Es `--sombra` —negro del tema— y no un resplandor de acento:
+       §1 prohíbe destacar con luz de color. */
+    const so = (26 * pg).toFixed(1), sd = (11 * pg).toFixed(1);
+    canto.style.boxShadow = sd + 'px 0 ' + so + 'px -8px var(--sombra), -' +
+                            sd + 'px 0 ' + so + 'px -8px var(--sombra)';
+
+    /* La luz que recorre el canto no para NUNCA, con un periodo de 9,3 s que
+       no es múltiplo de ninguna duración de capa: es lo que impide que el
+       gráfico se quede muerto. Antes dos de los tres instantes del humo eran
+       el mismo fotograma byte a byte. */
+    bisel.style.backgroundPositionY = (50 + 46 * Math.sin(2 * Math.PI * t / 9.3)) + '%';
+    bisel.style.opacity = (0.55 * pc * cierre).toFixed(3);
+
+    /* --- las placas salen de debajo del canto ---------------------------
+       Se revelan DESDE la junta hacia fuera y a la vez se desplazan hacia su
+       lado: es una pieza que se saca de debajo de una regla, no dos tarjetas
+       que entran volando desde los bordes. Que el origen de las dos sea el
+       canto es lo que lo convierte en el eje del plano en vez de en una
+       línea divisoria. */
+    const pa = span(t, f.placaA[0], f.placaA[1], Ease.outCubic);
+    const pb = span(t, f.placaB[0], f.placaB[1], Ease.outCubic);
+
+    la.style.clipPath = 'inset(0 0 0 ' + ((1 - pa) * 100).toFixed(2) + '%)';
+    lb.style.clipPath = 'inset(0 ' + ((1 - pb) * 100).toFixed(2) + '% 0 0)';
+    la.style.transform = 'translateX(' + ((1 - pa) * 30).toFixed(2) + 'px)';
+    lb.style.transform = 'translateX(' + (-(1 - pb) * 30).toFixed(2) + 'px)';
+    la.style.opacity = cierre;
+    lb.style.opacity = cierre;
+
+    /* --- flotación de reposo (§10) --------------------------------------
+       Primera versión: una `flota` por PLACA, con semillas distintas. Es lo
+       que §10 pide literalmente y aquí está MAL, y se vio mirando el
+       fotograma de t=2,4: los dos rótulos quedaban desalineados 4 px. Dos
+       placas a tope no cizallan — en cuanto lo hacen dejan de ser una junta y
+       vuelven a ser dos tarjetas, que es justo el diagnóstico del que se
+       partía. La rigidez del conjunto es la idea entera.
+
+       Así que deriva la PIEZA COMPLETA —placas, canto y buje— con un solo
+       periodo, y lo que deriva por su cuenta es el MATERIAL de cada placa: la
+       pátina y el mecanizado se mueven bajo el texto con periodos propios.
+       Eso es lo que §10 persigue —que nada se quede quieto— sin romper la
+       geometría, y además es lo cierto: lo que se mueve en una superficie
+       metálica es la luz sobre ella, no la pieza consigo misma. */
+    const fp = Engine.flota(t, 0, { amp: 3.4, periodo: 8.1, semilla: 4 });
+    par.style.transform = 'translate(' + fp.x.toFixed(2) + 'px,' +
+                                         fp.y.toFixed(2) + 'px)';
+    [ca, cb].forEach((el, i) => {
+      const fm = Engine.flota(t, i + 1, { amp: 2.4, periodo: 12.6, semilla: 9 });
+      el.style.transform = 'translate(' + fm.x.toFixed(2) + 'px,' +
+                                          fm.y.toFixed(2) + 'px)';
+    });
+
+    /* --- el argumento se decide ----------------------------------------
+       500 puntos de peso separan los dos titulares —300 contra 800—, y el
+       salto OCURRE: la placa vieja pierde peso mientras la nueva lo gana, en
+       la misma ventana y con la misma curva. Es un gesto que no se puede
+       imitar con dos ficheros estáticos y es la respuesta literal de §1 a
+       «jerarquía por contraste y peso, nunca por luz». */
+    const pw = span(t, f.peso[0], f.peso[1], Ease.inOutCubic);
+    Engine.peso(ta, Math.round(520 - 220 * pw));
+    Engine.peso(tb, Math.round(300 + 500 * pw));
+
+    /* Y la luz se va de la placa vieja: −10 % de brillo y −35 % de
+       saturación. No desaparece —sigue en 5,5:1 sobre su fondo— pero deja de
+       estar iluminada, que es la diferencia entre una opción descartada y
+       una opción borrada. */
+    la.style.filter = 'brightness(' + (1 - 0.10 * pw).toFixed(3) +
+                      ') saturate(' + (1 - 0.35 * pw).toFixed(3) + ')';
+
+    /* --- el barrido especular ------------------------------------------
+       Una pasada de luz raking sobre la placa acabada, más un residuo lento
+       que nunca se detiene (periodo 11,7 s). La campana `sin(pi*p)` hace que
+       la opacidad valga lo mismo al principio y al final del barrido, así
+       que no hay salto cuando termina. */
+    const ps = span(t, f.luz[0], f.luz[1], Ease.inOutCubic);
+    luz.style.backgroundPositionX =
+      (122 - 148 * ps + 5 * Math.sin(2 * Math.PI * t / 11.7)).toFixed(2) + '%';
+    luz.style.opacity = (pb * (0.20 + 0.55 * Math.sin(Math.PI * ps))).toFixed(3);
+    granoB.style.opacity = (0.16 * pb).toFixed(3);
+    granoA.style.opacity = (0.55 * pa).toFixed(3);
+
+    /* --- el buje asienta ------------------------------------------------
+       `outBack6` y no `outBack`: el sobrepaso por defecto del motor es del
+       10,0 % y §10 permite el 6 %. Sobre los 44 px de recorrido son 2,6 px de
+       rebasada —una pieza que se pasa de su alojamiento y vuelve—, y con el
+       10 % son 4,4 px, que ya se lee como un rebote elástico de los que §1
+       prohíbe. La opacidad va aparte y en `outCubic`: la pieza tiene que
+       estar visible ANTES de asentar o el golpe no tiene a quién golpear. */
+    const v = span(t, f.buje[0], f.buje[1], Ease.outBack6);
+    const vo = span(t, f.buje[0], f.buje[1] * 0.45, Ease.outCubic);
+    buje.style.opacity = (vo * cierre).toFixed(3);
+    buje.style.transform = 'translate(-50%, calc(-50% + ' +
+                           (-44 * (1 - v)).toFixed(2) + 'px))';
+    /* La sombra de contacto se cierra al asentar: lejos y difusa en el aire,
+       corta y pegada cuando toca. Es lo que hace que se lea como que ATERRIZA
+       en vez de como que se acerca. */
+    buje.style.boxShadow =
+      '0 ' + (6 + 22 * (1 - v)).toFixed(1) + 'px ' +
+             (14 + 26 * (1 - v)).toFixed(1) + 'px -6px var(--sombra),' +
+      'inset 0 1px 0 var(--glass-highlight),' +
+      'inset 0 -1px 0 color-mix(in oklab, var(--velo-oscuro) 45%, transparent)';
+  },
+
+  anclas() {
+    const b = par.getBoundingClientRect();
+    return { par: { x: Math.round(b.left + b.width / 2),
+                    y: Math.round(b.top + b.height / 2),
+                    w: Math.round(b.width), h: Math.round(b.height) } };
+  }
+});
+</script></body></html>

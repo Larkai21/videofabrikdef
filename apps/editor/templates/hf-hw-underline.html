@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+  <head>
+<!-- /* PALETA-AJENA: inicio */ -->
+    <meta charset="utf-8" />
+    <script src="_gsap.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "Caveat";
+        src: url("assets/fonts/Caveat-700-latin.woff2") format("woff2");
+        font-weight: 700;
+        font-display: block;
+      }
+      *,
+      *::before,
+      *::after {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: transparent;
+        overflow: hidden;
+      }
+      /* ---- hw-underline ------------------------------------------------
+         Squiggle underline / strikethrough / bracket marks that draw on.
+         Size the wrapper over the text they annotate. Requires the hw-boil
+         helpers in the host. */
+      .hw-mark {
+        position: absolute;
+        pointer-events: none;
+      }
+      .hw-mark svg {
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+      .hw-mark path {
+        fill: none;
+        stroke: var(--hw-mark-color, var(--hw-accent-warm, #ffb020));
+        stroke-width: var(--hw-mark-w, 7);
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      /* self-preview scene */
+      #hw-un-scene {
+        position: absolute;
+        inset: 0;
+        background: #17161a;
+        font-family: var(--hw-font-print, "Caveat", cursive);
+        font-weight: 700;
+        font-size: 84px;
+        color: #f4f2ec;
+      }
+      #hw-un-scene div {
+        position: absolute;
+        left: 480px;
+        white-space: nowrap;
+      }
+    </style>
+    <link rel="stylesheet" href="_tokens.css">
+  <script src="_engine.js"></script>
+</head>
+  <body>
+    <!-- Self-preview. WIRING: copy the .hw-mark CSS + markup pattern, the
+         hwMarkPath / hwMarkOn / hwMarkOff helpers, AND the hw-boil helpers.
+         Then:
+
+           document.querySelector("#hw-my-mark path")
+             .setAttribute("d", hwMarkPath(420, 34, "underline", 4));
+           hwMarkOn(tl, "#hw-my-mark", 2.0);
+           hwBoil(tl, "#hw-my-mark", { frameDrop: 3, seed: 4 });
+    -->
+    <div
+      id="hw-un-root"
+      data-composition-id="hw-underline"
+      data-start="0"
+      data-duration="4"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div id="hw-un-scene">
+        <div style="top: 260px">underline the point</div>
+        <div style="top: 460px">cross this out</div>
+        <div style="top: 660px">bracket the aside</div>
+      </div>
+      <div
+        class="hw-mark"
+        id="hw-un-m1"
+        style="left: 470px; top: 350px; width: 620px; height: 34px"
+      >
+        <svg viewBox="0 0 620 34"><path></path></svg>
+      </div>
+      <div
+        class="hw-mark"
+        id="hw-un-m2"
+        style="left: 470px; top: 500px; width: 480px; height: 34px"
+      >
+        <svg viewBox="0 0 480 34"><path></path></svg>
+      </div>
+      <div
+        class="hw-mark"
+        id="hw-un-m3"
+        style="left: 440px; top: 650px; width: 40px; height: 110px"
+      >
+        <svg viewBox="0 0 40 110"><path></path></svg>
+      </div>
+      <div
+        id="hw-un-drv"
+        class="clip"
+        data-start="0"
+        data-duration="4"
+        data-track-index="0"
+        style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none"
+      ></div>
+    </div>
+    <script>
+      (function () {
+        window.__timelines = window.__timelines || {};
+
+        /* ---- hw-boil helpers (shared family runtime — copy once per host) ---- */
+        window.hwOnUpdate = function (tl, fn) {
+          if (!tl.__hwRenders) {
+            tl.__hwRenders = [];
+            tl.eventCallback("onUpdate", function () {
+              for (var i = 0; i < tl.__hwRenders.length; i++) tl.__hwRenders[i]();
+            });
+          }
+          tl.__hwRenders.push(fn);
+          fn();
+        };
+        window.hwHash = function (n, seed) {
+          var x = Math.sin(n * 127.1 + (seed || 1) * 311.7) * 43758.5453;
+          return (x - Math.floor(x)) * 2 - 1;
+        };
+        window.hwBoil = function (tl, target, opts) {
+          opts = opts || {};
+          var amp = opts.amp !== undefined ? opts.amp : 1.6;
+          var rot = opts.rot !== undefined ? opts.rot : 0.5;
+          var fps = opts.fps || 30;
+          var drop = opts.frameDrop || 3;
+          var seed = opts.seed || 1;
+          var els = gsap.utils.toArray(target);
+          window.hwOnUpdate(tl, function () {
+            var step = Math.floor((tl.time() * fps) / drop);
+            for (var i = 0; i < els.length; i++) {
+              gsap.set(els[i], {
+                x: window.hwHash(step * 3 + i * 97, seed) * amp,
+                y: window.hwHash(step * 3 + 1 + i * 97, seed) * amp,
+                rotation: (opts.baseRot || 0) + window.hwHash(step * 3 + 2 + i * 97, seed) * rot,
+              });
+            }
+          });
+        };
+
+        // ---- hw-mark helpers (copy these too) ----
+        // style: "underline" (squiggle) | "strike" (double pass) | "bracket"
+        window.hwMarkPath = function (w, h, style, seed) {
+          seed = seed || 1;
+          function wob(n, range) {
+            return window.hwHash(n, seed) * (range === undefined ? 5 : range);
+          }
+          var mid = h / 2;
+          if (style === "bracket") {
+            return (
+              "M " +
+              (w * 0.9 + wob(1, 3)) +
+              " " +
+              (2 + wob(2, 3)) +
+              " Q " +
+              wob(3, 4) +
+              " " +
+              (2 + wob(4)) +
+              " " +
+              (4 + wob(5, 3)) +
+              " " +
+              (h * 0.5 + wob(6)) +
+              " Q " +
+              wob(7, 4) +
+              " " +
+              (h - 2 + wob(8)) +
+              " " +
+              (w * 0.9 + wob(9, 3)) +
+              " " +
+              (h - 2 + wob(10, 3))
+            );
+          }
+          if (style === "strike") {
+            return (
+              "M " +
+              (2 + wob(1, 3)) +
+              " " +
+              (mid + wob(2)) +
+              " L " +
+              (w - 4 + wob(3, 3)) +
+              " " +
+              (mid - 3 + wob(4)) +
+              " M " +
+              (w - 10 + wob(5, 4)) +
+              " " +
+              (mid + 7 + wob(6)) +
+              " L " +
+              (8 + wob(7, 4)) +
+              " " +
+              (mid + 3 + wob(8))
+            );
+          }
+          /* underline squiggle */
+          var segs = Math.max(5, Math.round(w / 95));
+          var d = "M 2 " + (mid + wob(0, 4));
+          for (var i = 1; i <= segs; i++) {
+            var x = (w / segs) * i;
+            d +=
+              " Q " +
+              (x - w / segs / 2 + wob(i * 4 + 1, 9)) +
+              " " +
+              (mid + (i % 2 ? -1 : 1) * (9 + wob(i * 4 + 2, 4))) +
+              " " +
+              x.toFixed(1) +
+              " " +
+              (mid + wob(i * 4 + 3, 4));
+          }
+          return d;
+        };
+        window.hwMarkOn = function (tl, target, at, dur) {
+          var p = document.querySelector(target + " path");
+          var len = p.getTotalLength();
+          gsap.set(p, { strokeDasharray: len, strokeDashoffset: len });
+          tl.to(
+            p,
+            { strokeDashoffset: 0, duration: dur === undefined ? 0.55 : dur, ease: "power2.inOut" },
+            at,
+          );
+        };
+        window.hwMarkOff = function (tl, target, at) {
+          tl.to(target, { opacity: 0, duration: 0.3, ease: "power2.in" }, at);
+        };
+
+        // ---- self-preview ----
+        document
+          .querySelector("#hw-un-m1 path")
+          .setAttribute("d", window.hwMarkPath(620, 34, "underline", 4));
+        document
+          .querySelector("#hw-un-m2 path")
+          .setAttribute("d", window.hwMarkPath(480, 34, "strike", 6));
+        document
+          .querySelector("#hw-un-m3 path")
+          .setAttribute("d", window.hwMarkPath(40, 110, "bracket", 8));
+        var tl = gsap.timeline({ paused: true });
+        window.hwMarkOn(tl, "#hw-un-m1", 0.4);
+        window.hwMarkOn(tl, "#hw-un-m2", 1.0);
+        window.hwMarkOn(tl, "#hw-un-m3", 1.6);
+        window.hwBoil(tl, [".hw-mark"], { amp: 1.5, rot: 0.4, frameDrop: 3, seed: 5 });
+        tl.to([".hw-mark"], { opacity: 0, duration: 0.3, ease: "power2.in" }, 3.5);
+        tl.set("#hw-un-root", { visibility: "hidden" }, 3.98);
+        window.__timelines["hw-underline"] = tl;
+      })();
+    </script>
+  
+
+<!-- /* PALETA-AJENA: fin */ -->
+
+
+
+
+
+
+
+
+<!-- PUENTE:inicio · generado por scripts/importar_bloque.js -->
+<style>
+  /* El lienzo de este repo, y la raíz TRANSPARENTE: si el fondo llega opaco,
+     omitBackground no lo recorta y los PNG salen sin alfa — el compositor
+     los pega como un rectángulo y tapa el metraje. */
+  html, body { width: 1080px; height: 1920px; margin: 0;
+               background: transparent !important; overflow: hidden; }
+  [data-composition-id="hw-underline"] { transform-origin: 50% 50%; }
+  /* El PLAFÓN DE AUTO-PREVISUALIZACIÓN. Varias piezas del catálogo traen un
+     fondo propio para poder mirarse solas —hf-hw-callout-circle lo llama
+     literalmente «self-preview scene» y es un degradado verde— y sobre
+     nuestro metraje eso no es un fondo: es una mancha que tapa el plano.
+     Se quita el relleno y se deja el contenido, que es lo que se quería. */
+  [id$="-scene"] { background: none !important; }
+</style>
+<script>
+(function () {
+  var ID = "hw-underline";
+  var RANURAS = {"lineas":".hw-mark"};
+  var raiz = document.querySelector('[data-composition-id="' + ID + '"]');
+  var tl = (window.__timelines || {})[ID] || null;
+
+  /* Maqueta a 1920x1080 y aquí el lienzo es 1080x1920: se escala al ancho y
+     se centra. Es un APAÑO declarado, no una solución — la buena es rehacer
+     la maqueta en vertical. config.encaje:false lo desactiva y
+     config.escala lo fuerza.
+     La medida sale de data-width/data-height y NO de offsetWidth: la raíz de
+     varios bloques mide 0x0 —es un ancla para hijos posicionados, no una
+     caja— y con la medida del DOM el encaje la mandaba a left:-420, fuera
+     del cuadro. Fotograma transparente, cero errores, y el humo diciendo
+     «no se mueve» porque no había nada que moviera. Por eso se envuelve en
+     una caja del tamaño DECLARADO: así los hijos absolutos tienen un
+     contenedor de verdad y la escala se aplica a algo con dimensiones. */
+  var caja = null;
+  function encaja(cfg) {
+    if (!raiz || cfg.encaje === false) return;
+    var w = +raiz.dataset.width || raiz.offsetWidth || 1920;
+    var h = +raiz.dataset.height || raiz.offsetHeight || 1080;
+    if (!caja) {
+      caja = document.createElement('div');
+      raiz.parentNode.insertBefore(caja, raiz);
+      caja.appendChild(raiz);
+    }
+    caja.style.cssText = 'position:absolute;left:0;top:0;width:' + w
+                       + 'px;height:' + h + 'px;transform-origin:0 0;';
+    raiz.style.position = 'absolute';
+    raiz.style.left = '0'; raiz.style.top = '0';
+    raiz.style.width = w + 'px'; raiz.style.height = h + 'px';
+    var k = cfg.escala || Math.min(1080 / w, 1920 / h);
+    /* DÓNDE, y no solo cuánto. Centrado es lo razonable por defecto, pero un
+       rótulo inferior centrado en un lienzo vertical queda en mitad de la
+       cara; y §18 dice que la banda de abajo la pinta la app. zona mueve la
+       caja ya escalada sin tocar la maqueta de dentro: arriba pega bajo la
+       banda superior (230 px), abajo se apoya sobre la inferior (1459 px). */
+    var alto = h * k;
+    var y = (1920 - alto) / 2;
+    if (cfg.zona === 'arriba') y = 230 + 40;
+    else if (cfg.zona === 'abajo') y = 1459 - 40 - alto;
+    caja.style.transform = 'translate(' + Math.round((1080 - w * k) / 2)
+      + 'px,' + Math.round(y) + 'px) scale(' + k + ')';
+  }
+
+  /* LA CAJA DE TINTA, para colocar.py.
+     Sin anclas() una capa es invisible para el colocador: no sabe cuánto
+     ocupa ni dónde, así que no puede apartarla del rostro ni avisar de que
+     cae bajo el caption de la app. Nuestras plantillas la declaran a mano
+     porque saben qué parte de sí mismas importa; un bloque importado no
+     puede saberlo, así que se MIDE: unión de los rectángulos visibles, ya en
+     coordenadas de lienzo —getBoundingClientRect incluye la transformación
+     del encaje—, descartando los contenedores que cubren casi todo.
+     Se llama después de seek, así que la caja es la del instante que se
+     esté mirando y no la del reposo. */
+  function tinta() {
+    if (!raiz) return null;
+    /* Dos pasadas. La primera descarta los contenedores que cubren casi todo
+       —si no, la caja de cualquier plantilla sería el lienzo entero y el dato
+       no diría nada—. Pero en las de dibujo a mano el contenido ES un <svg> a
+       pantalla completa y sus <path> devuelven cajas de cero: con el filtro
+       puesto, veintisiete plantillas se quedaban sin ancla. Si la primera
+       pasada no deja nada, se repite SIN filtro: una caja grande de más es
+       peor que ninguna, pero ninguna es peor que las dos. */
+    function une(filtra) {
+      var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      var todos = raiz.querySelectorAll('*');
+      for (var i = 0; i < todos.length; i++) {
+        var e = todos[i], s = getComputedStyle(e);
+        if (s.display === 'none' || s.visibility === 'hidden' ||
+            parseFloat(s.opacity) < 0.05) continue;
+        var r = e.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        if (filtra && r.width * r.height > 0.92 * 1080 * 1920) continue;
+        if (r.left < x0) x0 = r.left;
+        if (r.top < y0) y0 = r.top;
+        if (r.right > x1) x1 = r.right;
+        if (r.bottom > y1) y1 = r.bottom;
+      }
+      return x1 < x0 ? null : [x0, y0, x1, y1];
+    }
+    var c = une(true) || une(false);
+    if (!c) return null;
+    var x0 = c[0], y0 = c[1], x1 = c[2], y1 = c[3];
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0);
+    x1 = Math.min(1080, x1); y1 = Math.min(1920, y1);
+    return { bloque: { x: Math.round((x0 + x1) / 2), y: Math.round((y0 + y1) / 2),
+                       w: Math.round(x1 - x0), h: Math.round(y1 - y0) } };
+  }
+
+  /* LA SALIDA, que sus bloques no tienen: entran y se quedan puestos hasta
+     que la composición acaba. Aquí una capa vive dentro de su ventana y
+     tiene que irse, y no es cosmética — es lo que humo_plantillas.js
+     comprueba cuando muestrea tres instantes y exige que no sean el mismo
+     fotograma. Medido: x-post y macos-notification animan su entrada y dan
+     tres capturas idénticas después.
+     Es una salida GENÉRICA —se va bajando y encogiendo un pelo— y por eso
+     se puede apagar con config.salida:false cuando el bloque tenga la suya
+     propia. Determinista: solo depende de t. */
+  var SALIDA = 0.42;
+  /* La duración del GESTO, medida al importar. La sustituye el importador;
+     el valor de aquí es el de respaldo para quien abra el fichero suelto.
+     Va en una variable y no en dos sitios a propósito: la salida tiene que
+     caer dentro de la MISMA ventana que registra la plantilla, y cuando eran
+     dos números —la declarada por la timeline y la registrada— la salida se
+     programaba fuera del tramo que nadie llega a ver. */
+  /* El copy que el plan pide, repartido por orden sobre las ranuras que
+     declara TEXTOS. Lo que sobra se ignora; lo que falta se queda con lo que
+     el bloque traía.
+     Se aplica en CADA fotograma y no solo al montar, y no es por comodidad:
+     varios bloques animan su propio texto —un contador que sube, un
+     tecleado— así que su timeline reescribe el nodo en cada seek y el copy
+     del plan duraba un fotograma. Medido: la tarjeta pedía «−12» y salía el
+     «22» de la demo. */
+  function copia(cfg) {
+    for (var k in RANURAS) {
+      if (!cfg || !cfg[k] || !cfg[k].length) continue;
+      var nodos = document.querySelectorAll(RANURAS[k]);
+      for (var i = 0; i < nodos.length && i < cfg[k].length; i++) {
+        if (nodos[i].textContent !== cfg[k][i]) nodos[i].textContent = cfg[k][i];
+      }
+    }
+  }
+
+  var DUR = 3.98;   /* MEDIDO al importar */
+  var vida = DUR;
+
+  Engine.register({
+    duration: DUR,
+    /* Las ranuras se escriben LITERALES en los defaults, no con un
+       Object.assign: lint_config.py lee ese bloque con una expresión regular
+       —no ejecuta la plantilla— así que una clave calculada no existe para
+       él y el plan que la usa aborta por «clave que la plantilla no lee».
+       Las ranuras entran aquí porque lint_config.py --estricto
+       comprueba que toda clave del plan la lea de verdad su plantilla: sin
+       declararlas, pedir el copy por config es una clave muerta y el paso
+       aborta. */
+    defaults: { encaje: true, escala: null, zona: 'centro', salida: true,
+                tema: 'carbon', cue: null, cueGain: null, lineas: null },
+    setup: function (cfg) {
+      encaja(cfg);
+      vida = cfg.duration || DUR;
+      copia(cfg);
+      /* EL SONIDO: NINGUNO por defecto, y esto es una vuelta atrás.
+         Se publicaba un «aparicion» genérico en cada bloque importado para
+         que no entraran mudos. Sobre la pieza montada suena a lo que es: el
+         mismo golpe blando en 126 sitios, puesto por una regla que no sabe
+         qué está entrando. Un sonido que no significa nada es peor que el
+         silencio, porque el oído lo cuenta igual.
+         Quien sabe qué suena una capa es el guion —sfx en la capa— o la
+         tabla del director para las plantillas que conoce. Con cue en la
+         config se puede pedir uno a mano. */
+      return { cues: (!cfg.sinSonido && cfg.cue)
+                     ? [{ at: 0.04, sfx: cfg.cue, gain: cfg.cueGain || 0.5 }]
+                     : [] };
+    },
+    anclas: function () { return tinta(); },
+    /* El puente entero. Los dos motores hacen lo mismo —posicionar una
+       animación en el segundo t, sin tocar el reloj del navegador—, así que
+       no hay nada que traducir. */
+    /* La salida va en la raíz y el encaje en la caja que la envuelve: dos
+       transformaciones en dos nodos, para que no se pisen. */
+    draw: function (t, cfg) {
+      if (tl) tl.time(Math.max(0, Math.min(t, tl.duration())));
+      copia(cfg);
+      if (!raiz) return;
+      if (cfg && cfg.salida !== false && vida > SALIDA) {
+        var d = (t - (vida - SALIDA)) / SALIDA;
+        if (d > 0) {
+          var e = 1 - Math.min(1, d);
+          e = e * e * (3 - 2 * e);              /* suavizado, sin rebote */
+          raiz.style.opacity = e;
+          raiz.style.transform = 'translateY(' + ((1 - e) * -26).toFixed(2)
+                               + 'px) scale(' + (0.985 + 0.015 * e).toFixed(4) + ')';
+          return;
+        }
+      }
+      raiz.style.opacity = '';
+      raiz.style.transform = '';
+    }
+  });
+})();
+</script>
+<!-- PUENTE:fin -->
+
+
+
+
+
+</body>
+</html>

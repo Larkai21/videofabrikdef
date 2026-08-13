@@ -1,0 +1,617 @@
+<!-- hyperframes-registry-item: us-map -->
+<!doctype html>
+<html lang="en">
+  <head>
+<!-- /* PALETA-AJENA: inicio */ -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>US Map</title>
+    <script src="_gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background-color: #0f172a;
+      }
+    </style>
+    <link rel="stylesheet" href="_tokens.css">
+  <script src="_engine.js"></script>
+</head>
+  <body>
+    <div
+      id="us-map"
+      data-composition-id="us-map"
+      data-width="1920"
+      data-height="1080"
+      data-start="0"
+      data-duration="12"
+    >
+      <div class="map-container">
+        <div class="header">
+          <h1 class="headline">Population Density by State</h1>
+          <p class="subtitle">Residents per square mile, 2024 Census estimates</p>
+        </div>
+
+        <svg class="map-svg" viewBox="0 0 1400 820" preserveAspectRatio="xMidYMid meet">
+          <g class="states-group"></g>
+          <g class="labels-group"></g>
+        </svg>
+
+        <div class="legend">
+          <span class="legend-label legend-low">Low</span>
+          <div class="legend-bar"></div>
+          <span class="legend-label legend-high">High</span>
+        </div>
+
+        <div class="source">Source: U.S. Census Bureau</div>
+      </div>
+
+      <style>
+        #us-map {
+          width: 1920px;
+          height: 1080px;
+          background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%);
+          font-family: "Inter", sans-serif;
+          color: #e2e8f0;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          overflow: hidden;
+        }
+
+        #us-map .map-container {
+          width: 1700px;
+          height: 950px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          position: relative;
+        }
+
+        #us-map .header {
+          text-align: center;
+          margin-bottom: 20px;
+        }
+
+        #us-map .headline {
+          font-size: 52px;
+          font-weight: 700;
+          letter-spacing: -0.02em;
+          color: #f8fafc;
+          clip-path: inset(0 100% 0 0);
+        }
+
+        #us-map .subtitle {
+          font-size: 20px;
+          font-weight: 300;
+          color: #94a3b8;
+          margin-top: 8px;
+          opacity: 0;
+        }
+
+        #us-map .map-svg {
+          width: 1500px;
+          height: 750px;
+          overflow: visible;
+        }
+
+        #us-map .state-path {
+          stroke: #1e293b;
+          stroke-width: 1.2;
+          opacity: 0;
+          cursor: default;
+        }
+
+        #us-map .state-label {
+          font-size: 10px;
+          font-weight: 500;
+          fill: #f8fafc;
+          text-anchor: middle;
+          dominant-baseline: central;
+          opacity: 0;
+          pointer-events: none;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        #us-map .legend {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-top: 16px;
+          opacity: 0;
+        }
+
+        #us-map .legend-bar {
+          width: 300px;
+          height: 12px;
+          border-radius: 6px;
+          background: linear-gradient(90deg, #1e3a5f, #2563eb, #7c3aed, #ec4899);
+        }
+
+        #us-map .legend-label {
+          font-size: 14px;
+          font-weight: 500;
+          color: #94a3b8;
+        }
+
+        #us-map .source {
+          position: absolute;
+          bottom: 0;
+          right: 40px;
+          font-size: 12px;
+          color: #475569;
+          opacity: 0;
+        }
+      </style>
+
+      <script>
+        (function () {
+          const US_TOPO_URL = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
+
+          const stateData = {
+            "01": { name: "Alabama", abbr: "AL", density: 99.2 },
+            "02": { name: "Alaska", abbr: "AK", density: 1.3 },
+            "04": { name: "Arizona", abbr: "AZ", density: 63.5 },
+            "05": { name: "Arkansas", abbr: "AR", density: 58.1 },
+            "06": { name: "California", abbr: "CA", density: 253.9 },
+            "08": { name: "Colorado", abbr: "CO", density: 56.5 },
+            "09": { name: "Connecticut", abbr: "CT", density: 738.1 },
+            10: { name: "Delaware", abbr: "DE", density: 508.0 },
+            12: { name: "Florida", abbr: "FL", density: 410.5 },
+            13: { name: "Georgia", abbr: "GA", density: 185.6 },
+            15: { name: "Hawaii", abbr: "HI", density: 226.6 },
+            16: { name: "Idaho", abbr: "ID", density: 22.8 },
+            17: { name: "Illinois", abbr: "IL", density: 228.2 },
+            18: { name: "Indiana", abbr: "IN", density: 186.7 },
+            19: { name: "Iowa", abbr: "IA", density: 57.1 },
+            20: { name: "Kansas", abbr: "KS", density: 35.9 },
+            21: { name: "Kentucky", abbr: "KY", density: 113.2 },
+            22: { name: "Louisiana", abbr: "LA", density: 107.7 },
+            23: { name: "Maine", abbr: "ME", density: 43.8 },
+            24: { name: "Maryland", abbr: "MD", density: 636.1 },
+            25: { name: "Massachusetts", abbr: "MA", density: 901.2 },
+            26: { name: "Michigan", abbr: "MI", density: 176.4 },
+            27: { name: "Minnesota", abbr: "MN", density: 71.7 },
+            28: { name: "Mississippi", abbr: "MS", density: 63.5 },
+            29: { name: "Missouri", abbr: "MO", density: 89.5 },
+            30: { name: "Montana", abbr: "MT", density: 7.6 },
+            31: { name: "Nebraska", abbr: "NE", density: 25.3 },
+            32: { name: "Nevada", abbr: "NV", density: 28.3 },
+            33: { name: "New Hampshire", abbr: "NH", density: 153.2 },
+            34: { name: "New Jersey", abbr: "NJ", density: 1263.0 },
+            35: { name: "New Mexico", abbr: "NM", density: 17.4 },
+            36: { name: "New York", abbr: "NY", density: 415.3 },
+            37: { name: "North Carolina", abbr: "NC", density: 214.7 },
+            38: { name: "North Dakota", abbr: "ND", density: 11.3 },
+            39: { name: "Ohio", abbr: "OH", density: 288.8 },
+            40: { name: "Oklahoma", abbr: "OK", density: 57.7 },
+            41: { name: "Oregon", abbr: "OR", density: 43.9 },
+            42: { name: "Pennsylvania", abbr: "PA", density: 286.1 },
+            44: { name: "Rhode Island", abbr: "RI", density: 1061.4 },
+            45: { name: "South Carolina", abbr: "SC", density: 170.2 },
+            46: { name: "South Dakota", abbr: "SD", density: 12.2 },
+            47: { name: "Tennessee", abbr: "TN", density: 167.0 },
+            48: { name: "Texas", abbr: "TX", density: 112.8 },
+            49: { name: "Utah", abbr: "UT", density: 40.3 },
+            50: { name: "Vermont", abbr: "VT", density: 68.0 },
+            51: { name: "Virginia", abbr: "VA", density: 218.6 },
+            53: { name: "Washington", abbr: "WA", density: 115.9 },
+            54: { name: "West Virginia", abbr: "WV", density: 74.6 },
+            55: { name: "Wisconsin", abbr: "WI", density: 108.8 },
+            56: { name: "Wyoming", abbr: "WY", density: 5.8 },
+          };
+
+          const maxDensity = 500;
+
+          function densityToColor(d) {
+            const t = Math.min(d / maxDensity, 1);
+            if (t < 0.33) {
+              const s = t / 0.33;
+              return lerpColor([30, 58, 95], [37, 99, 235], s);
+            } else if (t < 0.66) {
+              const s = (t - 0.33) / 0.33;
+              return lerpColor([37, 99, 235], [124, 58, 237], s);
+            } else {
+              const s = (t - 0.66) / 0.34;
+              return lerpColor([124, 58, 237], [236, 72, 153], s);
+            }
+          }
+
+          function lerpColor(a, b, t) {
+            const r = Math.round(a[0] + (b[0] - a[0]) * t);
+            const g = Math.round(a[1] + (b[1] - a[1]) * t);
+            const bl = Math.round(a[2] + (b[2] - a[2]) * t);
+            return "rgb(" + r + "," + g + "," + bl + ")";
+          }
+
+          const svg = document.querySelector("#us-map .map-svg");
+          const statesGroup = svg.querySelector(".states-group");
+          const labelsGroup = svg.querySelector(".labels-group");
+          const tl = gsap.timeline({ paused: true });
+
+          fetch(US_TOPO_URL)
+            .then((r) => r.json())
+            .then((us) => {
+              const states = topojson.feature(us, us.objects.states).features;
+              const projection = d3
+                .geoAlbersUsa()
+                .fitSize([1380, 800], { type: "FeatureCollection", features: states });
+              const path = d3.geoPath().projection(projection);
+
+              const sortedStates = states
+                .filter((f) => stateData[String(f.id).padStart(2, "0")])
+                .sort((a, b) => {
+                  const aData = stateData[String(a.id).padStart(2, "0")];
+                  const bData = stateData[String(b.id).padStart(2, "0")];
+                  return aData.density - bData.density;
+                });
+
+              sortedStates.forEach((feature) => {
+                const fips = String(feature.id).padStart(2, "0");
+                const info = stateData[fips];
+                if (!info) return;
+
+                const d = path(feature);
+                if (!d) return;
+
+                const el = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                el.setAttribute("d", d);
+                el.setAttribute("class", "state-path");
+                el.setAttribute("data-state", info.abbr);
+                el.setAttribute("data-density", info.density);
+                el.style.fill = densityToColor(info.density);
+                statesGroup.appendChild(el);
+
+                const centroid = path.centroid(feature);
+                if (centroid[0] && centroid[1]) {
+                  const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                  label.setAttribute("x", centroid[0]);
+                  label.setAttribute("y", centroid[1]);
+                  label.setAttribute("class", "state-label");
+                  label.textContent = info.abbr;
+                  labelsGroup.appendChild(label);
+                }
+              });
+
+              buildTimeline();
+            });
+
+          function buildTimeline() {
+            const statePaths = statesGroup.querySelectorAll(".state-path");
+            const stateLabels = labelsGroup.querySelectorAll(".state-label");
+
+            tl.to(
+              "#us-map .headline",
+              {
+                clipPath: "inset(0 0% 0 0)",
+                duration: 1.0,
+                ease: "power2.inOut",
+              },
+              0,
+            );
+
+            tl.to(
+              "#us-map .subtitle",
+              {
+                opacity: 1,
+                duration: 0.6,
+                ease: "power2.out",
+              },
+              0.4,
+            );
+
+            tl.to(
+              statePaths,
+              {
+                opacity: 1,
+                scale: 1,
+                duration: 0.4,
+                stagger: {
+                  each: 0.06,
+                  from: "center",
+                },
+                ease: "back.out(1.4)",
+              },
+              1.0,
+            );
+
+            tl.to(
+              stateLabels,
+              {
+                opacity: 1,
+                duration: 0.3,
+                stagger: {
+                  each: 0.04,
+                  from: "center",
+                },
+                ease: "power2.out",
+              },
+              3.5,
+            );
+
+            tl.to(
+              "#us-map .legend",
+              {
+                opacity: 1,
+                y: 0,
+                duration: 0.6,
+                ease: "power2.out",
+              },
+              5.0,
+            );
+
+            tl.to(
+              "#us-map .source",
+              {
+                opacity: 1,
+                duration: 0.5,
+                ease: "power2.out",
+              },
+              5.5,
+            );
+
+            const highlightStates = ["CA", "NY", "TX", "FL", "NJ"];
+            highlightStates.forEach((abbr, i) => {
+              const el = statesGroup.querySelector('[data-state="' + abbr + '"]');
+              if (!el) return;
+
+              tl.to(
+                el,
+                {
+                  filter: "brightness(1.6) drop-shadow(0 0 8px rgba(255,255,255,0.4))",
+                  stroke: "#f8fafc",
+                  strokeWidth: 2.5,
+                  duration: 0.5,
+                  ease: "power2.out",
+                },
+                6.5 + i * 0.8,
+              );
+
+              tl.to(
+                el,
+                {
+                  filter: "brightness(1) drop-shadow(0 0 0px rgba(255,255,255,0))",
+                  stroke: "#1e293b",
+                  strokeWidth: 1.2,
+                  duration: 0.5,
+                  ease: "power2.in",
+                },
+                7.0 + i * 0.8,
+              );
+            });
+
+            window.__timelines = window.__timelines || {};
+            window.__timelines["us-map"] = tl;
+          }
+        })();
+      </script>
+    </div>
+  
+
+<!-- /* PALETA-AJENA: fin */ -->
+
+
+
+
+
+
+
+
+<!-- PUENTE:inicio · generado por scripts/importar_bloque.js -->
+<style>
+  /* El lienzo de este repo, y la raíz TRANSPARENTE: si el fondo llega opaco,
+     omitBackground no lo recorta y los PNG salen sin alfa — el compositor
+     los pega como un rectángulo y tapa el metraje. */
+  html, body { width: 1080px; height: 1920px; margin: 0;
+               background: transparent !important; overflow: hidden; }
+  [data-composition-id="us-map"] { transform-origin: 50% 50%; }
+  /* El PLAFÓN DE AUTO-PREVISUALIZACIÓN. Varias piezas del catálogo traen un
+     fondo propio para poder mirarse solas —hf-hw-callout-circle lo llama
+     literalmente «self-preview scene» y es un degradado verde— y sobre
+     nuestro metraje eso no es un fondo: es una mancha que tapa el plano.
+     Se quita el relleno y se deja el contenido, que es lo que se quería. */
+  [id$="-scene"] { background: none !important; }
+</style>
+<script>
+(function () {
+  var ID = "us-map";
+  var RANURAS = {};
+  var raiz = document.querySelector('[data-composition-id="' + ID + '"]');
+  var tl = (window.__timelines || {})[ID] || null;
+
+  /* Maqueta a 1920x1080 y aquí el lienzo es 1080x1920: se escala al ancho y
+     se centra. Es un APAÑO declarado, no una solución — la buena es rehacer
+     la maqueta en vertical. config.encaje:false lo desactiva y
+     config.escala lo fuerza.
+     La medida sale de data-width/data-height y NO de offsetWidth: la raíz de
+     varios bloques mide 0x0 —es un ancla para hijos posicionados, no una
+     caja— y con la medida del DOM el encaje la mandaba a left:-420, fuera
+     del cuadro. Fotograma transparente, cero errores, y el humo diciendo
+     «no se mueve» porque no había nada que moviera. Por eso se envuelve en
+     una caja del tamaño DECLARADO: así los hijos absolutos tienen un
+     contenedor de verdad y la escala se aplica a algo con dimensiones. */
+  var caja = null;
+  function encaja(cfg) {
+    if (!raiz || cfg.encaje === false) return;
+    var w = +raiz.dataset.width || raiz.offsetWidth || 1920;
+    var h = +raiz.dataset.height || raiz.offsetHeight || 1080;
+    if (!caja) {
+      caja = document.createElement('div');
+      raiz.parentNode.insertBefore(caja, raiz);
+      caja.appendChild(raiz);
+    }
+    caja.style.cssText = 'position:absolute;left:0;top:0;width:' + w
+                       + 'px;height:' + h + 'px;transform-origin:0 0;';
+    raiz.style.position = 'absolute';
+    raiz.style.left = '0'; raiz.style.top = '0';
+    raiz.style.width = w + 'px'; raiz.style.height = h + 'px';
+    var k = cfg.escala || Math.min(1080 / w, 1920 / h);
+    /* DÓNDE, y no solo cuánto. Centrado es lo razonable por defecto, pero un
+       rótulo inferior centrado en un lienzo vertical queda en mitad de la
+       cara; y §18 dice que la banda de abajo la pinta la app. zona mueve la
+       caja ya escalada sin tocar la maqueta de dentro: arriba pega bajo la
+       banda superior (230 px), abajo se apoya sobre la inferior (1459 px). */
+    var alto = h * k;
+    var y = (1920 - alto) / 2;
+    if (cfg.zona === 'arriba') y = 230 + 40;
+    else if (cfg.zona === 'abajo') y = 1459 - 40 - alto;
+    caja.style.transform = 'translate(' + Math.round((1080 - w * k) / 2)
+      + 'px,' + Math.round(y) + 'px) scale(' + k + ')';
+  }
+
+  /* LA CAJA DE TINTA, para colocar.py.
+     Sin anclas() una capa es invisible para el colocador: no sabe cuánto
+     ocupa ni dónde, así que no puede apartarla del rostro ni avisar de que
+     cae bajo el caption de la app. Nuestras plantillas la declaran a mano
+     porque saben qué parte de sí mismas importa; un bloque importado no
+     puede saberlo, así que se MIDE: unión de los rectángulos visibles, ya en
+     coordenadas de lienzo —getBoundingClientRect incluye la transformación
+     del encaje—, descartando los contenedores que cubren casi todo.
+     Se llama después de seek, así que la caja es la del instante que se
+     esté mirando y no la del reposo. */
+  function tinta() {
+    if (!raiz) return null;
+    /* Dos pasadas. La primera descarta los contenedores que cubren casi todo
+       —si no, la caja de cualquier plantilla sería el lienzo entero y el dato
+       no diría nada—. Pero en las de dibujo a mano el contenido ES un <svg> a
+       pantalla completa y sus <path> devuelven cajas de cero: con el filtro
+       puesto, veintisiete plantillas se quedaban sin ancla. Si la primera
+       pasada no deja nada, se repite SIN filtro: una caja grande de más es
+       peor que ninguna, pero ninguna es peor que las dos. */
+    function une(filtra) {
+      var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      var todos = raiz.querySelectorAll('*');
+      for (var i = 0; i < todos.length; i++) {
+        var e = todos[i], s = getComputedStyle(e);
+        if (s.display === 'none' || s.visibility === 'hidden' ||
+            parseFloat(s.opacity) < 0.05) continue;
+        var r = e.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        if (filtra && r.width * r.height > 0.92 * 1080 * 1920) continue;
+        if (r.left < x0) x0 = r.left;
+        if (r.top < y0) y0 = r.top;
+        if (r.right > x1) x1 = r.right;
+        if (r.bottom > y1) y1 = r.bottom;
+      }
+      return x1 < x0 ? null : [x0, y0, x1, y1];
+    }
+    var c = une(true) || une(false);
+    if (!c) return null;
+    var x0 = c[0], y0 = c[1], x1 = c[2], y1 = c[3];
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0);
+    x1 = Math.min(1080, x1); y1 = Math.min(1920, y1);
+    return { bloque: { x: Math.round((x0 + x1) / 2), y: Math.round((y0 + y1) / 2),
+                       w: Math.round(x1 - x0), h: Math.round(y1 - y0) } };
+  }
+
+  /* LA SALIDA, que sus bloques no tienen: entran y se quedan puestos hasta
+     que la composición acaba. Aquí una capa vive dentro de su ventana y
+     tiene que irse, y no es cosmética — es lo que humo_plantillas.js
+     comprueba cuando muestrea tres instantes y exige que no sean el mismo
+     fotograma. Medido: x-post y macos-notification animan su entrada y dan
+     tres capturas idénticas después.
+     Es una salida GENÉRICA —se va bajando y encogiendo un pelo— y por eso
+     se puede apagar con config.salida:false cuando el bloque tenga la suya
+     propia. Determinista: solo depende de t. */
+  var SALIDA = 0.42;
+  /* La duración del GESTO, medida al importar. La sustituye el importador;
+     el valor de aquí es el de respaldo para quien abra el fichero suelto.
+     Va en una variable y no en dos sitios a propósito: la salida tiene que
+     caer dentro de la MISMA ventana que registra la plantilla, y cuando eran
+     dos números —la declarada por la timeline y la registrada— la salida se
+     programaba fuera del tramo que nadie llega a ver. */
+  /* El copy que el plan pide, repartido por orden sobre las ranuras que
+     declara TEXTOS. Lo que sobra se ignora; lo que falta se queda con lo que
+     el bloque traía.
+     Se aplica en CADA fotograma y no solo al montar, y no es por comodidad:
+     varios bloques animan su propio texto —un contador que sube, un
+     tecleado— así que su timeline reescribe el nodo en cada seek y el copy
+     del plan duraba un fotograma. Medido: la tarjeta pedía «−12» y salía el
+     «22» de la demo. */
+  function copia(cfg) {
+    for (var k in RANURAS) {
+      if (!cfg || !cfg[k] || !cfg[k].length) continue;
+      var nodos = document.querySelectorAll(RANURAS[k]);
+      for (var i = 0; i < nodos.length && i < cfg[k].length; i++) {
+        if (nodos[i].textContent !== cfg[k][i]) nodos[i].textContent = cfg[k][i];
+      }
+    }
+  }
+
+  var DUR = 1.20;   /* MEDIDO al importar */
+  var vida = DUR;
+
+  Engine.register({
+    duration: DUR,
+    /* Las ranuras se escriben LITERALES en los defaults, no con un
+       Object.assign: lint_config.py lee ese bloque con una expresión regular
+       —no ejecuta la plantilla— así que una clave calculada no existe para
+       él y el plan que la usa aborta por «clave que la plantilla no lee».
+       Las ranuras entran aquí porque lint_config.py --estricto
+       comprueba que toda clave del plan la lea de verdad su plantilla: sin
+       declararlas, pedir el copy por config es una clave muerta y el paso
+       aborta. */
+    defaults: { encaje: true, escala: null, zona: 'centro', salida: true,
+                tema: 'carbon', cue: null, cueGain: null },
+    setup: function (cfg) {
+      encaja(cfg);
+      vida = cfg.duration || DUR;
+      copia(cfg);
+      /* EL SONIDO: NINGUNO por defecto, y esto es una vuelta atrás.
+         Se publicaba un «aparicion» genérico en cada bloque importado para
+         que no entraran mudos. Sobre la pieza montada suena a lo que es: el
+         mismo golpe blando en 126 sitios, puesto por una regla que no sabe
+         qué está entrando. Un sonido que no significa nada es peor que el
+         silencio, porque el oído lo cuenta igual.
+         Quien sabe qué suena una capa es el guion —sfx en la capa— o la
+         tabla del director para las plantillas que conoce. Con cue en la
+         config se puede pedir uno a mano. */
+      return { cues: (!cfg.sinSonido && cfg.cue)
+                     ? [{ at: 0.04, sfx: cfg.cue, gain: cfg.cueGain || 0.5 }]
+                     : [] };
+    },
+    anclas: function () { return tinta(); },
+    /* El puente entero. Los dos motores hacen lo mismo —posicionar una
+       animación en el segundo t, sin tocar el reloj del navegador—, así que
+       no hay nada que traducir. */
+    /* La salida va en la raíz y el encaje en la caja que la envuelve: dos
+       transformaciones en dos nodos, para que no se pisen. */
+    draw: function (t, cfg) {
+      if (tl) tl.time(Math.max(0, Math.min(t, tl.duration())));
+      copia(cfg);
+      if (!raiz) return;
+      if (cfg && cfg.salida !== false && vida > SALIDA) {
+        var d = (t - (vida - SALIDA)) / SALIDA;
+        if (d > 0) {
+          var e = 1 - Math.min(1, d);
+          e = e * e * (3 - 2 * e);              /* suavizado, sin rebote */
+          raiz.style.opacity = e;
+          raiz.style.transform = 'translateY(' + ((1 - e) * -26).toFixed(2)
+                               + 'px) scale(' + (0.985 + 0.015 * e).toFixed(4) + ')';
+          return;
+        }
+      }
+      raiz.style.opacity = '';
+      raiz.style.transform = '';
+    }
+  });
+})();
+</script>
+<!-- PUENTE:fin -->
+
+
+
+
+
+</body>
+</html>

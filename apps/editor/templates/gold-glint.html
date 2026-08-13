@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Contraste — punzón bajo luz rasante</title>
+<meta name="gesto" content="golpear:punzon">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* ======================================================================
+     ERA un DESTELLO: una palabra en `--accent` con una banda blanca
+     —`#FFF6E0`, `#FFFFFF`, `#FFF6E0`, tres hex a pelo— corriendo por dentro
+     del relleno del texto con `background-clip: text`. Cincuenta y nueve
+     líneas, `letter-spacing: -0.03em` sin token, `font-size: cfg.tam + 'px'`
+     con 150 escritos en `defaults`, cero textura y un único token de color.
+
+     Y sobre todo: era LO QUE §1 PROHÍBE. «Si un elemento necesita destacar,
+     lo hace con contraste y peso tipográfico, nunca con luz.» Un brillo que
+     recorre unas letras no es un objeto iluminado: es luz sin superficie,
+     que es la definición de resplandor. Además es el gesto por defecto de la
+     categoría —el «shine» de cualquier plantilla de After Effects, el que
+     lleva veinte años poniéndose encima de la palabra PREMIUM—.
+
+     ES un CONTRASTE: el punzón que un contraste de orfebrería golpea sobre
+     una pieza para certificar su ley. No es una metáfora buscada, es
+     literalmente cómo se acredita el valor de un metal, y encaje exacto con
+     los disparadores de esta capa (oro · valor · top · premium · calidad).
+
+     El cambio que importa: aquí SÍ hay superficie, y por eso puede haber
+     reflejo. La luz no aparece: PASA. Cruza una lámina de bronce cepillado
+     de izquierda a derecha y, al pasar, hace tres cosas que solo puede hacer
+     una luz sobre materia:
+
+       · revela la VETA del cepillado —el estriado anisótropo solo existe
+         donde la banda toca, porque un cepillado no se ve en luz difusa—;
+       · enciende el CANTO biselado del cartucho, que es la parte que primero
+         devuelve un especular en una pieza real;
+       · gira el RELIEVE de las letras: están golpeadas en alto, no impresas,
+         y su cara iluminada aparece y se apaga con la banda.
+
+     Y la pieza no entra ni sale: la luz la trae y se la lleva. El recorte
+     de `.corte` es una VENTANA entre dos frentes paralelos a la banda —el
+     que la descubre y el que la retira—, así que no hay ni un fundido de
+     opacidad en toda la capa. Un fundido es lo que hace un gráfico; una
+     pieza física entra en el haz y sale de él.
+
+     --- por qué NO lleva `Engine.flota` ---
+     Dura 1,3 s por defecto y 0,6 s en los planes más apretados. A esa
+     escala la flotación de reposo no tiene reposo que amueblar: §10 la pide
+     para que una fila no parezca una captura fija durante cinco segundos, y
+     aquí no hay cinco segundos. La deriva la da la segunda capa de `.brillo`,
+     que sigue cruzando durante TODA la capa a un tercio de velocidad — o sea
+     que la fuente de luz sigue moviéndose aunque el especular ya haya pasado.
+
+     --- por qué NO anima el peso variable ---
+     `lower-third.html` ya tiene ese gesto y lo tiene bien: sus letras las
+     CORTA un buril y engordan de 200 a 800 según pasa. Repetirlo aquí haría
+     que las dos plantillas contaran la misma historia con distinto encuadre,
+     que es exactamente el problema que este sprint intenta arreglar. Estas
+     letras están GOLPEADAS: nacen con su peso final de una vez, como sale
+     una letra de un punzón.
+     ====================================================================== */
+
+  .stage { position: absolute; inset: 0; }
+
+  /* Posiciona y bascula. Nada más: el recorte y la luz viven dentro, para
+     que la sombra de contacto vea la silueta YA recortada y se retire con
+     ella en vez de quedarse flotando bajo una pieza que ya no está. */
+  .pieza {
+    position: absolute;
+    left: 50%;
+    filter: drop-shadow(0 9px 16px var(--sombra));
+  }
+
+  /* La ventana de luz. `clip-path` y no una máscara: el canto de una pieza
+     metálica que entra en un haz es DURO —el metal no se degrada, se
+     ilumina—, y una máscara con degradado habría devuelto el mismo fundido
+     que este rediseño quita. Lleva además el ajuste de luminancia global:
+     la pieza entera está más clara mientras el especular la recorre. */
+  .corte {
+    position: relative;
+    isolation: isolate;
+    will-change: clip-path, filter;
+  }
+
+  /* EL CANTO BISELADO. Es un envoltorio con 4 px de relleno y su propio
+     recorte de cartucho: el bisel es lo que asoma entre los dos recortes.
+     Se hace así y no con `border` porque un borde no sigue un `clip-path`
+     —se recorta con el resto— y el chaflán se quedaría sin canto justo en
+     las cuatro esquinas, que es donde más se nota que una pieza tiene
+     grosor.
+     El degradado va claro arriba-izquierda y oscuro abajo-derecha: UNA luz,
+     y la misma para todo lo que se dibuja aquí dentro. */
+  .bisel {
+    display: block;
+    padding: 4px;
+    background-image: linear-gradient(var(--metal-ang),
+      color-mix(in oklab, var(--metal-3) 58%, var(--velo-claro)) 0%,
+      var(--metal-3) 26%,
+      var(--metal-4) 52%,
+      var(--metal-5) 74%,
+      color-mix(in oklab, var(--metal-1) 58%, var(--velo-oscuro)) 100%);
+    clip-path: polygon(
+      20px 0, calc(100% - 20px) 0, 100% 20px, 100% calc(100% - 20px),
+      calc(100% - 20px) 100%, 20px 100%, 0 calc(100% - 20px), 0 20px);
+  }
+
+  /* LA CARA. El chaflán en las cuatro esquinas es lo que separa un punzón de
+     una tarjeta: `border-radius` es fabricación en serie y un corte a 45° es
+     una pieza troquelada. Y recorta de verdad a sus hijos —el grano y la
+     veta—, cosa que `border-radius` NO hace. */
+  .placa {
+    position: relative;
+    padding: var(--s-5) var(--s-7);
+    isolation: isolate;
+    clip-path: polygon(
+      18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px),
+      calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px), 0 18px);
+  }
+
+  /* El bronce. Dos capas: la CURVATURA primero —invariante de tema— y
+     debajo los cinco stops del metal.
+     La curvatura no es adorno: en `paper` los cinco stops se colapsan al
+     acento a propósito (`_tokens.css` §metal), así que sin ella la cara
+     saldría un plano naranja liso y la luz rasante no tendría nada sobre lo
+     que rasar. Sale de `--velo-claro` y `--velo-oscuro`, que son los dos
+     únicos tokens fijos en ambos temas, o sea la única forma de modelar un
+     relieve que signifique lo mismo en los dos. */
+  .cara {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background-color: var(--accent);
+    background-image:
+      linear-gradient(var(--metal-ang),
+        color-mix(in oklab, var(--velo-oscuro) 34%, transparent) 0%,
+        transparent 24%,
+        color-mix(in oklab, var(--velo-claro) 15%, transparent) 47%,
+        transparent 70%,
+        color-mix(in oklab, var(--velo-oscuro) 26%, transparent) 100%),
+      linear-gradient(var(--metal-ang),
+        var(--metal-1) 0%, var(--metal-2) 22%, var(--metal-3) 46%,
+        var(--metal-4) 62%, var(--metal-5) 88%);
+  }
+
+  /* PAPER. Los cinco stops del metal se colapsan al acento a propósito
+     (`_tokens.css`: «en claro un degradado de bronce sobre papel se ve
+     sucio»), y esa decisión es correcta para una superficie APOYADA sobre el
+     papel. Aquí la pieza no está sobre el papel: está sobre metraje, y sin
+     recorrido de valor no es metal, es una pegatina naranja — medido en el
+     fotograma, la palabra se quedaba a ~2:1 de contraste contra su propia
+     lámina y había que buscarla.
+     El recorrido se reconstruye desde `--accent` mezclando en oklab hacia los
+     dos velos, o sea SIN cambiar de matiz: es el mismo color con luz, que es
+     justo lo contrario del degradado sucio que la nota describe. */
+  :root[data-tema="paper"] .cara {
+    background-image:
+      linear-gradient(var(--metal-ang),
+        color-mix(in oklab, var(--velo-oscuro) 30%, transparent) 0%,
+        transparent 22%,
+        color-mix(in oklab, var(--velo-claro) 20%, transparent) 48%,
+        transparent 74%,
+        color-mix(in oklab, var(--velo-oscuro) 26%, transparent) 100%),
+      linear-gradient(var(--metal-ang),
+        color-mix(in oklab, var(--accent) 76%, var(--velo-oscuro)) 0%,
+        var(--accent) 24%,
+        color-mix(in oklab, var(--accent) 58%, var(--velo-claro)) 50%,
+        var(--accent) 74%,
+        color-mix(in oklab, var(--accent) 80%, var(--velo-oscuro)) 100%);
+  }
+
+  /* LA VETA del cepillado. Estriado fino en el MISMO ángulo que el metal
+     —`--metal-ang`— porque el especular anisótropo de una superficie
+     cepillada es una banda PARALELA a los surcos que viaja a través de
+     ellos; con las rayas cruzadas se leería como una trama de semitono, no
+     como metal.
+     Vive enmascarada por la banda y solo ahí: un cepillado en luz difusa no
+     se ve, y dibujarlo siempre es lo que convierte una lámina en un papel
+     pintado de rayas. */
+  .veta {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background-image: repeating-linear-gradient(var(--metal-ang),
+      transparent 0 2px,
+      color-mix(in oklab, var(--velo-claro) 38%, transparent) 2px 3px,
+      transparent 3px 6px,
+      color-mix(in oklab, var(--velo-oscuro) 28%, transparent) 6px 7px);
+    mix-blend-mode: overlay;
+    /* Los porcentajes están calculados sobre una imagen de máscara del 300 %,
+       así que un tramo del 18 % son 0,54 anchos de pieza. Escribirlos sin
+       hacer esa cuenta es lo que produce bandas de un ancho de plantilla
+       entera que se leen como un fundido. */
+    -webkit-mask-image: linear-gradient(var(--metal-ang),
+      transparent 41%, var(--ink) 50%, transparent 59%);
+    mask-image: linear-gradient(var(--metal-ang),
+      transparent 41%, var(--ink) 50%, transparent 59%);
+    -webkit-mask-size: 300% 100%;  mask-size: 300% 100%;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  }
+
+  /* El filete interior del punzón: línea hundida a 9 px del canto. Un surco
+     se dibuja con DOS trazos —el oscuro de la pared en sombra y el claro del
+     labio que devuelve la luz—, no con un borde de un color. Cuesta un
+     `box-shadow` sin difuminado, o sea nada. */
+  .filete {
+    position: absolute;
+    inset: 9px;
+    z-index: 3;
+    border: var(--hairline) solid
+            color-mix(in oklab, var(--velo-oscuro) 44%, transparent);
+    box-shadow: 0 1px 0 color-mix(in oklab, var(--velo-claro) 24%, transparent);
+  }
+
+  .letras { position: relative; z-index: 4; }
+
+  /* Letra GOLPEADA EN HUECO. El fondo del surco está en sombra —de ahí el
+     relleno oscuro, que además es lo que da el contraste sobre metraje
+     arbitrario— y el metal DESPLAZADO por el punzón forma un labio que
+     asoma abajo-derecha y devuelve la luz. Una misma dirección para el
+     bisel, la curvatura y las letras.
+     Se probó al revés, con la letra más clara que la lámina: sobre un bronce
+     que ya es claro la palabra se leía a duras penas, y esto dura medio
+     segundo sobre una cara. El hueco gana por contraste, que es además lo
+     que §1 pide y lo que hace un punzón de verdad: marcar, no iluminar.
+     `--tr-caps` y no un tracking negativo: un punzón separa los caracteres
+     porque cada uno es un golpe, y apretarlos es lo que hace un logotipo. */
+  .txt {
+    position: relative;
+    font-family: var(--display);
+    font-weight: var(--w-negro);
+    letter-spacing: var(--tr-caps);
+    /* El tracking mete aire DETRÁS de la última letra y descentraba la
+       palabra dentro del cartucho. Se descuenta. */
+    margin-right: calc(-1 * var(--tr-caps));
+    line-height: 0.98;
+    white-space: nowrap;
+    text-transform: uppercase;
+    color: color-mix(in oklab, var(--metal-1) 58%, var(--velo-oscuro));
+    text-shadow:
+       0.018em 0.020em 0 color-mix(in oklab, var(--metal-3) 58%, var(--velo-claro)),
+      -0.010em -0.010em 0 color-mix(in oklab, var(--velo-oscuro) 42%, transparent);
+  }
+
+  /* En `paper` los cinco stops del metal valen todos `--accent`, así que la
+     fórmula de arriba —que parte de `--metal-1`— deja la letra a la misma
+     distancia del fondo que la propia lámina. Se hunde dos escalones más:
+     medido contra el centro de la cara, el contraste pasa de 2,1:1 a 4,4:1. */
+  :root[data-tema="paper"] .txt {
+    color: color-mix(in oklab, var(--accent) 40%, var(--velo-oscuro));
+  }
+  :root[data-tema="paper"] .txt.luz {
+    color: color-mix(in oklab, var(--accent) 30%, var(--velo-oscuro));
+  }
+
+  /* La CARA ILUMINADA de ese mismo relieve, encima y enmascarada por la
+     banda. No es una copia decorativa: el relieve de una letra golpeada
+     cambia de aspecto según por dónde le entra la luz, y esto es lo que se
+     ve cuando le entra de lleno. Fuera de la banda no existe. */
+  .txt.luz {
+    position: absolute;
+    inset: 0;
+    color: color-mix(in oklab, var(--metal-1) 44%, var(--velo-oscuro));
+    text-shadow:
+       0.022em 0.024em 0 color-mix(in oklab, var(--metal-3) 30%, var(--velo-claro)),
+      -0.012em -0.012em 0 color-mix(in oklab, var(--velo-oscuro) 58%, transparent);
+    -webkit-mask-image: linear-gradient(var(--metal-ang),
+      transparent 40%, var(--ink) 50%, transparent 60%);
+    mask-image: linear-gradient(var(--metal-ang),
+      transparent 40%, var(--ink) 50%, transparent 60%);
+    -webkit-mask-size: 300% 100%;  mask-size: 300% 100%;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  }
+
+  /* EL BARRIDO ESPECULAR. Está fuera de `.placa` y no dentro, para que cruce
+     también el canto biselado: en una pieza real el reflejo salta primero al
+     canto, y una luz que se detiene en el borde de la cara delata que es una
+     capa pegada.
+     Dos capas en un solo elemento:
+       1 · el especular, estrecho y con un núcleo duro (`--glass-highlight`);
+       2 · una fuente ancha y floja que NO para nunca — la lámpara sigue
+           desplazándose durante toda la capa, así que ni un fotograma es
+           igual al anterior aunque el especular ya se haya ido. */
+  .brillo {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    mix-blend-mode: overlay;
+    /* MISMO recorte que `.bisel`, y no es redundante: `.corte` solo lleva el
+       polígono del haz, así que sin esto la banda se pintaba sobre los cuatro
+       chaflanes —fuera de la silueta de la pieza— y como debajo no hay nada,
+       `overlay` contra alfa 0 cae a composición normal y devuelve el color a
+       pelo: cuñas BLANCAS en las esquinas, muy visibles en `paper`, donde
+       `--glass-highlight` va a 0,95. No lo delataba ningún log; lo delató
+       mirar el fotograma de 0,50 s. */
+    clip-path: polygon(
+      20px 0, calc(100% - 20px) 0, 100% 20px, 100% calc(100% - 20px),
+      calc(100% - 20px) 100%, 20px 100%, 0 calc(100% - 20px), 0 20px);
+    background-repeat: no-repeat, no-repeat;
+    background-size: 300% 100%, 420% 100%;
+    background-image:
+      linear-gradient(var(--metal-ang),
+        transparent 42%,
+        color-mix(in oklab, var(--glass-glare) 60%, transparent) 47%,
+        var(--glass-highlight) 49.2%,
+        var(--glass-highlight) 50.8%,
+        color-mix(in oklab, var(--glass-glare) 60%, transparent) 53%,
+        transparent 58%),
+      /* La segunda luz —la que recorre la pieza durante TODA la capa— iba al
+         14 % y no llegaba al vídeo: medida sobre 18 fotogramas seguidos, movía
+         como mucho 10 de 255, o sea por debajo de los 6 que el cuantizador de
+         H.264 respeta EN CADA FOTOGRAMA. Existía en el PNG y desaparecía al
+         codificar, que es la peor clase de efecto: cuesta y no está.
+         Al 34 % y con la banda más estrecha —de 50 % plano a un lóbulo entre
+         34 y 66— el paso de la luz se lee sin convertirse en un destello, que
+         es lo que §1 prohíbe. */
+      linear-gradient(var(--metal-ang),
+        transparent 22%,
+        color-mix(in oklab, var(--velo-claro) 34%, transparent) 50%,
+        transparent 78%);
+    will-change: background-position;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="pieza" id="pieza">
+    <div class="corte" id="corte">
+      <div class="bisel">
+        <div class="placa" id="placa">
+          <div class="cara"></div>
+          <div class="veta" id="veta"></div>
+          <div class="filete"></div>
+          <div class="letras">
+            <div class="txt" id="txt"></div>
+            <div class="txt luz" id="txtLuz"></div>
+          </div>
+        </div>
+      </div>
+      <div class="brillo" id="brillo"></div>
+    </div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const pieza  = document.getElementById('pieza');
+const corte  = document.getElementById('corte');
+const placa  = document.getElementById('placa');
+const veta   = document.getElementById('veta');
+const brillo = document.getElementById('brillo');
+const txt    = document.getElementById('txt');
+const txtLuz = document.getElementById('txtLuz');
+
+/* Cuerpo de letra LEÍDO DEL TOKEN, no escrito en `defaults`. Un número en
+   píxeles dentro de la plantilla se queda fuera de la escala tipográfica en
+   cuanto la escala se mueve, y aquí había un 150 que no corresponde a ningún
+   escalón (`--t-hero` son 109 y `--t-mega` 145). La sonda es la única forma
+   de preguntarle al navegador cuánto vale un token: el valor calculado, no
+   el declarado. Un número explícito en `cfg.tam` sigue mandando, porque hay
+   planes escritos que lo pasan. */
+function cuerpoToken(nombre) {
+  const s = document.createElement('span');
+  s.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;' +
+                    'font-size:var(' + nombre + ')';
+  document.body.appendChild(s);
+  const px = parseFloat(getComputedStyle(s).fontSize);
+  s.remove();
+  return px;
+}
+
+/* Geometría medida en `setup`. Todo lo que `draw` necesita para colocar la
+   MISMA banda de luz sobre cuatro cajas de anchos distintos —la pieza con su
+   canto, la cara, la veta y la palabra—. */
+let G = { W: 720, H: 168, m: 17, Wp: 712, Lp: 4, Wt: 616, Lt: 52 };
+
+/* Dónde poner una capa de fondo o de máscara de `s` veces el ancho de su
+   caja (`w`, con su borde izquierdo en `l`) para que el CENTRO de su banda
+   caiga en `xc`, medido en coordenadas de la PIEZA.
+   Sale de despejar la definición de `background-position` en
+   porcentaje: `izq_imagen = l − w·(s−1)·P/100`, y el centro de la banda está
+   a `s·w/2` de ahí.
+
+   Existe porque las cuatro capas tienen anchos distintos —la palabra es 104
+   px más estrecha que la pieza— y usar el mismo porcentaje en todas dejaba
+   el especular de las letras desplazado respecto al de la lámina. Con dos
+   luces en la misma pieza se ve inmediatamente que son dos capas. */
+function banda(xc, w, l, s) {
+  return (l + s * w / 2 - xc) * 100 / (w * (s - 1));
+}
+
+Engine.register({
+  duration: 1.3,
+  /* `tam: null` en vez de 150: el cuerpo sale del token.
+     `espera` baja de 0,28 a 0. Está MEDIDO, no estimado: capturando los 39
+     fotogramas de la capa a 30 pps, con 0,28 hay ocho fotogramas vacíos —y
+     con 0,05 todavía dos— mientras ya se ha oído la palabra que dispara el
+     efecto. Un micro-FX anclado a una palabra que llega 0,27 s tarde no llega.
+     La clave se conserva y se sigue respetando si un plan la pasa.
+     `salida` y `anchoMax` son claves NUEVAS con defecto — `anchoMax` con ese
+     nombre a propósito, que es el que `dirigir.compensa()` ya escala cuando
+     la capa vive en una columna. */
+  defaults: { texto: 'PREMIUM', y: 880, tam: null,
+              espera: 0, barrido: 0.55, salida: 0.22, anchoMax: 940 },
+
+  setup(cfg) {
+    const texto = String(cfg.texto == null ? '' : cfg.texto).toUpperCase();
+    txt.textContent = texto;
+    txtLuz.textContent = texto;
+    pieza.style.top = (Number(cfg.y) || 0) + 'px';
+
+    let tam = Number(cfg.tam) > 0 ? Number(cfg.tam) : cuerpoToken('--t-hero');
+    const pon = v => { txt.style.fontSize = v + 'px';
+                       txtLuz.style.fontSize = v + 'px'; };
+    pon(tam);
+
+    /* Un disparador largo —«EXPONENCIAL», «INCREÍBLE»— se sale del lienzo sin
+       dar ningún error: la pieza es `shrink-to-fit` y crece hasta donde haga
+       falta. El ajuste es exacto y de una sola pasada porque el ancho del
+       texto es lineal con el cuerpo (el tracking va en `em`) y todo lo demás
+       —relleno del cartucho y canto— es constante. */
+    const fijo = 2 * (parseFloat(getComputedStyle(placa).paddingLeft) + 4);
+    const maxA = Number(cfg.anchoMax) > 0 ? Number(cfg.anchoMax) : 940;
+    const w0 = pieza.getBoundingClientRect().width;
+    if (w0 > maxA && w0 > fijo) {
+      pon(Math.max(40, tam * (maxA - fijo) / (w0 - fijo)));
+    }
+
+    const rp = pieza.getBoundingClientRect();
+    const rl = placa.getBoundingClientRect();
+    const rt = txt.getBoundingClientRect();
+    G = {
+      W: rp.width, H: rp.height,
+      Wp: rl.width, Lp: rl.left - rp.left,
+      Wt: rt.width, Lt: rt.left - rp.left,
+      /* Cuánto se inclina el frente de luz al recorrer la altura de la pieza,
+         en porcentaje de su ancho. NO es un número a ojo: los dos frentes de
+         `.corte` tienen que ser PARALELOS a la banda especular o la pieza se
+         descubriría por una diagonal distinta de aquella por la que la luz
+         entra, y eso se lee como dos efectos superpuestos.
+         Para un eje de degradado a `--metal-ang` grados, la pendiente de sus
+         isolíneas es `cos(a)/sin(a)`; el polígono abarca de −30 % a 130 % de
+         la altura, o sea 1,6 H. */
+      m: 0
+    };
+    const a = (parseFloat(getComputedStyle(document.documentElement)
+                 .getPropertyValue('--metal-ang')) || 115) * Math.PI / 180;
+    G.m = -160 * (Math.cos(a) / Math.sin(a)) * G.H / G.W;
+
+    /* Grano de fundición. Va en `.placa`, que tiene fondo OPACO propio: la
+       teja se pinta en `multiply` y multiplicar contra alfa 0 devolvería el
+       gris de la teja, o sea un rectángulo gris sobre el metraje. El chaflán
+       de `clip-path` la recorta de verdad; con `border-radius` se saldría por
+       las esquinas. Y se sube por encima del texto porque una pieza fundida
+       tiene el mismo grano en el fondo y en la letra: si el grano se queda
+       debajo, las letras parecen pegadas encima de la lámina. */
+    const g = Engine.grano(placa, { px: 192, semilla: 11, op: 0.24 });
+    g.style.zIndex = 6;
+  },
+
+  draw(t, cfg) {
+    const D = Number(cfg.duration) || 1.3;
+    const espera = clamp(Number(cfg.espera) || 0, 0, D * 0.35);
+    const salida = clamp(Number(cfg.salida) || 0, 0, D * 0.45);
+    /* El barrido no puede solaparse con la retirada, y esto NO es cosmético:
+       los planes cortos existen —`dirigir.py` reparte micro-FX de 0,6 s— y con
+       los defectos de 1,3 s el especular seguía cruzando mientras el frente de
+       salida ya se comía la pieza por la izquierda. Se ven dos luces yendo en
+       sentidos contrarios y se pierde la única lectura que esto tiene. */
+    const barrido = clamp(Number(cfg.barrido) || 0.55, 0.10,
+                          Math.max(0.10, D - salida - espera));
+
+    /* LINEAL, y es la decisión de movimiento de esta plantilla. El catálogo
+       usa `outCubic` en el 91 % de sus curvas, o sea que casi todo llega y
+       frena — que es lo que hace un objeto que se coloca. Aquí no se coloca
+       nada: lo que se mueve es la FUENTE DE LUZ, y una fuente que decelera al
+       llegar al centro de la pieza convierte el reflejo en un efecto con
+       intención. Una lámpara no tiene intención: cruza. */
+    const b  = span(t, espera, barrido, Ease.linear);
+    const xc = (-0.35 + 1.70 * b) * G.W;
+
+    /* El frente que DESCUBRE la pieza va por delante del especular y mucho
+       más rápido: 0,22 s frente a 0,55. Es la diferencia entre el borde del
+       haz —duro— y su núcleo —ancho—. Si fueran a la misma velocidad la pieza
+       tardaría media capa en estar entera, y esto dura 1,3 s. */
+    const f = span(t, espera, Math.min(barrido * 0.40, D * 0.26), Ease.outCubic);
+    /* Y el frente que la RETIRA. `Engine.sale` da 1..0 con `inCubic`, que
+       aguanta y se va de golpe en vez de arrastrarse: aquí eso significa que
+       la pieza se lee entera hasta el final y desaparece por donde entró la
+       luz. No hay ni un fundido de opacidad en toda la capa. */
+    const cierre = Engine.sale(t, D, salida);
+
+    const xf = -14 + 132 * f;              // % del ancho: frente de entrada
+    const xi = Math.min(-30 + 162 * (1 - cierre), xf);   // frente de salida
+    const m2 = G.m / 2;
+    corte.style.clipPath =
+      'polygon(' + (xi + m2).toFixed(2) + '% -30%, ' +
+                   (xf + m2).toFixed(2) + '% -30%, ' +
+                   (xf - m2).toFixed(2) + '% 130%, ' +
+                   (xi - m2).toFixed(2) + '% 130%)';
+
+    /* Luminancia global de la pieza. Un metal bajo un haz no solo tiene un
+       especular: TODA la lámina sube de valor y de saturación mientras el haz
+       la cubre, porque la componente difusa también recibe más luz. Sin esto
+       el barrido parece una calcomanía blanca corriendo por encima de un
+       objeto que sigue igual de apagado.
+       `cerca` sale de la MISMA `b` que coloca la banda, no de una copia. */
+    const cerca = 1 - Math.min(1, Math.abs(b - 0.5) * 2);
+    corte.style.filter = 'brightness(' + (1 + 0.09 * cerca).toFixed(3) + ') ' +
+                         'saturate(' + (1 + 0.20 * cerca).toFixed(3) + ')';
+
+    /* La lámpara que no para. Recorre toda la capa a un tercio de la
+       velocidad del especular: es lo que impide que la pieza se quede
+       CONGELADA entre que la luz pasa (0,60 s) y empieza a retirarse (1,08 s)
+       —medio segundo, o sea catorce fotogramas idénticos byte a byte, que es
+       justo lo que el humo del repo caza en veinte plantillas—. */
+    const d  = span(t, 0, D, Ease.linear);
+    const xd = (-0.60 + 2.20 * d) * G.W;
+    brillo.style.backgroundPosition =
+      banda(xc, G.W, 0, 3).toFixed(2) + '% 50%, ' +
+      banda(xd, G.W, 0, 4.2).toFixed(2) + '% 50%';
+
+    const pv = banda(xc, G.Wp, G.Lp, 3).toFixed(2) + '% 50%';
+    veta.style.webkitMaskPosition = pv;
+    veta.style.maskPosition = pv;
+    const pl = banda(xc, G.Wt, G.Lt, 3).toFixed(2) + '% 50%';
+    txtLuz.style.webkitMaskPosition = pl;
+    txtLuz.style.maskPosition = pl;
+
+    /* La pieza bascula 0,85° mientras la luz la cruza. Es el gesto que
+       PRODUCE el reflejo: un contraste se inclina hacia la luz para leer el
+       punzón, no se queda plano esperando. Sobre 720 px de ancho son 5 px en
+       los extremos — por debajo de lo que se lee como movimiento y por encima
+       de lo que hace falta para que la pieza no parezca pegada. `inOutCubic`
+       porque una mano que inclina arranca y para. */
+    const th = -0.45 + 0.85 * span(t, espera, barrido, Ease.inOutCubic);
+    pieza.style.transform = 'translateX(-50%) rotate(' + th.toFixed(3) + 'deg)';
+  }
+});
+</script>
+</body>
+</html>

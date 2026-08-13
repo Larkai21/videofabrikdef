@@ -1,0 +1,672 @@
+<!-- hyperframes-registry-item: data-chart -->
+<!doctype html>
+<html lang="en">
+  <head>
+<!-- /* PALETA-AJENA: inicio */ -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Data Chart</title>
+    <script src="_gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background-color: #faf9f6;
+      }
+    </style>
+    <link rel="stylesheet" href="_tokens.css">
+  <script src="_engine.js"></script>
+</head>
+  <body>
+    <div
+      id="data-chart"
+      data-composition-id="data-chart"
+      data-width="1920"
+      data-height="1080"
+      data-start="0"
+      data-duration="15"
+    >
+      <div class="chart-container">
+        <!-- Header Section -->
+        <div class="header">
+          <h1 class="headline">Monthly Revenue vs. Conversion Rate</h1>
+          <p class="subtitle">Jan–Jun 2024, in thousands</p>
+          <div class="key">
+            <div class="key-item">
+              <div class="key-box revenue-box"></div>
+              <span class="key-text">Revenue</span>
+            </div>
+            <div class="key-item">
+              <div class="key-line conversion-line"></div>
+              <span class="key-text">Conversion Rate</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SVG Chart Area -->
+        <svg class="chart-svg" viewBox="0 0 1600 700" preserveAspectRatio="xMidYMid meet">
+          <!-- Gridlines Group -->
+          <g class="gridlines"></g>
+
+          <!-- X-Axis Labels -->
+          <g class="x-axis-labels"></g>
+
+          <!-- Bars Group (Revenue) -->
+          <g class="bars-group"></g>
+
+          <!-- Bar Labels Group -->
+          <g class="bar-labels-group"></g>
+
+          <!-- Line Group (Conversion Rate) -->
+          <g class="line-group">
+            <path class="conversion-path" fill="none" stroke="#326FA8" stroke-width="1.5" />
+            <circle class="line-dot" r="5" fill="#326FA8" style="opacity: 0" />
+          </g>
+
+          <!-- Line Labels Group -->
+          <g class="line-labels-group"></g>
+
+          <!-- Baseline -->
+          <line x1="100" y1="600" x2="1500" y2="600" stroke="black" stroke-width="1" />
+        </svg>
+
+        <!-- Source Line -->
+        <div class="source">Source: Internal analytics</div>
+      </div>
+
+      <style>
+        [data-composition-id="data-chart"] {
+          width: 1920px;
+          height: 1080px;
+          background-color: #faf9f6;
+          font-family: "Libre Franklin", sans-serif;
+          color: #333;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          overflow: hidden;
+        }
+
+        [data-composition-id="data-chart"] .chart-container {
+          width: 1600px;
+          height: 900px;
+          display: flex;
+          flex-direction: column;
+          position: relative;
+          transform: scale(1.15);
+          transform-origin: center center;
+        }
+
+        [data-composition-id="data-chart"] .header {
+          margin-bottom: 40px;
+          text-align: left;
+        }
+
+        [data-composition-id="data-chart"] .headline {
+          font-family: "Libre Baskerville", serif;
+          font-size: 42px;
+          margin: 0;
+          padding: 0;
+          clip-path: inset(0 100% 0 0);
+          white-space: nowrap;
+        }
+
+        [data-composition-id="data-chart"] .subtitle {
+          font-size: 16px;
+          color: #666;
+          margin: 8px 0 16px 0;
+          clip-path: inset(0 100% 0 0);
+          white-space: nowrap;
+        }
+
+        [data-composition-id="data-chart"] .key {
+          display: flex;
+          gap: 24px;
+          opacity: 0;
+        }
+
+        [data-composition-id="data-chart"] .key-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        [data-composition-id="data-chart"] .key-box {
+          width: 10px;
+          height: 10px;
+          background-color: #5c5c5c;
+        }
+
+        [data-composition-id="data-chart"] .key-line {
+          width: 16px;
+          height: 1.5px;
+          background-color: #326fa8;
+        }
+
+        [data-composition-id="data-chart"] .key-text {
+          font-size: 13px;
+          color: #666;
+        }
+
+        [data-composition-id="data-chart"] .chart-svg {
+          width: 100%;
+          height: 600px;
+          overflow: visible;
+        }
+
+        [data-composition-id="data-chart"] .source {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          font-size: 11px;
+          color: #999;
+          opacity: 0;
+        }
+
+        [data-composition-id="data-chart"] .grid-line {
+          stroke: #e8e8e8;
+          stroke-width: 0.5px;
+          opacity: 0;
+        }
+
+        [data-composition-id="data-chart"] .axis-label {
+          font-size: 14px;
+          fill: #666;
+          text-anchor: middle;
+        }
+
+        [data-composition-id="data-chart"] .bar {
+          fill: #5c5c5c;
+        }
+
+        [data-composition-id="data-chart"] .bar-label {
+          font-size: 14px;
+          fill: #333;
+          text-anchor: middle;
+          opacity: 0;
+        }
+
+        [data-composition-id="data-chart"] .line-label {
+          font-size: 14px;
+          fill: #326fa8;
+          font-weight: 600;
+          text-anchor: middle;
+          opacity: 0;
+        }
+      </style>
+
+      <script>
+        (function () {
+          const svg = document.querySelector('[data-composition-id="data-chart"] .chart-svg');
+          const tl = gsap.timeline({ paused: true });
+
+          // Data
+          const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
+          const revenueData = [8, 12, 15, 11, 18, 22];
+          const conversionData = [2.1, 2.8, 3.2, 2.9, 3.8, 4.2];
+
+          // Chart Dimensions
+          const chartWidth = 1400;
+          const chartHeight = 500;
+          const startX = 100;
+          const startY = 600;
+          const barWidth = 80;
+          const spacing = (chartWidth - barWidth * months.length) / (months.length + 1);
+
+          // Scales
+          const maxRevenue = 25;
+          const maxConversion = 5;
+
+          const getBarY = (val) => startY - (val / maxRevenue) * chartHeight;
+          const getLineY = (val) => startY - (val / maxConversion) * chartHeight;
+          const getX = (i) => startX + spacing + i * (barWidth + spacing) + barWidth / 2;
+
+          // Setup Elements
+          const gridGroup = svg.querySelector(".gridlines");
+          const xAxisGroup = svg.querySelector(".x-axis-labels");
+          const barsGroup = svg.querySelector(".bars-group");
+          const barLabelsGroup = svg.querySelector(".bar-labels-group");
+          const lineLabelsGroup = svg.querySelector(".line-labels-group");
+          const conversionPath = svg.querySelector(".conversion-path");
+          const lineDot = svg.querySelector(".line-dot");
+
+          // Create Gridlines
+          for (let i = 1; i <= 5; i++) {
+            const y = startY - i * (chartHeight / 5);
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute("x1", startX);
+            line.setAttribute("y1", y);
+            line.setAttribute("x2", startX + chartWidth);
+            line.setAttribute("y2", y);
+            line.setAttribute("class", "grid-line");
+            gridGroup.appendChild(line);
+          }
+
+          // Create X-Axis Labels & Bars & Bar Labels
+          const linePoints = [];
+          months.forEach((month, i) => {
+            const x = getX(i);
+
+            const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            label.setAttribute("x", x);
+            label.setAttribute("y", startY + 30);
+            label.setAttribute("class", "axis-label");
+            label.textContent = month;
+            xAxisGroup.appendChild(label);
+
+            const barHeight = (revenueData[i] / maxRevenue) * chartHeight;
+            const bar = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            bar.setAttribute("x", x - barWidth / 2);
+            bar.setAttribute("y", startY);
+            bar.setAttribute("width", barWidth);
+            bar.setAttribute("height", 0);
+            bar.setAttribute("class", "bar");
+            barsGroup.appendChild(bar);
+
+            const barLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            barLabel.setAttribute("x", x);
+            barLabel.setAttribute("y", getBarY(revenueData[i]) - 10);
+            barLabel.setAttribute("class", "bar-label");
+            barLabel.textContent = `$${revenueData[i]}K`;
+            barLabelsGroup.appendChild(barLabel);
+
+            linePoints.push(`${x},${getLineY(conversionData[i])}`);
+
+            const lineLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            lineLabel.setAttribute("x", x);
+            lineLabel.setAttribute("y", getLineY(conversionData[i]) - 15);
+            lineLabel.setAttribute("class", "line-label");
+            lineLabel.textContent = `${conversionData[i]}%`;
+            lineLabelsGroup.appendChild(lineLabel);
+          });
+
+          // Set Path Data
+          conversionPath.setAttribute("d", `M ${linePoints.join(" L ")}`);
+          const pathLength = conversionPath.getTotalLength();
+          conversionPath.style.strokeDasharray = pathLength;
+          conversionPath.style.strokeDashoffset = pathLength;
+
+          // --- ANIMATION TIMELINE ---
+
+          tl.to(
+            '[data-composition-id="data-chart"] .headline',
+            {
+              clipPath: "inset(0 0% 0 0)",
+              duration: 1.2,
+              ease: "power1.inOut",
+            },
+            0,
+          );
+
+          tl.to(
+            '[data-composition-id="data-chart"] .subtitle',
+            {
+              clipPath: "inset(0 0% 0 0)",
+              duration: 1.2,
+              ease: "power1.inOut",
+            },
+            0.2,
+          );
+
+          tl.to(
+            '[data-composition-id="data-chart"] .key',
+            {
+              opacity: 1,
+              duration: 0.4,
+              ease: "power2.out",
+            },
+            1.0,
+          );
+
+          tl.to(
+            '[data-composition-id="data-chart"] .grid-line',
+            {
+              opacity: 1,
+              duration: 0.5,
+              stagger: 0.25,
+              ease: "power2.out",
+            },
+            0.5,
+          );
+
+          // Bars
+          const bars = barsGroup.querySelectorAll(".bar");
+          const barLabels = barLabelsGroup.querySelectorAll(".bar-label");
+
+          bars.forEach((bar, i) => {
+            const barHeight = (revenueData[i] / maxRevenue) * chartHeight;
+            const startTime = 1.5 + i * 0.5;
+
+            tl.to(
+              bar,
+              {
+                attr: { height: barHeight, y: startY - barHeight },
+                duration: 0.8,
+                ease: "power2.out",
+              },
+              startTime,
+            );
+
+            tl.to(
+              barLabels[i],
+              {
+                opacity: 1,
+                duration: 0.3,
+                ease: "power2.out",
+              },
+              startTime + 0.8,
+            );
+          });
+
+          // Line
+          const lastBarStartTime = 1.5 + (months.length - 1) * 0.5;
+          const lineStartTime = lastBarStartTime + 0.5;
+
+          tl.to(
+            conversionPath,
+            {
+              strokeDashoffset: 0,
+              duration: 3,
+              ease: "none",
+            },
+            lineStartTime,
+          );
+
+          // Line Dot & Labels
+          tl.set(
+            lineDot,
+            {
+              opacity: 1,
+              attr: { cx: getX(0), cy: getLineY(conversionData[0]) },
+            },
+            lineStartTime,
+          );
+
+          const lineLabels = lineLabelsGroup.querySelectorAll(".line-label");
+          months.forEach((_, i) => {
+            if (i > 0) {
+              const x = getX(i);
+              const y = getLineY(conversionData[i]);
+              tl.to(
+                lineDot,
+                {
+                  attr: { cx: x, cy: y },
+                  duration: 3 / (months.length - 1),
+                  ease: "none",
+                },
+                lineStartTime + ((i - 1) / (months.length - 1)) * 3,
+              );
+            }
+
+            const labelTime = lineStartTime + (i / (months.length - 1)) * 3 + 0.2;
+
+            lineLabels[i].textContent = "0.0%";
+
+            tl.to(
+              lineLabels[i],
+              {
+                opacity: 1,
+                duration: 0.1,
+                ease: "power2.out",
+              },
+              labelTime,
+            );
+
+            const dummy = { val: 0 };
+            tl.to(
+              dummy,
+              {
+                val: conversionData[i],
+                duration: 0.8,
+                ease: "power2.out",
+                onUpdate: () => {
+                  lineLabels[i].textContent = dummy.val.toFixed(1) + "%";
+                },
+              },
+              labelTime,
+            );
+          });
+
+          // Source Line
+          tl.to(
+            '[data-composition-id="data-chart"] .source',
+            {
+              opacity: 1,
+              duration: 0.5,
+              ease: "power2.out",
+            },
+            ">+0.5",
+          );
+
+          window.__timelines = window.__timelines || {};
+          window.__timelines["data-chart"] = tl;
+        })();
+      </script>
+    </div>
+  
+
+<!-- /* PALETA-AJENA: fin */ -->
+
+
+
+
+
+
+
+
+<!-- PUENTE:inicio · generado por scripts/importar_bloque.js -->
+<style>
+  /* El lienzo de este repo, y la raíz TRANSPARENTE: si el fondo llega opaco,
+     omitBackground no lo recorta y los PNG salen sin alfa — el compositor
+     los pega como un rectángulo y tapa el metraje. */
+  html, body { width: 1080px; height: 1920px; margin: 0;
+               background: transparent !important; overflow: hidden; }
+  [data-composition-id="data-chart"] { transform-origin: 50% 50%; }
+  /* El PLAFÓN DE AUTO-PREVISUALIZACIÓN. Varias piezas del catálogo traen un
+     fondo propio para poder mirarse solas —hf-hw-callout-circle lo llama
+     literalmente «self-preview scene» y es un degradado verde— y sobre
+     nuestro metraje eso no es un fondo: es una mancha que tapa el plano.
+     Se quita el relleno y se deja el contenido, que es lo que se quería. */
+  [id$="-scene"] { background: none !important; }
+</style>
+<script>
+(function () {
+  var ID = "data-chart";
+  var RANURAS = {};
+  var raiz = document.querySelector('[data-composition-id="' + ID + '"]');
+  var tl = (window.__timelines || {})[ID] || null;
+
+  /* Maqueta a 1920x1080 y aquí el lienzo es 1080x1920: se escala al ancho y
+     se centra. Es un APAÑO declarado, no una solución — la buena es rehacer
+     la maqueta en vertical. config.encaje:false lo desactiva y
+     config.escala lo fuerza.
+     La medida sale de data-width/data-height y NO de offsetWidth: la raíz de
+     varios bloques mide 0x0 —es un ancla para hijos posicionados, no una
+     caja— y con la medida del DOM el encaje la mandaba a left:-420, fuera
+     del cuadro. Fotograma transparente, cero errores, y el humo diciendo
+     «no se mueve» porque no había nada que moviera. Por eso se envuelve en
+     una caja del tamaño DECLARADO: así los hijos absolutos tienen un
+     contenedor de verdad y la escala se aplica a algo con dimensiones. */
+  var caja = null;
+  function encaja(cfg) {
+    if (!raiz || cfg.encaje === false) return;
+    var w = +raiz.dataset.width || raiz.offsetWidth || 1920;
+    var h = +raiz.dataset.height || raiz.offsetHeight || 1080;
+    if (!caja) {
+      caja = document.createElement('div');
+      raiz.parentNode.insertBefore(caja, raiz);
+      caja.appendChild(raiz);
+    }
+    caja.style.cssText = 'position:absolute;left:0;top:0;width:' + w
+                       + 'px;height:' + h + 'px;transform-origin:0 0;';
+    raiz.style.position = 'absolute';
+    raiz.style.left = '0'; raiz.style.top = '0';
+    raiz.style.width = w + 'px'; raiz.style.height = h + 'px';
+    var k = cfg.escala || Math.min(1080 / w, 1920 / h);
+    /* DÓNDE, y no solo cuánto. Centrado es lo razonable por defecto, pero un
+       rótulo inferior centrado en un lienzo vertical queda en mitad de la
+       cara; y §18 dice que la banda de abajo la pinta la app. zona mueve la
+       caja ya escalada sin tocar la maqueta de dentro: arriba pega bajo la
+       banda superior (230 px), abajo se apoya sobre la inferior (1459 px). */
+    var alto = h * k;
+    var y = (1920 - alto) / 2;
+    if (cfg.zona === 'arriba') y = 230 + 40;
+    else if (cfg.zona === 'abajo') y = 1459 - 40 - alto;
+    caja.style.transform = 'translate(' + Math.round((1080 - w * k) / 2)
+      + 'px,' + Math.round(y) + 'px) scale(' + k + ')';
+  }
+
+  /* LA CAJA DE TINTA, para colocar.py.
+     Sin anclas() una capa es invisible para el colocador: no sabe cuánto
+     ocupa ni dónde, así que no puede apartarla del rostro ni avisar de que
+     cae bajo el caption de la app. Nuestras plantillas la declaran a mano
+     porque saben qué parte de sí mismas importa; un bloque importado no
+     puede saberlo, así que se MIDE: unión de los rectángulos visibles, ya en
+     coordenadas de lienzo —getBoundingClientRect incluye la transformación
+     del encaje—, descartando los contenedores que cubren casi todo.
+     Se llama después de seek, así que la caja es la del instante que se
+     esté mirando y no la del reposo. */
+  function tinta() {
+    if (!raiz) return null;
+    /* Dos pasadas. La primera descarta los contenedores que cubren casi todo
+       —si no, la caja de cualquier plantilla sería el lienzo entero y el dato
+       no diría nada—. Pero en las de dibujo a mano el contenido ES un <svg> a
+       pantalla completa y sus <path> devuelven cajas de cero: con el filtro
+       puesto, veintisiete plantillas se quedaban sin ancla. Si la primera
+       pasada no deja nada, se repite SIN filtro: una caja grande de más es
+       peor que ninguna, pero ninguna es peor que las dos. */
+    function une(filtra) {
+      var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      var todos = raiz.querySelectorAll('*');
+      for (var i = 0; i < todos.length; i++) {
+        var e = todos[i], s = getComputedStyle(e);
+        if (s.display === 'none' || s.visibility === 'hidden' ||
+            parseFloat(s.opacity) < 0.05) continue;
+        var r = e.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        if (filtra && r.width * r.height > 0.92 * 1080 * 1920) continue;
+        if (r.left < x0) x0 = r.left;
+        if (r.top < y0) y0 = r.top;
+        if (r.right > x1) x1 = r.right;
+        if (r.bottom > y1) y1 = r.bottom;
+      }
+      return x1 < x0 ? null : [x0, y0, x1, y1];
+    }
+    var c = une(true) || une(false);
+    if (!c) return null;
+    var x0 = c[0], y0 = c[1], x1 = c[2], y1 = c[3];
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0);
+    x1 = Math.min(1080, x1); y1 = Math.min(1920, y1);
+    return { bloque: { x: Math.round((x0 + x1) / 2), y: Math.round((y0 + y1) / 2),
+                       w: Math.round(x1 - x0), h: Math.round(y1 - y0) } };
+  }
+
+  /* LA SALIDA, que sus bloques no tienen: entran y se quedan puestos hasta
+     que la composición acaba. Aquí una capa vive dentro de su ventana y
+     tiene que irse, y no es cosmética — es lo que humo_plantillas.js
+     comprueba cuando muestrea tres instantes y exige que no sean el mismo
+     fotograma. Medido: x-post y macos-notification animan su entrada y dan
+     tres capturas idénticas después.
+     Es una salida GENÉRICA —se va bajando y encogiendo un pelo— y por eso
+     se puede apagar con config.salida:false cuando el bloque tenga la suya
+     propia. Determinista: solo depende de t. */
+  var SALIDA = 0.42;
+  /* La duración del GESTO, medida al importar. La sustituye el importador;
+     el valor de aquí es el de respaldo para quien abra el fichero suelto.
+     Va en una variable y no en dos sitios a propósito: la salida tiene que
+     caer dentro de la MISMA ventana que registra la plantilla, y cuando eran
+     dos números —la declarada por la timeline y la registrada— la salida se
+     programaba fuera del tramo que nadie llega a ver. */
+  /* El copy que el plan pide, repartido por orden sobre las ranuras que
+     declara TEXTOS. Lo que sobra se ignora; lo que falta se queda con lo que
+     el bloque traía.
+     Se aplica en CADA fotograma y no solo al montar, y no es por comodidad:
+     varios bloques animan su propio texto —un contador que sube, un
+     tecleado— así que su timeline reescribe el nodo en cada seek y el copy
+     del plan duraba un fotograma. Medido: la tarjeta pedía «−12» y salía el
+     «22» de la demo. */
+  function copia(cfg) {
+    for (var k in RANURAS) {
+      if (!cfg || !cfg[k] || !cfg[k].length) continue;
+      var nodos = document.querySelectorAll(RANURAS[k]);
+      for (var i = 0; i < nodos.length && i < cfg[k].length; i++) {
+        if (nodos[i].textContent !== cfg[k][i]) nodos[i].textContent = cfg[k][i];
+      }
+    }
+  }
+
+  var DUR = 9.50;   /* MEDIDO al importar */
+  var vida = DUR;
+
+  Engine.register({
+    duration: DUR,
+    /* Las ranuras se escriben LITERALES en los defaults, no con un
+       Object.assign: lint_config.py lee ese bloque con una expresión regular
+       —no ejecuta la plantilla— así que una clave calculada no existe para
+       él y el plan que la usa aborta por «clave que la plantilla no lee».
+       Las ranuras entran aquí porque lint_config.py --estricto
+       comprueba que toda clave del plan la lea de verdad su plantilla: sin
+       declararlas, pedir el copy por config es una clave muerta y el paso
+       aborta. */
+    defaults: { encaje: true, escala: null, zona: 'centro', salida: true,
+                tema: 'carbon', cue: null, cueGain: null },
+    setup: function (cfg) {
+      encaja(cfg);
+      vida = cfg.duration || DUR;
+      copia(cfg);
+      /* EL SONIDO: NINGUNO por defecto, y esto es una vuelta atrás.
+         Se publicaba un «aparicion» genérico en cada bloque importado para
+         que no entraran mudos. Sobre la pieza montada suena a lo que es: el
+         mismo golpe blando en 126 sitios, puesto por una regla que no sabe
+         qué está entrando. Un sonido que no significa nada es peor que el
+         silencio, porque el oído lo cuenta igual.
+         Quien sabe qué suena una capa es el guion —sfx en la capa— o la
+         tabla del director para las plantillas que conoce. Con cue en la
+         config se puede pedir uno a mano. */
+      return { cues: (!cfg.sinSonido && cfg.cue)
+                     ? [{ at: 0.04, sfx: cfg.cue, gain: cfg.cueGain || 0.5 }]
+                     : [] };
+    },
+    anclas: function () { return tinta(); },
+    /* El puente entero. Los dos motores hacen lo mismo —posicionar una
+       animación en el segundo t, sin tocar el reloj del navegador—, así que
+       no hay nada que traducir. */
+    /* La salida va en la raíz y el encaje en la caja que la envuelve: dos
+       transformaciones en dos nodos, para que no se pisen. */
+    draw: function (t, cfg) {
+      if (tl) tl.time(Math.max(0, Math.min(t, tl.duration())));
+      copia(cfg);
+      if (!raiz) return;
+      if (cfg && cfg.salida !== false && vida > SALIDA) {
+        var d = (t - (vida - SALIDA)) / SALIDA;
+        if (d > 0) {
+          var e = 1 - Math.min(1, d);
+          e = e * e * (3 - 2 * e);              /* suavizado, sin rebote */
+          raiz.style.opacity = e;
+          raiz.style.transform = 'translateY(' + ((1 - e) * -26).toFixed(2)
+                               + 'px) scale(' + (0.985 + 0.015 * e).toFixed(4) + ')';
+          return;
+        }
+      }
+      raiz.style.opacity = '';
+      raiz.style.transform = '';
+    }
+  });
+})();
+</script>
+<!-- PUENTE:fin -->
+
+
+
+
+
+</body>
+</html>

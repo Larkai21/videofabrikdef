@@ -1,0 +1,683 @@
+{
+ "source": "build/aroll_codex.mp4",
+ "model": "mlx-community/whisper-large-v3-mlx",
+ "language": "es",
+ "duration": 49.84,
+ "text": "Auditar fallos de seguridad en tu código ya no te va a costar miles de dólares o muchísimo trabajo. OpenAI acaba de liberar el repositorio oficial de Codex Security. Trae módulos de auditoría estática y modelos entrenados específicamente para detectar vulnerabilidades en tiempo de compilación. Lo brutal es que puedes integrarlo directamente dentro de GitHub Actions. Ejecutas un script en local, este escanea automáticamente tus PRs y te bloquea de exploits antes de subir a producción y además sin perder tiempo. Tienes el enlace al repositorio y la guía de instalación rápida en mi perfil. Si quieres proteger tus apps de manera gratuita, solo necesitas...",
+ "words": [
+  {
+   "w": "Auditar",
+   "start": 0.0,
+   "end": 0.56,
+   "p": 0.87
+  },
+  {
+   "w": "fallos",
+   "start": 0.56,
+   "end": 0.94,
+   "p": 0.996
+  },
+  {
+   "w": "de",
+   "start": 0.94,
+   "end": 1.02,
+   "p": 0.997
+  },
+  {
+   "w": "seguridad",
+   "start": 1.02,
+   "end": 1.38,
+   "p": 0.999
+  },
+  {
+   "w": "en",
+   "start": 1.38,
+   "end": 1.54,
+   "p": 0.977
+  },
+  {
+   "w": "tu",
+   "start": 1.54,
+   "end": 1.62,
+   "p": 0.991
+  },
+  {
+   "w": "código",
+   "start": 1.62,
+   "end": 2.06,
+   "p": 0.999
+  },
+  {
+   "w": "ya",
+   "start": 2.06,
+   "end": 2.38,
+   "p": 0.972
+  },
+  {
+   "w": "no",
+   "start": 2.38,
+   "end": 2.52,
+   "p": 1.0
+  },
+  {
+   "w": "te",
+   "start": 2.52,
+   "end": 2.6,
+   "p": 0.998
+  },
+  {
+   "w": "va",
+   "start": 2.6,
+   "end": 2.74,
+   "p": 0.996
+  },
+  {
+   "w": "a",
+   "start": 2.74,
+   "end": 2.78,
+   "p": 0.999
+  },
+  {
+   "w": "costar",
+   "start": 2.78,
+   "end": 3.14,
+   "p": 0.999
+  },
+  {
+   "w": "miles",
+   "start": 3.14,
+   "end": 3.32,
+   "p": 0.998
+  },
+  {
+   "w": "de",
+   "start": 3.32,
+   "end": 3.54,
+   "p": 0.998
+  },
+  {
+   "w": "dólares",
+   "start": 3.54,
+   "end": 3.78,
+   "p": 0.996
+  },
+  {
+   "w": "o",
+   "start": 3.78,
+   "end": 4.2,
+   "p": 0.967
+  },
+  {
+   "w": "muchísimo",
+   "start": 4.2,
+   "end": 4.56,
+   "p": 0.982
+  },
+  {
+   "w": "trabajo.",
+   "start": 4.56,
+   "end": 5.1,
+   "p": 0.999
+  },
+  {
+   "w": "OpenAI",
+   "start": 6.46,
+   "end": 7.66,
+   "p": 0.08
+  },
+  {
+   "w": "acaba",
+   "start": 7.66,
+   "end": 7.84,
+   "p": 0.981
+  },
+  {
+   "w": "de",
+   "start": 7.84,
+   "end": 7.98,
+   "p": 0.998
+  },
+  {
+   "w": "liberar",
+   "start": 7.98,
+   "end": 8.48,
+   "p": 1.0
+  },
+  {
+   "w": "el",
+   "start": 8.48,
+   "end": 8.66,
+   "p": 1.0
+  },
+  {
+   "w": "repositorio",
+   "start": 8.66,
+   "end": 9.22,
+   "p": 1.0
+  },
+  {
+   "w": "oficial",
+   "start": 9.22,
+   "end": 9.52,
+   "p": 1.0
+  },
+  {
+   "w": "de",
+   "start": 9.52,
+   "end": 9.74,
+   "p": 0.958
+  },
+  {
+   "w": "Codex",
+   "start": 9.74,
+   "end": 10.08,
+   "p": 0.661
+  },
+  {
+   "w": "Security.",
+   "start": 10.08,
+   "end": 10.38,
+   "p": 0.962
+  },
+  {
+   "w": "Trae",
+   "start": 10.38,
+   "end": 12.04,
+   "p": 0.883
+  },
+  {
+   "w": "módulos",
+   "start": 12.04,
+   "end": 12.62,
+   "p": 0.999
+  },
+  {
+   "w": "de",
+   "start": 12.62,
+   "end": 12.8,
+   "p": 1.0
+  },
+  {
+   "w": "auditoría",
+   "start": 12.8,
+   "end": 13.32,
+   "p": 0.993
+  },
+  {
+   "w": "estática",
+   "start": 13.32,
+   "end": 13.8,
+   "p": 0.999
+  },
+  {
+   "w": "y",
+   "start": 13.8,
+   "end": 14.14,
+   "p": 1.0
+  },
+  {
+   "w": "modelos",
+   "start": 14.14,
+   "end": 14.6,
+   "p": 1.0
+  },
+  {
+   "w": "entrenados",
+   "start": 14.6,
+   "end": 15.1,
+   "p": 0.995
+  },
+  {
+   "w": "específicamente",
+   "start": 15.1,
+   "end": 16.02,
+   "p": 1.0
+  },
+  {
+   "w": "para",
+   "start": 16.02,
+   "end": 17.24,
+   "p": 0.999
+  },
+  {
+   "w": "detectar",
+   "start": 17.24,
+   "end": 17.78,
+   "p": 1.0
+  },
+  {
+   "w": "vulnerabilidades",
+   "start": 17.78,
+   "end": 18.48,
+   "p": 0.999
+  },
+  {
+   "w": "en",
+   "start": 18.48,
+   "end": 18.74,
+   "p": 1.0
+  },
+  {
+   "w": "tiempo",
+   "start": 18.74,
+   "end": 18.96,
+   "p": 0.999
+  },
+  {
+   "w": "de",
+   "start": 18.96,
+   "end": 19.16,
+   "p": 1.0
+  },
+  {
+   "w": "compilación.",
+   "start": 19.16,
+   "end": 19.68,
+   "p": 0.999
+  },
+  {
+   "w": "Lo",
+   "start": 19.68,
+   "end": 21.7,
+   "p": 0.982
+  },
+  {
+   "w": "brutal",
+   "start": 21.7,
+   "end": 22.04,
+   "p": 0.999
+  },
+  {
+   "w": "es",
+   "start": 22.04,
+   "end": 22.42,
+   "p": 1.0
+  },
+  {
+   "w": "que",
+   "start": 22.42,
+   "end": 22.54,
+   "p": 1.0
+  },
+  {
+   "w": "puedes",
+   "start": 22.54,
+   "end": 22.94,
+   "p": 0.999
+  },
+  {
+   "w": "integrarlo",
+   "start": 22.94,
+   "end": 23.62,
+   "p": 0.994
+  },
+  {
+   "w": "directamente",
+   "start": 23.62,
+   "end": 24.04,
+   "p": 0.999
+  },
+  {
+   "w": "dentro",
+   "start": 24.04,
+   "end": 24.62,
+   "p": 0.999
+  },
+  {
+   "w": "de",
+   "start": 24.62,
+   "end": 24.86,
+   "p": 0.972
+  },
+  {
+   "w": "GitHub",
+   "start": 24.86,
+   "end": 25.16,
+   "p": 0.545
+  },
+  {
+   "w": "Actions.",
+   "start": 25.16,
+   "end": 25.48,
+   "p": 0.083
+  },
+  {
+   "w": "Ejecutas",
+   "start": 26.66,
+   "end": 27.38,
+   "p": 0.723
+  },
+  {
+   "w": "un",
+   "start": 27.38,
+   "end": 27.52,
+   "p": 0.982
+  },
+  {
+   "w": "script",
+   "start": 27.52,
+   "end": 27.8,
+   "p": 0.988
+  },
+  {
+   "w": "en",
+   "start": 27.8,
+   "end": 27.98,
+   "p": 0.958
+  },
+  {
+   "w": "local,",
+   "start": 27.98,
+   "end": 28.24,
+   "p": 0.992
+  },
+  {
+   "w": "este",
+   "start": 28.24,
+   "end": 29.4,
+   "p": 0.557
+  },
+  {
+   "w": "escanea",
+   "start": 29.4,
+   "end": 30.16,
+   "p": 0.983
+  },
+  {
+   "w": "automáticamente",
+   "start": 30.16,
+   "end": 30.84,
+   "p": 0.998
+  },
+  {
+   "w": "tus",
+   "start": 30.84,
+   "end": 31.28,
+   "p": 0.988
+  },
+  {
+   "w": "PRs",
+   "start": 31.28,
+   "end": 32.04,
+   "p": 0.507
+  },
+  {
+   "w": "y",
+   "start": 32.04,
+   "end": 33.1,
+   "p": 0.989
+  },
+  {
+   "w": "te",
+   "start": 33.1,
+   "end": 33.28,
+   "p": 0.995
+  },
+  {
+   "w": "bloquea",
+   "start": 33.28,
+   "end": 33.98,
+   "p": 0.992
+  },
+  {
+   "w": "de",
+   "start": 33.98,
+   "end": 34.08,
+   "p": 0.825
+  },
+  {
+   "w": "exploits",
+   "start": 34.08,
+   "end": 34.64,
+   "p": 0.971
+  },
+  {
+   "w": "antes",
+   "start": 34.64,
+   "end": 35.3,
+   "p": 0.999
+  },
+  {
+   "w": "de",
+   "start": 35.3,
+   "end": 35.52,
+   "p": 1.0
+  },
+  {
+   "w": "subir",
+   "start": 35.52,
+   "end": 35.74,
+   "p": 0.999
+  },
+  {
+   "w": "a",
+   "start": 35.74,
+   "end": 35.88,
+   "p": 0.995
+  },
+  {
+   "w": "producción",
+   "start": 35.88,
+   "end": 36.12,
+   "p": 0.996
+  },
+  {
+   "w": "y",
+   "start": 36.12,
+   "end": 36.82,
+   "p": 0.996
+  },
+  {
+   "w": "además",
+   "start": 36.82,
+   "end": 37.12,
+   "p": 0.999
+  },
+  {
+   "w": "sin",
+   "start": 37.12,
+   "end": 37.56,
+   "p": 0.999
+  },
+  {
+   "w": "perder",
+   "start": 37.56,
+   "end": 37.84,
+   "p": 1.0
+  },
+  {
+   "w": "tiempo.",
+   "start": 37.84,
+   "end": 38.24,
+   "p": 1.0
+  },
+  {
+   "w": "Tienes",
+   "start": 40.58,
+   "end": 41.3,
+   "p": 0.971
+  },
+  {
+   "w": "el",
+   "start": 41.3,
+   "end": 41.66,
+   "p": 0.999
+  },
+  {
+   "w": "enlace",
+   "start": 41.66,
+   "end": 42.08,
+   "p": 1.0
+  },
+  {
+   "w": "al",
+   "start": 42.08,
+   "end": 42.18,
+   "p": 0.999
+  },
+  {
+   "w": "repositorio",
+   "start": 42.18,
+   "end": 43.06,
+   "p": 1.0
+  },
+  {
+   "w": "y",
+   "start": 43.06,
+   "end": 43.54,
+   "p": 0.999
+  },
+  {
+   "w": "la",
+   "start": 43.54,
+   "end": 43.78,
+   "p": 0.999
+  },
+  {
+   "w": "guía",
+   "start": 43.78,
+   "end": 44.08,
+   "p": 0.954
+  },
+  {
+   "w": "de",
+   "start": 44.08,
+   "end": 44.12,
+   "p": 1.0
+  },
+  {
+   "w": "instalación",
+   "start": 44.12,
+   "end": 44.58,
+   "p": 0.998
+  },
+  {
+   "w": "rápida",
+   "start": 44.58,
+   "end": 45.06,
+   "p": 0.998
+  },
+  {
+   "w": "en",
+   "start": 45.06,
+   "end": 45.14,
+   "p": 0.999
+  },
+  {
+   "w": "mi",
+   "start": 45.14,
+   "end": 45.22,
+   "p": 0.999
+  },
+  {
+   "w": "perfil.",
+   "start": 45.22,
+   "end": 45.7,
+   "p": 1.0
+  },
+  {
+   "w": "Si",
+   "start": 45.7,
+   "end": 46.12,
+   "p": 0.99
+  },
+  {
+   "w": "quieres",
+   "start": 46.12,
+   "end": 46.36,
+   "p": 0.996
+  },
+  {
+   "w": "proteger",
+   "start": 46.36,
+   "end": 46.9,
+   "p": 1.0
+  },
+  {
+   "w": "tus",
+   "start": 46.9,
+   "end": 47.1,
+   "p": 0.987
+  },
+  {
+   "w": "apps",
+   "start": 47.1,
+   "end": 47.38,
+   "p": 0.971
+  },
+  {
+   "w": "de",
+   "start": 47.38,
+   "end": 47.7,
+   "p": 1.0
+  },
+  {
+   "w": "manera",
+   "start": 47.7,
+   "end": 47.9,
+   "p": 1.0
+  },
+  {
+   "w": "gratuita,",
+   "start": 47.9,
+   "end": 48.76,
+   "p": 1.0
+  },
+  {
+   "w": "solo",
+   "start": 48.76,
+   "end": 49.1,
+   "p": 0.752
+  },
+  {
+   "w": "necesitas...",
+   "start": 49.1,
+   "end": 49.7,
+   "p": 0.974
+  }
+ ],
+ "segments": [
+  {
+   "start": 0.0,
+   "end": 5.1,
+   "text": "auditar fallos de seguridad en tu código ya no te va a costar miles de dólares o muchísimo trabajo"
+  },
+  {
+   "start": 6.46,
+   "end": 12.8,
+   "text": "open ella ya acaba de liberar el repositorio oficial de Codex security trae módulos de"
+  },
+  {
+   "start": 12.8,
+   "end": 18.48,
+   "text": "auditoría estática y modelos entrenados específicamente para detectar vulnerabilidades"
+  },
+  {
+   "start": 18.48,
+   "end": 25.48,
+   "text": "en tiempo de compilación lo brutal es que puedes integrarlo directamente dentro de quizá actions"
+  },
+  {
+   "start": 26.66,
+   "end": 34.08,
+   "text": "ejecutas un script en local este escanea automáticamente tus PRs y te bloquea de"
+  },
+  {
+   "start": 34.08,
+   "end": 38.24,
+   "text": "exploits antes de subir a producción y además sin perder tiempo"
+  },
+  {
+   "start": 40.58,
+   "end": 46.12,
+   "text": "tienes el enlace al repositorio y la guía de instalación rápida en mi perfil si"
+  },
+  {
+   "start": 46.12,
+   "end": 49.7,
+   "text": "quieres proteger tus apps de manera gratuita solo necesitas"
+  }
+ ],
+ "alineado_con_guion": true,
+ "_por_que": "Transcript de la pieza «Codex Security» de 44 s que el usuario aprobó MIRÁNDOLA. Los goldens que salen de aquí codifican comportamiento verificado, no solo el actual."
+}

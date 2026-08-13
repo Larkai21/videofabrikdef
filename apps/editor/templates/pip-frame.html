@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="gesto" content="revelar:compuerta">
+<title>Compuerta de cámara (PIP)</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+
+  /* -------------------------------------------------------------------
+     QUÉ ES ESTO
+
+     Antes era una CAJA: un rectángulo con 1 px de bronce, cuatro palitos
+     en las esquinas, una pastilla flotante y un vúmetro de 16 barras de
+     ruido. O sea el overlay «tech» por defecto, que es exactamente lo que
+     el diagnóstico del catálogo dice que sobra.
+
+     Ahora es una COMPUERTA: las cuatro hojas de un matte box que se
+     cierran sobre el encuadre. La ventana no se dibuja —es el hueco que
+     dejan las hojas— y por eso el A-Roll se ve por ella sin nada encima.
+     Todo lo demás es lo que un visor de cámara lleva de verdad: marcas de
+     encuadre grabadas en el cristal esmerilado, una placa mecanizada con
+     el rótulo, un contador de toma y un medidor de nivel con retención de
+     pico.
+
+     La consecuencia práctica de que la ventana sea un hueco y no una caja:
+     nada de lo que se pinta cae DENTRO del encuadre salvo las cuatro
+     escuadras y las cuatro marcas de centro, de 3 y 2 px, pegadas al canto.
+     Medido con `alphaextract` sobre el fotograma de t=3,0: el alfa MÁXIMO de
+     los 760x860 px centrales es 0, o sea que el metraje pasa intacto. El
+     rótulo, el contador y el medidor viven fuera del encuadre.
+     ------------------------------------------------------------------- */
+
+  .visor { position: absolute; will-change: transform; }
+
+  /* ---------------- las hojas ----------------
+     Cuerpo de aluminio anodizado (`--chrome-*`) y NO de bronce: una hoja de
+     matte box real es negra, y el bronce es el canto mecanizado. Ponerlas
+     enteras de bronce daba el plano naranja que §2 prohíbe explícitamente
+     («el bronce nunca es un plano naranja»), y además convertía el marco en
+     lo más brillante del cuadro cuando su trabajo es lo contrario: recortar
+     y desaparecer. */
+  .hoja {
+    position: absolute;
+    overflow: hidden;
+    isolation: isolate;
+    background-image: linear-gradient(var(--metal-ang),
+      var(--chrome-2) 0%, var(--chrome-3) 48%, var(--chrome-2) 100%);
+    will-change: transform, filter;
+  }
+  /* El canto EXTERIOR lleva un filo de luz de 1 px y el interior el bronce:
+     con eso la hoja tiene dos aristas y se lee como una pieza con espesor.
+     Sin él —primera versión, mirada sobre gris de metraje— el aluminio
+     anodizado es más oscuro que el propio metraje (#26262B contra #2E3238) y
+     la compuerta se reducía a la línea de bronce: volvía a ser un filete de
+     1 px, que es exactamente de lo que venimos. Es la sombra multicapa con
+     brillo interior de §10, aplicada por lados en vez de a una caja. */
+  .h-arr { box-shadow: 0 10px 26px var(--sombra), inset 0 1px 0 var(--glass-highlight); }
+  .h-aba { box-shadow: 0 10px 26px var(--sombra), inset 0 -1px 0 var(--glass-highlight); }
+  .h-izq { box-shadow: 0 10px 26px var(--sombra), inset 1px 0 0 var(--glass-highlight); }
+  .h-der { box-shadow: 0 10px 26px var(--sombra), inset -1px 0 0 var(--glass-highlight); }
+  /* Rayado de mecanizado, en una capa hija y no en la propia hoja: `.trama`
+     escribe `background-image`, así que puesta en `.hoja` habría BORRADO el
+     degradado del aluminio. Es la misma trampa que documentó `Engine.grano`
+     cuando la placa de bronce de `cinta` salió gris plata. */
+  .mecanizado { position: absolute; inset: 0; }
+
+  /* El canto: los 2 px de bronce recién fresado que miran a la ventana. Es
+     el único bronce de la pieza y por eso se lee como un filo y no como una
+     decoración. */
+  .canto {
+    position: absolute;
+    background-image: linear-gradient(var(--metal-ang),
+      var(--metal-1) 0%, var(--metal-3) 45%, var(--metal-4) 70%, var(--metal-5) 100%);
+  }
+  .h-arr > .canto { left: 0; right: 0; bottom: 0; height: 2px; }
+  .h-aba > .canto { left: 0; right: 0; top: 0;    height: 2px; }
+  .h-izq > .canto { top: 0; bottom: 0; right: 0;  width: 2px; }
+  .h-der > .canto { top: 0; bottom: 0; left: 0;   width: 2px; }
+
+  /* Remache de la escuadra: un agujero avellanado, no un círculo de color.
+     El `inset 0 1px 0` de luz es lo que §10 llama «brillo interior», que es
+     lo que hace que algo parezca un objeto y no un plano. */
+  .remache {
+    position: absolute; top: 50%; width: 7px; height: 7px;
+    margin-top: -3.5px; border-radius: 50%;
+    background: var(--chrome-3);
+    box-shadow: inset 0 1px 0 var(--glass-highlight),
+                inset 0 0 0 1px var(--stroke);
+  }
+
+  /* ---------------- cristal esmerilado ---------------- */
+  /* `overflow: visible` a propósito: las marcas se calculan en coordenadas
+     de la ventana y alguna puede salirse mientras se graba. */
+  svg.marcas { position: absolute; inset: 0; overflow: visible;
+               pointer-events: none; }
+  .marca { fill: none; stroke-width: 3; stroke-linecap: butt;
+           stroke-linejoin: miter; will-change: stroke-dashoffset; }
+  .marca.fina { stroke-width: 2; }
+
+  /* ---------------- placas ---------------- */
+  .placa {
+    position: absolute; height: 56px;
+    display: flex; align-items: center; gap: var(--s-3);
+    padding: 0 var(--s-4);
+    background: var(--surface);
+    border: var(--hairline) solid var(--stroke);
+    border-radius: var(--r-sm);
+    box-shadow: 0 10px 28px var(--sombra),
+                inset 0 1px 0 var(--glass-highlight);
+    /* Las dos hacen falta para el grano: `Engine.grano` pinta con
+       `mix-blend-mode: multiply` en una capa hija, y `border-radius` NO
+       recorta hijos. Sin `overflow` la teja asoma por las cuatro esquinas. */
+    overflow: hidden;
+    isolation: isolate;
+    will-change: clip-path;
+  }
+
+  /* Testigo de grabación. Un rectángulo achaflanado con bisel, no un punto:
+     un círculo de color es el indicador por defecto de cualquier interfaz;
+     una lámpara con bisel es una pieza. */
+  .lampara {
+    flex: none; width: 15px; height: 15px; border-radius: 3px;
+    box-shadow: inset 0 1px 0 var(--glass-highlight),
+                inset 0 0 0 1px var(--stroke);
+  }
+
+  .etiqueta {
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    white-space: nowrap;
+    will-change: letter-spacing, font-variation-settings, color;
+  }
+
+  .tc-rot {
+    font-family: var(--mono);
+    font-size: var(--t-2xs);
+    font-weight: var(--w-fino);
+    letter-spacing: var(--tr-caps-ancho);
+    color: var(--ink-faint);
+  }
+  .tc {
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    font-weight: var(--w-medio);
+    letter-spacing: var(--tr-caps);
+    color: var(--ink);
+  }
+
+  /* ---------------- medidor de nivel ----------------
+     Vertical y fuera del canto derecho, que es donde lo lleva un visor de
+     cámara. El canal es opaco a propósito: sobre metraje arbitrario un
+     canal translúcido desaparece. */
+  .medidor {
+    position: absolute; width: 14px;
+    background: var(--surface);
+    border: var(--hairline) solid var(--accent-line);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .nivel {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background-image: linear-gradient(to top,
+      var(--metal-1) 0%, var(--metal-4) 62%, var(--metal-3) 100%);
+    will-change: height;
+  }
+  .pico {
+    position: absolute; left: 0; right: 0; height: 2px;
+    background: var(--metal-3);
+    will-change: bottom;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="visor" id="visor">
+    <div class="hoja h-arr" id="hArr"><span class="mecanizado trama"></span><span class="canto"></span></div>
+    <div class="hoja h-aba" id="hAba"><span class="mecanizado trama"></span><span class="canto"></span></div>
+    <div class="hoja h-izq" id="hIzq"><span class="mecanizado trama"></span><span class="canto"></span></div>
+    <div class="hoja h-der" id="hDer"><span class="mecanizado trama"></span><span class="canto"></span></div>
+
+    <svg class="marcas" id="svgMarcas"></svg>
+
+    <div class="placa" id="placa">
+      <span class="lampara" id="lampara"></span>
+      <span class="etiqueta" id="etiqueta">[ M4 PRO LOCAL ]</span>
+    </div>
+
+    <div class="placa" id="contador">
+      <span class="tc-rot">TC</span><span class="tc tnum" id="tc">00:00:00</span>
+    </div>
+
+    <div class="medidor" id="medidor">
+      <div class="nivel" id="nivel"></div>
+      <div class="pico" id="picoEl"></div>
+    </div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp, noise } = Engine;
+
+/* Los fotogramas por segundo del contador. Es una CONSTANTE y no una clave de
+   configuración porque no describe la pieza sino el renderizador: es el
+   defecto de `render_playwright.js` (`{ fps: 30 }`). Si un día se renderiza a
+   otro ritmo, el campo de fotogramas del contador cuenta a destiempo; los
+   campos de minutos y segundos siguen siendo exactos, que es lo que se lee. */
+const FPS = 30;
+
+const visor = document.getElementById('visor');
+const hojas = {
+  arr: document.getElementById('hArr'), aba: document.getElementById('hAba'),
+  izq: document.getElementById('hIzq'), der: document.getElementById('hDer')
+};
+const svgMarcas = document.getElementById('svgMarcas');
+const placa    = document.getElementById('placa');
+const contador = document.getElementById('contador');
+const lampara  = document.getElementById('lampara');
+const etiqueta = document.getElementById('etiqueta');
+const tcEl     = document.getElementById('tc');
+const medidor  = document.getElementById('medidor');
+const nivelEl  = document.getElementById('nivel');
+const picoEl   = document.getElementById('picoEl');
+
+let marcas = [];            // [{el, largo}] en el orden en que se graban
+
+const GRABA = 0.26;         // lo que tarda en grabarse una marca
+const ESCALON = 0.055;      // desfase entre marcas
+
+/* Las marcas se dimensionan CONTRA la ventana y no con números fijos. Con
+   brazos de 74 px clavados, una ventana de 500 px se llevaba el 15 % de su
+   ancho en las cuatro escuadras y el encuadre desaparecía debajo de sus
+   propias marcas —visto en la captura de una PIP de 500x420—. Los topes
+   evitan el problema opuesto: en un encuadre a plena página las marcas
+   crecerían hasta parecer un marco decorativo. */
+function geometria(w, h) {
+  const men = Math.min(w, h);
+  const brazo = clamp(Math.round(men * 0.088), 40, 84);
+  return {
+    m: clamp(Math.round(men * 0.020), 9, 18),   // margen desde el canto
+    brazo,
+    chaflan: Math.round(brazo * 0.16),          // corte a 45°: pieza fresada
+    tica: clamp(Math.round(men * 0.034), 16, 32)
+  };
+}
+
+/* Escuadra con el vértice achaflanado. `(sx, sy)` apunta hacia dentro de la
+   ventana, así que la misma expresión sirve para las cuatro esquinas: sin eso
+   son cuatro trozos de código casi iguales, que es como se desalinean. */
+function dEsquina(g, cx, cy, sx, sy) {
+  const x = cx + sx * g.m, y = cy + sy * g.m;
+  return `M ${x + sx * g.brazo} ${y} L ${x + sx * g.chaflan} ${y} ` +
+         `L ${x} ${y + sy * g.chaflan} L ${x} ${y + sy * g.brazo}`;
+}
+
+/* Marca de centro de lado, hacia dentro. Son las del cristal esmerilado de un
+   visor: dicen dónde está el eje del encuadre y no adornan nada. */
+function dTica(g, lado, w, h) {
+  if (lado === 'arr') return `M ${w / 2} ${g.m} L ${w / 2} ${g.m + g.tica}`;
+  if (lado === 'aba') return `M ${w / 2} ${h - g.m} L ${w / 2} ${h - g.m - g.tica}`;
+  if (lado === 'izq') return `M ${g.m} ${h / 2} L ${g.m + g.tica} ${h / 2}`;
+  return `M ${w - g.m} ${h / 2} L ${w - g.m - g.tica} ${h / 2}`;
+}
+
+/* Nivel pseudo-acústico. No hay audio en la plantilla —el mezclador vive en
+   ffmpeg— así que esto es una señal sintética, y se declara: 7,5 muestras por
+   segundo, que es el ritmo silábico del castellano hablado, interpoladas con
+   un suavizado de Hermite para que la aguja no salte de escalón en escalón.
+   Función pura de `t`: `seek` puede ir a cualquier instante. */
+function nivelEn(t, intensidad) {
+  const k = Math.max(0, t) * 7.5;
+  const i = Math.floor(k), f = k - i;
+  const s = f * f * (3 - 2 * f);
+  const a = noise(i, 91), b = noise(i + 1, 91);
+  return clamp((0.16 + 0.74 * (a + (b - a) * s)) * intensidad, 0, 1);
+}
+
+/* Retención de pico. En un medidor de verdad el pico es un ESTADO: se
+   engancha y luego cae a ritmo constante. Un estado entre fotogramas está
+   prohibido aquí —`seek(t)` salta a instantes sueltos y un acumulador daría
+   un valor distinto según por dónde se haya llegado—, así que el estado se
+   CALCULA en vez de recordarse: se barre hacia atrás la misma función de
+   nivel, 19 muestras sobre 0,9 s, restando la caída. Cuesta 19 senos por
+   fotograma y es exactamente reproducible. */
+function picoEn(t, intensidad) {
+  let m = 0;
+  for (let k = 0; k <= 18; k++) {
+    const d = 0.9 * k / 18;
+    m = Math.max(m, nivelEn(t - d, intensidad) - 0.55 * d);
+  }
+  return clamp(m, 0, 1);
+}
+
+/* Los tres instantes del mecanismo, derivados de `entrada` y compartidos por
+   `setup` —que publica las señales de sonido— y por `draw` —que mueve las
+   hojas—. Están aquí fuera y no escritos dos veces a propósito: un sonido
+   calculado con una COPIA de la fórmula que anima la imagen se desincroniza
+   en cuanto alguien toca el ritmo, y no da ningún error al hacerlo.
+
+   El par vertical arranca cuando el horizontal lleva el 42 % del recorrido:
+   primero se fija la altura del encuadre y después el ancho, que es el orden
+   en que se ajusta un juego de hojas de verdad. */
+const DESFASE_V = 0.42;
+const iniV      = cfg => Number(cfg.entrada) * DESFASE_V;
+const asientoH  = cfg => Number(cfg.entrada);
+const asientoV  = cfg => iniV(cfg) + Number(cfg.entrada);
+
+function timecode(t) {
+  const total = Math.max(0, Math.floor(t * FPS));
+  const p = n => String(n).padStart(2, '0');
+  return p(Math.floor(total / (FPS * 60))) + ':' +
+         p(Math.floor(total / FPS) % 60) + ':' + p(total % FPS);
+}
+
+Engine.register({
+  duration: 6,
+  defaults: {
+    label: '[ M4 PRO LOCAL ]',
+    x: 96, y: 470, w: 888, h: 1000,
+    entrada: 0.5,
+    salida: 0.4,
+    intensidadEq: 1.0,
+    /* Nuevas, todas con defecto: el contrato solo puede CRECER. */
+    grosor: 18,       // canto de las hojas, en px
+    /* Cuánto más abierta empieza la compuerta, por lado. 150 y no 260: con
+       260 la ventana arranca en 1408 px de ancho sobre un lienzo de 1080, o
+       sea que las hojas verticales pasan los primeros 0,35 s FUERA DE CUADRO
+       y el gesto que justifica el rediseño no se ve. Medido mirando el
+       fotograma de t=0,30: solo estaba el canto inferior. Con 150 el
+       recorrido entero cabe en el lienzo con el encuadre por defecto. */
+    apertura: 150,
+    contador: true,   // el contador de toma
+    medidor: true     // el medidor de nivel
+  },
+
+  setup(cfg) {
+    const G = cfg.grosor, w = cfg.w, h = cfg.h;
+
+    Object.assign(visor.style, {
+      left: cfg.x + 'px', top: cfg.y + 'px',
+      width: w + 'px', height: h + 'px'
+    });
+
+    /* Las hojas horizontales van de escuadra a escuadra —cubren las esquinas—
+       y las verticales se meten entre ellas. Es el solape real de un juego de
+       cuatro hojas, y es lo que da la costura que justifica los remaches. */
+    Object.assign(hojas.arr.style, { left: -G + 'px', width: (w + 2 * G) + 'px',
+                                     top: -G + 'px', height: G + 'px' });
+    Object.assign(hojas.aba.style, { left: -G + 'px', width: (w + 2 * G) + 'px',
+                                     top: h + 'px', height: G + 'px' });
+    Object.assign(hojas.izq.style, { top: 0, height: h + 'px',
+                                     left: -G + 'px', width: G + 'px' });
+    Object.assign(hojas.der.style, { top: 0, height: h + 'px',
+                                     left: w + 'px', width: G + 'px' });
+
+    /* Remaches: uno por escuadra, centrados en el solape. Se cuelgan de las
+       hojas horizontales para que viajen CON ellas; sueltos en el visor se
+       quedarían quietos mientras la compuerta se cierra y delatarían que el
+       marco es un dibujo. */
+    [hojas.arr, hojas.aba].forEach(hoja => {
+      [...hoja.querySelectorAll('.remache')].forEach(n => n.remove());
+      [G / 2 - 3.5, w + 2 * G - G / 2 - 3.5].forEach(x => {
+        const r = document.createElement('span');
+        r.className = 'remache';
+        r.style.left = x.toFixed(1) + 'px';
+        hoja.appendChild(r);
+      });
+    });
+
+    /* --- cristal esmerilado --- */
+    svgMarcas.setAttribute('width', w);
+    svgMarcas.setAttribute('height', h);
+    svgMarcas.innerHTML = '';
+    const idMetal = Engine.gradienteMetal(svgMarcas, 'metalVisor', [0, 0, w, h]);
+
+    /* Cuatro escuadras dando la vuelta al encuadre y después las cuatro
+       marcas de centro. El ORDEN es el gesto: recorrer el marco y luego
+       marcar los ejes es lo que hace un operador, y se lee como un
+       procedimiento en vez de como cuatro cosas que aparecen. */
+    const g = geometria(w, h);
+    const trazos = [
+      dEsquina(g, 0, 0,  1,  1), dEsquina(g, w, 0, -1,  1),
+      dEsquina(g, w, h, -1, -1), dEsquina(g, 0, h,  1, -1),
+      dTica(g, 'arr', w, h), dTica(g, 'der', w, h),
+      dTica(g, 'aba', w, h), dTica(g, 'izq', w, h)
+    ];
+    marcas = trazos.map((d, i) => {
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      p.setAttribute('class', i < 4 ? 'marca' : 'marca fina');
+      p.setAttribute('d', d);
+      p.setAttribute('stroke', `url(#${idMetal})`);
+      svgMarcas.appendChild(p);
+      const largo = p.getTotalLength();
+      p.style.strokeDasharray = largo;
+      return { el: p, largo };
+    });
+
+    /* --- placas y medidor --- */
+    etiqueta.textContent = cfg.label;
+    const yBajo = h + G + 12;
+    Object.assign(placa.style, { left: -G + 'px', top: yBajo + 'px' });
+
+    /* El contador va ARRIBA a la derecha y el rótulo abajo a la izquierda: los
+       dos datos en diagonal, cada uno en un canto, que es como reparte la
+       información el visor de una cámara. Juntos abajo se pisaban en cuanto la
+       ventana bajaba de unos 560 px de ancho —medido con una PIP de 500x420:
+       la placa del contador se montaba sobre el corchete de cierre del
+       rótulo—, y no hay ninguna comprobación en el repo que lo hubiera dicho.
+       Si arriba no cabe dentro del lienzo, vuelve abajo: es peor dibujar fuera
+       de cuadro que arriesgar el solape en un encuadre estrecho. */
+    contador.style.display = cfg.contador === false ? 'none' : 'flex';
+    const yAlto = -(G + 12 + (contador.offsetHeight || 56));
+    Object.assign(contador.style, {
+      left: 'auto', right: -G + 'px',
+      top: (cfg.y + yAlto >= 8 ? yAlto : yBajo) + 'px'
+    });
+
+    /* 24 % de la ventana y no 38 %: con 38 la columna medía 380 px sobre un
+       encuadre de 1000 y dejaba de ser un instrumento del visor para
+       convertirse en el segundo objeto más grande del gráfico. Se ve en la
+       captura sobre gris — la mitad superior del canal es un rectángulo
+       oscuro vacío que compite con el encuadre. Va alineada por abajo con el
+       canto inferior, que es su referencia física. */
+    const hMed = Math.round(h * 0.24);
+    Object.assign(medidor.style, {
+      left: (w + G + 14) + 'px', top: (h - hMed) + 'px', height: hMed + 'px'
+    });
+    medidor.style.display = cfg.medidor === false ? 'none' : 'block';
+
+    Engine.grano(placa,    { px: 256, semilla: 19, op: 0.3 });
+    Engine.grano(contador, { px: 256, semilla: 23, op: 0.3 });
+
+    /* --- señales de sonido ---
+       Tres EVENTOS y no un ruido por fotograma: asientan las hojas
+       horizontales, asientan las verticales, y el rótulo cuaja. Los instantes
+       salen de `asientoH`/`asientoV`, que son las MISMAS funciones que usa
+       `draw` para mover las hojas. Con la entrada por defecto los dos `clic`
+       caen a 0,50 s y 0,71 s: 0,21 s de separación, o sea el doble chasquido
+       de un mecanismo y no dos golpes sueltos. */
+    const cues = [
+      { at: +asientoH(cfg).toFixed(3),        sfx: 'clic', gain: 0.52 },
+      { at: +asientoV(cfg).toFixed(3),        sfx: 'clic', gain: 0.42 },
+      { at: +(asientoV(cfg) + 0.30).toFixed(3), sfx: 'tic', gain: 0.34 }
+    ];
+    return { cues: cfg.sinSonido ? [] : cues };
+  },
+
+  /* La ventana ES el recurso de esta plantilla: una anotación que quiera
+     señalar lo que se ve por ella necesita su caja, y hasta ahora había que
+     repetir `x/y/w/h` a mano en el plan. */
+  anclas(cfg) {
+    const caja = el => {
+      const b = el.getBoundingClientRect();
+      return { x: Math.round(b.left + b.width / 2),
+               y: Math.round(b.top + b.height / 2),
+               w: Math.round(b.width), h: Math.round(b.height) };
+    };
+    return { ventana: { x: Math.round(cfg.x + cfg.w / 2),
+                        y: Math.round(cfg.y + cfg.h / 2),
+                        w: cfg.w, h: cfg.h },
+             placa: caja(placa) };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 6;
+
+    /* --- el cierre de la compuerta -----------------------------------
+       `inOutCubic` y no `outCubic`: una hoja empujada por un husillo arranca
+       parada y llega parada. Con `outCubic` sale disparada en el primer
+       fotograma y el gesto pasa a ser «algo entra volando», que es la entrada
+       genérica del catálogo y justo lo contrario de un mecanismo.
+
+       La salida ABRE en vez de desvanecer: la compuerta suelta el encuadre.
+       `Engine.sale` va en `inCubic` —aguanta y luego se va— así que el
+       retroceso es un golpe seco al final, que es como se libera un cierre. */
+    const cerrar = Engine.sale(t, fin, cfg.salida);
+    const desplaza = (tt, ini) => cfg.apertura * (
+      (1 - span(tt, ini, cfg.entrada, Ease.inOutCubic)) +
+      0.55 * (1 - Engine.sale(tt, fin, cfg.salida)));
+
+    /* Desenfoque de movimiento derivado NUMÉRICAMENTE de la propia
+       trayectoria, no de una curva paralela escrita a mano: así vale igual
+       para el cierre y para la apertura, y si cambia la curva el borrón la
+       sigue solo. `dt` de un fotograma a 60 pps; sigue siendo función pura
+       de `t` porque solo evalúa `desplaza`. */
+    const DT = 1 / 60;
+    const borron = (ini) => {
+      const v = Math.abs(desplaza(t + DT, ini) - desplaza(t - DT, ini)) / (2 * DT);
+      return clamp(v * 0.0048, 0, 2.4);
+    };
+
+    const dH = desplaza(t, 0);
+    const dV = desplaza(t, iniV(cfg));
+    const bH = borron(0), bV = borron(iniV(cfg));
+
+    hojas.arr.style.transform = `translateY(${(-dH).toFixed(2)}px)`;
+    hojas.aba.style.transform = `translateY(${dH.toFixed(2)}px)`;
+    hojas.izq.style.transform = `translateX(${(-dV).toFixed(2)}px)`;
+    hojas.der.style.transform = `translateX(${dV.toFixed(2)}px)`;
+    hojas.arr.style.filter = hojas.aba.style.filter =
+      bH > 0.05 ? `blur(${bH.toFixed(2)}px)` : 'none';
+    hojas.izq.style.filter = hojas.der.style.filter =
+      bV > 0.05 ? `blur(${bV.toFixed(2)}px)` : 'none';
+
+    /* Fundido corto y solo al principio: lo que se percibe como entrada es el
+       cierre, no la aparición. Con el fundido largo las dos cosas competían y
+       ganaba la opacidad, que es el gesto que no queremos. */
+    visor.style.opacity = Engine.entra(t, cfg.entrada * 0.35) * cerrar;
+
+    /* Deriva de reposo (§10) aplicada al VISOR ENTERO y no a cada pieza. Una
+       compuerta es rígida: si la placa y las hojas derivaran con periodos
+       distintos se despegarían unas de otras y dejaría de leerse como un
+       objeto. Lo que aquí respira no es la geometría sino los datos —el
+       contador y el medidor—, que es donde un visor real tiene la vida.
+       2,4 px sobre 1080 es el pulso de una cámara en mano, no un efecto. */
+    const fl = Engine.flota(t, 2, { amp: 2.4, periodo: 9.1, semilla: 13 });
+    visor.style.transform =
+      `translate(${fl.x.toFixed(2)}px, ${fl.y.toFixed(2)}px)`;
+
+    /* --- grabado de las marcas ---------------------------------------
+       `Ease.linear` y no una curva de entrada: una punta de trazar avanza a
+       velocidad constante. Cualquier aceleración convierte el grabado en un
+       barrido automático, que es la firma del overlay genérico. */
+    const t0 = asientoV(cfg);
+    marcas.forEach((m, i) => {
+      const p = span(t, t0 + i * ESCALON, GRABA, Ease.linear);
+      m.el.style.strokeDashoffset = (m.largo * (1 - p)).toFixed(2);
+      /* Las marcas de centro por debajo de las escuadras: son referencia, no
+         encuadre. 0,72 y no 0,55 — a 2 px sobre metraje medio la marca de
+         centro se perdía. */
+      m.el.style.opacity = (i < 4 ? 1 : 0.72) * cerrar;
+    });
+
+    /* --- placas ------------------------------------------------------
+       Se revelan con un barrido lateral (`clip-path`) y no con opacidad: una
+       placa que se funde es una imagen; una que se descubre de un lado es una
+       pieza que entra en cuadro. `outExpo` porque un obturador va rapidísimo
+       y luego se asienta. Las dos barren HACIA FUERA desde el centro del
+       encuadre, cada una por su lado. */
+    const pPl = span(t, asientoV(cfg) - Number(cfg.entrada) * 0.12, 0.30, Ease.outExpo);
+    placa.style.clipPath = `inset(0 ${(100 * (1 - pPl)).toFixed(1)}% 0 0)`;
+    contador.style.clipPath = `inset(0 0 0 ${(100 * (1 - pPl)).toFixed(1)}%)`;
+    placa.style.opacity = contador.style.opacity = cerrar;
+
+    /* El rótulo CUAJA: el tracking se cierra de `--tr-caps-ancho` a
+       `--tr-caps` y el peso sube de 200 a 500 mientras el color pasa de
+       apagado a tinta. Es §1 al pie de la letra —jerarquía por peso y
+       contraste, nunca por luz— y solo existe porque las fuentes son
+       variables. Los dos extremos del tracking son TOKENS y se interpolan con
+       `calc`, así que la curva óptica de `_tokens.css` sigue mandando: aquí
+       no hay ningún número de tracking escrito. */
+    const lock = span(t, asientoV(cfg), 0.34, Ease.outExpo);
+    etiqueta.style.letterSpacing =
+      `calc(var(--tr-caps-ancho) + (var(--tr-caps) - var(--tr-caps-ancho)) * ${lock.toFixed(3)})`;
+    Engine.peso(etiqueta, Math.round(200 + 300 * lock));
+    etiqueta.style.color =
+      `color-mix(in oklab, var(--ink) ${(lock * 100).toFixed(1)}%, var(--ink-faint))`;
+
+    /* Respiración lenta del testigo: presencia, no alarma. 2,4 s de periodo
+       —el original latía a 1,25 s, que sobre un plano de 6 s son casi cinco
+       parpadeos y se lee como una advertencia—. El color se interpola en
+       `oklab`: en sRGB el camino del gris fantasma al bronce pasa por un
+       barro sin saturación. */
+    const resp = 0.5 + 0.5 * Math.sin(2 * Math.PI * t / 2.4);
+    lampara.style.background =
+      `color-mix(in oklab, var(--accent) ${(28 + 62 * resp).toFixed(1)}%, var(--ink-ghost))`;
+
+    /* --- contador de toma ---
+       Es el único dato REAL que esta plantilla puede enseñar: el instante en
+       el que la han posicionado. Y de paso resuelve el problema que §10
+       plantea —un gráfico que se para se lee como una imagen pegada—, porque
+       cambia en cada fotograma sin que nada se mueva. */
+    tcEl.textContent = timecode(t);
+
+    /* --- medidor ---
+       `intensidadEq` conserva su significado de siempre —cuánto se mueve la
+       aguja— aunque el objeto que gobierna haya cambiado de dieciséis barras
+       de ruido a un medidor con retención de pico. Quitar la clave habría
+       roto cualquier plan que ya la pase. */
+    const hMed = Math.max(0, medidor.clientHeight - 2);
+    const v = nivelEn(t, cfg.intensidadEq) * pPl;
+    const pk = picoEn(t, cfg.intensidadEq) * pPl;
+    nivelEl.style.height = (hMed * v).toFixed(1) + 'px';
+    picoEl.style.bottom = clamp(hMed * pk - 1, 0, Math.max(0, hMed - 2)).toFixed(1) + 'px';
+    picoEl.style.opacity = (pk > 0.02 ? 1 : 0) * cerrar;
+    medidor.style.opacity = pPl * cerrar;
+  }
+});
+</script>
+</body>
+</html>

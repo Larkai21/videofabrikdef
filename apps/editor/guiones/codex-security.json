@@ -1,0 +1,244 @@
+{
+  "metadata": {
+    "title": "OpenAI Codex Security Open Source",
+    "duration_seconds": 55,
+    "aspect_ratio": "9:16",
+    "brand_highlight_color": "#4CC2FF"
+  },
+  "strategy": {
+    "promised_hook": "Auditar la seguridad de tu código de forma automática sin pagar licencias SaaS costosas gracias a la liberación open source de Codex Security.",
+    "selected_components": [
+      "headline-clipper.html",
+      "custom-component: security-pipeline-nodes",
+      "code-mockup.html",
+      "engagement-cta.html"
+    ],
+    "micro_fx_and_media": [
+      "stamp-banned",
+      "target-hud",
+      "padlock-unlock",
+      "cli-typewriter",
+      "svg-checkmark",
+      "cursor-tap",
+      "[media-fetch: \"shield security\" via pexels]"
+    ]
+  },
+  "timeline": [
+    {
+      "act": 1,
+      "act_name": "HOOK",
+      "time_range": "00:00 - 00:06",
+      "start_sec": 0,
+      "end_sec": 6,
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_CLOSE_UP",
+      "spatial_position": "POS_CENTER",
+      "voice_speech": "¡Auditar fallos de seguridad en tu código ya no te va a costar miles de dólares!",
+      "blue_highlight_words": [
+        "fallos",
+        "miles"
+      ],
+      "visual_trigger": {
+        "component_type": "standard",
+        "name": "headline-clipper.html",
+        "position": "POS_TOP_CENTER",
+        "card_copy": "CODEX SECURITY OPEN SOURCE",
+        "config": {
+          "entradilla": "El repositorio incluye módulos de auditoría estática y modelos entrenados para detectar vulnerabilidades antes de compilar.",
+          "seccion": "SEGURIDAD",
+          "medio": "OPENAI",
+          "firma": "codex-security"
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "dólares",
+          "fx_id": "stamp-banned",
+          "position": "POS_MID_RIGHT",
+          "media_fetch": "shield security via pexels",
+          "config": {
+            "texto": "GRATIS"
+          }
+        }
+      ],
+      "media_local": [
+        {
+          "file": "assets/broll/shield_security_pixabay_262696.mp4",
+          "ancla": "muchísimo",
+          "dur": 2.2
+        }
+      ],
+      "sfx": [
+        "stamp_heavy.wav",
+        "whoosh_rise.wav"
+      ]
+    },
+    {
+      "act": 2,
+      "act_name": "CONCEPTO",
+      "time_range": "00:06 - 00:24",
+      "start_sec": 6,
+      "end_sec": 24,
+      "screen_mode": "MODE_FULL_MOTION",
+      "framing": "NONE",
+      "spatial_position": "POS_CENTER",
+      "voice_speech": "OpenAI acaba de liberar el repositorio oficial de Codex Security. Trae módulos de auditoría estática y modelos entrenados específicamente para detectar vulnerabilidades en tu arquitectura.",
+      "blue_highlight_words": [
+        "vulnerabilidades",
+        "arquitectura"
+      ],
+      "visual_trigger": {
+        "component_type": "custom",
+        "name": "custom-component: security-pipeline-nodes",
+        "position": "POS_CENTER",
+        "card_copy": "ARQUITECTURA DE AUDITORÍA",
+        "custom_specification": {
+          "html_css_structure": "Dark Canvas #08080A con 3 nodos flotantes en cristal dark y conectores bronce glow ([Code Repo] -> [Codex Engine] -> [Vulnerability Alert]).",
+          "animation": "Encendido secuencial de nodos al ritmo de la voz con iluminación neón azul/bronce."
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "vulnerabilidades",
+          "fx_id": "target-hud",
+          "position": "POS_CENTER",
+          "media_fetch": null,
+          "config": {
+            "texto": "CVE"
+          }
+        },
+        {
+          "trigger_word": "módulos",
+          "fx_id": "padlock-unlock",
+          "position": "POS_CENTER",
+          "media_fetch": null
+        }
+      ],
+      "sfx": [
+        "tech_pulse.wav",
+        "hud_lock.wav",
+        "unlock_click.wav"
+      ]
+    },
+    {
+      "act": 3,
+      "act_name": "PRUEBA / EJECUCIÓN",
+      "time_range": "00:24 - 00:44",
+      "start_sec": 24,
+      "end_sec": 44,
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_LEFT",
+      "spatial_position": "POS_MID_RIGHT",
+      "voice_speech": "Lo integras directamente en GitHub Actions, lanzas el script automático y bloqueas exploits antes de desplegar a producción.",
+      "blue_highlight_words": [
+        "script",
+        "producción"
+      ],
+      "visual_trigger": {
+        "component_type": "standard",
+        "name": "code-mockup.html",
+        "position": "POS_MID_RIGHT",
+        "card_copy": "PIPELINE CI/CD AUTOMÁTICO",
+        "config": {
+          "archivo": ".github/workflows/codex-security.yml",
+          "rama": "main",
+          "estado": "GITHUB ACTIONS",
+          "cps": 42,
+          "codigo": [
+            "name: Codex Security",
+            "on: [pull_request]",
+            "jobs:",
+            "  audit:",
+            "    runs-on: ubuntu-latest",
+            "    steps:",
+            "      - uses: actions/checkout@v4",
+            "      - uses: openai/codex-security@v1",
+            "        with:",
+            "          fail-on: high"
+          ],
+          "primera": 1
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "script",
+          "fx_id": "cli-typewriter",
+          "position": "POS_MID_RIGHT",
+          "media_fetch": null,
+          "config": {
+            "titulo": "zsh",
+            "ruta": "~/mi-repo",
+            "cps": 34,
+            "lineas": [
+              {
+                "tipo": "cmd",
+                "txt": "codex security scan .",
+                "at": 0.15
+              },
+              {
+                "tipo": "out",
+                "txt": "analizando 128 ficheros…",
+                "at": 0.72
+              },
+              {
+                "tipo": "ok",
+                "txt": "3 vulnerabilidades · 0 falsos positivos",
+                "at": 1.0
+              }
+            ]
+          }
+        },
+        {
+          "trigger_word": "producción",
+          "fx_id": "svg-checkmark",
+          "position": "POS_TOP_RIGHT",
+          "media_fetch": null
+        }
+      ],
+      "sfx": [
+        "keyboard_fast.wav",
+        "ping_success.wav"
+      ]
+    },
+    {
+      "act": 4,
+      "act_name": "OUTRO Y BUCLE INFINITO",
+      "time_range": "00:44 - 00:55",
+      "start_sec": 44,
+      "end_sec": 55,
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_CLOSE_UP",
+      "spatial_position": "POS_CENTER",
+      "voice_speech": "Tienes el enlace al repo y la guía rápida en mi perfil. Si quieres asegurar tus aplicaciones gratis, solo necesitas...",
+      "blue_highlight_words": [
+        "asegurar"
+      ],
+      "visual_trigger": {
+        "component_type": "standard",
+        "name": "engagement-cta.html",
+        "position": "POS_TOP_CENTER",
+        "card_copy": "PRUÉBALO HOY EN TU REPO",
+        "config": {
+          "sub": "repo + guía en el perfil",
+          "boton": "SEGUIR"
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "perfil",
+          "fx_id": "cursor-tap",
+          "position": "POS_CENTER",
+          "media_fetch": null
+        }
+      ],
+      "sfx": [
+        "mouse_click.wav"
+      ]
+    }
+  ],
+  "infinite_loop": {
+    "end_phrase": "...solo necesitas...",
+    "start_phrase": "¡AUDITAR fallos de seguridad...",
+    "seamless_connection": true
+  }
+}

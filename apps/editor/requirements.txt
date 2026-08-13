@@ -1,0 +1,11 @@
+# Transcripción local en Apple Silicon (Metal). Requiere Python 3.10-3.13.
+mlx-whisper>=0.4.0
+
+# Generación de B-Rolls (SDK oficial de Google GenAI)
+google-genai>=1.0.0
+
+# Detección de rostro con el framework Vision de macOS.
+# Es el motor preferido: milisegundos por frame y sin descargar modelos.
+# La alternativa (Ollama + qwen2-vl) son ~6 GB.
+pyobjc-framework-Vision>=10.0
+pyobjc-framework-Quartz>=10.0

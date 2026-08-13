@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Efecto rotulador</title>
+<meta name="gesto" content="trazar:rotulador">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; display: grid; place-items: center; }
+  .bloque { position: relative; max-width: 880px; padding: 0 var(--s-6);
+            text-align: center; will-change: opacity; }
+  .txt {
+    position: relative; z-index: 2;
+    font-family: var(--display); font-weight: 700;
+    /* 1,21 × `--t-2xl` = 74 px, el valor que tenía. `--t-2xl` son 61: bajar
+       ahí adelgaza la frase un 18 % y el rotulador deja de tener sobre qué
+       pasar. Derivado de la escala, sin píxel suelto. */
+    font-size: calc(var(--t-2xl) * 1.21); line-height: 1.24;
+    letter-spacing: var(--tr-display);
+    color: var(--ink);
+  }
+  /* El trazo va DETRÁS del texto y en multiply: un rotulador real deja
+     ver la tinta debajo. Encima y opaco taparía la frase. */
+  /* El trazo ya NO es un rectángulo creciendo por scaleX. Un rotulador real
+     deja una banda ligeramente inclinada, con los bordes irregulares y los
+     remates desiguales —la mano levanta el fieltro—, y se revela a lo LARGO
+     del trazo. Un rectángulo que crece es, geométricamente, una barra de
+     progreso; el propio comentario de esta plantilla ya admitía el riesgo y
+     solo lo mitigaba con la curva.
+
+     La forma la dibuja un `<path>` con los bordes perturbados por
+     `Engine.noise` —determinista, mismo t mismo píxel— y el revelado es
+     `stroke-dashoffset`, no `scaleX`. */
+  .trazo {
+    position: absolute; left: 0; z-index: 1;
+    pointer-events: none;
+    mix-blend-mode: var(--rotu-mezcla, screen);
+    will-change: stroke-dashoffset;
+  }
+  .trazo path { fill: none; stroke-linecap: round; }
+</style></head>
+<body>
+<div class="stage"><div class="bloque" id="bloque">
+  <div class="txt" id="txt"></div>
+</div></div>
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+const bloque = document.getElementById('bloque');
+const txt = document.getElementById('txt');
+let trazos = [];
+
+Engine.register({
+  duration: 3.2,
+  defaults: {
+    texto: 'El valor se desplaza hacia arriba',
+    marcar: ['hacia arriba'],   // trozos que subraya el rotulador
+    /* Nombre de TOKEN, nunca un hex. Con varios trozos marcados se cicla la
+       paleta sola: una cita de tres marcas sale policroma sin configurar
+       nada, que es lo que hace que el rotulador pueda jerarquizar. */
+    color: null,
+    colores: ['rotu-1', 'rotu-2', 'rotu-3', 'rotu-4', 'rotu-5'],
+    tam: 74,
+    at: 0.45,                   // cuándo empieza a pasar el rotulador
+    barrido: 0.5,               // lo que tarda cada trazo
+    entrada: 0.35,
+    salida: 0.4
+  },
+  setup(cfg) {
+    txt.style.fontSize = cfg.tam + 'px';
+
+    /* Se envuelve cada trozo marcado y DESPUÉS se mide: la posición del
+       trazo depende de dónde caiga el texto tras maquetar, que no se
+       puede saber antes. */
+    let html = String(cfg.texto);
+    (cfg.marcar || []).forEach((m, i) => {
+      html = html.replace(m, `<span class="m" data-i="${i}">${m}</span>`);
+    });
+    txt.innerHTML = html;
+
+    trazos.forEach(t => t.el.remove());
+    const base = bloque.getBoundingClientRect();
+    const NS = 'http://www.w3.org/2000/svg';
+    trazos = [...txt.querySelectorAll('.m')].map((m, i) => {
+      const r = m.getBoundingClientRect();
+      const W = r.width + 22, H = r.height * 0.66;
+      const svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('class', 'trazo');
+      svg.setAttribute('width', W); svg.setAttribute('height', H);
+      svg.style.left = (r.left - base.left - 11) + 'px';
+      svg.style.top  = (r.top - base.top + r.height * 0.42) + 'px';
+      svg.style.position = 'absolute';
+
+      /* El trazo es una LÍNEA GRUESA con la mitad del alto, no un rectángulo:
+         así `stroke-linecap: round` da los extremos redondeados que deja un
+         fieltro, y el revelado por `stroke-dashoffset` recorre el trazo de
+         izquierda a derecha como una mano — no lo estira desde un borde.
+
+         La línea baja un poco a lo largo: la mano no va perfectamente recta.
+         La irregularidad viene de `Engine.noise`, determinista por índice, así
+         que el mismo `seek(t)` da el mismo píxel — que es la regla que
+         sostiene el pipeline entero. Con `Math.random()` esto sería un trazo
+         distinto en cada fotograma. */
+      const y0 = H * 0.5 + (Engine.noise(i * 7 + 1, 21) - 0.5) * H * 0.42;
+      const y1 = H * 0.5 + (Engine.noise(i * 7 + 4, 21) - 0.5) * H * 0.42;
+      const ym = H * 0.5 + (Engine.noise(i * 7 + 2, 21) - 0.5) * H * 0.55;
+      const p = document.createElementNS(NS, 'path');
+      p.setAttribute('d', `M 6 ${y0.toFixed(1)} Q ${(W / 2).toFixed(1)} ` +
+                          `${ym.toFixed(1)} ${(W - 6).toFixed(1)} ${y1.toFixed(1)}`);
+      /* 0,72 y no 0,86: con el trazo casi tan alto como la caja, la
+         ondulación queda por debajo del grosor y la forma vuelve a
+         leerse como una barra. Se ve mirando, no calculando. */
+      p.setAttribute('stroke-width', (H * 0.72).toFixed(1));
+      const tok = cfg.color || (cfg.colores || ['rotu-1'])[i % (cfg.colores || ['rotu-1']).length];
+      p.setAttribute('stroke', `var(--${tok})`);
+      svg.appendChild(p);
+      bloque.appendChild(svg);
+      const L = p.getTotalLength();
+      p.style.strokeDasharray = L;
+      p.style.strokeDashoffset = L;
+      return { el: svg, path: p, L };
+    });
+  },
+  draw(t, cfg) {
+    const fin = cfg.duration || 3.2;
+    const ap = Engine.entra(t, cfg.entrada);
+    const cierre = Engine.sale(t, fin, cfg.salida);
+    bloque.style.opacity = ap * cierre;
+    /* Flotación de reposo (§10). Una vez trazado el rotulador, el bloque se
+       quedaba clavado: dos de los tres fotogramas de muestra del humo eran
+       idénticos byte a byte. El bloque entero deriva como una sola pieza —es
+       una frase, no una fila de objetos sueltos— con la amplitud mínima. */
+    const fl = Engine.flota(t, 0, { amp: 2.8, periodo: 8.7, semilla: 12 });
+    bloque.style.transform =
+      `translate(${fl.x.toFixed(2)}px, ${fl.y.toFixed(2)}px)`;
+    trazos.forEach(({ path, L }, i) => {
+      /* Un solo sentido y con inercia al final: un trazo a velocidad
+         constante se lee como una barra de progreso, no como una mano. */
+      const p = span(t, cfg.at + i * (cfg.barrido * 0.8), cfg.barrido,
+                     Ease.outCubic);
+      path.style.strokeDashoffset = (L * (1 - p)).toFixed(2);
+    });
+  }
+});
+</script></body></html>

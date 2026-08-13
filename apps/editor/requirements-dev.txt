@@ -1,0 +1,9 @@
+# Solo para el arnés de pruebas. Va APARTE de requirements.txt a propósito:
+# ese fichero es lo que necesita el pipeline para producir un vídeo, y meter
+# ahí una dependencia de desarrollo confunde las dos cosas.
+#
+# pytest y no unittest por una razón concreta: `parametrize` sobre 56
+# plantillas × 10 reglas es la diferencia entre 500 pruebas con nombre propio y
+# un bucle con un `assert` que dice «falló algo». No tiene dependencias
+# nativas y no entra en el camino de producción.
+pytest>=8.0

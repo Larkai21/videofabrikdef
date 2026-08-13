@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Empalme: la tira cortada</title>
+<!-- El gesto no es «corte» —ese lo declara `split-versus`— ni «recorte»
+     —`headline-clipper`—: es el EMPALME, o sea lo que queda DESPUÉS del corte.
+     Dos trozos que ya no casan es lo que esta plantilla dibuja; el paso de la
+     cuchilla solo es su causa, y dura seis fotogramas de treinta y nueve. -->
+<meta name="gesto" content="golpear:empalme">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; overflow: hidden; }
+
+  /* La TIRA es una sola pieza de material que luego se parte en dos. Su caja
+     es común a los dos trozos: por eso los dos dibujan la misma lámina con el
+     mismo origen y las perforaciones CASAN antes del corte. Si cada trozo
+     tuviera su propio origen, casarían por casualidad y dejarían de casar en
+     cuanto cambia el ancho del texto. */
+  .tira { position: absolute; will-change: transform, opacity; }
+
+  /* Los dos TROZOS son el mismo dibujo recortado por polígonos
+     COMPLEMENTARIOS. No son dos gráficos parecidos puestos uno al lado del
+     otro: son las dos mitades exactas de una lámina, así que el corte no deja
+     ni un píxel de solape ni de hueco hasta que se separan.
+
+     `overflow: hidden` no es decoración: el canto y su marca de cuchilla se
+     dibujan más altos que la tira —hay que poder revelarlos de arriba abajo—
+     y sin esto sobresaldrían por encima y por debajo de la película. */
+  .trozo { position: absolute; inset: 0; overflow: hidden;
+           will-change: transform; }
+
+  /* El SOPORTE. El degradado vertical no es un adorno: es el alabeo de una
+     tira que nunca está plana —oscura por los dos cantos, con una banda de luz
+     por el centro—. Es lo que separa «rectángulo con agujeros» de «película
+     tumbada en la mesa de montaje». `isolation` acota el `multiply` del grano
+     al interior de la lámina; sin ella multiplicaría contra el metraje. */
+  .lamina {
+    position: absolute; inset: 0;
+    isolation: isolate;
+    background-image: linear-gradient(180deg,
+      var(--chrome-3) 0%, var(--surface-2) 13%, var(--chrome-2) 46%,
+      var(--surface-2) 74%, var(--chrome-3) 100%);
+  }
+
+  .lineas, .pista { position: absolute; left: 0; right: 0; }
+
+  .texto {
+    position: absolute;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--display);
+    font-weight: var(--w-negro);
+    color: var(--ink);
+    white-space: nowrap;
+    line-height: 1;
+  }
+
+  /* El CANTO: el borde que deja el corte. Se revela de arriba abajo siguiendo
+     a la punta de la cuchilla, así que durante los seis fotogramas del corte
+     hay una causa visible para cada milímetro de canto. */
+  .canto { position: absolute; will-change: clip-path, background-position; }
+
+  .cuchilla { position: absolute; will-change: transform, opacity; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage"></div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp, noise } = Engine;
+
+const stage = document.getElementById('stage');
+
+/* ---------------------------------------------------------------------------
+   PROPORCIONES REALES DEL 35 mm, normalizadas al ancho de la película —que
+   aquí es la ALTURA de la tira, porque la tira está tumbada—:
+
+       ancho total          35,00 mm
+       banda de perforación  6,50 mm por lado
+       banda de sonido       2,50 mm
+       paso de perforación   4,75 mm
+       perforación KS        2,80 x 1,98 mm
+       fotograma             4 pasos = 19,00 mm
+
+   No es pedantería. Lo que hace que un rectángulo agujereado se lea como
+   película en tres fotogramas no es tener agujeros: es la RELACIÓN entre el
+   paso de perforación y la altura de la tira. Con perforaciones cuadradas y
+   espaciadas «a ojo» sale una tarjeta perforada. Medido sobre estos números,
+   el paso cae en 0,136 de la altura y la perforación en 0,080 x 0,057.
+   --------------------------------------------------------------------------- */
+const P = { perfBanda: 6.50 / 35, sonido: 2.50 / 35, paso: 4.75 / 35,
+            perfW: 2.80 / 35, perfH: 1.98 / 35 };
+
+function el(tag, cls) {
+  const n = document.createElement(tag);
+  n.className = cls;
+  return n;
+}
+
+/* Cuerpo maestro leído del TOKEN y no escrito en píxeles en `defaults`.
+   Un número en `defaults` se queda fuera de la escala tipográfica para siempre
+   —el anterior era 130 px, que no es ningún escalón de la escala— y deja de
+   moverse cuando la escala se retoca. Se lee del computado y punto. Un `tam`
+   explícito sigue mandando: hay planes que lo pasan. */
+function cuerpoDelToken(token) {
+  const s = document.createElement('span');
+  s.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;top:0;' +
+                    'font-size:var(' + token + ')';
+  document.body.appendChild(s);
+  const px = parseFloat(getComputedStyle(s).fontSize);
+  s.remove();
+  return px || 145;
+}
+
+/* Máscara de una fila de perforaciones: UNA teja de `paso x banda` con el
+   agujero redondeado recortado por `fill-rule: evenodd`, que se repite en
+   horizontal. El agujero tiene que ser TRANSPARENTE de verdad —se ve el
+   metraje a través— y por eso es una máscara y no un color de fondo: una
+   perforación pintada del color del fondo delata la trampa en cuanto la tira
+   pasa por encima de una cara. */
+function tejaPerf(paso, banda, pw, ph, r) {
+  const n = v => Math.round(v * 100) / 100;
+  const x = (paso - pw) / 2, y = (banda - ph) / 2;
+  const d =
+    'M0 0H' + n(paso) + 'V' + n(banda) + 'H0Z' +
+    'M' + n(x + r) + ' ' + n(y) + 'H' + n(x + pw - r) +
+    'a' + n(r) + ' ' + n(r) + ' 0 0 1 ' + n(r) + ' ' + n(r) +
+    'V' + n(y + ph - r) +
+    'a' + n(r) + ' ' + n(r) + ' 0 0 1 ' + n(-r) + ' ' + n(r) +
+    'H' + n(x + r) +
+    'a' + n(r) + ' ' + n(r) + ' 0 0 1 ' + n(-r) + ' ' + n(-r) +
+    'V' + n(y + r) +
+    'a' + n(r) + ' ' + n(r) + ' 0 0 1 ' + n(r) + ' ' + n(-r) + 'Z';
+  /* Sin `fill`: el negro opaco por defecto de SVG basta y evita escribir un
+     color a pelo. En una máscara de imagen solo cuenta el ALFA —lo confirma
+     que la capa central use `var(--ink)`, que en `paper` es casi negro y tapa
+     igual—, así que el tono del relleno es irrelevante y un hex aquí sería
+     ruido para el auditor de estilo y para quien lo lea. */
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + n(paso) +
+              '" height="' + n(banda) + '"><path ' +
+              'fill-rule="evenodd" d="' + d + '"/></svg>';
+  return 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")';
+}
+
+let tira, izq, der, cantoI, cantoD, cuchilla;
+let G = {};                       /* geometría resuelta en `setup` */
+
+Engine.register({
+  duration: 1.3,
+
+  defaults: {
+    texto: 'ELIMINAR',
+    y: 880,
+    /* `null` = sale del token `--t-mega`. Ver `cuerpoDelToken`. */
+    tam: null,
+    /* `corte` sigue siendo «por dónde parte», pero ahora es una fracción del
+       ANCHO DE LA PALABRA y no de su altura: el corte es vertical, no
+       horizontal. Anclarlo a la palabra y no al lienzo es lo que hace que
+       «QUITA» (5 letras) y «SIMPLIFICAR» (11) se partan las dos por su sitio;
+       con una fracción del lienzo, la palabra corta se cortaba fuera. */
+    corte: 0.42,
+    /* Grados de desviación del corte respecto a la vertical. Un corte a mano
+       NUNCA sale a escuadra, y esos 2,4° son la diferencia entre «lo han
+       cortado» y «lo ha generado un programa». */
+    angulo: 2.4,
+    /* Instante en que la punta termina de atravesar la tira. */
+    at: 0.34,
+    entrada: 0.20,
+    salida: 0.35
+  },
+
+  setup(cfg) {
+    const caja = stage.getBoundingClientRect();
+    const W = caja.width || 1080;
+
+    const tam = Number(cfg.tam) || cuerpoDelToken('--t-mega');
+    /* Altura de la tira = 2 x el cuerpo. De ahí salen los 0,557 de área de
+       imagen (35 mm menos las dos bandas de perforación y la de sonido), o sea
+       1,114 x el cuerpo: la palabra cabe con holgura y la tira sigue teniendo
+       las proporciones de la película, no las del texto. */
+    const H = Math.round(tam * 2.0);
+    const perfB = H * P.perfBanda;
+    const son = H * P.sonido;
+    const paso = H * P.paso;
+    const foto = paso * 4;
+    const imgY = perfB + son;
+    const imgH = H - 2 * perfB - son;
+    const medio = H - 2 * perfB;
+
+    /* La lámina desborda el lienzo por los dos lados: una tira de película no
+       empieza ni acaba en el encuadre. El margen no es «generoso por si acaso»,
+       es la suma de los dos desplazamientos máximos: el fotograma que avanza al
+       entrar (157 px con el cuerpo por defecto) y los 120 px con los que cada
+       mitad se va al final. Con el margen anterior —2,5 pasos, 98 px— el
+       extremo IZQUIERDO de la tira entraba en cuadro durante la entrada y otra
+       vez al salir: se veía dónde se acaba la película, que es exactamente lo
+       que no puede verse. Y no daba ningún error. */
+    const margen = Math.round(foto + paso * 4);
+    const LX = -margen;
+    const LW = Math.round(W + margen * 2);
+
+    stage.innerHTML = '';
+    tira = el('div', 'tira');
+    tira.style.left = LX + 'px';
+    tira.style.width = LW + 'px';
+    tira.style.height = H + 'px';
+    /* `y` se conserva como lo que siempre significó: el borde superior del
+       BLOQUE DE TEXTO. La tira se centra sobre el centro óptico de ese bloque,
+       así que los planes que ya existen siguen colocando la palabra donde la
+       colocaban aunque el gráfico haya crecido a su alrededor. */
+    tira.style.top = Math.round((Number(cfg.y) || 0) + tam * 0.525 - H / 2) + 'px';
+    stage.appendChild(tira);
+
+    const teja = tejaPerf(paso, perfB, H * P.perfW, H * P.perfH,
+                          H * P.perfH * 0.28);
+    const capas = [teja, 'linear-gradient(var(--ink),var(--ink))', teja].join(',');
+    const tam3 = paso.toFixed(2) + 'px ' + perfB.toFixed(2) + 'px, ' +
+                 '100% ' + medio.toFixed(2) + 'px, ' +
+                 paso.toFixed(2) + 'px ' + perfB.toFixed(2) + 'px';
+    const pos3 = '0px 0px, 0px ' + perfB.toFixed(2) + 'px, ' +
+                 '0px ' + (H - perfB).toFixed(2) + 'px';
+
+    /* Banda de sonido óptico. Dos tramas de periodo INCONMENSURABLE (0,024 H y
+       0,038 H) superpuestas: baten cada ~77 px y el ojo lee una modulación
+       irregular. Es un rayado de dos gradientes, no ciento cuarenta paradas de
+       color ni ruido por fotograma — a 30 fps sobre una pieza entera, lo que
+       cuesta un efecto de medio segundo importa. */
+    const s1 = (H * 0.0072).toFixed(2), p1 = (H * 0.024).toFixed(2);
+    const s2 = (H * 0.0100).toFixed(2), p2 = (H * 0.038).toFixed(2);
+    const pistaFondo =
+      'repeating-linear-gradient(90deg, var(--ink-faint) 0 ' + s1 + 'px,' +
+      ' transparent ' + s1 + 'px ' + p1 + 'px),' +
+      'repeating-linear-gradient(90deg, var(--ink-faint) 0 ' + s2 + 'px,' +
+      ' transparent ' + s2 + 'px ' + p2 + 'px)';
+
+    const piezas = [];
+    for (const lado of ['izq', 'der']) {
+      const tr = el('div', 'trozo ' + lado);
+      const lam = el('div', 'lamina');
+      lam.style.webkitMaskImage = capas;
+      lam.style.maskImage = capas;
+      lam.style.webkitMaskSize = tam3;
+      lam.style.maskSize = tam3;
+      lam.style.webkitMaskPosition = pos3;
+      lam.style.maskPosition = pos3;
+      lam.style.webkitMaskRepeat = 'repeat-x, no-repeat, repeat-x';
+      lam.style.maskRepeat = 'repeat-x, no-repeat, repeat-x';
+
+      /* Línea de fotograma. Va DEBAJO de la palabra: la película está
+         impresa, y lo impreso no tapa la imagen que lleva encima. */
+      const lin = el('div', 'lineas');
+      lin.style.top = imgY.toFixed(2) + 'px';
+      lin.style.height = imgH.toFixed(2) + 'px';
+      lin.style.backgroundImage =
+        'repeating-linear-gradient(90deg, transparent 0 ' +
+        (foto - 3).toFixed(2) + 'px, var(--rule) ' + (foto - 3).toFixed(2) +
+        'px ' + foto.toFixed(2) + 'px)';
+      lam.appendChild(lin);
+
+      const pis = el('div', 'pista');
+      pis.style.top = perfB.toFixed(2) + 'px';
+      pis.style.height = son.toFixed(2) + 'px';
+      pis.style.backgroundImage = pistaFondo;
+      lam.appendChild(pis);
+
+      const tx = el('div', 'texto');
+      tx.style.left = (-LX) + 'px';
+      tx.style.width = W + 'px';
+      tx.style.top = imgY.toFixed(2) + 'px';
+      tx.style.height = imgH.toFixed(2) + 'px';
+      const sp = document.createElement('span');
+      sp.textContent = cfg.texto || '';
+      tx.appendChild(sp);
+      lam.appendChild(tx);
+
+      /* Grano de emulsión. Aquí sí procede —`Engine.grano` multiplica, y
+         multiplicar contra alfa 0 devuelve un rectángulo gris—: la lámina
+         tiene fondo opaco propio y máscara, así que el grano se recorta con
+         ella y las perforaciones siguen siendo agujeros. */
+      Engine.grano(lam, { px: 256, semilla: 9, op: 0.30 });
+
+      tr.appendChild(lam);
+      const canto = el('i', 'canto');
+      tr.appendChild(canto);
+      tira.appendChild(tr);
+      piezas.push({ tr, lam, tx, sp, canto });
+    }
+    izq = piezas[0].tr; der = piezas[1].tr;
+    cantoI = piezas[0].canto; cantoD = piezas[1].canto;
+
+    /* --- ajuste del cuerpo a la palabra que toque ---
+       `dirigir.py` pasa la palabra que dispara el efecto, así que el ancho no
+       se conoce hasta aquí: «QUITA» mide 5 caracteres y «SIMPLIFICAR» once. Se
+       mide y se reduce si no cabe en el 86 % del lienzo. Sin esto la palabra
+       larga se sale de cuadro por los dos lados y no se lee ninguna. */
+    let cuerpo = tam;
+    piezas.forEach(p => { p.tx.style.fontSize = tam + 'px'; });
+    const w0 = piezas[0].sp.getBoundingClientRect().width;
+    if (w0 > W * 0.86) cuerpo = Math.max(24, Math.floor(tam * W * 0.86 / w0));
+    piezas.forEach(p => {
+      p.tx.style.fontSize = cuerpo + 'px';
+      /* El tracking sale del escalón que le toca al cuerpo FINAL, no del
+         pedido: reducir la letra sin reabrir el tracking deja la palabra
+         apelmazada, que es el defecto óptico contrario. */
+      p.tx.style.letterSpacing = cuerpo >= 145 ? 'var(--tr-titan)'
+                               : cuerpo >= 82 ? 'var(--tr-hero)'
+                               : 'var(--tr-display)';
+    });
+
+    /* --- dónde muerde la cuchilla --- */
+    const r = piezas[0].sp.getBoundingClientRect();
+    /* `|| 0.42` y no solo `clamp`: `clamp(NaN)` devuelve NaN —`Math.max`
+       propaga el NaN— y de ahí sale un `clip-path` con «NaNpx» dentro, que el
+       navegador descarta ENTERO sin decir nada: los dos trozos se dibujarían
+       completos, uno encima del otro, y el corte no existiría. Un plan que
+       pase `corte: null` es suficiente para provocarlo. */
+    const frac = clamp(Number(cfg.corte) || 0.42, 0.08, 0.92);
+    const xcCanvas = r.width > 4 ? (r.left - caja.left) + frac * r.width
+                                 : W * frac;
+    const xc = xcCanvas - LX;
+
+    const ang = Number(cfg.angulo) || 0;
+    const k = Math.tan(ang * Math.PI / 180);
+    const yT = -H, yB = 2 * H;
+    const xT = (xc + (yT - H / 2) * k).toFixed(2);
+    const xB = (xc + (yB - H / 2) * k).toFixed(2);
+    izq.style.clipPath = 'polygon(' + (-LW) + 'px ' + yT + 'px, ' +
+      xT + 'px ' + yT + 'px, ' + xB + 'px ' + yB + 'px, ' +
+      (-LW) + 'px ' + yB + 'px)';
+    der.style.clipPath = 'polygon(' + xT + 'px ' + yT + 'px, ' +
+      (2 * LW) + 'px ' + yT + 'px, ' + (2 * LW) + 'px ' + yB + 'px, ' +
+      xB + 'px ' + yB + 'px)';
+
+    /* El canto es UNA barra por trozo, tumbada sobre la línea de corte y
+       recortada por el polígono de su propio trozo: a cada mitad le queda la
+       mitad de la barra, o sea su propio borde. Que sean dos y no una es lo
+       que permite que se separen llevándose cada una su canto.
+
+       Va en bronce a propósito. §1 prohíbe destacar con luz, así que el corte
+       no puede brillar: lo que se ve es una superficie metálica —la del
+       material de esta marca— con luz RASANTE, y por eso el degradado corre a
+       lo largo del canto y no sale de él. */
+    const anchoCanto = Math.max(6, Math.round(H * 0.030));
+    const nick = (H * 0.055).toFixed(2), nick2 = (H * 0.034).toFixed(2);
+    [cantoI, cantoD].forEach(c => {
+      c.style.left = (xc - anchoCanto / 2).toFixed(2) + 'px';
+      c.style.top = (-0.3 * H).toFixed(2) + 'px';
+      c.style.width = anchoCanto + 'px';
+      c.style.height = (1.6 * H).toFixed(2) + 'px';
+      c.style.transform = 'rotate(' + (-ang) + 'deg)';
+      c.style.backgroundImage = 'linear-gradient(180deg, var(--metal-1) 0%,' +
+        ' var(--metal-3) 26%, var(--metal-4) 50%, var(--metal-5) 76%,' +
+        ' var(--metal-1) 100%)';
+      c.style.backgroundSize = '100% 150%';
+      /* La marca de la cuchilla. En una máscara solo cuenta el ALFA, así que
+         el color es lo de menos y se usa un token para no escribir un hex: lo
+         que hace el trabajo es el 45 % del `color-mix`, que muerde el canto a
+         intervalos irregulares. Un canto perfectamente uniforme es un filete
+         de CSS; uno mordido es un corte. */
+      const m = 'repeating-linear-gradient(180deg, var(--ink) 0 ' + nick +
+        'px, color-mix(in oklab, var(--ink) 45%, transparent) ' + nick +
+        'px ' + (Number(nick) + Number(nick2)).toFixed(2) + 'px)';
+      c.style.webkitMaskImage = m;
+      c.style.maskImage = m;
+    });
+
+    /* La CUCHILLA se ve de canto, que es como se ve de verdad una hoja
+       apoyada perpendicular a la mesa: una cuña estrecha, no un hacha. El
+       degradado a lo ancho es el bisel cogiendo la luz —de nuevo rasante sobre
+       una superficie que ya estaba ahí, no un destello— y se resuelve con
+       grises de tinta y no con `--metal-*` porque en `paper` los cinco stops
+       del metal se colapsan al acento y la hoja saldría naranja plana: el
+       acero tiene que leerse como acero en los dos temas. */
+    cuchilla = el('div', 'cuchilla');
+    const bw = Math.max(18, Math.round(H * 0.150));
+    const bh = Math.round(H * 1.35);
+    cuchilla.style.left = (xc - bw / 2).toFixed(2) + 'px';
+    cuchilla.style.top = '0px';
+    cuchilla.style.width = bw + 'px';
+    cuchilla.style.height = bh + 'px';
+    cuchilla.style.transformOrigin = '50% 100%';
+    cuchilla.style.clipPath =
+      'polygon(0 0, 100% 0, 100% 93%, 50% 100%, 0 93%)';
+    /* El bisel es ASIMÉTRICO —claro a la izquierda, oscuro a la derecha— y la
+       banda de luz es estrecha y de canto duro (38-45 %). Un degradado
+       simétrico y blando da un tubo; el canto duro es lo que dice «esto tiene
+       un filo». */
+    cuchilla.style.backgroundImage = 'linear-gradient(90deg,' +
+      ' var(--ink-faint) 0%, var(--ink-soft) 20%, var(--ink) 38%,' +
+      ' var(--ink) 45%, var(--ink-soft) 64%, var(--chrome-3) 100%)';
+    tira.appendChild(cuchilla);
+
+    G = { H, paso, foto, k, ang, bh, W };
+
+    /* Una señal por EVENTO. El evento de esta capa es el corte, y su instante
+       sale de la MISMA `cfg.at` que usa `draw`: si se mueve el corte, el golpe
+       se mueve con él en vez de quedarse donde estaba.
+       `dirigir.py` ya pone un `barrido` al entrar la capa —que aquí encaja:
+       es la tira entrando en la ventanilla—, así que esto añade lo que ese
+       barrido no puede saber, que es cuándo muerde la hoja. */
+    return { cues: cfg.sinSonido ? []
+                 : [{ at: Number(cfg.at) || 0.34, sfx: 'clic', gain: 1.0 }] };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 1.3;
+    const at = Number(cfg.at) || 0.34;
+    const H = G.H, paso = G.paso;
+
+    /* Opacidad y cierre. `Engine.sale` cae con `inCubic`: AGUANTA y luego se
+       va. En medio segundo de gráfico, la caída en picado de `outCubic` deja
+       un fantasma que se solapa con lo que venga después. */
+    const op = Engine.entra(t, cfg.entrada * 0.45) *
+               Engine.sale(t, fin, cfg.salida);
+    tira.style.opacity = op;
+
+    /* ENTRADA: la tira AVANZA exactamente un fotograma y se para en seco, que
+       es lo que hace el arrastre de un proyector. `inOutCubic` y no `outCubic`
+       porque un arrastre acelera y frena; con `outCubic` la tira sale
+       disparada en el primer fotograma y vuelve a ser un barrido, que es justo
+       de lo que venimos. */
+    const avance = (1 - Engine.entra(t, cfg.entrada, Ease.inOutCubic)) * G.foto;
+
+    /* LA CUCHILLA. La punta recorre de -0,25 H a 1,25 H con `inCubic` —una
+       hoja que se empuja acelera— y la ventana está resuelta para que cruce el
+       borde inferior de la tira EXACTAMENTE en `at`: inCubic(p*) = 1,25/1,50
+       da p* = 0,9411, o sea 0,202 s de los 0,215 de la ventana. Así el instante
+       del corte es un dato y no un ajuste a ojo, y el `cue` de sonido cae donde
+       cae la imagen. */
+    const VENT = 0.215;
+    const pb = span(t, at - 0.202, VENT, Ease.inCubic);
+    const puntaY = -0.25 * H + pb * 1.50 * H;
+    const dxCu = (puntaY - H / 2) * G.k;
+    cuchilla.style.transform = 'translate(' + dxCu.toFixed(1) + 'px, ' +
+      (puntaY - G.bh).toFixed(1) + 'px) rotate(' + (-G.ang) + 'deg)';
+    /* Y se va DEPRISA: 0,075 s, dos fotogramas y medio. Con la salida larga que
+       tenía antes (0,10 s desde `at`+0,02) la hoja seguía cruzando la tira
+       cuando las dos mitades ya se habían separado, y entonces deja de leerse
+       como la causa del corte y pasa a ser una barra oscura encima del
+       empalme. Se ve claramente en `paper`, donde el acero contrasta más. */
+    cuchilla.style.opacity =
+      (clamp(span(t, at - 0.232, 0.05) - span(t, at + 0.005, 0.075), 0, 1) * op)
+        .toFixed(3);
+
+    /* El canto se revela SIGUIENDO a la punta. La barra mide 1,6 H y empieza
+       0,3 H por encima de la tira, así que la fracción visible es
+       (puntaY + 0,3 H) / 1,6 H. Sin esto el corte aparecía entero de golpe y la
+       cuchilla pasaba a ser un adorno que llega tarde a su propio efecto. */
+    const oculto = clamp((1 - (puntaY + 0.3 * H) / (1.6 * H)) * 100, 0, 100);
+    const rec = 'inset(0 0 ' + oculto.toFixed(2) + '% 0)';
+    cantoI.style.clipPath = rec;
+    cantoD.style.clipPath = rec;
+
+    /* LA SEPARACIÓN. `outExpo` y no `outCubic`: la película está sujeta con
+       tensión y al soltarla el trozo salta y se para MUERTO contra la mesa.
+       `outCubic` deja un deslizamiento largo que se lee como una animación. */
+    const sep = span(t, at, 0.26, Ease.outExpo);
+    /* Y después un arrastre lento y LINEAL. No es `Engine.flota`: en medio
+       segundo nada tiene tiempo de derivar con su periodo, y una flotación
+       aquí se leería como que el gráfico levita. Es que las dos mitades siguen
+       apartándose sobre la mesa, que es lo que hacen. */
+    const arrastre = span(t, at + 0.26, 0.44);
+    /* Al final se las llevan por los dos lados, a lo largo del eje de la tira
+       —que es la única dirección en la que se mueve una película—. */
+    const yendo = span(t, fin - cfg.salida, cfg.salida, Ease.inCubic) * 120;
+
+    /* El EMPALME QUE NO CASA. Cada trozo pivota sobre su extremo LEJANO, que es
+       donde lo sujeta la mesa, así que el giro se nota justo donde importa: en
+       el canto.
+
+       El SIGNO del giro de la derecha es lo único que hace que esto funcione, y
+       lo tenía al revés. Con `+1,3°` sobre el pivote derecho, el extremo del
+       corte SUBÍA 20,9 px y el desplazamiento vertical (+12,2) casi lo
+       cancelaba: medido en pantalla, el escalón entre las dos mitades era de
+       0,86 px. O sea que el gráfico se doblaba en pico y NO se desalineaba —
+       exactamente lo contrario de lo que dice hacer, y sin ningún error—.
+       Con `−0,62°` el canto derecho baja 22,2 px y el izquierdo sube 9,7:
+       escalón de 31,8 px sobre una altura de mayúscula de 104, o sea un 31 %.
+       Eso sí se ve de un vistazo.
+
+       Y en horizontal se abren 29,1 px, que sobre un paso de perforación de
+       39,4 deja las dos filas de agujeros un 74 % fuera de fase. Dos trozos
+       alineados solo serían una imagen partida por la mitad. */
+    const dxD = avance + sep * paso * 0.44 + arrastre * 5 + yendo;
+    der.style.transformOrigin = '100% 50%';
+    der.style.transform = 'translate(' + dxD.toFixed(2) + 'px, ' +
+      (sep * H * 0.042).toFixed(2) + 'px) rotate(' +
+      (-sep * 0.62).toFixed(3) + 'deg)';
+
+    const dxI = avance - sep * paso * 0.16 - arrastre * 3 - yendo;
+    izq.style.transformOrigin = '0% 50%';
+    izq.style.transform = 'translate(' + dxI.toFixed(2) + 'px, ' +
+      (-sep * H * 0.012).toFixed(2) + 'px) rotate(' +
+      (-sep * 0.45).toFixed(3) + 'deg)';
+
+    /* Al inclinarse, el canto cambia de ángulo respecto a la luz de la mesa y
+       la banda brillante del bronce se desplaza. Es una línea por fotograma y
+       es lo que impide que el canto se lea como una pegatina. */
+    cantoD.style.backgroundPositionY = (-sep * H * 0.22).toFixed(1) + 'px';
+    cantoI.style.backgroundPositionY = (sep * H * 0.10).toFixed(1) + 'px';
+  }
+});
+</script>
+</body>
+</html>

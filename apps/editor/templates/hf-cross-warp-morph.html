@@ -1,0 +1,598 @@
+<!-- hyperframes-registry-item: cross-warp-morph -->
+<!doctype html>
+<html lang="en">
+  <head>
+<!-- /* PALETA-AJENA: inicio */ -->
+    <meta charset="UTF-8" />
+    <script src="_gsap.min.js"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Bebas+Neue&family=JetBrains+Mono:wght@400;700&family=Lato:wght@400;700&display=block");
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+      }
+    </style>
+    <link rel="stylesheet" href="_tokens.css">
+  <script src="_engine.js"></script>
+</head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="4"
+      data-width="1920"
+      data-height="1080"
+    >
+      <style>
+        [data-composition-id="main"] {
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          position: relative;
+          background: #283618;
+        }
+
+        /* Blueprint grid */
+        .bp-grid {
+          position: absolute;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+          background-size: 40px 40px;
+          pointer-events: none;
+        }
+
+        /* Layout */
+        .bp-left {
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 1200px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .bp-right {
+          position: absolute;
+          right: 0;
+          top: 0;
+          bottom: 0;
+          width: 720px;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          padding: 60px 60px 60px 40px;
+        }
+        .bp-divider {
+          position: absolute;
+          left: 1200px;
+          top: 60px;
+          bottom: 60px;
+          width: 1px;
+          background: #a7c957;
+          opacity: 0.15;
+        }
+        .bp-number {
+          font-family: "Space Mono", monospace;
+          font-size: 14px;
+          font-weight: 700;
+          letter-spacing: 0.4em;
+          text-transform: uppercase;
+          position: absolute;
+          top: 40px;
+          left: 60px;
+          color: #a7c957;
+        }
+
+        /* Right panel typography */
+        .bp-name {
+          font-family: "Bebas Neue", sans-serif;
+          font-size: 38px;
+          letter-spacing: 0.08em;
+          margin-bottom: 20px;
+          color: #a7c957;
+        }
+        .bp-plabel {
+          font-family: "Space Mono", monospace;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.3em;
+          text-transform: uppercase;
+          margin-bottom: 10px;
+          color: #a7c957;
+          opacity: 0.5;
+        }
+        .bp-prompt {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 20px;
+          line-height: 1.6;
+          padding: 16px 20px;
+          border-radius: 6px;
+          margin-bottom: 20px;
+          color: #a7c957;
+          background: rgba(167, 201, 87, 0.06);
+          border: 1px solid rgba(167, 201, 87, 0.12);
+        }
+        .bp-desc {
+          font-family: "Lato", sans-serif;
+          font-size: 17px;
+          line-height: 1.6;
+          color: #8aaa9a;
+          opacity: 0.55;
+        }
+
+        /* GL scenes (hidden, just for texture capture) */
+        .scene {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 1200px;
+          height: 1080px;
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .scene-label {
+          font-family: "Bebas Neue", sans-serif;
+          font-size: 140px;
+          letter-spacing: 0.06em;
+          opacity: 0.12;
+        }
+      </style>
+
+      <div class="bp-grid"></div>
+      <div class="bp-divider"></div>
+      <div class="bp-number">13 / 14</div>
+
+      <!-- GL demo scenes (captured as textures, then hidden) -->
+      <div id="s1" class="scene" style="background: #283618">
+        <div class="scene-label" style="color: #a7c957">SCENE A</div>
+      </div>
+      <div id="s2" class="scene" style="background: #a7c957; opacity: 0">
+        <div class="scene-label" style="color: #283618">SCENE B</div>
+      </div>
+
+      <!-- GL canvas (left panel only) -->
+      <canvas
+        id="gl-canvas"
+        width="1200"
+        height="1080"
+        style="
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 1200px;
+          height: 1080px;
+          z-index: 10;
+          pointer-events: none;
+          display: none;
+        "
+      >
+      </canvas>
+
+      <!-- Right panel metadata -->
+      <div class="bp-right">
+        <div class="bp-name">Cross-Warp Morph</div>
+        <div class="bp-plabel">Prompt</div>
+        <div class="bp-prompt">"use cross-warp morph shader transition"</div>
+        <div class="bp-desc">
+          Both scenes displace along a shared FBM noise field in opposite directions. Noise-driven
+          blend boundary.
+        </div>
+      </div>
+
+      <div
+        id="driver"
+        class="clip"
+        data-start="0"
+        data-duration="4"
+        data-track-index="0"
+        style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none"
+      ></div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      var glCanvas = document.getElementById("gl-canvas");
+      var gl = glCanvas.getContext("webgl", { preserveDrawingBuffer: true });
+      if (!gl) {
+        console.warn("WebGL not available");
+        window.__timelines["main"] = gsap.timeline({ paused: true });
+      } else {
+        gl.viewport(0, 0, 1200, 1080);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        var sceneTextures = {};
+
+        function captureScene(sceneId) {
+          var scene = document.getElementById(sceneId);
+          var origOpacity = scene.style.opacity;
+          var origZ = scene.style.zIndex;
+          scene.style.opacity = "1";
+          scene.style.zIndex = "999";
+          scene.offsetHeight;
+          var c = document.createElement("canvas");
+          c.width = 1200;
+          c.height = 1080;
+          var ctx = c.getContext("2d");
+          ctx.fillStyle = window.getComputedStyle(scene).backgroundColor;
+          ctx.fillRect(0, 0, 1200, 1080);
+          var sr = scene.getBoundingClientRect();
+          var els = scene.querySelectorAll("*");
+          for (var i = 0; i < els.length; i++) {
+            var el = els[i],
+              cs = window.getComputedStyle(el);
+            if (cs.display === "none" || cs.visibility === "hidden") continue;
+            var r = el.getBoundingClientRect();
+            if (r.width < 1 || r.height < 1) continue;
+            var x = r.left - sr.left,
+              y = r.top - sr.top,
+              w = r.width,
+              h = r.height;
+            ctx.save();
+            ctx.globalAlpha = parseFloat(cs.opacity) || 1;
+            var bg = cs.backgroundColor;
+            if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") {
+              ctx.fillStyle = bg;
+              ctx.fillRect(x, y, w, h);
+            }
+            var hasChildEls = el.querySelector("div,span,img,video");
+            var text = "";
+            for (var j = 0; j < el.childNodes.length; j++)
+              if (el.childNodes[j].nodeType === 3) text += el.childNodes[j].textContent;
+            text = text.trim();
+            if (text && !hasChildEls) {
+              ctx.font = cs.fontWeight + " " + cs.fontSize + " " + cs.fontFamily;
+              ctx.fillStyle = cs.color;
+              if (cs.letterSpacing && cs.letterSpacing !== "normal")
+                ctx.letterSpacing = cs.letterSpacing;
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText(text, x + w / 2, y + h / 2);
+            }
+            ctx.restore();
+          }
+          scene.style.opacity = origOpacity;
+          scene.style.zIndex = origZ;
+          var tex = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, tex);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+          sceneTextures[sceneId] = tex;
+        }
+
+        var vertSrc =
+          "attribute vec2 a_pos; varying vec2 v_uv; void main(){" +
+          "v_uv=a_pos*0.5+0.5; v_uv.y=1.0-v_uv.y; gl_Position=vec4(a_pos,0,1);}";
+        var quadBuf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+        gl.bufferData(
+          gl.ARRAY_BUFFER,
+          new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+          gl.STATIC_DRAW,
+        );
+        function compileShader(src, type) {
+          var s = gl.createShader(type);
+          gl.shaderSource(s, src);
+          gl.compileShader(s);
+          if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+            console.error("Shader:", gl.getShaderInfoLog(s));
+          return s;
+        }
+        function mkProg(fragSrc) {
+          var p = gl.createProgram();
+          gl.attachShader(p, compileShader(vertSrc, gl.VERTEX_SHADER));
+          gl.attachShader(p, compileShader(fragSrc, gl.FRAGMENT_SHADER));
+          gl.linkProgram(p);
+          if (!gl.getProgramParameter(p, gl.LINK_STATUS))
+            console.error("Link:", gl.getProgramInfoLog(p));
+          return p;
+        }
+
+        var H =
+          "precision mediump float;" +
+          "varying vec2 v_uv;" +
+          "uniform sampler2D u_from, u_to;" +
+          "uniform float u_progress;" +
+          "uniform vec2 u_resolution;\n";
+
+        var NQ =
+          "float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}" +
+          "float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);" +
+          "f=f*f*f*(f*(f*6.-15.)+10.);" +
+          "return mix(mix(hash(i),hash(i+vec2(1,0)),f.x)," +
+          "mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}" +
+          "float fbm(vec2 p){float v=0.,a=.5;" +
+          "mat2 R=mat2(.8,.6,-.6,.8);" +
+          "for(int i=0;i<5;i++){v+=a*vnoise(p);p=R*p*2.02;a*=.5;}return v;}";
+
+        var progPass = mkProg(H + "void main(){gl_FragColor=texture2D(u_from,v_uv);}");
+        var progTrans = mkProg(
+          H +
+            NQ +
+            "void main(){vec2 disp=vec2(fbm(v_uv*3.),fbm(v_uv*3.+vec2(7.3,3.7)))-.5;vec2 fromUv=clamp(v_uv+disp*u_progress*.5,0.,1.);vec2 toUv=clamp(v_uv-disp*(1.-u_progress)*.5,0.,1.);vec4 A=texture2D(u_from,fromUv);vec4 B=texture2D(u_to,toUv);float n=fbm(v_uv*4.+vec2(3.1,1.7));float blend=smoothstep(.4,.6,n+u_progress*1.2-.6);gl_FragColor=mix(A,B,blend);}",
+        );
+
+        function renderShader(prog, texFrom, texTo, progress) {
+          gl.useProgram(prog);
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, texFrom);
+          gl.uniform1i(gl.getUniformLocation(prog, "u_from"), 0);
+          gl.activeTexture(gl.TEXTURE1);
+          gl.bindTexture(gl.TEXTURE_2D, texTo);
+          gl.uniform1i(gl.getUniformLocation(prog, "u_to"), 1);
+          gl.uniform1f(gl.getUniformLocation(prog, "u_progress"), progress);
+          gl.uniform2f(gl.getUniformLocation(prog, "u_resolution"), 1200, 1080);
+          var pos = gl.getAttribLocation(prog, "a_pos");
+          gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+          gl.enableVertexAttribArray(pos);
+          gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        }
+
+        function easeInOut(p) {
+          return p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+        }
+
+        captureScene("s1");
+        captureScene("s2");
+        glCanvas.style.display = "block";
+        renderShader(progPass, sceneTextures["s1"], sceneTextures["s1"], 0);
+        document.querySelectorAll(".scene").forEach(function (s) {
+          s.style.opacity = "0";
+        });
+
+        var tl = gsap.timeline({
+          paused: true,
+          onUpdate: function () {
+            var t = tl.time();
+            if (t >= 1.0 && t < 3.0) {
+              renderShader(
+                progTrans,
+                sceneTextures["s1"],
+                sceneTextures["s2"],
+                easeInOut((t - 1.0) / 2.0),
+              );
+            } else if (t >= 3.0) {
+              renderShader(progPass, sceneTextures["s2"], sceneTextures["s2"], 0);
+            } else {
+              renderShader(progPass, sceneTextures["s1"], sceneTextures["s1"], 0);
+            }
+          },
+        });
+        tl.to({ v: 0 }, { v: 1, duration: 4, ease: "none" }, 0);
+        window.__timelines["main"] = tl;
+      } // end if (gl)
+    </script>
+  
+
+<!-- /* PALETA-AJENA: fin */ -->
+
+
+
+
+
+
+
+
+<!-- PUENTE:inicio · generado por scripts/importar_bloque.js -->
+<style>
+  /* El lienzo de este repo, y la raíz TRANSPARENTE: si el fondo llega opaco,
+     omitBackground no lo recorta y los PNG salen sin alfa — el compositor
+     los pega como un rectángulo y tapa el metraje. */
+  html, body { width: 1080px; height: 1920px; margin: 0;
+               background: transparent !important; overflow: hidden; }
+  [data-composition-id="main"] { transform-origin: 50% 50%; }
+  /* El PLAFÓN DE AUTO-PREVISUALIZACIÓN. Varias piezas del catálogo traen un
+     fondo propio para poder mirarse solas —hf-hw-callout-circle lo llama
+     literalmente «self-preview scene» y es un degradado verde— y sobre
+     nuestro metraje eso no es un fondo: es una mancha que tapa el plano.
+     Se quita el relleno y se deja el contenido, que es lo que se quería. */
+  [id$="-scene"] { background: none !important; }
+</style>
+<script>
+(function () {
+  var ID = "main";
+  var RANURAS = {};
+  var raiz = document.querySelector('[data-composition-id="' + ID + '"]');
+  var tl = (window.__timelines || {})[ID] || null;
+
+  /* Maqueta a 1920x1080 y aquí el lienzo es 1080x1920: se escala al ancho y
+     se centra. Es un APAÑO declarado, no una solución — la buena es rehacer
+     la maqueta en vertical. config.encaje:false lo desactiva y
+     config.escala lo fuerza.
+     La medida sale de data-width/data-height y NO de offsetWidth: la raíz de
+     varios bloques mide 0x0 —es un ancla para hijos posicionados, no una
+     caja— y con la medida del DOM el encaje la mandaba a left:-420, fuera
+     del cuadro. Fotograma transparente, cero errores, y el humo diciendo
+     «no se mueve» porque no había nada que moviera. Por eso se envuelve en
+     una caja del tamaño DECLARADO: así los hijos absolutos tienen un
+     contenedor de verdad y la escala se aplica a algo con dimensiones. */
+  var caja = null;
+  function encaja(cfg) {
+    if (!raiz || cfg.encaje === false) return;
+    var w = +raiz.dataset.width || raiz.offsetWidth || 1920;
+    var h = +raiz.dataset.height || raiz.offsetHeight || 1080;
+    if (!caja) {
+      caja = document.createElement('div');
+      raiz.parentNode.insertBefore(caja, raiz);
+      caja.appendChild(raiz);
+    }
+    caja.style.cssText = 'position:absolute;left:0;top:0;width:' + w
+                       + 'px;height:' + h + 'px;transform-origin:0 0;';
+    raiz.style.position = 'absolute';
+    raiz.style.left = '0'; raiz.style.top = '0';
+    raiz.style.width = w + 'px'; raiz.style.height = h + 'px';
+    var k = cfg.escala || Math.min(1080 / w, 1920 / h);
+    /* DÓNDE, y no solo cuánto. Centrado es lo razonable por defecto, pero un
+       rótulo inferior centrado en un lienzo vertical queda en mitad de la
+       cara; y §18 dice que la banda de abajo la pinta la app. zona mueve la
+       caja ya escalada sin tocar la maqueta de dentro: arriba pega bajo la
+       banda superior (230 px), abajo se apoya sobre la inferior (1459 px). */
+    var alto = h * k;
+    var y = (1920 - alto) / 2;
+    if (cfg.zona === 'arriba') y = 230 + 40;
+    else if (cfg.zona === 'abajo') y = 1459 - 40 - alto;
+    caja.style.transform = 'translate(' + Math.round((1080 - w * k) / 2)
+      + 'px,' + Math.round(y) + 'px) scale(' + k + ')';
+  }
+
+  /* LA CAJA DE TINTA, para colocar.py.
+     Sin anclas() una capa es invisible para el colocador: no sabe cuánto
+     ocupa ni dónde, así que no puede apartarla del rostro ni avisar de que
+     cae bajo el caption de la app. Nuestras plantillas la declaran a mano
+     porque saben qué parte de sí mismas importa; un bloque importado no
+     puede saberlo, así que se MIDE: unión de los rectángulos visibles, ya en
+     coordenadas de lienzo —getBoundingClientRect incluye la transformación
+     del encaje—, descartando los contenedores que cubren casi todo.
+     Se llama después de seek, así que la caja es la del instante que se
+     esté mirando y no la del reposo. */
+  function tinta() {
+    if (!raiz) return null;
+    /* Dos pasadas. La primera descarta los contenedores que cubren casi todo
+       —si no, la caja de cualquier plantilla sería el lienzo entero y el dato
+       no diría nada—. Pero en las de dibujo a mano el contenido ES un <svg> a
+       pantalla completa y sus <path> devuelven cajas de cero: con el filtro
+       puesto, veintisiete plantillas se quedaban sin ancla. Si la primera
+       pasada no deja nada, se repite SIN filtro: una caja grande de más es
+       peor que ninguna, pero ninguna es peor que las dos. */
+    function une(filtra) {
+      var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      var todos = raiz.querySelectorAll('*');
+      for (var i = 0; i < todos.length; i++) {
+        var e = todos[i], s = getComputedStyle(e);
+        if (s.display === 'none' || s.visibility === 'hidden' ||
+            parseFloat(s.opacity) < 0.05) continue;
+        var r = e.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        if (filtra && r.width * r.height > 0.92 * 1080 * 1920) continue;
+        if (r.left < x0) x0 = r.left;
+        if (r.top < y0) y0 = r.top;
+        if (r.right > x1) x1 = r.right;
+        if (r.bottom > y1) y1 = r.bottom;
+      }
+      return x1 < x0 ? null : [x0, y0, x1, y1];
+    }
+    var c = une(true) || une(false);
+    if (!c) return null;
+    var x0 = c[0], y0 = c[1], x1 = c[2], y1 = c[3];
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0);
+    x1 = Math.min(1080, x1); y1 = Math.min(1920, y1);
+    return { bloque: { x: Math.round((x0 + x1) / 2), y: Math.round((y0 + y1) / 2),
+                       w: Math.round(x1 - x0), h: Math.round(y1 - y0) } };
+  }
+
+  /* LA SALIDA, que sus bloques no tienen: entran y se quedan puestos hasta
+     que la composición acaba. Aquí una capa vive dentro de su ventana y
+     tiene que irse, y no es cosmética — es lo que humo_plantillas.js
+     comprueba cuando muestrea tres instantes y exige que no sean el mismo
+     fotograma. Medido: x-post y macos-notification animan su entrada y dan
+     tres capturas idénticas después.
+     Es una salida GENÉRICA —se va bajando y encogiendo un pelo— y por eso
+     se puede apagar con config.salida:false cuando el bloque tenga la suya
+     propia. Determinista: solo depende de t. */
+  var SALIDA = 0.42;
+  /* La duración del GESTO, medida al importar. La sustituye el importador;
+     el valor de aquí es el de respaldo para quien abra el fichero suelto.
+     Va en una variable y no en dos sitios a propósito: la salida tiene que
+     caer dentro de la MISMA ventana que registra la plantilla, y cuando eran
+     dos números —la declarada por la timeline y la registrada— la salida se
+     programaba fuera del tramo que nadie llega a ver. */
+  /* El copy que el plan pide, repartido por orden sobre las ranuras que
+     declara TEXTOS. Lo que sobra se ignora; lo que falta se queda con lo que
+     el bloque traía.
+     Se aplica en CADA fotograma y no solo al montar, y no es por comodidad:
+     varios bloques animan su propio texto —un contador que sube, un
+     tecleado— así que su timeline reescribe el nodo en cada seek y el copy
+     del plan duraba un fotograma. Medido: la tarjeta pedía «−12» y salía el
+     «22» de la demo. */
+  function copia(cfg) {
+    for (var k in RANURAS) {
+      if (!cfg || !cfg[k] || !cfg[k].length) continue;
+      var nodos = document.querySelectorAll(RANURAS[k]);
+      for (var i = 0; i < nodos.length && i < cfg[k].length; i++) {
+        if (nodos[i].textContent !== cfg[k][i]) nodos[i].textContent = cfg[k][i];
+      }
+    }
+  }
+
+  var DUR = 1.20;   /* MEDIDO al importar */
+  var vida = DUR;
+
+  Engine.register({
+    duration: DUR,
+    /* Las ranuras se escriben LITERALES en los defaults, no con un
+       Object.assign: lint_config.py lee ese bloque con una expresión regular
+       —no ejecuta la plantilla— así que una clave calculada no existe para
+       él y el plan que la usa aborta por «clave que la plantilla no lee».
+       Las ranuras entran aquí porque lint_config.py --estricto
+       comprueba que toda clave del plan la lea de verdad su plantilla: sin
+       declararlas, pedir el copy por config es una clave muerta y el paso
+       aborta. */
+    defaults: { encaje: true, escala: null, zona: 'centro', salida: true,
+                tema: 'carbon', cue: null, cueGain: null },
+    setup: function (cfg) {
+      encaja(cfg);
+      vida = cfg.duration || DUR;
+      copia(cfg);
+      /* EL SONIDO: NINGUNO por defecto, y esto es una vuelta atrás.
+         Se publicaba un «aparicion» genérico en cada bloque importado para
+         que no entraran mudos. Sobre la pieza montada suena a lo que es: el
+         mismo golpe blando en 126 sitios, puesto por una regla que no sabe
+         qué está entrando. Un sonido que no significa nada es peor que el
+         silencio, porque el oído lo cuenta igual.
+         Quien sabe qué suena una capa es el guion —sfx en la capa— o la
+         tabla del director para las plantillas que conoce. Con cue en la
+         config se puede pedir uno a mano. */
+      return { cues: (!cfg.sinSonido && cfg.cue)
+                     ? [{ at: 0.04, sfx: cfg.cue, gain: cfg.cueGain || 0.5 }]
+                     : [] };
+    },
+    anclas: function () { return tinta(); },
+    /* El puente entero. Los dos motores hacen lo mismo —posicionar una
+       animación en el segundo t, sin tocar el reloj del navegador—, así que
+       no hay nada que traducir. */
+    /* La salida va en la raíz y el encaje en la caja que la envuelve: dos
+       transformaciones en dos nodos, para que no se pisen. */
+    draw: function (t, cfg) {
+      if (tl) tl.time(Math.max(0, Math.min(t, tl.duration())));
+      copia(cfg);
+      if (!raiz) return;
+      if (cfg && cfg.salida !== false && vida > SALIDA) {
+        var d = (t - (vida - SALIDA)) / SALIDA;
+        if (d > 0) {
+          var e = 1 - Math.min(1, d);
+          e = e * e * (3 - 2 * e);              /* suavizado, sin rebote */
+          raiz.style.opacity = e;
+          raiz.style.transform = 'translateY(' + ((1 - e) * -26).toFixed(2)
+                               + 'px) scale(' + (0.985 + 0.015 * e).toFixed(4) + ')';
+          return;
+        }
+      }
+      raiz.style.opacity = '';
+      raiz.style.transform = '';
+    }
+  });
+})();
+</script>
+<!-- PUENTE:fin -->
+
+
+
+
+
+</body>
+</html>

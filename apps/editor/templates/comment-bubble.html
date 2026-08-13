@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Comentario de redes</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+  .fila { position: absolute; inset: 0; }
+  .comentario {
+    display: flex; gap: var(--s-3); align-items: flex-start;
+    padding: var(--s-4) var(--s-5) var(--s-4) var(--s-4);
+    will-change: transform, opacity;
+  }
+  /* el pico de burbuja se conserva sobre el radio del sistema */
+  .comentario.vidrio-apple { border-bottom-left-radius: 8px; }
+  /* Avatar GENERADO: iniciales sobre un color derivado del propio nombre.
+     Nada de imágenes descargadas, y el mismo usuario da siempre el mismo
+     color, que es lo que lo hace creíble entre planos. */
+  .av {
+    flex: none; width: 74px; height: 74px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: var(--display); font-weight: 800; font-size: 30px;
+    color: var(--velo-claro);
+  }
+  .cuerpo { min-width: 0; }
+  .cab { display: flex; align-items: baseline; gap: 10px; }
+  .nom { font-family: var(--subs); font-weight: 700; font-size: var(--t-md);
+         color: var(--ink); }
+  .usu { font-family: var(--mono); font-size: var(--t-xs);
+         color: var(--ink-faint); }
+  .txt { font-family: var(--subs); font-size: var(--t-lg); line-height: 1.34;
+         color: var(--ink); margin-top: 6px; }
+  .pie { display: flex; gap: var(--s-4); margin-top: var(--s-3);
+         font-family: var(--mono); font-size: var(--t-xs);
+         color: var(--ink-faint); }
+  .pie b { color: var(--accent); font-weight: 600; }
+</style></head>
+<body>
+<div class="stage"><div class="fila" id="fila">
+  <div class="comentario tarjeta vidrio-apple" id="c">
+    <div class="av" id="av"></div>
+    <div class="cuerpo">
+      <div class="cab"><span class="nom" id="nom"></span>
+                       <span class="usu" id="usu"></span></div>
+      <div class="txt" id="txt"></div>
+      <div class="pie" id="pie"></div>
+    </div>
+  </div>
+</div></div>
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp, noise } = Engine;
+const fila = document.getElementById('fila');
+const c = document.getElementById('c');
+const txtEl = document.getElementById('txt');
+let texto = '';
+
+Engine.register({
+  duration: 4.5,
+  defaults: {
+    nombre: 'Marta R.', usuario: '@martar', iniciales: '',
+    texto: '¿Esto se puede montar sin pagar una suscripción?',
+    likes: 214, respuestas: 12,
+    y: 760, cps: 0,          // cps > 0 escribe el comentario letra a letra
+    entrada: 0.55, salida: 0.4
+  },
+  setup(cfg) {
+    /* `cfg.ancho` lo aplica `_engine.js` sobre el envoltorio `.tarjeta`,
+       que es quien lleva el `max-width`. Ponerlo aquí no haría nada. */
+    document.getElementById('nom').textContent = cfg.nombre;
+    document.getElementById('usu').textContent = cfg.usuario;
+    texto = String(cfg.texto);
+    txtEl.textContent = cfg.cps ? '' : texto;
+    document.getElementById('pie').innerHTML =
+      `<span><b>♥ ${cfg.likes}</b></span><span>${cfg.respuestas} respuestas</span>`;
+
+    const av = document.getElementById('av');
+    av.textContent = cfg.iniciales ||
+      cfg.nombre.split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase();
+    /* Tono derivado del nombre con el ruido del motor: determinista, así
+       que el mismo usuario mantiene su color en toda la pieza. */
+    let h = 0;
+    for (const ch of cfg.nombre) h = (h * 31 + ch.charCodeAt(0)) % 997;
+    av.style.background =
+      `hsl(${Math.round(noise(h, 3) * 360)} 42% 42%)`;
+  },
+  draw(t, cfg) {
+    const fin = cfg.duration || 4.5;
+    const e = span(t, 0, cfg.entrada, Ease.outBack || Ease.outCubic);
+    const cierre = 1 - span(t, fin - cfg.salida, cfg.salida, Ease.outCubic);
+    c.style.opacity = clamp(e, 0, 1) * cierre;
+    /* Sube desde abajo, como en una app: bajar desde arriba se lee como
+       notificación del sistema, que es otro componente. */
+    c.style.transform =
+      `translateY(${(1 - e) * 34}px) scale(${0.94 + 0.06 * clamp(e, 0, 1)})`;
+    if (cfg.cps) {
+      const n = clamp(Math.floor((t - cfg.entrada) * cfg.cps), 0, texto.length);
+      txtEl.textContent = texto.slice(0, n);
+    }
+  },
+  anclas() {
+    const b = c.getBoundingClientRect();
+    return { comentario: { x: Math.round(b.left + b.width / 2),
+                           y: Math.round(b.top + b.height / 2),
+                           w: Math.round(b.width), h: Math.round(b.height) } };
+  }
+});
+</script></body></html>

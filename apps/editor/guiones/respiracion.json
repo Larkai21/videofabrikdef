@@ -1,0 +1,346 @@
+{
+  "metadata": {
+    "title": "Respiras mal y por eso vas acelerado",
+    "duration_seconds": 63,
+    "aspect_ratio": "9:16",
+    "nota_de_direccion": "Nueve actos y no cinco: el ritmo se mide en ENTRADAS, y cinco tarjetas en 63 s son un estímulo cada 12 s aunque el texto sea el mismo. El texto no cambia —está grabado—, solo dónde caen las fronteras. El gráfico del mecanismo se parte en dos actos, que es lo que comprobar_ritmo.py pedía desde la primera medición."
+  },
+  "timeline": [
+    {
+      "act": 1,
+      "act_name": "GANCHO · la cifra",
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_CLOSE_UP",
+      "spatial_position": "POS_CENTER",
+      "voice_speech": "Hoy vas a respirar veinte mil veces.",
+      "blue_highlight_words": [
+        "veinte"
+      ],
+      "visual_trigger": {
+        "component_type": "stat",
+        "name": "hero-stat.html",
+        "position": "POS_CENTER",
+        "card_copy": "RESPIRACIONES AL DÍA",
+        "config": {
+          "valor": 20000,
+          "desde": 0,
+          "separador": ".",
+          "nota": "",
+          "etiqueta": "y no controlas casi ninguna",
+          "subida": 1.0,
+          "y": 620
+        }
+      },
+      "micro_fx": [],
+      "sfx": [
+        "hud_lock.wav"
+      ]
+    },
+    {
+      "act": 2,
+      "act_name": "GANCHO · el giro",
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_CLOSE_UP",
+      "spatial_position": "POS_CENTER",
+      "voice_speech": "Y unas dieciocho mil las vas a hacer mal. No es una forma de hablar: es la diferencia entre estar tranquilo y estar acelerado sin motivo.",
+      "blue_highlight_words": [
+        "mal",
+        "acelerado"
+      ],
+      "visual_trigger": {
+        "component_type": "custom",
+        "name": "hf-hw-title.html",
+        "position": "POS_CENTER",
+        "config": {
+          "lineas": [
+            "DIECIOCHO MIL MAL"
+          ]
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "mal",
+          "fx_id": "stroke-crossout",
+          "position": "POS_CENTER",
+          "media_fetch": null,
+          "config": {
+            "texto": "MAL",
+            "tam": 150,
+            "diagonal": false
+          }
+        }
+      ],
+      "sfx": [
+        "appear.wav"
+      ]
+    },
+    {
+      "act": 3,
+      "act_name": "PROBLEMA · dónde",
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_MEDIUM",
+      "spatial_position": "POS_CENTER",
+      "voice_speech": "Mira dónde se te mueve el cuerpo al coger aire. Si lo que sube son los hombros, estás respirando con el pecho,",
+      "blue_highlight_words": [
+        "hombros",
+        "pecho"
+      ],
+      "visual_trigger": {
+        "component_type": "headline",
+        "name": "headline-clipper.html",
+        "position": "POS_TOP_CENTER",
+        "card_copy": "LA RESPIRACIÓN DEL SUSTO",
+        "config": {
+          "entradilla": "pecho y hombros, doce veces por minuto",
+          "seccion": "FISIOLOGÍA",
+          "medio": "lo que hace tu cuerpo sin preguntarte",
+          "resaltar": "SUSTO"
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "hombros",
+          "fx_id": "target-hud",
+          "position": "POS_MID_LEFT",
+          "media_fetch": null,
+          "config": {
+            "texto": "EL PECHO",
+            "lectura": "aquí no",
+            "r": 190,
+            "x": 0,
+            "y": 60
+          }
+        }
+      ],
+      "sfx": [
+        "whoosh.wav"
+      ]
+    },
+    {
+      "act": 4,
+      "act_name": "PROBLEMA · el león",
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_MEDIUM",
+      "spatial_position": "POS_CENTER",
+      "voice_speech": "y el pecho es la respiración del susto. Tu cuerpo no distingue entre un correo y un león: si respiras como si hubiera un león, te prepara para uno.",
+      "blue_highlight_words": [
+        "susto",
+        "león"
+      ],
+      "visual_trigger": {
+        "component_type": "custom",
+        "name": "hf-lt-bold-block.html",
+        "position": "POS_CENTER",
+        "config": {
+          "lineas": [
+            "SUPERVIVENCIA",
+            "por un correo"
+          ]
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "león",
+          "fx_id": "red-crash",
+          "position": "POS_CENTER",
+          "media_fetch": null
+        }
+      ],
+      "sfx": [
+        "error_buzz.wav"
+      ]
+    },
+    {
+      "act": 5,
+      "act_name": "MECANISMO · la cadena",
+      "screen_mode": "MODE_FULL_MOTION",
+      "framing": "NONE",
+      "spatial_position": "POS_CENTER",
+      "voice_speech": "Cuando alargas la exhalación pasa algo mecánico. El diafragma baja, roza el nervio vago,",
+      "blue_highlight_words": [
+        "exhalación",
+        "diafragma"
+      ],
+      "visual_trigger": {
+        "component_type": "custom",
+        "name": "hf-hw-pipeline.html",
+        "position": "POS_CENTER",
+        "config": {
+          "nodos": [
+            "EXHALAS",
+            "DIAFRAGMA",
+            "NERVIO VAGO",
+            "PULSO ↓"
+          ]
+        }
+      },
+      "micro_fx": [],
+      "sfx": [
+        "tech_pulse.wav"
+      ]
+    },
+    {
+      "act": 6,
+      "act_name": "MECANISMO · el interruptor",
+      "screen_mode": "MODE_FULL_MOTION",
+      "framing": "NONE",
+      "spatial_position": "POS_CENTER",
+      "voice_speech": "y ese nervio le dice al corazón que puede bajar el ritmo. No es filosofía oriental: es un cable que va del pulmón al corazón y tú tienes el interruptor.",
+      "blue_highlight_words": [
+        "corazón",
+        "interruptor"
+      ],
+      "visual_trigger": {
+        "component_type": "custom",
+        "name": "hf-mk-callout-highlight.html",
+        "position": "POS_CENTER",
+        "config": {
+          "lineas": [
+            "Un cable del pulmón al corazón, y el interruptor lo tienes tú."
+          ]
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "interruptor",
+          "fx_id": "svg-checkmark",
+          "position": "POS_TOP_RIGHT",
+          "media_fetch": null
+        }
+      ],
+      "sfx": [
+        "ping_success.wav"
+      ]
+    },
+    {
+      "act": 7,
+      "act_name": "PRUEBA · el número",
+      "screen_mode": "MODE_FULL_MOTION",
+      "framing": "NONE",
+      "spatial_position": "POS_CENTER",
+      "voice_speech": "Seis respiraciones por minuto. Cinco segundos dentro, cinco fuera. En dos minutos el pulso te baja entre ocho y doce latidos, y eso se mide con un reloj de cuarenta euros.",
+      "blue_highlight_words": [
+        "seis",
+        "doce",
+        "mide"
+      ],
+      "visual_trigger": {
+        "component_type": "stat",
+        "name": "odometro.html",
+        "position": "POS_CENTER",
+        "card_copy": "PULSO EN REPOSO",
+        "config": {
+          "desde": 72,
+          "valor": 60,
+          "sufijo": " ppm",
+          "separador": "",
+          "pie": "dos minutos respirando a seis por minuto",
+          "subida": 2.6,
+          "tam": 210
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "cinco",
+          "fx_id": "timer-ring",
+          "position": "POS_MID_RIGHT",
+          "media_fetch": null,
+          "config": {
+            "desde": 5,
+            "vaciado": 5.0,
+            "r": 120,
+            "tam": 84,
+            "x": 300,
+            "y": 260
+          }
+        }
+      ],
+      "sfx": [
+        "hud_lock.wav"
+      ]
+    },
+    {
+      "act": 8,
+      "act_name": "CIERRE · la orden",
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_CLOSE_UP",
+      "spatial_position": "POS_CENTER",
+      "voice_speech": "Hazlo ahora mismo, conmigo, una sola vez. Coge aire cinco segundos. Y suelta diez.",
+      "blue_highlight_words": [
+        "ahora"
+      ],
+      "visual_trigger": {
+        "component_type": "custom",
+        "name": "hf-mk-usage-arc.html",
+        "position": "POS_CENTER",
+        "config": {
+          "cifra": "10",
+          "rotulo": "SEGUNDOS SOLTANDO"
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "suelta",
+          "fx_id": "gold-glint",
+          "position": "POS_CENTER",
+          "media_fetch": null,
+          "config": {
+            "texto": "SUELTA",
+            "tam": 120,
+            "y": -120
+          }
+        }
+      ],
+      "sfx": [
+        "appear.wav"
+      ]
+    },
+    {
+      "act": 9,
+      "act_name": "CIERRE · el bucle",
+      "screen_mode": "MODE_A_ROLL",
+      "framing": "FRAME_CLOSE_UP",
+      "spatial_position": "POS_CENTER",
+      "voice_speech": "Eso que acabas de notar es gratis, no se acaba, y lo tienes desde que naciste. Hoy vas a respirar veinte mil veces.",
+      "blue_highlight_words": [
+        "gratis",
+        "naciste"
+      ],
+      "visual_trigger": {
+        "component_type": "cta",
+        "name": "engagement-cta.html",
+        "position": "POS_TOP_CENTER",
+        "card_copy": "UNA VEZ. AHORA.",
+        "config": {
+          "sub": "5 segundos dentro · 10 fuera",
+          "boton": "Sígueme",
+          "botonHecho": "Respirando",
+          "marca": "respira",
+          "ico": true
+        }
+      },
+      "micro_fx": [
+        {
+          "trigger_word": "gratis",
+          "fx_id": "text-stack-offset",
+          "position": "POS_CENTER",
+          "media_fetch": null,
+          "config": {
+            "texto": "GRATIS",
+            "tam": 120,
+            "y": -200
+          }
+        }
+      ],
+      "sfx": [
+        "sub_drop.wav",
+        "subscribe_reminder.wav"
+      ]
+    }
+  ],
+  "infinite_loop": {
+    "end_phrase": "Hoy vas a respirar veinte mil veces.",
+    "start_phrase": "Hoy vas a respirar veinte mil veces.",
+    "nota_de_direccion": "La costura es literal: la última frase ES la primera. Grábala UNA vez y móntala en los dos sitios, para que el corte no se oiga. La cola tras la última palabra y la cabeza antes de la primera tienen que sumar menos de 0,35 s o el reinicio se lee como pausa (leer_guion.py lo mide)."
+  }
+}

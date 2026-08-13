@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Desplome</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  #linea { fill: none; stroke: var(--rojo, var(--senal-no)); stroke-width: 12;
+           stroke-linecap: round; stroke-linejoin: round;
+           filter: drop-shadow(0 0 18px rgba(229,72,77,0.5)); }
+  #flecha { fill: var(--rojo, var(--senal-no)); }
+  /* Aviso por los BORDES, no por un velo a pantalla completa: un velo
+     rojo encima de la cara la tiñe y estropea el metraje. */
+  .aviso { position: absolute; inset: 0; pointer-events: none;
+           box-shadow: inset 0 0 200px 40px rgba(229,72,77,0.55); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <svg id="svg" viewBox="0 0 1080 1920" preserveAspectRatio="none">
+    <path id="linea"></path>
+    <path id="flecha" d="M0 0 L-20 -34 L20 -34 Z"></path>
+  </svg>
+  <div class="aviso" id="aviso"></div></div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp, noise } = Engine;
+
+const linea = document.getElementById('linea');
+const flecha = document.getElementById('flecha');
+const aviso = document.getElementById('aviso');
+let largo = 1;
+
+Engine.register({
+  duration: 1.1,
+  defaults: { y: 780, ancho: 620, alto: 340, destellos: 2 },
+
+  setup(cfg) {
+    const x0 = (1080 - cfg.ancho) / 2, y0 = cfg.y;
+    const perfil = [[0,0],[0.18,-0.10],[0.34,-0.04],[0.52,-0.36],
+                    [0.70,-0.44],[0.86,-0.80],[1,-1]];
+    const pts = perfil.map(([a,b]) => [x0 + a*cfg.ancho, y0 - b*cfg.alto]);
+    linea.setAttribute('d', pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' '));
+    largo = linea.getTotalLength() || 1;
+    linea.style.strokeDasharray = largo;
+  },
+
+  draw(t, cfg) {
+    const d = span(t, 0.04, 0.42, Ease.inCubic);   // acelera al caer
+    linea.style.strokeDashoffset = largo * (1 - d);
+    const p = linea.getPointAtLength(largo * d);
+    const q = linea.getPointAtLength(Math.max(0, largo*d - 8));
+    const ang = Math.atan2(p.y - q.y, p.x - q.x) * 180/Math.PI + 90;
+    flecha.setAttribute('transform', `translate(${p.x},${p.y}) rotate(${ang})`);
+    flecha.style.opacity = d > 0.05 ? 1 : 0;
+
+    /* Los destellos van CONTADOS y con caída exponencial: un parpadeo que
+       se repite indefinidamente se lee como un fallo de render. */
+    const tf = t - 0.42;
+    let luz = 0;
+    if (tf >= 0) {
+      const per = 0.16;
+      const n = Math.floor(tf / per);
+      if (n < cfg.destellos) luz = Math.exp(-9 * (tf - n*per));
+    }
+    aviso.style.opacity = luz * 0.9;
+
+    const fin = 1 - span(t, (cfg.duration||1.1)-0.22, 0.22, Ease.inOutCubic);
+    linea.style.opacity = fin; flecha.style.opacity *= fin;
+  }
+});
+</script>
+</body>
+</html>

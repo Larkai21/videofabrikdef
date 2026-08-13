@@ -1,0 +1,81 @@
+#!/bin/sh
+# La puerta de entrada a la HISTORIA. 0,05 s medidos sobre los 199 ficheros
+# versionados de hoy, y el presupuesto es la mitad del diseño.
+#
+# Aquí NO corre `make lint pruebas` (6,1 s medidos). Un hook que se hace
+# esperar se salta con --no-verify, y a la tercera vez se salta SIEMPRE: se
+# lleva por delante también a la comprobación barata que tiene al lado. El
+# arnés entero va en pre-push, donde la pausa ya se da por hecha.
+#
+# Rechaza las dos cosas que, una vez en la historia, ya no salen con un
+# commit —`git rm` las quita del árbol de trabajo, no del objeto—:
+#
+#   · cualquier blob de más de 2 MB;
+#   · cualquier .mp4, .mov o .m4a fuera de tests/fixtures/, que es donde
+#     viven los dos únicos medios que el arnés necesita (clip3s.mp4 y
+#     aroll_44s.m4a). El resto del metraje es de entrada, no del repo.
+#
+# El techo está CALIBRADO, no elegido a ojo. El mayor fichero versionado hoy
+# es assets/sfx/cama.wav con 1.152.078 bytes (1,1 MB), y los tres LUT pesan
+# 970.488 cada uno. 2 MB deja sitio a otro .cube o a una cama de sonido más
+# larga sin dejar pasar vídeo: 2 MB de H.264 vertical son ~4 s de metraje, y
+# el clip de 3 s de las fixtures ya pesa 200 KB.
+#
+# Vuelve a medirlo si algún día esto empieza a molestar:
+#   git ls-files | awk '{print ":" $0 " " $0}' \
+#     | git cat-file --batch-check='%(objectsize) %(rest)' | sort -rn | head
+set -eu
+
+TOPE=2097152          # 2 MB
+
+# Sin HEAD —repo recién iniciado— `git diff --cached` no tiene contra qué
+# comparar y aborta; el árbol vacío es el «contra» correcto.
+if git rev-parse -q --verify HEAD >/dev/null 2>&1; then
+  contra=HEAD
+else
+  contra=$(git hash-object -t tree /dev/null)
+fi
+
+preparados=$(git diff --cached --name-only --diff-filter=ACM "$contra")
+[ -n "$preparados" ] || exit 0
+
+# Rutas con espacios: se rechazan, y no por gusto. `git cat-file` parte su
+# entrada por el primer blanco, así que «con espacio.txt» se consulta como
+# «:con», devuelve `missing` y su tamaño sale 0 — es decir, el fichero
+# GRANDE PASARÍA sin que nadie se entere, que es justo el fallo que este
+# gancho existe para no tener. Medido con `printf ':con espacio.txt ...'`.
+# Y de paso atrapa las copias de conflicto de iCloud («00140 3.png»), que
+# CLAUDE.md ya documenta como veneno para cualquier glob del repo.
+espacios=$(printf '%s\n' "$preparados" | grep ' ' \
+  | sed 's|^|  |;s|$| — ruta con espacios: renómbrala, o su tamaño no se puede medir|')
+
+# Se mide el BLOB DEL ÍNDICE (`:ruta`) y no el fichero del disco, porque es
+# lo que de verdad entra en el commit. La diferencia aparece cuando algo se
+# prepara y luego se modifica o se borra del árbol de trabajo: mirando el
+# disco, ese caso o miente sobre el tamaño o —con un `[ -f ]` delante— no
+# mira nada. Y va en UNA sola llamada a `git cat-file`: con un `wc -c` por
+# fichero serían tantos procesos como ficheros preparados.
+grandes=$(printf '%s\n' "$preparados" \
+  | awk '{ print ":" $0 " " $0 }' \
+  | git cat-file --batch-check='%(objectsize) %(rest)' 2>/dev/null \
+  | awk -v tope="$TOPE" '$1+0 > tope {
+        printf "  %s — %d KB (el techo son %d KB)\n", $2, $1/1024, tope/1024 }')
+
+medios=$(printf '%s\n' "$preparados" \
+  | grep -Ei '\.(mp4|mov|m4a)$' \
+  | grep -v '^tests/fixtures/' \
+  | sed 's|^|  |;s|$| — vídeo o audio fuera de tests/fixtures/|')
+
+if [ -n "$grandes" ] || [ -n "$medios" ] || [ -n "$espacios" ]; then
+  echo "pre-commit: esto no puede entrar en la HISTORIA:" >&2
+  if [ -n "$grandes" ]; then printf '%s\n' "$grandes" >&2; fi
+  if [ -n "$medios" ]; then printf '%s\n' "$medios" >&2; fi
+  if [ -n "$espacios" ]; then printf '%s\n' "$espacios" >&2; fi
+  echo "" >&2
+  echo "  De .gitignore se sale con un commit; de la historia, no." >&2
+  echo "  Sácalo del commit:      git rm --cached <ruta>" >&2
+  echo "  Si es material de entrada, su sitio es assets/ o build/, que están" >&2
+  echo "  ignorados; si es una fixture del arnés, tests/fixtures/." >&2
+  echo "  Y si de verdad tiene que entrar:  git commit --no-verify" >&2
+  exit 1
+fi

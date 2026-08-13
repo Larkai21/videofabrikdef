@@ -1,0 +1,612 @@
+<!-- hyperframes-registry-item: transitions-dissolve -->
+<!doctype html>
+<html lang="en">
+  <head>
+<!-- /* PALETA-AJENA: inicio */ -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920" />
+    <script src="_gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #000;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      }
+      .scene {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+      }
+      .scene-inner {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+      }
+      .info-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        background: rgba(0, 0, 0, 0.88);
+        padding: 24px 60px;
+        display: flex;
+        align-items: center;
+        gap: 40px;
+        opacity: 0;
+      }
+      .info-num {
+        font-size: 14px;
+        font-weight: 700;
+        color: #e07a5f;
+        letter-spacing: 0.1em;
+      }
+      .info-name {
+        font-size: 20px;
+        font-weight: 700;
+        color: #fff;
+      }
+      .info-desc {
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.5);
+      }
+      #title-card {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 1920px;
+        height: 1080px;
+        background: #0d1b2a;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        z-index: 50;
+      }
+      #outro-card {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 1920px;
+        height: 1080px;
+        background: #0d1b2a;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        z-index: 50;
+        opacity: 0;
+      }
+    </style>
+    <link rel="stylesheet" href="_tokens.css">
+  <script src="_engine.js"></script>
+</head>
+  <body>
+    <div
+      data-composition-id="main"
+      data-start="0"
+      data-duration="24"
+      data-width="1920"
+      data-height="1080"
+    >
+      <!-- Title Card -->
+      <div id="title-card">
+        <div
+          id="title-label"
+          style="
+            font-size: 14px;
+            font-weight: 700;
+            color: #e07a5f;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            opacity: 0;
+          "
+        >
+          TRANSITION CATALOG
+        </div>
+        <div
+          id="title-main"
+          style="font-size: 72px; font-weight: 900; color: #fff; margin-top: 16px; opacity: 0"
+        >
+          Dissolve Transitions
+        </div>
+        <div
+          id="title-count"
+          style="
+            font-size: 24px;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.4);
+            margin-top: 12px;
+            opacity: 0;
+          "
+        >
+          4 transitions
+        </div>
+      </div>
+
+      <!-- Scene A -->
+      <div id="scene1" class="scene" style="z-index: 1">
+        <div class="scene-inner" id="s1" style="background: #1b263b">
+          <div style="font-size: 200px; font-weight: 900; color: rgba(255, 255, 255, 0.08)">
+            ONE
+          </div>
+          <div
+            style="
+              font-size: 32px;
+              font-weight: 700;
+              color: #778da9;
+              letter-spacing: 0.15em;
+              margin-top: -20px;
+            "
+          >
+            SCENE A
+          </div>
+        </div>
+      </div>
+
+      <!-- Scene B -->
+      <div id="scene2" class="scene" style="z-index: 2; opacity: 0">
+        <div class="scene-inner" id="s2" style="background: #e07a5f">
+          <div style="font-size: 200px; font-weight: 900; color: rgba(255, 255, 255, 0.15)">
+            TWO
+          </div>
+          <div
+            style="
+              font-size: 32px;
+              font-weight: 700;
+              color: #fff;
+              letter-spacing: 0.15em;
+              margin-top: -20px;
+            "
+          >
+            SCENE B
+          </div>
+        </div>
+      </div>
+
+      <!-- Info Bars -->
+      <div id="info-1" class="info-bar">
+        <div class="info-num">01</div>
+        <div class="info-name">Crossfade</div>
+        <div class="info-desc">Use a crossfade transition</div>
+      </div>
+      <div id="info-2" class="info-bar">
+        <div class="info-num">02</div>
+        <div class="info-name">Blur Crossfade</div>
+        <div class="info-desc">Use a blur crossfade transition</div>
+      </div>
+      <div id="info-3" class="info-bar">
+        <div class="info-num">03</div>
+        <div class="info-name">Focus Pull</div>
+        <div class="info-desc">Use a focus pull transition</div>
+      </div>
+      <div id="info-4" class="info-bar">
+        <div class="info-num">04</div>
+        <div class="info-name">Color Dip</div>
+        <div class="info-desc">Use a color dip to black transition</div>
+      </div>
+
+      <!-- Outro Card -->
+      <div id="outro-card">
+        <div
+          id="outro-label"
+          style="
+            font-size: 14px;
+            font-weight: 700;
+            color: #e07a5f;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            opacity: 0;
+          "
+        >
+          DISSOLVE TRANSITIONS
+        </div>
+        <div
+          id="outro-main"
+          style="font-size: 56px; font-weight: 900; color: #fff; margin-top: 16px; opacity: 0"
+        >
+          4 Transitions
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        var tl = gsap.timeline({ paused: true });
+        var t = 0;
+
+        // === TITLE CARD (3s) ===
+        tl.to("#title-label", { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, t + 0.3);
+        tl.fromTo(
+          "#title-main",
+          { opacity: 0, y: 20 },
+          { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" },
+          t + 0.6,
+        );
+        tl.fromTo(
+          "#title-count",
+          { opacity: 0 },
+          { opacity: 1, duration: 0.4, ease: "power2.out" },
+          t + 1.0,
+        );
+        tl.to("#title-card", { opacity: 0, duration: 0.4, ease: "power2.inOut" }, t + 2.4);
+        t += 3;
+
+        function resetScenes() {
+          tl.set(
+            "#scene1",
+            {
+              opacity: 1,
+              x: 0,
+              y: 0,
+              scale: 1,
+              scaleX: 1,
+              rotation: 0,
+              filter: "none",
+              clipPath: "none",
+              zIndex: 1,
+              skewX: 0,
+            },
+            t,
+          );
+          tl.set(
+            "#scene2",
+            {
+              opacity: 0,
+              x: 0,
+              y: 0,
+              scale: 1,
+              scaleX: 1,
+              rotation: 0,
+              filter: "none",
+              clipPath: "none",
+              zIndex: 2,
+              skewX: 0,
+            },
+            t,
+          );
+          tl.set(
+            "#s1",
+            {
+              opacity: 1,
+              x: 0,
+              y: 0,
+              scale: 1,
+              rotation: 0,
+              filter: "none",
+              skewX: 0,
+              scaleX: 1,
+              transformOrigin: "50% 50%",
+            },
+            t,
+          );
+          tl.set(
+            "#s2",
+            {
+              opacity: 1,
+              x: 0,
+              y: 0,
+              scale: 1,
+              rotation: 0,
+              filter: "none",
+              skewX: 0,
+              scaleX: 1,
+              transformOrigin: "50% 50%",
+            },
+            t,
+          );
+        }
+
+        // === TRANSITION 1: Crossfade ===
+        resetScenes();
+        tl.to("#info-1", { opacity: 1, duration: 0.3 }, t + 0.2);
+        var T = t + 1.5;
+        tl.to("#s1", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, T);
+        tl.set("#scene2", { opacity: 1 }, T);
+        tl.fromTo("#s2", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, T);
+        t = T + 1.5 + 1.0;
+        tl.to("#info-1", { opacity: 0, duration: 0.2 }, t);
+        t += 0.5;
+
+        // === TRANSITION 2: Blur Crossfade ===
+        resetScenes();
+        tl.to("#info-2", { opacity: 1, duration: 0.3 }, t + 0.2);
+        T = t + 1.5;
+        tl.to(
+          "#s1",
+          { filter: "blur(10px)", scale: 1.03, opacity: 0, duration: 0.5, ease: "power2.inOut" },
+          T,
+        );
+        tl.set("#scene2", { opacity: 1 }, T);
+        tl.fromTo(
+          "#s2",
+          { filter: "blur(10px)", scale: 0.97, opacity: 0 },
+          { filter: "blur(0px)", scale: 1, opacity: 1, duration: 0.5, ease: "power2.inOut" },
+          T + 0.1,
+        );
+        t = T + 1.5 + 1.0;
+        tl.to("#info-2", { opacity: 0, duration: 0.2 }, t);
+        t += 0.5;
+
+        // === TRANSITION 3: Focus Pull ===
+        resetScenes();
+        tl.to("#info-3", { opacity: 1, duration: 0.3 }, t + 0.2);
+        T = t + 1.5;
+        tl.to("#s1", { filter: "blur(15px)", duration: 0.5, ease: "power1.in" }, T);
+        tl.to("#s1", { opacity: 0, duration: 0.3, ease: "power2.in" }, T + 0.25);
+        tl.set("#scene2", { opacity: 1 }, T);
+        tl.fromTo(
+          "#s2",
+          { opacity: 0 },
+          { opacity: 1, duration: 0.3, ease: "power2.out" },
+          T + 0.25,
+        );
+        t = T + 1.5 + 1.0;
+        tl.to("#info-3", { opacity: 0, duration: 0.2 }, t);
+        t += 0.5;
+
+        // === TRANSITION 4: Color Dip ===
+        resetScenes();
+        tl.to("#info-4", { opacity: 1, duration: 0.3 }, t + 0.2);
+        T = t + 1.5;
+        tl.to("#s1", { opacity: 0, duration: 0.2, ease: "power2.in" }, T);
+        tl.set("#scene2", { opacity: 1 }, T);
+        tl.fromTo(
+          "#s2",
+          { opacity: 0 },
+          { opacity: 1, duration: 0.2, ease: "power2.out" },
+          T + 0.25,
+        );
+        t = T + 1.5 + 1.0;
+        tl.to("#info-4", { opacity: 0, duration: 0.2 }, t);
+        t += 0.5;
+
+        // === OUTRO (3s) ===
+        tl.set("#scene1", { opacity: 0 }, t);
+        tl.set("#scene2", { opacity: 0 }, t);
+        tl.to("#outro-card", { opacity: 1, duration: 0.4, ease: "power2.inOut" }, t);
+        tl.to("#outro-label", { opacity: 1, duration: 0.4, ease: "power2.out" }, t + 0.3);
+        tl.fromTo(
+          "#outro-main",
+          { opacity: 0, y: 20 },
+          { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" },
+          t + 0.6,
+        );
+        tl.to("#outro-card", { opacity: 0, duration: 0.4, ease: "power2.inOut" }, t + 2.4);
+
+        window.__timelines = window.__timelines || {};
+        window.__timelines["main"] = tl;
+      })();
+    </script>
+  
+
+<!-- /* PALETA-AJENA: fin */ -->
+
+
+
+
+
+
+
+
+<!-- PUENTE:inicio · generado por scripts/importar_bloque.js -->
+<style>
+  /* El lienzo de este repo, y la raíz TRANSPARENTE: si el fondo llega opaco,
+     omitBackground no lo recorta y los PNG salen sin alfa — el compositor
+     los pega como un rectángulo y tapa el metraje. */
+  html, body { width: 1080px; height: 1920px; margin: 0;
+               background: transparent !important; overflow: hidden; }
+  [data-composition-id="main"] { transform-origin: 50% 50%; }
+  /* El PLAFÓN DE AUTO-PREVISUALIZACIÓN. Varias piezas del catálogo traen un
+     fondo propio para poder mirarse solas —hf-hw-callout-circle lo llama
+     literalmente «self-preview scene» y es un degradado verde— y sobre
+     nuestro metraje eso no es un fondo: es una mancha que tapa el plano.
+     Se quita el relleno y se deja el contenido, que es lo que se quería. */
+  [id$="-scene"] { background: none !important; }
+</style>
+<script>
+(function () {
+  var ID = "main";
+  var RANURAS = {};
+  var raiz = document.querySelector('[data-composition-id="' + ID + '"]');
+  var tl = (window.__timelines || {})[ID] || null;
+
+  /* Maqueta a 1920x1080 y aquí el lienzo es 1080x1920: se escala al ancho y
+     se centra. Es un APAÑO declarado, no una solución — la buena es rehacer
+     la maqueta en vertical. config.encaje:false lo desactiva y
+     config.escala lo fuerza.
+     La medida sale de data-width/data-height y NO de offsetWidth: la raíz de
+     varios bloques mide 0x0 —es un ancla para hijos posicionados, no una
+     caja— y con la medida del DOM el encaje la mandaba a left:-420, fuera
+     del cuadro. Fotograma transparente, cero errores, y el humo diciendo
+     «no se mueve» porque no había nada que moviera. Por eso se envuelve en
+     una caja del tamaño DECLARADO: así los hijos absolutos tienen un
+     contenedor de verdad y la escala se aplica a algo con dimensiones. */
+  var caja = null;
+  function encaja(cfg) {
+    if (!raiz || cfg.encaje === false) return;
+    var w = +raiz.dataset.width || raiz.offsetWidth || 1920;
+    var h = +raiz.dataset.height || raiz.offsetHeight || 1080;
+    if (!caja) {
+      caja = document.createElement('div');
+      raiz.parentNode.insertBefore(caja, raiz);
+      caja.appendChild(raiz);
+    }
+    caja.style.cssText = 'position:absolute;left:0;top:0;width:' + w
+                       + 'px;height:' + h + 'px;transform-origin:0 0;';
+    raiz.style.position = 'absolute';
+    raiz.style.left = '0'; raiz.style.top = '0';
+    raiz.style.width = w + 'px'; raiz.style.height = h + 'px';
+    var k = cfg.escala || Math.min(1080 / w, 1920 / h);
+    /* DÓNDE, y no solo cuánto. Centrado es lo razonable por defecto, pero un
+       rótulo inferior centrado en un lienzo vertical queda en mitad de la
+       cara; y §18 dice que la banda de abajo la pinta la app. zona mueve la
+       caja ya escalada sin tocar la maqueta de dentro: arriba pega bajo la
+       banda superior (230 px), abajo se apoya sobre la inferior (1459 px). */
+    var alto = h * k;
+    var y = (1920 - alto) / 2;
+    if (cfg.zona === 'arriba') y = 230 + 40;
+    else if (cfg.zona === 'abajo') y = 1459 - 40 - alto;
+    caja.style.transform = 'translate(' + Math.round((1080 - w * k) / 2)
+      + 'px,' + Math.round(y) + 'px) scale(' + k + ')';
+  }
+
+  /* LA CAJA DE TINTA, para colocar.py.
+     Sin anclas() una capa es invisible para el colocador: no sabe cuánto
+     ocupa ni dónde, así que no puede apartarla del rostro ni avisar de que
+     cae bajo el caption de la app. Nuestras plantillas la declaran a mano
+     porque saben qué parte de sí mismas importa; un bloque importado no
+     puede saberlo, así que se MIDE: unión de los rectángulos visibles, ya en
+     coordenadas de lienzo —getBoundingClientRect incluye la transformación
+     del encaje—, descartando los contenedores que cubren casi todo.
+     Se llama después de seek, así que la caja es la del instante que se
+     esté mirando y no la del reposo. */
+  function tinta() {
+    if (!raiz) return null;
+    /* Dos pasadas. La primera descarta los contenedores que cubren casi todo
+       —si no, la caja de cualquier plantilla sería el lienzo entero y el dato
+       no diría nada—. Pero en las de dibujo a mano el contenido ES un <svg> a
+       pantalla completa y sus <path> devuelven cajas de cero: con el filtro
+       puesto, veintisiete plantillas se quedaban sin ancla. Si la primera
+       pasada no deja nada, se repite SIN filtro: una caja grande de más es
+       peor que ninguna, pero ninguna es peor que las dos. */
+    function une(filtra) {
+      var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      var todos = raiz.querySelectorAll('*');
+      for (var i = 0; i < todos.length; i++) {
+        var e = todos[i], s = getComputedStyle(e);
+        if (s.display === 'none' || s.visibility === 'hidden' ||
+            parseFloat(s.opacity) < 0.05) continue;
+        var r = e.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        if (filtra && r.width * r.height > 0.92 * 1080 * 1920) continue;
+        if (r.left < x0) x0 = r.left;
+        if (r.top < y0) y0 = r.top;
+        if (r.right > x1) x1 = r.right;
+        if (r.bottom > y1) y1 = r.bottom;
+      }
+      return x1 < x0 ? null : [x0, y0, x1, y1];
+    }
+    var c = une(true) || une(false);
+    if (!c) return null;
+    var x0 = c[0], y0 = c[1], x1 = c[2], y1 = c[3];
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0);
+    x1 = Math.min(1080, x1); y1 = Math.min(1920, y1);
+    return { bloque: { x: Math.round((x0 + x1) / 2), y: Math.round((y0 + y1) / 2),
+                       w: Math.round(x1 - x0), h: Math.round(y1 - y0) } };
+  }
+
+  /* LA SALIDA, que sus bloques no tienen: entran y se quedan puestos hasta
+     que la composición acaba. Aquí una capa vive dentro de su ventana y
+     tiene que irse, y no es cosmética — es lo que humo_plantillas.js
+     comprueba cuando muestrea tres instantes y exige que no sean el mismo
+     fotograma. Medido: x-post y macos-notification animan su entrada y dan
+     tres capturas idénticas después.
+     Es una salida GENÉRICA —se va bajando y encogiendo un pelo— y por eso
+     se puede apagar con config.salida:false cuando el bloque tenga la suya
+     propia. Determinista: solo depende de t. */
+  var SALIDA = 0.42;
+  /* La duración del GESTO, medida al importar. La sustituye el importador;
+     el valor de aquí es el de respaldo para quien abra el fichero suelto.
+     Va en una variable y no en dos sitios a propósito: la salida tiene que
+     caer dentro de la MISMA ventana que registra la plantilla, y cuando eran
+     dos números —la declarada por la timeline y la registrada— la salida se
+     programaba fuera del tramo que nadie llega a ver. */
+  /* El copy que el plan pide, repartido por orden sobre las ranuras que
+     declara TEXTOS. Lo que sobra se ignora; lo que falta se queda con lo que
+     el bloque traía.
+     Se aplica en CADA fotograma y no solo al montar, y no es por comodidad:
+     varios bloques animan su propio texto —un contador que sube, un
+     tecleado— así que su timeline reescribe el nodo en cada seek y el copy
+     del plan duraba un fotograma. Medido: la tarjeta pedía «−12» y salía el
+     «22» de la demo. */
+  function copia(cfg) {
+    for (var k in RANURAS) {
+      if (!cfg || !cfg[k] || !cfg[k].length) continue;
+      var nodos = document.querySelectorAll(RANURAS[k]);
+      for (var i = 0; i < nodos.length && i < cfg[k].length; i++) {
+        if (nodos[i].textContent !== cfg[k][i]) nodos[i].textContent = cfg[k][i];
+      }
+    }
+  }
+
+  var DUR = 23.80;   /* MEDIDO al importar */
+  var vida = DUR;
+
+  Engine.register({
+    duration: DUR,
+    /* Las ranuras se escriben LITERALES en los defaults, no con un
+       Object.assign: lint_config.py lee ese bloque con una expresión regular
+       —no ejecuta la plantilla— así que una clave calculada no existe para
+       él y el plan que la usa aborta por «clave que la plantilla no lee».
+       Las ranuras entran aquí porque lint_config.py --estricto
+       comprueba que toda clave del plan la lea de verdad su plantilla: sin
+       declararlas, pedir el copy por config es una clave muerta y el paso
+       aborta. */
+    defaults: { encaje: true, escala: null, zona: 'centro', salida: true,
+                tema: 'carbon', cue: null, cueGain: null },
+    setup: function (cfg) {
+      encaja(cfg);
+      vida = cfg.duration || DUR;
+      copia(cfg);
+      /* EL SONIDO: NINGUNO por defecto, y esto es una vuelta atrás.
+         Se publicaba un «aparicion» genérico en cada bloque importado para
+         que no entraran mudos. Sobre la pieza montada suena a lo que es: el
+         mismo golpe blando en 126 sitios, puesto por una regla que no sabe
+         qué está entrando. Un sonido que no significa nada es peor que el
+         silencio, porque el oído lo cuenta igual.
+         Quien sabe qué suena una capa es el guion —sfx en la capa— o la
+         tabla del director para las plantillas que conoce. Con cue en la
+         config se puede pedir uno a mano. */
+      return { cues: (!cfg.sinSonido && cfg.cue)
+                     ? [{ at: 0.04, sfx: cfg.cue, gain: cfg.cueGain || 0.5 }]
+                     : [] };
+    },
+    anclas: function () { return tinta(); },
+    /* El puente entero. Los dos motores hacen lo mismo —posicionar una
+       animación en el segundo t, sin tocar el reloj del navegador—, así que
+       no hay nada que traducir. */
+    /* La salida va en la raíz y el encaje en la caja que la envuelve: dos
+       transformaciones en dos nodos, para que no se pisen. */
+    draw: function (t, cfg) {
+      if (tl) tl.time(Math.max(0, Math.min(t, tl.duration())));
+      copia(cfg);
+      if (!raiz) return;
+      if (cfg && cfg.salida !== false && vida > SALIDA) {
+        var d = (t - (vida - SALIDA)) / SALIDA;
+        if (d > 0) {
+          var e = 1 - Math.min(1, d);
+          e = e * e * (3 - 2 * e);              /* suavizado, sin rebote */
+          raiz.style.opacity = e;
+          raiz.style.transform = 'translateY(' + ((1 - e) * -26).toFixed(2)
+                               + 'px) scale(' + (0.985 + 0.015 * e).toFixed(4) + ')';
+          return;
+        }
+      }
+      raiz.style.opacity = '';
+      raiz.style.transform = '';
+    }
+  });
+})();
+</script>
+<!-- PUENTE:fin -->
+
+
+
+
+
+</body>
+</html>

@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Rótulo — placa grabada</title>
+<meta name="gesto" content="trazar:grabado">
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  /* ======================================================================
+     ERA una tarjeta: rectángulo redondeado (`--r-md`), barra de acento de
+     6 px pegada al costado, nombre en display 800, cargo en mono con un
+     guioncito, y aparte una pastilla flotante con un puntito de color. O
+     sea el rótulo por defecto de la categoría — el mismo objeto que dibuja
+     cualquier plantilla de After Effects y cualquier `card` de Bootstrap,
+     con otro color.
+
+     Y no se movía. El humo captura tres instantes de cada plantilla y
+     compara sus hashes: aquí dos de los tres salían IDÉNTICOS byte a byte.
+     La entrada terminaba a los 0,5 s y a partir de ahí el gráfico se quedaba
+     literalmente parado 4 s sobre el metraje, que es la definición de imagen
+     pegada encima del vídeo.
+
+     ES una PLACA DE IDENTIFICACIÓN MECANIZADA, y el cambio no es de adorno:
+
+       · el objeto tiene MATERIAL. Superficie con trama de mecanizado y grano
+         de impresión, canto de bronce en L —una lámina, una luz, y la luz se
+         desplaza—, y los extremos libres CHAFLANADOS. Un chaflán es lo que
+         distingue una pieza cortada de un `border-radius`.
+
+       · las letras están CORTADAS, no impresas. Cada carácter arranca en
+         `--w-fino` (200) y engorda hasta su peso final según el buril pasa
+         por delante. Es el eje variable de `--display`, que es un gesto que
+         no se puede imitar con dos ficheros estáticos: entre 200 y 800 hay
+         una transición continua.
+
+       · la entrada es un TRAZADO, no un deslizamiento. Primero se marca el
+         canto vertical, la mano levanta, y luego el recorrido largo por el
+         canto inferior. La superficie es lo que el buril DEJA DETRÁS, así
+         que la placa no entra: se hace.
+
+       · la salida es el mismo recorrido al revés y en un solo movimiento —la
+         herramienta se retira—, no un fundido.
+
+     Jerarquía DENTRO de la línea, como pide `_tokens.css`: la última palabra
+     del nombre carga a `--w-negro` (800) y las anteriores se quedan en
+     `--w-claro` (300). Son 500 puntos de salto en el mismo renglón y con el
+     mismo cuerpo, que es lo contrario de subir el tamaño o encender un color.
+     ====================================================================== */
+
+  .stage { position: absolute; inset: 0; }
+
+  .placa {
+    position: absolute;
+    min-width: 460px;
+    max-width: 940px;
+    /* El canto cortado del extremo libre. Vive aquí y no como constante en
+       el JS porque el trazo de bronce tiene que seguir EXACTAMENTE la misma
+       diagonal que el recorte de la cara; `setup` lo lee de aquí. */
+    --chaflan: 16px;
+    /* La sombra va en FILTRO y no en `box-shadow`. Los dos recortes de este
+       rótulo —el chaflán de la cara y la cortinilla del frente— son
+       `clip-path`, y `clip-path` recorta TAMBIÉN la sombra proyectada del
+       elemento que lo lleva: puesta abajo, desaparecía. Aplicado en el
+       ancestro, el filtro ve el resultado ya recortado y la sombra sale con
+       la silueta real de la placa, chaflán incluido.
+       Es sombra de contacto (`--sombra`, negro), no un halo de acento: §1
+       prohíbe destacar con luz, no que un objeto físico proyecte sombra. */
+    filter: drop-shadow(0 10px 22px var(--sombra));
+    will-change: transform, opacity;
+  }
+  .placa.izq { left: var(--s-7); }
+  .placa.der { right: var(--s-7); }
+
+  /* La cortinilla del trazado. Recorta SOLO la superficie: el texto se revela
+     por su propio compás (ver `draw`) para que ningún carácter se quede
+     partido por la mitad por el frente. Un rótulo con media letra cortada no
+     se lee como un grabado, se lee como un fallo de máscara. */
+  .frente { position: absolute; inset: 0; z-index: 0; will-change: clip-path; }
+
+  .cara {
+    position: absolute; inset: 0;
+    /* `background-color` y NUNCA el atajo `background`: `.trama` vive en
+       `_tokens.css`, que se enlaza ANTES de esta hoja, y las dos reglas
+       tienen la misma especificidad — el atajo de aquí ganaría y pondría
+       `background-image: none`, borrando la trama de mecanizado sin un solo
+       aviso en consola. */
+    background-color: var(--surface);
+    /* Filete interior. Es lo único que separa la placa del metraje cuando el
+       tema es `paper`: superficie #FFFFFF sobre un plano claro no tiene
+       borde, y `--rule` (#E4E0D9) sí se ve. En carbón hace el mismo trabajo
+       al revés. Va INSET a propósito: una sombra exterior la recortaría el
+       chaflán. */
+    box-shadow: inset 0 0 0 var(--hairline) var(--rule);
+    /* Los dos son necesarios y no son lo mismo: `overflow` recorta el flujo,
+       `isolation` crea el grupo dentro del cual `Engine.grano` puede
+       multiplicar. Sin el grupo aislado, el `mix-blend-mode: multiply` de la
+       teja se resuelve contra el fondo TRANSPARENTE del PNG —donde
+       multiplicar deja la fuente tal cual— y el grano sale como un
+       rectángulo de ruido gris flotando fuera de la placa. */
+    overflow: hidden;
+    isolation: isolate;
+  }
+  /* El chaflán: los dos vértices del extremo LIBRE, cortados a 45°. El
+     extremo anclado se queda a escuadra porque es el que lleva el canto de
+     bronce, y una pieza se corta por donde queda al aire. */
+  .placa.izq .cara {
+    clip-path: polygon(0 0,
+      calc(100% - var(--chaflan)) 0, 100% var(--chaflan),
+      100% calc(100% - var(--chaflan)), calc(100% - var(--chaflan)) 100%, 0 100%);
+  }
+  .placa.der .cara {
+    clip-path: polygon(100% 0, 100% 100%,
+      var(--chaflan) 100%, 0 calc(100% - var(--chaflan)),
+      0 var(--chaflan), var(--chaflan) 0);
+  }
+
+  /* `position` + `z-index` no son decorativos: `.frente` y el SVG están
+     posicionados y el contenido no, así que sin esto los dos pintarían POR
+     ENCIMA del texto y la placa saldría en blanco. */
+  .contenido {
+    position: relative; z-index: 1;
+    padding: var(--s-4) var(--s-6) var(--s-4) var(--s-5);
+    display: flex; flex-direction: column; gap: var(--s-2);
+    will-change: clip-path;
+  }
+  .placa.der .contenido {
+    align-items: flex-end;
+    padding: var(--s-4) var(--s-5) var(--s-4) var(--s-6);
+  }
+
+  .nombre {
+    position: relative;      /* origen de los caracteres absolutos */
+    font-family: var(--display);
+    font-size: var(--t-xl);
+    /* El peso de REPOSO, no el de la animación. Si `--display` cayera algún
+       día a una familia sin eje variable, `font-variation-settings` no haría
+       nada y el nombre entero se quedaría en 400 —o sea sin jerarquía, que es
+       el fallo que este rediseño arregla—. Declarado aquí y por carácter en
+       `construirNombre`, el respaldo conserva el contraste 300/800 aunque el
+       eje desaparezca. Con fuente variable manda `font-variation-settings`,
+       así que no cambia ni un píxel: comprobado por hash, el fotograma de
+       t = 2,0 es idéntico antes y después. */
+    font-weight: var(--w-claro);
+    letter-spacing: var(--tr-display);
+    line-height: 1.04;
+    color: var(--ink);
+    white-space: nowrap;
+    /* La pared del rebaje: un píxel del chasis por arriba y a la izquierda.
+       No es un resplandor —no lleva acento, no lleva difuminado y no crece
+       con el énfasis—, es el canto de una letra que está hundida en la
+       chapa. En `carbon` `--chrome-3` (#101013) es más oscuro que la
+       superficie; en `paper` (#C9C1B4) es más claro que el papel y más
+       oscuro que la tinta, así que en los dos temas lee como pared. */
+    text-shadow: calc(-1 * var(--hairline)) calc(-1 * var(--hairline)) 0
+                 var(--chrome-3);
+  }
+  .nombre .ch {
+    display: inline-block; white-space: pre;
+    will-change: font-variation-settings, opacity;
+  }
+
+  .pie {
+    align-self: stretch;
+    display: flex; align-items: center; gap: var(--s-3);
+  }
+  .placa.der .pie { flex-direction: row-reverse; }
+
+  /* El filete corto que arrastra el cargo. `.brushed` y no un color plano:
+     §2 pide que el bronce nunca sea un naranja liso, y aquí cuesta una
+     clase. El ancho lo escribe `draw`. */
+  .tick { flex: none; height: 2px; width: 0; border-radius: 1px; }
+
+  .rol {
+    display: inline-block;   /* para poder recortarlo con `clip-path` */
+    min-width: 0; overflow: hidden; text-overflow: ellipsis;
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    /* Mono FINA de verdad: medido en este mismo Chromium, «HAMBURGEFONS» a
+       80 px con Geist Mono deposita 1520 unidades de tinta a peso 200 y
+       5141 a peso 800 — 3,4 veces menos. El eje de peso de `--mono` NO es
+       variable (el avance no cambia, y en una monoespaciada eso no prueba
+       nada), pero las instancias estáticas 200 y 300 están instaladas y se
+       usan. El contraste con el nombre a 800 es de 600 puntos. */
+    font-weight: var(--w-fino);
+    letter-spacing: var(--tr-caps);
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    white-space: nowrap;
+    will-change: clip-path;
+  }
+
+  /* El folio: la marca de serie estampada en el extremo libre. Sustituye a
+     la pastilla flotante con el punto de color, que era una insignia de
+     interfaz —el mismo objeto que un `badge`— y además vivía FUERA de la
+     placa, así que el rótulo eran dos cosas sueltas en vez de una pieza. */
+  .folio {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: var(--t-2xs);
+    font-weight: var(--w-fino);
+    letter-spacing: var(--tr-caps-ancho);
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    white-space: nowrap;
+    will-change: opacity;
+  }
+  .placa.der .folio { margin-left: 0; margin-right: auto; }
+
+  .canto {
+    position: absolute; inset: 0; z-index: 2;
+    overflow: visible;       /* el trazo sobresale medio grosor del borde */
+    pointer-events: none;
+  }
+  .canto path {
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: butt;
+    stroke-linejoin: miter;
+    will-change: stroke-dashoffset;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="placa izq" id="placa">
+    <div class="frente" id="frente">
+      <div class="cara trama" id="cara" data-densidad="baja"></div>
+    </div>
+    <div class="contenido">
+      <div class="nombre" id="nombre"></div>
+      <div class="pie">
+        <i class="tick brushed" id="tick"></i>
+        <span class="rol" id="rolTxt"></span>
+        <span class="folio" id="bugTxt"></span>
+      </div>
+    </div>
+    <svg class="canto" id="canto"><path id="cantoV"></path><path id="cantoH"></path></svg>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp } = Engine;
+
+const placa   = document.getElementById('placa');
+const frente  = document.getElementById('frente');
+const contenido = document.querySelector('.contenido');
+const cara    = document.getElementById('cara');
+const elNom   = document.getElementById('nombre');
+const elRol   = document.getElementById('rolTxt');
+const elFolio = document.getElementById('bugTxt');
+const tick    = document.getElementById('tick');
+const canto   = document.getElementById('canto');
+const cantoV  = document.getElementById('cantoV');
+const cantoH  = document.getElementById('cantoH');
+
+const TRAZO = 2.5;          // grosor del canto de bronce, en px de lienzo
+const TICK  = 26;           // largo final del filete del cargo
+
+let chars = [];             // [{el, u, wFin}] — u = borde de FUGA normalizado
+let LV = 1, LH = 1, ANCHO = 1, ALTO = 1, CHAFLAN = 16;
+let DER = false, VENTANA = 0.16, HAY_FOLIO = false;
+let W_CORTE = 200, W_CALLA = 300, W_CARGA = 800;
+
+/* Los pesos salen de los TOKENS y no de tres números escritos aquí: son la
+   misma escala que usa el resto del catálogo y si mañana `--w-negro` deja de
+   ser 800, este rótulo se entera. */
+function leerPesos() {
+  const est = getComputedStyle(document.documentElement);
+  const n = (k, d) => parseInt(est.getPropertyValue(k), 10) || d;
+  W_CORTE = n('--w-fino', 200);    // la letra recién marcada, sin profundidad
+  W_CALLA = n('--w-claro', 300);   // la mitad callada del nombre
+  W_CARGA = n('--w-negro', 800);   // la palabra que carga
+}
+
+/* EL COMPÁS, en un solo sitio. `draw` y las señales de sonido salen de esta
+   misma función: copiar la fórmula en los dos sitios es exactamente cómo un
+   `clic` acaba sonando 0,2 s antes de que la placa quede cerrada. */
+function ritmo(cfg) {
+  const e = cfg.entrada > 0 ? cfg.entrada : 0.62;
+  const tCanto = e * 0.30;                       // se marca el canto vertical
+  const pausa  = e * 0.08;                       // la mano levanta y reapoya
+  const dCorre = Math.max(0.08, e - tCanto - pausa);
+  const tCorre = tCanto + pausa;                 // arranca el recorrido largo
+  const tCerrada = tCorre + dCorre;              // la placa queda entera
+  const tFolio = tCerrada + (cfg.escalonado > 0 ? cfg.escalonado : 0.2);
+  return { tCanto, tCorre, dCorre, tCerrada, tFolio };
+}
+
+/* Un carácter por `<span>`, y el peso final decidido por PALABRA.
+   `_tokens.css` lo pide sin rodeos: «un titular consigue su jerarquía DENTRO
+   DE LA LÍNEA, con un salto de al menos 400 puntos de peso». En un nombre
+   propio la palabra que carga es la última —el apellido—, así que las
+   anteriores se quedan en `--w-claro`. Con una sola palabra no hay contraste
+   posible y carga entera, que es lo correcto. */
+function construirNombre(txt) {
+  elNom.innerHTML = '';
+  chars = [];
+  const trozos = String(txt).split(/(\s+)/).filter(x => x.length);
+  let ult = -1;
+  trozos.forEach((x, i) => { if (!/^\s+$/.test(x)) ult = i; });
+  trozos.forEach((trozo, i) => {
+    const carga = (i === ult);
+    for (const c of trozo) {
+      const s = document.createElement('span');
+      s.className = 'ch';
+      /* Un espacio normal dentro de un `inline-block` medido se colapsa y el
+         nombre saldría sin separación entre palabras. */
+      s.textContent = /\s/.test(c) ? ' ' : c;
+      s.style.fontWeight = carga ? W_CARGA : W_CALLA;   // respaldo sin eje
+      elNom.appendChild(s);
+      chars.push({ el: s, wFin: carga ? W_CARGA : W_CALLA, u: 0 });
+    }
+  });
+}
+
+/* Congela la maquetación CON EL PESO FINAL puesto y pasa cada carácter a
+   posición absoluta.
+   ---------------------------------------------------------------------
+   Sin esto el nombre se estiraría mientras se graba. Medido en este mismo
+   Chromium: «Mike Ortega HAMBURGEFONS» a 96 px con Plus Jakarta Sans mide
+   1389,7 px a peso 200 y 1436,2 px a 800 — un 3,3 % más. En un rótulo de
+   46 px eso son 16 px de deriva hacia la derecha DURANTE la entrada, o sea
+   las últimas letras deslizándose mientras las primeras engordan. Con la
+   maquetación congelada el eje de peso puede hacer lo que quiera sin mover
+   a nadie.
+
+   Se mide con `getBoundingClientRect` dividido por el FACTOR de escala y no
+   con `offset*`: `_engine.js` puede aplicar `zoom` a la raíz cuando la capa
+   vive en una columna, y ahí los rects vienen ya escalados mientras lo que
+   se escribe de vuelta (`left`, `width`) no. El factor se saca del cociente
+   entre el rect y el `offsetWidth` de la propia placa, así que vale venga la
+   escala de donde venga. */
+function medir() {
+  chars.forEach(c => {
+    c.el.style.position = 'static';
+    c.el.style.left = ''; c.el.style.top = '';
+    Engine.peso(c.el, c.wFin);
+  });
+  elNom.style.width = ''; elNom.style.height = '';
+
+  const factor = (placa.getBoundingClientRect().width / (placa.offsetWidth || 1)) || 1;
+  const bn = elNom.getBoundingClientRect();
+  const pos = chars.map(c => {
+    const b = c.el.getBoundingClientRect();
+    return { x: (b.left - bn.left) / factor,
+             y: (b.top - bn.top) / factor,
+             w: b.width / factor };
+  });
+  elNom.style.width  = (bn.width / factor).toFixed(2) + 'px';
+  elNom.style.height = (bn.height / factor).toFixed(2) + 'px';
+  chars.forEach((c, i) => {
+    c.el.style.position = 'absolute';
+    c.el.style.left = pos[i].x.toFixed(2) + 'px';
+    c.el.style.top  = pos[i].y.toFixed(2) + 'px';
+  });
+
+  const bp = placa.getBoundingClientRect();
+  ANCHO = bp.width / factor;
+  ALTO  = bp.height / factor;
+  CHAFLAN = parseFloat(getComputedStyle(placa).getPropertyValue('--chaflan')) || 16;
+
+  /* `u` es el borde de FUGA del carácter —el último de sus píxeles que el
+     frente tapa—, no su centro. Con el centro, la letra empezaba a existir
+     cuando la placa solo la cubría a medias y durante dos fotogramas había
+     media letra flotando sobre el metraje sin nada detrás. */
+  const x0 = (elNom.getBoundingClientRect().left - bp.left) / factor;
+  let uMax = 0;
+  chars.forEach((c, i) => {
+    const izq = x0 + pos[i].x, der = izq + pos[i].w;
+    c.u = clamp((DER ? (ANCHO - izq) : der) / ANCHO, 0, 1);
+    if (c.u > uMax) uMax = c.u;
+  });
+  /* La ventana de corte se ajusta al nombre en vez de ser una constante: si
+     el último carácter cae en u = 0,95 y la ventana midiera 0,16, esa letra
+     no llegaría NUNCA a su peso final —el frente se para en 1,0— y el rótulo
+     se quedaría con la última letra fina para siempre. */
+  VENTANA = clamp(1 - uMax, 0.05, 0.18);
+}
+
+/* El recorrido del buril, en unidades del lienzo. Dos trazos y no uno: un
+   canto en L se marca en dos pasadas con la escuadra, y el corte entre las
+   dos es lo que hace que la entrada tenga compás en vez de ser un barrido. */
+function trazarCanto() {
+  const m = TRAZO / 2;
+  const xV = DER ? (ANCHO - m) : m;
+  const yH = ALTO - m;
+  const xFin = DER ? m : (ANCHO - m);
+  const sentido = DER ? 1 : -1;
+
+  canto.setAttribute('viewBox', '0 0 ' + ANCHO.toFixed(2) + ' ' + ALTO.toFixed(2));
+  cantoV.setAttribute('d', 'M ' + xV.toFixed(2) + ' ' + m.toFixed(2) +
+                           ' L ' + xV.toFixed(2) + ' ' + yH.toFixed(2));
+  /* El tramo horizontal termina SUBIENDO por el chaflán, con la misma
+     diagonal que recorta la cara: el filete no se corta en seco, dobla la
+     esquina cortada. */
+  cantoH.setAttribute('d', 'M ' + xV.toFixed(2) + ' ' + yH.toFixed(2) +
+    ' L ' + (xFin + sentido * CHAFLAN).toFixed(2) + ' ' + yH.toFixed(2) +
+    ' L ' + xFin.toFixed(2) + ' ' + (yH - CHAFLAN).toFixed(2));
+
+  LV = cantoV.getTotalLength() || 1;
+  LH = cantoH.getTotalLength() || 1;
+  cantoV.style.strokeDasharray = LV.toFixed(2);
+  cantoH.style.strokeDasharray = LH.toFixed(2);
+
+  /* UNA lámina de bronce para los dos tramos, en `userSpaceOnUse`. La `caja`
+     NO es opcional: los dos son RECTAS —una vertical y una casi horizontal—,
+     o sea cajas de ancho o alto cero, y con `objectBoundingBox` (el defecto)
+     el SVG manda no dibujar nada. Sin caja el canto entero desaparece sin un
+     aviso en consola: los `<path>` están en el DOM, con su `d` y su
+     `stroke-width` correctos, y no pintan un píxel. */
+  Engine.gradienteMetal(canto, 'metalPlaca', [0, 0, ANCHO, ALTO]);
+  cantoV.setAttribute('stroke', 'url(#metalPlaca)');
+  cantoH.setAttribute('stroke', 'url(#metalPlaca)');
+}
+
+Engine.register({
+  duration: 5,
+  defaults: {
+    nombre: 'Mike Ortega',
+    rol: 'Editor · M4 Pro',
+    bug: 'LOCAL',
+    lado: 'izq',            // izq | der
+    y: 1480,
+    /* 0,62 y no 0,5: la entrada son ahora DOS trazos con una pausa en medio,
+       y con 0,5 el recorrido largo se quedaba en 0,31 s — el buril salía
+       disparado y el corte de las letras no se leía. */
+    entrada: 0.62,
+    salida: 0.45,
+    escalonado: 0.2,        // retardo del folio respecto al cierre de la placa
+    conBug: true
+  },
+
+  setup(cfg) {
+    leerPesos();
+    DER = cfg.lado === 'der';
+    placa.className = 'placa ' + (DER ? 'der' : 'izq');
+    placa.style.top = (cfg.y || 0) + 'px';
+
+    elRol.textContent = cfg.rol || '';
+    /* `dirigir.py:533` manda `bug: ""` cuando no hay marca que poner, y la
+       versión anterior seguía dibujando la pastilla entera —con su punto de
+       acento— sin una sola letra dentro. No daba error ni aviso: salía una
+       cápsula vacía flotando junto al rótulo. Un folio sin texto no existe. */
+    const folio = String(cfg.bug == null ? '' : cfg.bug).trim();
+    HAY_FOLIO = cfg.conBug !== false && folio.length > 0;
+    elFolio.textContent = folio;
+    elFolio.style.display = HAY_FOLIO ? '' : 'none';
+
+    construirNombre(cfg.nombre || '');
+    medir();
+    trazarCanto();
+
+    /* Grano de impresión sobre la cara. Es la textura que 48 de 56
+       plantillas no tienen, y aquí hace un trabajo concreto: sobre un plano
+       de color liso la placa se lee como un rectángulo de CSS; con trama de
+       mecanizado (`.trama`, densidad baja) más grano se lee como chapa. */
+    Engine.grano(cara, { px: 256, semilla: 19, op: 0.24 });
+
+    /* Tres señales y tres HECHOS físicos, ni una por carácter: a 30 pps un
+       `tecleo` por letra es un zumbido. Los instantes salen de `ritmo()`, la
+       misma función de la que sale `draw`. */
+    const r = ritmo(cfg);
+    const cues = [
+      { at: 0.02, sfx: 'tic', gain: 0.30 },                     // la punta apoya
+      { at: +r.tCerrada.toFixed(3), sfx: 'clic', gain: 0.40 }   // la placa queda
+    ];
+    if (HAY_FOLIO) cues.push({ at: +r.tFolio.toFixed(3), sfx: 'tic', gain: 0.26 });
+    return { cues: cfg.sinSonido ? [] : cues };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 5;
+    const r = ritmo(cfg);
+    const cierre = Engine.sale(t, fin, cfg.salida);
+
+    /* --- el trazado ---------------------------------------------------
+       `inOutCubic` y NO `outExpo`. `kicker-hud` traza su escala con
+       `outExpo` y lo argumenta bien: allí es la punta de un buril de
+       máquina, que sale disparada y frena. Aquí el gesto es una mano con una
+       escuadra: arranca desde parada, coge velocidad y se detiene en el
+       tope. Con `outExpo` el canto aparecía casi entero en el primer
+       fotograma y la entrada volvía a leerse como un barrido automático,
+       que es justo lo que había antes. */
+    const pV = span(t, 0, r.tCanto, Ease.inOutCubic);
+    const pH = span(t, r.tCorre, r.dCorre, Ease.inOutCubic);
+
+    /* --- la retirada --------------------------------------------------
+       No es un fundido: es la herramienta volviendo por donde vino, en UN
+       solo movimiento continuo. Se consume longitud de recorrido —primero
+       todo el tramo horizontal, después el vertical—, así que lo último que
+       queda en pantalla es el canto anclado, que es por donde entró.
+       `Engine.sale` lleva dentro `inCubic` y esa es la razón de que esto
+       funcione: aguanta casi entero y luego se va, o sea que el nombre se
+       lee hasta el final. Con la `outCubic` que tenía antes, la ventana de
+       salida era legible el 29,6 % del tiempo en vez del 86,7 %. */
+    const consumido = (1 - cierre) * (LV + LH);
+    const vivoH = clamp(1 - consumido / LH, 0, 1);
+    const vivoV = clamp(1 - Math.max(0, consumido - LH) / LV, 0, 1);
+    const fV = Math.min(pV, vivoV);
+    const f  = Math.min(pH, vivoH);
+
+    cantoV.style.strokeDashoffset = (LV * (1 - fV)).toFixed(2);
+    cantoH.style.strokeDashoffset = (LH * (1 - f)).toFixed(2);
+
+    /* La superficie es lo que el buril deja detrás. */
+    const oculto = ((1 - f) * 100).toFixed(2);
+    frente.style.clipPath = DER
+      ? 'inset(0 0 0 ' + oculto + '%)'
+      : 'inset(0 ' + oculto + '% 0 0)';
+
+    /* El contenido se recorta con `vivoH` y NO con `f`, y la diferencia
+       importa en los dos extremos:
+
+         · en la ENTRADA `vivoH` vale 1, así que no recorta nada y el texto
+           se revela con su propio compás — que es lo que evita que el frente
+           deje medio carácter partido por la mitad;
+         · en la RETIRADA `f` ya es `vivoH`, así que sí recorta, y ahí está el
+           fallo que esto arregla: al retirarse la placa, «EDITOR · M4 PRO» y
+           el folio se quedaban DIBUJADOS sobre el metraje, sin nada debajo,
+           durante los últimos 0,4 s. No daba ningún error y en el JSON del
+           humo no se ve: se ve mirando el fotograma de t = 4,92. */
+    const ocultoTex = ((1 - vivoH) * 100).toFixed(2);
+    contenido.style.clipPath = DER
+      ? 'inset(0 0 0 ' + ocultoTex + '%)'
+      : 'inset(0 ' + ocultoTex + '% 0 0)';
+
+    /* --- las letras se cortan detrás del frente ------------------------
+       Cada carácter arranca en `--w-fino` y engorda hasta el suyo según el
+       frente lo va dejando atrás. No es un escalonado por índice: el disparo
+       sale de la POSICIÓN de la letra, así que el nombre se graba con un
+       solo gesto y las palabras cortas no se adelantan a las largas. */
+    for (let i = 0; i < chars.length; i++) {
+      const c = chars[i];
+      const p = clamp((f - c.u) / VENTANA, 0, 1);
+      c.el.style.opacity = clamp(p * 3, 0, 1).toFixed(3);
+      Engine.peso(c.el, Math.round(W_CORTE + (c.wFin - W_CORTE) * p));
+    }
+
+    /* --- el cargo, arrastrado por su filete ---------------------------- */
+    const pTick = span(t, r.tCerrada, 0.22, Ease.outCubic);
+    tick.style.width = (TICK * pTick).toFixed(1) + 'px';
+    const pRol = span(t, r.tCerrada + 0.04, 0.26, Ease.outCubic);
+    const roloc = ((1 - pRol) * 100).toFixed(2);
+    elRol.style.clipPath = DER
+      ? 'inset(0 0 0 ' + roloc + '%)'
+      : 'inset(0 ' + roloc + '% 0 0)';
+    elRol.style.opacity = clamp(pRol * 6, 0, 1).toFixed(3);
+
+    /* --- el folio se ESTAMPA -------------------------------------------
+       Un punzón no aparece progresivamente: golpea. La discontinuidad en
+       `tFolio` es deliberada —0,07 s de subida, o sea dos fotogramas a 25
+       pps— y la placa acusa el impacto 1,6 px y se asienta. Es el único
+       sitio de esta plantilla donde algo llega de golpe, y por eso se nota. */
+    let golpe = 0;
+    if (HAY_FOLIO) {
+      elFolio.style.opacity = span(t, r.tFolio, 0.07, Ease.linear).toFixed(3);
+      golpe = t < r.tFolio ? 0
+            : 1.6 * (1 - span(t, r.tFolio, 0.18, Ease.outCubic));
+    }
+
+    /* --- reposo --------------------------------------------------------
+       §10: «cada elemento deriva con su propio periodo; sin ella una fila
+       parece una captura fija». Aquí no es retórica — esta plantilla estaba
+       marcada como CONGELA porque dos de los tres instantes del humo salían
+       idénticos byte a byte. 2,6 px sobre un lienzo de 1080 es una deriva
+       que no se lee como movimiento en un fotograma suelto y que impide que
+       el rótulo se quede muerto media pantalla. Una placa atornillada no
+       cabecea, así que no hay giro. */
+    const d = Engine.flota(t, 0, { amp: 2.6, periodo: 8.4, semilla: 5 });
+    placa.style.transform = 'translate(' + d.x.toFixed(2) + 'px,' +
+                            (d.y + golpe).toFixed(2) + 'px)';
+    /* La placa no se desvanece mientras se retira: solo el último tramo, y
+       de ahí el x4. Sin él el sobrante desaparecía de golpe en el fotograma
+       final; con un fundido completo la retirada dejaba de leerse. */
+    placa.style.opacity = Math.min(1, cierre * 4).toFixed(3);
+
+    /* La luz recorre el bronce. Un degradado clavado convierte el metal en
+       una calcomanía —lo dice el propio token `--metal-ang`—, y aquí los dos
+       tramos comparten UNA lámina, así que el reflejo viaja por el canto
+       vertical y por el inferior como si fueran la misma pieza doblada, que
+       es lo que son. Periodo 6,7 s: primo con el 8,4 de la flotación y más
+       largo que la capa (5 s), así que dentro de la pieza no se repite y
+       ningún par de fotogramas coincide. */
+    const luz = 0.55 * ANCHO * Math.sin(2 * Math.PI * t / 6.7);
+    Engine.gradienteMetal(canto, 'metalPlaca',
+      [luz - ANCHO * 0.35, -ALTO * 0.6, luz + ANCHO * 0.35, ALTO * 1.6]);
+  }
+});
+</script>
+</body>
+</html>

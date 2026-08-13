@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Hero Stat</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+
+  .bloque {
+    position: absolute; left: var(--s-7); right: var(--s-7);
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center;
+  }
+  .bloque.izq { align-items: flex-start; text-align: left; }
+
+  .rotulo {
+    display: inline-flex; align-items: center; gap: var(--s-2);
+    padding: var(--s-1) var(--s-3);
+    border-left: 2px solid var(--accent);
+    background: linear-gradient(90deg, var(--accent-soft), transparent 88%);
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: var(--s-3);
+  }
+
+  .cifra {
+    display: flex; align-items: baseline; gap: var(--s-2);
+    font-size: var(--t-mega);
+    font-weight: 800;
+    line-height: 0.92;
+    letter-spacing: -0.045em;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;   /* sin esto el contador tiembla */
+    text-shadow: 0 8px 40px var(--scrim);
+  }
+  .unidad {
+    font-size: var(--t-2xl);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--accent);
+  }
+
+  .etiqueta {
+    margin-top: var(--s-3);
+    font-family: var(--subs);
+    font-size: var(--t-lg);
+    font-weight: 600;
+    color: var(--ink-soft);
+    letter-spacing: -0.005em;
+  }
+
+  .nota {
+    margin-top: var(--s-4);
+    display: inline-flex; align-items: center; gap: var(--s-2);
+    padding: var(--s-2) var(--s-4);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    border: var(--hairline) solid var(--stroke);
+    font-family: var(--mono);
+    font-size: var(--t-sm);
+    color: var(--ink);
+    box-shadow: 0 10px 26px var(--sombra);
+  }
+  .flecha { color: var(--accent-2); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="bloque" id="bloque">
+    <span class="rotulo" id="rotulo"></span>
+    <div class="cifra"><span id="valor">0</span><span class="unidad" id="unidad"></span></div>
+    <div class="etiqueta" id="etiqueta"></div>
+    <div class="nota" id="nota"><span class="flecha" id="flecha"></span><span id="notaTxt"></span></div>
+  </div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+/* Caja de un elemento en coordenadas del lienzo, con el punto en su
+   CENTRO. Otra capa la pide con `{sobre: 'capa.clave'}` en vez de copiar
+   coordenadas, que es lo que se desincroniza al cambiar el texto. */
+function ancla(el) {
+  const b = el.getBoundingClientRect();
+  return { x: Math.round(b.left + b.width / 2),
+           y: Math.round(b.top + b.height / 2),
+           w: Math.round(b.width), h: Math.round(b.height) };
+}
+
+const { Ease, span, clamp } = Engine;
+
+const bloque = document.getElementById('bloque');
+const elRot = document.getElementById('rotulo');
+const elVal = document.getElementById('valor');
+const elUni = document.getElementById('unidad');
+const elEti = document.getElementById('etiqueta');
+const elNota = document.getElementById('nota');
+
+function formatear(n, decimales, separador) {
+  const s = Number(n).toFixed(decimales);
+  if (!separador) return s;
+  const [ent, dec] = s.split('.');
+  const conSep = ent.replace(/\B(?=(\d{3})+(?!\d))/g, separador);
+  return dec ? conSep + ',' + dec : conSep;
+}
+
+Engine.register({
+  duration: 5,
+  defaults: {
+    y: 700,
+    align: 'centro',        // centro | izq
+    rotulo: 'MÉTRICA',      // ranura de COPY: el plan la escribe
+                            // por contrato. Genérica y no de una
+                            // pieza: 'VENTANA DE CONTEXTO' era de
+                            // Codex y salía en cualquier guion que
+                            // no diera card_copy.
+    desde: 0,
+    valor: 1000000,
+    decimales: 0,
+    separador: '.',         // '' para desactivar
+    unidad: '',
+    /* LAS DOS VACÍAS, y no es un descuido. `etiqueta` era 'tokens de
+       contexto' y `nota`, 'un repositorio entero': las dos son de la pieza de
+       Codex. Son ranuras DECORATIVAS y opcionales que el plan casi nunca
+       escribe —se pone `valor`, `unidad` y `rotulo` y se da por hecho que lo
+       demás no sale— así que la frase de una pieza sobrevivía dentro de otra:
+       se compuso «un repositorio entero» bajo una cifra de respiraciones al
+       día, y «tokens de contexto» bajo el 80 % de modelos sesgados. Nada
+       avisa, porque el texto existe y la plantilla hace su trabajo.
+       La diferencia con el contenido de muestra de otras plantillas —los
+       `pasos` de `pasos-flow`, los `nodos` de `data-diagram`— es que aquellos
+       son LISTAS que el plan reemplaza enteras: o las escribes o no hay
+       gráfico. Éstas conviven con la config y por eso nacen vacías. */
+    etiqueta: '',
+    nota: '',
+    flecha: '▸',
+    subida: 1.4,            // cuánto tarda el contador
+    salida: 0.45
+  },
+
+  setup(cfg) {
+    bloque.style.top = cfg.y + 'px';
+    bloque.classList.toggle('izq', cfg.align === 'izq');
+    elRot.textContent = cfg.rotulo;
+    elRot.style.display = cfg.rotulo ? '' : 'none';
+    elUni.textContent = cfg.unidad;
+    elEti.textContent = cfg.etiqueta || '';
+    elEti.style.display = cfg.etiqueta ? '' : 'none';
+    document.getElementById('flecha').textContent = cfg.flecha || '';
+    document.getElementById('notaTxt').textContent = cfg.nota || '';
+    elNota.style.display = cfg.nota ? '' : 'none';
+  },
+
+  anclas() {
+    return { valor: ancla(elVal), bloque: ancla(bloque) };
+  },
+
+  draw(t, cfg) {
+    const fin = cfg.duration || 5;
+    const cierre = 1 - span(t, fin - cfg.salida, cfg.salida, Ease.outCubic);
+
+    const r = span(t, 0.05, 0.35, Ease.outCubic);
+    elRot.style.opacity = r * cierre;
+    elRot.style.transform = `translateX(${(1 - r) * -22}px)`;
+
+    /* El contador va con outExpo, no lineal: arranca rápido y frena al
+       final. Un contador lineal parece un cronómetro; este parece que
+       "aterriza" en la cifra. */
+    const p = span(t, 0.25, cfg.subida, Ease.outExpo);
+    const n = cfg.desde + (cfg.valor - cfg.desde) * p;
+    elVal.textContent = formatear(n, cfg.decimales, cfg.separador);
+
+    const e = span(t, 0.2, 0.4, Ease.outCubic);
+    const cifra = elVal.parentElement;
+    cifra.style.opacity = e * cierre;
+    cifra.style.transform = `scale(${0.94 + 0.06 * e})`;
+
+    const et = span(t, 0.55, 0.4, Ease.outCubic);
+    elEti.style.opacity = et * cierre;
+    elEti.style.transform = `translateY(${(1 - et) * 14}px)`;
+
+    /* la nota entra cuando el contador ya ha parado: si entra antes,
+       compite con la cifra y no se lee ninguna de las dos */
+    const nt = span(t, 0.25 + cfg.subida * 0.85, 0.4, Ease.outCubic);
+    elNota.style.opacity = nt * cierre;
+    elNota.style.transform = `translateY(${(1 - nt) * 14}px)`;
+  }
+});
+</script>
+</body>
+</html>

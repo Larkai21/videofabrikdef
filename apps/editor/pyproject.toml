@@ -1,0 +1,35 @@
+# Empaquetado IN SITU: los módulos de scripts/ se exponen como el paquete
+# `editor` SIN mover un solo fichero. Es la fase 1 del traslado a un monorepo:
+# otro repo podrá hacer `pip install -e .` sobre este y usar `import
+# editor.reloj` / `editor.mezcla` / `editor.contratos` / `editor.comun` /
+# `editor.escaleta`, mientras los ~20 scripts que hacen `sys.path.insert` e
+# importan por nombre plano (`import reloj`) siguen funcionando exactamente
+# igual — los dos mundos conviven, ver scripts/__init__.py.
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "editor-youtube"
+version = "0.1.0"
+description = "Pipeline determinista de edición vertical (1080x1920): Whisper local, motion graphics en Chromium y composición ffmpeg"
+readme = "README.md"
+# 3.12 EXACTO: MLX no publica ruedas para 3.14 y el repo está calibrado
+# contra 3.12 (README, «Qué hace falta»).
+requires-python = ">=3.12,<3.13"
+license = { text = "Copyright (c) 2026. Todos los derechos reservados." }
+
+# Sin dependencias A PROPÓSITO, y es deuda declarada de la fase 1: las de
+# verdad viven en requirements.txt (pipeline) y requirements-dev.txt (arnés),
+# instaladas por `make instalar-pipeline` / `make instalar`. Declararlas aquí
+# haría que `pip install -e .` arrastrara mlx-whisper y Playwright a cualquier
+# consumidor que solo quiera `editor.reloj`, que es puro stdlib. La fase 2
+# (el monorepo) decidirá el reparto en extras.
+dependencies = []
+
+[tool.setuptools]
+# El mapeo que hace todo el trabajo: el paquete `editor` ES scripts/, sin
+# mover ficheros ni romper los sys.path.insert existentes.
+package-dir = { "editor" = "scripts" }
+packages = ["editor"]

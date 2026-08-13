@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Karaoke Subs — Carbon &amp; Bronze</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+
+  /* La zona se reposiciona sola según dónde esté la cara: la Y llega
+     desde build/face.json a través de render_playwright.js. */
+  .zona {
+    position: absolute; left: 60px; right: 60px;
+    display: flex; flex-wrap: wrap; justify-content: center;
+    align-content: center; gap: 12px 10px;
+    text-align: center;
+  }
+
+  /* Caja de fondo bajo TODA la línea. Antes cada palabra llevaba su
+     propia pastilla y nada más: sobre un gráfico central, las pastillas
+     sueltas se mezclan con él y la línea deja de leerse como una unidad.
+     Esta caja la separa del resto sin taparlo, porque solo cubre el alto
+     del texto. */
+  /* EL LECHO YA NO EXISTE.
+     Era una caja translúcida bajo toda la línea, más una pastilla por palabra.
+     Un subtítulo con fondo tapa el metraje justo donde está el sujeto, y en
+     vertical eso es la mitad del encuadre. La legibilidad se resuelve con el
+     TEXTO, no con una caja debajo: contorno fino con `paint-order: stroke
+     fill` —el trazo se pinta primero y el relleno encima, así que el contorno
+     no se come el glifo— más una sombra dura corta que lo despega.
+
+     Es lo mismo que ya hacía `kinetic-captions`, y no había ninguna razón para
+     que las dos plantillas de subtítulo resolvieran lo mismo de dos formas.
+     La clase `.lecho` y la clave `caja` se conservan sin efecto para no romper
+     un plan que las pase. */
+  /* Caja compacta por palabra: padding y filete de 1 px.
+     Sin resplandor: la legibilidad la da el fondo sólido, no la luz.
+
+     `backdrop-filter: blur(8px)` estaba aquí y NO HACÍA NADA. Estas capas se
+     capturan sobre transparencia (`omitBackground`), y sin píxeles detrás no
+     hay nada que desenfocar: el filtro se evalúa contra alfa cero y devuelve
+     alfa cero. Es la misma trampa que ya está documentada en `data-diagram`
+     para el vidrio, y el desenfoque de verdad lo pone el compositor con la
+     pasada de máscara. Se quita: un filtro que no hace nada cuesta una capa
+     de composición por fotograma y sugiere que el efecto está puesto. */
+  .w {
+    position: relative;
+    display: inline-block;
+    padding: 2px 6px;
+    /* Un subtítulo NO puede sacar su tinta del tema. Al quitarle el fondo se
+       quedó con `--ink-faint`, que es un tono medio en los dos temas, y sobre
+       metraje de tono medio —que es lo que promedia un plano— desaparecía:
+       medido, la palabra pendiente quedaba a 1,1:1 contra un gris de piel.
+
+       La tinta es SIEMPRE el papel de la marca sobre el contorno de su tinta,
+       en los dos temas, y lo que distingue pendiente de dicha de activa es la
+       OPACIDAD, no el color. Es lo único que se lee igual sobre un plano
+       oscuro, uno claro y uno a contraluz. */
+    -webkit-text-stroke: 0.05em var(--velo-oscuro);
+    paint-order: stroke fill;
+    text-shadow: 0 3px 0 rgba(0,0,0,0.5), 0 0 20px rgba(0,0,0,0.55);
+    font-family: var(--subs);
+    font-weight: var(--w-negro);
+    letter-spacing: var(--tr-texto); line-height: 1.1;
+    color: var(--velo-claro);
+    opacity: 0.52;
+    transform-origin: 50% 60%;
+    will-change: transform, color, font-variation-settings;
+  }
+
+  /* EL RELLENO. Esto es lo que faltaba y lo que da nombre a la plantilla:
+     un karaoke no CAMBIA de color al llegar a la palabra, se RELLENA
+     mientras se pronuncia. La versión anterior conmutaba tres clases —
+     pendiente, activa, dicha— y entre conmutación y conmutación no se movía
+     nada. Con la ficha real, «MAC» dura 2,7 de los 5 segundos de la capa: el
+     39 % del plano era una imagen fija.
+
+     Se hace con una copia del texto recortada por `inset`, no con un
+     `background-clip: text` sobre un degradado que se desplaza: el degradado
+     tiene un borde difuso y aquí hace falta un CANTO —la sílaba está dicha o
+     no lo está—. */
+  .w .relleno {
+    position: absolute; inset: 8px 14px;
+    color: var(--ink);
+    white-space: pre;
+    pointer-events: none;
+    will-change: clip-path;
+  }
+  /* El filo del relleno: 2 px de bronce que van con él. Es lo que hace que se
+     lea como algo que AVANZA y no como dos mitades de color. */
+  .w .filo {
+    position: absolute; top: 4px; bottom: 4px; width: 2px;
+    background-image: linear-gradient(180deg,
+      var(--metal-3), var(--metal-4) 50%, var(--metal-1));
+    will-change: transform, opacity;
+  }
+
+  /* El estado NO se pinta con una clase: `draw` escribe `opacity` en línea
+     para el fundido del bloque y un estilo en línea gana a cualquier clase.
+     Se multiplican los dos factores en `draw`, que además es lo correcto: la
+     visibilidad de una palabra es la del bloque POR la de su estado. */
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="zona" id="zona"></div>
+</div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span } = Engine;
+
+const zona = document.getElementById('zona');
+let bloques = [], nodos = [];
+
+Engine.register({
+  duration: 6,
+  defaults: {
+    y: 1380,          // se sobreescribe con la zona segura de face.json
+    alto: 380,
+    tam: 62,
+    pop: 0.12,
+    bloques: [
+      { ini: 0, fin: 2, palabras: [
+        { w: 'ESTO', ini: 0.0, fin: 0.5 },
+        { w: 'LO',   ini: 0.5, fin: 0.8 },
+        { w: 'HACE', ini: 0.8, fin: 1.2 },
+        { w: 'SOLO', ini: 1.2, fin: 2.0 }
+      ]}
+    ]
+  },
+
+  setup(cfg) {
+    /* `tercio` ancla los subtítulos sin tener que calcular píxeles:
+       'inferior' es lo normal en vertical, 'superior' cuando el gráfico
+       principal vive abajo. Un `y` explícito sigue mandando sobre esto. */
+    /* Fracciones del lienzo, no píxeles: en 16:9 el alto es 1080 y unos
+       tercios calculados para 1920 dejaban los subtítulos FUERA de cuadro.
+       Se resta el alto de la zona para que el anclaje sea del bloque, no
+       de su borde superior. */
+    const HV = window.innerHeight;
+    const altoZona = cfg.alto || 380;
+    const TERCIOS = { superior: HV * 0.10,
+                      centro:   HV * 0.5 - altoZona / 2,
+                      inferior: HV * 0.90 - altoZona };
+    /* `tercio` manda sobre `y`. No basta con mirar si `y` está definida:
+       el motor fusiona los `defaults` de la plantilla, que YA traen una,
+       así que `cfg.y` nunca es undefined y el tercio no se aplicaba nunca.
+       Un fallo silencioso: los subtítulos se iban fuera de cuadro sin que
+       nada avisara. */
+    const porTercio = cfg.tercio && TERCIOS[cfg.tercio] !== undefined;
+    zona.style.top = (porTercio ? TERCIOS[cfg.tercio]
+                                : (cfg.y !== undefined ? cfg.y
+                                                       : TERCIOS.inferior)) + 'px';
+    document.body.toggleAttribute('data-tema-claro',
+      (cfg.tema || 'carbon') === 'paper');
+
+    zona.style.height = cfg.alto + 'px';
+    bloques = cfg.bloques || [];
+
+    /* se crean todas las palabras y se ocultan las que no tocan: así el
+       layout de cada bloque es estable y no bailan al cambiar */
+    zona.innerHTML = '';
+
+    /* `cfg.caja` se sigue aceptando y ya no hace nada: los subtítulos no
+       llevan fondo. Se lee aquí para que un plan viejo que la pase no
+       reviente, y para que quede escrito que la clave existe y está muerta. */
+    void cfg.caja;
+    nodos = bloques.map(b => b.palabras.map(p => {
+      const s = document.createElement('span');
+      s.className = 'w pend';
+      s.style.fontSize = cfg.tam + 'px';
+      s.textContent = p.w;
+      /* La copia rellena va DENTRO y con el mismo texto: así hereda cuerpo,
+         familia, tracking y peso sin repetir ni una regla, y cualquier cambio
+         de eje variable en el padre la arrastra. */
+      const rel = document.createElement('span');
+      rel.className = 'relleno';
+      rel.textContent = p.w;
+      const filo = document.createElement('i');
+      filo.className = 'filo';
+      s.appendChild(rel);
+      s.appendChild(filo);
+      zona.appendChild(s);
+      s._rel = rel; s._filo = filo;
+      return s;
+    }));
+  },
+
+  draw(t, cfg) {
+    bloques.forEach((b, bi) => {
+      const visible = t >= b.ini && t <= b.fin;
+      const apar = span(t, b.ini, 0.13, Ease.outCubic);
+      const desap = 1 - span(t, b.fin - 0.13, 0.13, Ease.outCubic);
+      const alfa = visible ? Math.min(apar, desap) : 0;
+
+      b.palabras.forEach((p, wi) => {
+        const el = nodos[bi][wi];
+        el.style.display = visible ? 'inline-block' : 'none';
+        if (!visible) return;
+
+        const activa = t >= p.ini && t < p.fin;
+        const dicha = t >= p.fin;
+        el.className = 'w ' + (activa ? 'activa' : dicha ? 'dicha' : 'pend');
+
+        /* Cuánto de la palabra se ha PRONUNCIADO ya. Es el reloj de la propia
+           palabra, no un escalonado inventado: la plantilla recibe `ini` y
+           `fin` de cada una y hasta ahora solo los usaba para decidir de qué
+           color pintarla. */
+        const q = dicha ? 1
+                : activa ? Engine.clamp((t - p.ini) / Math.max(0.001, p.fin - p.ini), 0, 1)
+                : 0;
+        el._rel.style.clipPath = `inset(0 ${((1 - q) * 100).toFixed(2)}% 0 0)`;
+        el._filo.style.left = `calc(14px + (100% - 28px) * ${q.toFixed(4)})`;
+        el._filo.style.opacity = (activa ? 1 : 0);
+
+        /* El peso acompaña al relleno en vez de saltar con la clase: 300 en
+           frío, 800 mientras se dice, 500 cuando ya está. Es §1 —jerarquía
+           dentro de la línea— y de paso una propiedad más que se anima de
+           forma continua durante toda la palabra. */
+        Engine.peso(el, Math.round(300 + (activa ? 500 * (0.4 + 0.6 * q) : dicha ? 200 : 0)));
+
+        /* Realce contenido: 6 % de escala, no un salto. Y flotación de reposo
+           (§10) con el índice de la palabra, para que la línea respire sin que
+           las palabras se muevan en bloque. */
+        const g = activa ? (1 - span(t, p.ini, cfg.pop, Ease.outCubic)) : 0;
+        const fl = Engine.flota(t, wi + bi * 13, { amp: 1.8, periodo: 7.9, semilla: 9 });
+        el.style.transform =
+          `translate(${fl.x.toFixed(2)}px, ${fl.y.toFixed(2)}px) ` +
+          `scale(${(1 + 0.06 * g).toFixed(3)})`;
+        /* 0,52 pendiente · 1 activa · 0,82 dicha. Es lo único que distingue
+           los tres estados: sobre metraje arbitrario, distinguirlos por tinta
+           obliga a un tono medio, y un tono medio desaparece. */
+        el.style.opacity = alfa * (activa ? 1 : dicha ? 0.82 : 0.52);
+      });
+    });
+
+  }
+});
+</script>
+</body>
+</html>

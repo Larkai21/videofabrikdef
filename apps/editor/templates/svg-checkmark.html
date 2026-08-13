@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Check de verificación</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage { position: absolute; inset: 0; }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  #aro { fill: none; stroke: var(--verde, var(--senal-ok)); stroke-width: 10; }
+  #tic { fill: none; stroke: var(--verde, var(--senal-ok)); stroke-width: 13;
+         stroke-linecap: round; stroke-linejoin: round;
+         filter: drop-shadow(0 0 14px rgba(61,214,140,0.6)); }
+  .etq { position: absolute; left: 0; right: 0; margin-inline: auto;
+         width: fit-content; font-family: var(--display); font-weight: 800;
+         color: var(--ink); text-shadow: 0 3px 0 rgba(0,0,0,0.5);
+         white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <svg id="svg" viewBox="0 0 1080 1920">
+    <circle id="aro"></circle>
+    <path id="tic"></path>
+  </svg>
+  <div class="etq" id="etq"></div></div>
+
+<script src="_engine.js"></script>
+<script>
+const { Ease, span, clamp, noise } = Engine;
+
+const aro=document.getElementById('aro'), tic=document.getElementById('tic');
+const etq=document.getElementById('etq');
+let lAro=1, lTic=1;
+
+Engine.register({
+  duration: 1.2,
+  defaults: { x: 540, y: 820, r: 110, texto: '', tam: 76 },
+
+  setup(cfg) {
+    aro.setAttribute('cx',cfg.x); aro.setAttribute('cy',cfg.y);
+    aro.setAttribute('r',cfg.r);
+    const k=cfg.r;
+    tic.setAttribute('d',
+      `M${cfg.x-k*0.44} ${cfg.y+k*0.04} L${cfg.x-k*0.10} ${cfg.y+k*0.38} L${cfg.x+k*0.48} ${cfg.y-k*0.34}`);
+    lAro = 2*Math.PI*cfg.r; lTic = tic.getTotalLength()||1;
+    aro.style.strokeDasharray=lAro; tic.style.strokeDasharray=lTic;
+    /* El aro arranca ARRIBA, no a las 3 en punto: un círculo que se cierra
+       desde el lado se lee raro porque no es donde el ojo espera el inicio. */
+    aro.style.transformOrigin=`${cfg.x}px ${cfg.y}px`;
+    aro.style.transform='rotate(-90deg)';
+    etq.textContent=cfg.texto||'';
+    etq.style.fontSize=cfg.tam+'px';
+    etq.style.top=(cfg.y+cfg.r+34)+'px';
+  },
+
+  draw(t, cfg) {
+    const a=span(t,0,0.42,Ease.outCubic);
+    aro.style.strokeDashoffset=lAro*(1-a);
+    /* El tic entra CUANDO el aro ya casi ha cerrado: si van a la vez, no
+       hay causa y efecto, solo dos trazos moviéndose. */
+    const c=span(t,0.30,0.26,Ease.outCubic);
+    tic.style.strokeDashoffset=lTic*(1-c);
+    const reb = t>0.56 ? Math.exp(-10*(t-0.56))*Math.sin(24*(t-0.56))*0.06 : 0;
+    document.getElementById('svg').style.transformOrigin=`${cfg.x}px ${cfg.y}px`;
+    document.getElementById('svg').style.transform=`scale(${1+reb})`;
+    const e=span(t,0.5,0.25,Ease.outCubic);
+    etq.style.opacity=e; etq.style.transform=`translateY(${(1-e)*16}px)`;
+    const fin=1-span(t,(cfg.duration||1.2)-0.24,0.24,Ease.inOutCubic);
+    aro.style.opacity=fin; tic.style.opacity=fin; etq.style.opacity=e*fin;
+  }
+});
+</script>
+</body>
+</html>
