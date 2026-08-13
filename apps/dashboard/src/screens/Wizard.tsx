@@ -146,6 +146,25 @@ export function Wizard() {
                 onChange={(e) => setCompetitors(e.target.value)}
                 placeholder={'https://www.youtube.com/@canal1\nhttps://www.youtube.com/@canal2'}
               />
+              {/* validación VISIBLE línea a línea (auditoría, hallazgo 16):
+                  antes una URL rota se descubría cuando el wizard fallaba */}
+              {(() => {
+                const malas = splitLines(competitors).filter((l) => {
+                  try {
+                    const u = new URL(l);
+                    return u.protocol !== 'https:' && u.protocol !== 'http:';
+                  } catch {
+                    return true;
+                  }
+                });
+                return malas.length > 0 ? (
+                  <span className="fs-sm" style={{ color: 'var(--danger)' }}>
+                    {malas.length === 1
+                      ? `No parece una URL: ${malas[0]}`
+                      : `${malas.length} líneas no parecen URLs (la primera: ${malas[0]})`}
+                  </span>
+                ) : null;
+              })()}
             </Field>
           </Section>
           <div style={{ display: 'flex', gap: 8 }}>
