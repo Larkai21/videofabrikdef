@@ -1256,9 +1256,17 @@ determinismo se conserva**: mismo `t`, mismo pixel.
   responden al tema. Los hexadecimales que no pasan por variable siguen ahí,
   delimitados con `PALETA-AJENA` y **contados aparte** por
   `auditar_estilo.js`. Ese número es la deuda y se ve.
-- **Sonido.** Entran mudas: ninguna publica `cues`.
-- **Anclas.** Ninguna publica `anclas()`, así que `colocar.py` no puede
-  medir su caja para apartarla del rostro.
+- **Sonido.** Entran mudas POR DEFECTO; `config.cue` (+ `cueGain`) pide un
+  sonido del banco a mano. Lo que falta es la tabla del director que sepa
+  qué suena cada familia sin pedírselo capa a capa.
+- **Anclas.** ~~Ninguna publica `anclas()`~~ — desactualizado, y esta viñeta
+  fue el aviso: el puente MIDE la caja de tinta (unión de rectángulos
+  visibles a coordenadas de lienzo, dos pasadas para no devolver el lienzo
+  entero) y las 125 generadas la publican; verificado headless el 13-ago
+  (lower-third → y 1306, alto 228). `colocar.py` las ve como a cualquier
+  plantilla propia. La diferencia que queda: la caja medida es la del
+  bloque entero, no «la parte que importa» que una plantilla propia declara
+  con criterio.
 - **Maqueta.** Están pensadas para 1920×1080 y aquí se escalan al ancho del
   lienzo vertical dentro de una caja de su tamaño declarado. Es un apaño
   —`config.encaje: false` lo desactiva— y la solución de verdad es rehacer
