@@ -65,6 +65,12 @@ diseñar módulos nuevos o tomar decisiones de arquitectura.
 - `pnpm rerank` — banco de matching sobre los planos etiquetados
 - `pnpm encuadre` — banco de encuadre 9:16 (encuadreDe + foco) sobre los planos
   etiquetados de los shorts reales
+- `pnpm encuadre:kf [--regenerar]` — banco de REGRESIÓN del tracking (kf) sobre
+  planos con vaivén real (calibracion/vaiven); golden = salida congelada del
+  sidecar, vigila el determinismo
+- `pnpm clips:director <episodeId> [--con-risas] [--guardar]` — banco del
+  director de highlights: corre el prompt sobre los beats reales sin cola ni
+  inserción; con LLM_MODEL contrasta proveedores
 - `pnpm calidad <videoId>` — informe de calidad + hoja de contactos; incluye los
   shorts del vídeo con los umbrales del formato y su hoja 9:16
 - `pnpm metricas <csv>` — importa el CSV de YouTube Studio a videos.metrics y
