@@ -29,6 +29,8 @@ export const catalogoEditorSchema = z.looseObject({
   piezas_totales: z.number().int(),
   piezas_que_admiten_copy: z.number().int(),
   reglas_que_abortan: z.array(z.string()),
+  /** banco de sonidos que el guion puede pedir por nombre (sfx) */
+  sonidos: z.array(z.string()),
   piezas: z.array(piezaCatalogoSchema),
 });
 export type CatalogoEditor = z.infer<typeof catalogoEditorSchema>;

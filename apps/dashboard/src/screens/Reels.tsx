@@ -5,6 +5,7 @@ import type { ReelDto } from '@fabrica/shared';
 import { ApiError, createReel, getChannels, getReels, retryReel } from '../lib/api';
 import { useSearch } from '../lib/search';
 import { useToasts } from '../lib/toasts';
+import { ACTO_VACIO, GuionActosEditor, serializarGuion, type ActoGuion } from '../components/GuionReel';
 import { Button, Chip, EmptyState, Incidencia, SkeletonRows } from '../components/ui';
 
 // Reels del módulo editor: A-roll PROPIO + guion de dirección JSON. El humano
@@ -28,6 +29,10 @@ export function Reels() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [nombreAroll, setNombreAroll] = useState('');
   const [titulo, setTitulo] = useState('');
+  // el guion se escribe POR ACTOS (principio 2: nada de JSON crudo); el modo
+  // avanzado con JSON pegado sigue en un pliegue para no perder capacidad
+  const [actos, setActos] = useState<ActoGuion[]>([{ ...ACTO_VACIO }]);
+  const [modoAvanzado, setModoAvanzado] = useState(false);
   const [guion, setGuion] = useState('');
 
   const canalesQ = useQuery({ queryKey: ['channels'], queryFn: getChannels });
@@ -43,28 +48,34 @@ export function Reels() {
 
   const invalidar = () => void queryClient.invalidateQueries({ queryKey: ['reels'] });
 
-  // el guion se valida aquí solo como JSON bien formado; el contrato de
-  // dirección lo valida el módulo editor al preparar (y avisa por incidencia)
-  const guionValido = (() => {
-    if (guion.trim() === '') return false;
-    try {
-      const parsed: unknown = JSON.parse(guion);
-      return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed);
-    } catch {
-      return false;
-    }
-  })();
+  // en modo actos el guion válido = todos los actos con texto; en avanzado,
+  // JSON bien formado (el contrato fino lo valida el editor al preparar)
+  const guionValido = modoAvanzado
+    ? (() => {
+        if (guion.trim() === '') return false;
+        try {
+          const parsed: unknown = JSON.parse(guion);
+          return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed);
+        } catch {
+          return false;
+        }
+      })()
+    : actos.length > 0 && actos.every((a) => a.voice_speech.trim() !== '');
 
   const crearMut = useMutation({
     mutationFn: () => {
       const file = fileRef.current?.files?.[0];
       if (file === undefined) throw new ApiError(400, 'Falta el A-roll');
-      return createReel({ file, channelId: canalActivo, guionJson: guion, title: titulo });
+      const guionJson = modoAvanzado
+        ? guion
+        : serializarGuion(titulo.trim() !== '' ? titulo : nombreAroll, actos);
+      return createReel({ file, channelId: canalActivo, guionJson, title: titulo });
     },
     onSuccess: () => {
       push('Reel en cola: transcripción y plan en marcha');
       setTitulo('');
       setGuion('');
+      setActos([{ ...ACTO_VACIO }]);
       setNombreAroll('');
       if (fileRef.current) fileRef.current.value = '';
       invalidar();
@@ -106,9 +117,9 @@ export function Reels() {
           </Link>
         </div>
         <p className="muted fs-sm" style={{ margin: '0 0 12px', lineHeight: 1.5 }}>
-          Sube tu A-roll y pega el guion de dirección (JSON del contrato del editor). La máquina
-          transcribe, cruza el guion con lo que de verdad se grabó y te deja el plan de capas para
-          firmar antes de renderizar.
+          Sube tu A-roll y escribe el guion por actos: lo que dices, qué tarjeta entra y qué
+          palabras se resaltan. La máquina transcribe, cruza el guion con lo que de verdad se
+          grabó y te deja el plan de capas para firmar antes de renderizar.
         </p>
         <form
           style={{ display: 'grid', gap: 8 }}
@@ -159,21 +170,35 @@ export function Reels() {
               </span>
             ) : null}
           </div>
-          <textarea
-            className="control"
-            rows={6}
-            placeholder='{"pieces": [{"act": 1, "voice_speech": "…"}]}'
-            aria-label="Guion de dirección (JSON)"
-            value={guion}
-            onChange={(e) => setGuion(e.target.value)}
-            style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-sm)' }}
-          />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {guion.trim() !== '' && !guionValido ? (
+          {modoAvanzado ? (
+            <textarea
+              className="control"
+              rows={8}
+              placeholder="El guion completo del contrato del editor, en JSON (micro-FX, media local, posiciones…)"
+              aria-label="Guion de dirección (JSON avanzado)"
+              value={guion}
+              onChange={(e) => setGuion(e.target.value)}
+              style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-sm)' }}
+            />
+          ) : (
+            <GuionActosEditor actos={actos} onChange={setActos} />
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {modoAvanzado && guion.trim() !== '' && !guionValido ? (
               <span className="fs-sm" style={{ color: 'var(--danger)' }}>
                 El guion no es un objeto JSON válido
               </span>
             ) : null}
+            <button
+              type="button"
+              className="nav-link muted fs-sm"
+              style={{ background: 'none', border: 0, cursor: 'pointer', padding: 0 }}
+              onClick={() => setModoAvanzado((v) => !v)}
+            >
+              {modoAvanzado
+                ? '← Volver al guion por actos'
+                : 'Modo avanzado (JSON del contrato: micro-FX, media local…)'}
+            </button>
             <div style={{ flex: 1 }} />
             <Button
               variant="primary"
