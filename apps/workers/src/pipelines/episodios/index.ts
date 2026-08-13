@@ -16,6 +16,7 @@ import {
 } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
 import { closeCost, failCost, openCost } from '../../lib/ledger.js';
+import { exprCropX, suavizarKf, type KeyframeEncuadre } from './encuadre.js';
 import { createMedia, EPISODE_MAX_S } from '../../providers/media.js';
 import { createStt } from '../../providers/stt.js';
 import { loudnormToWav, measureLufs, probeDurationMs } from '../tts/audio.js';
@@ -313,6 +314,8 @@ export interface TramoEncuadre {
   from_ms: number;
   to_ms: number;
   x: number | null;
+  /** serie cruda del hablante (reloj de la VENTANA); el suavizado es del worker */
+  kf?: { t_ms: number; x: number }[];
 }
 
 /**
@@ -357,16 +360,31 @@ async function planDeEncuadre(
  * POR PLANO horneado — un foco fijo encuadraba al único que no hablaba
  * (medido en el primer clip real); el salto de x cae exactamente en el corte
  * de realización, así que no se ve como movimiento sino como cambio de plano.
+ * DENTRO del plano, si el sidecar trajo serie (kf), la x deja de estar
+ * clavada: paneo suave por keyframes (suavizarKf + zona muerta), horneado en
+ * la expresión del crop — el hablante que se mece ya no se sale del cuadro.
  */
 async function precortarClip(params: {
   mediaPath: string;
   /** piezas en el reloj de ORIGEN, ya apretadas y con su x de encuadre */
-  piezas: { src_from_ms: number; src_to_ms: number; x: number | null }[];
+  piezas: {
+    src_from_ms: number;
+    src_to_ms: number;
+    x: number | null;
+    kf?: { t_ms: number; x: number }[];
+  }[];
   focusX: number;
   width: number;
   height: number;
   destDir: string;
-}): Promise<{ clipVideoPath: string; clipAudioPath: string; lufs: number; durMs: number }> {
+}): Promise<{
+  clipVideoPath: string;
+  clipAudioPath: string;
+  lufs: number;
+  durMs: number;
+  /** keyframes suavizados por pieza (reloj de ORIGEN); null = x fija */
+  kfPorPieza: (KeyframeEncuadre[] | null)[];
+}> {
   const { mediaPath, piezas, focusX, width, height, destDir } = params;
   fs.mkdirSync(destDir, { recursive: true });
   // El recorte va al ASPECTO DE LA TARJETA (~0,95:1), no a 9:16: la tarjeta
@@ -383,18 +401,34 @@ async function precortarClip(params: {
   // puntos de corte
   const partesV: string[] = [];
   const partesA: string[] = [];
+  const kfPorPieza: (KeyframeEncuadre[] | null)[] = [];
   let xPrev = focusX;
   for (const [i, t] of piezas.entries()) {
     let fx = t.x ?? xPrev;
     if (Math.abs(fx - xPrev) < 0.08) fx = xPrev;
     xPrev = fx;
+    // tracking continuo: la serie llega en reloj de VENTANA/ORIGEN y el crop
+    // corre en el reloj del SEGMENTO (-ss lo pone a cero)
+    const serie = (t.kf ?? [])
+      .filter((k) => k.t_ms >= t.src_from_ms && k.t_ms <= t.src_to_ms)
+      .map((k) => ({ t_ms: k.t_ms - t.src_from_ms, x: k.x }));
+    const suaves = suavizarKf(fx, serie);
+    const conPaneo = suaves.length > 1;
+    kfPorPieza.push(
+      conPaneo ? suaves.map((k) => ({ t_ms: t.src_from_ms + k.t_ms, x: k.x })) : null,
+    );
+    // el siguiente arranque compara contra donde el paneo DEJÓ la cámara
+    if (conPaneo) xPrev = suaves[suaves.length - 1]!.x;
+    const xExpr = conPaneo
+      ? `'${exprCropX(suaves.map((k) => ({ t_s: k.t_ms / 1000, x_px: xPx(k.x) })))}'`
+      : String(xPx(fx));
     const desdeS = (t.src_from_ms / 1000).toFixed(3);
     const durS = ((t.src_to_ms - t.src_from_ms) / 1000).toFixed(3);
     const parteV = path.join(destDir, `.v-${i}.mp4`);
     await ejec('ffmpeg', [
       '-nostdin', '-loglevel', 'error',
       '-ss', desdeS, '-i', mediaPath, '-t', durS,
-      '-vf', `crop=${cropW}:${height}:${xPx(fx)}:0,scale=1080:1920,fps=30`,
+      '-vf', `crop=${cropW}:${height}:${xExpr}:0,scale=1080:1920,fps=30`,
       '-c:v', 'libx264', '-crf', '18', '-preset', 'veryfast',
       '-pix_fmt', 'yuv420p', '-an', '-y', parteV,
     ]);
@@ -429,7 +463,7 @@ async function precortarClip(params: {
 
   for (const f of [...partesV, ...partesA, listaV, listaA, crudo]) fs.rmSync(f, { force: true });
   const durMs = piezas.reduce((acc, t) => acc + (t.src_to_ms - t.src_from_ms), 0);
-  return { clipVideoPath, clipAudioPath, lufs, durMs };
+  return { clipVideoPath, clipAudioPath, lufs, durMs, kfPorPieza };
 }
 
 export async function handleProposeHighlights(
@@ -513,14 +547,29 @@ export async function handleProposeHighlights(
     // 2) encuadre por plano Y por hablante sobre la ventana de ORIGEN
     const plan = await planDeEncuadre(ep.mediaPath!, c.from_ms, c.to_ms, log);
     // 3) piezas = keeps ∩ tramos de encuadre, en el reloj de ORIGEN
-    const piezas: { src_from_ms: number; src_to_ms: number; x: number | null }[] = [];
+    const piezas: {
+      src_from_ms: number;
+      src_to_ms: number;
+      x: number | null;
+      kf?: { t_ms: number; x: number }[];
+    }[] = [];
     for (const k of keeps) {
       for (const t of plan) {
         const tFrom = c.from_ms + t.from_ms;
         const tTo = c.from_ms + t.to_ms;
         const from = Math.max(k.src_from_ms, tFrom);
         const to = Math.min(k.src_to_ms, tTo);
-        if (to - from > 80) piezas.push({ src_from_ms: from, src_to_ms: to, x: t.x });
+        if (to - from > 80) {
+          // la serie del tramo viaja con la pieza, ya en reloj de ORIGEN;
+          // el suavizado y el recorte por pieza son cosa del pre-corte
+          const kf = (t.kf ?? []).map((p) => ({ t_ms: c.from_ms + p.t_ms, x: p.x }));
+          piezas.push({
+            src_from_ms: from,
+            src_to_ms: to,
+            x: t.x,
+            ...(kf.length >= 2 ? { kf } : {}),
+          });
+        }
       }
     }
     if (piezas.length === 0) {
@@ -571,10 +620,20 @@ export async function handleProposeHighlights(
       clipVideoPath: corte.clipVideoPath,
       clipAudioPath: corte.clipAudioPath,
       lufs: corte.lufs,
-      encuadrePlan: piezas.map((pz) => ({
+      encuadrePlan: piezas.map((pz, i) => ({
         from_ms: pz.src_from_ms - c.from_ms,
         to_ms: pz.src_to_ms - c.from_ms,
         x: pz.x,
+        // los keyframes SUAVIZADOS que el crop horneó de verdad (auditoría),
+        // al mismo reloj de la ventana que from_ms/to_ms
+        ...(corte.kfPorPieza[i]
+          ? {
+              kf: corte.kfPorPieza[i]!.map((k) => ({
+                t_ms: k.t_ms - c.from_ms,
+                x: k.x,
+              })),
+            }
+          : {}),
       })),
       brand: {
         ...(canal?.name !== undefined ? { channel_name: canal.name } : {}),

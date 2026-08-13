@@ -97,6 +97,11 @@ export const shortCutSchema = z.object({
         to_ms: z.number().int().positive(),
         /** x aplicada; null = sin cara en ese plano (se usó la global) */
         x: z.number().nullable(),
+        /** tracking continuo: keyframes SUAVIZADOS que el crop horneó
+            (mismo reloj de la ventana que from_ms); ausente = x fija */
+        kf: z
+          .array(z.object({ t_ms: z.number().int(), x: z.number() }))
+          .optional(),
       }),
     )
     .optional(),

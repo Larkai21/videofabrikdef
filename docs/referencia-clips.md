@@ -62,8 +62,13 @@ suelo sobre la banda de la interfaz).
 
 ## Deltas conocidos frente a la referencia
 
-- Tracking CONTINUO dentro del plano (el editor ajusta a mano el vaivén; aquí
-  el encuadre es estable por tramo).
+- ~~Tracking CONTINUO dentro del plano~~ — hecho: el sidecar conserva la serie
+  muestreada del hablante (kf), el worker la suaviza con media móvil + zona
+  muerta de 0,02 (`pipelines/episodios/encuadre.ts`, determinista) y el
+  pre-corte hornea el paneo como expresión del crop. Los keyframes aplicados
+  quedan en `encuadre_plan[].kf` del maestro (auditoría). El banco `pnpm
+  encuadre` aún no tiene casos de hablante en movimiento: falta material
+  etiquetado con vaivén real.
 - Modo full-bleed para b-roll de película (no aplica a entrevistas; pendiente
   si el material lo trae).
 - Gráficos puntuales (emojis, logos) que el editor añade a mano; emoji-pop

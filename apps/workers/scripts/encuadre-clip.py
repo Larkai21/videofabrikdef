@@ -12,8 +12,12 @@ El plan se calcula AL PROPONER y se congela (principio 6: ni un píxel se
 analiza durante el render): el pre-corte lo hornea en el fichero del clip.
 
 Salida (stdout):
-    {"tramos": [{"from_ms": 0, "to_ms": 4200, "x": 0.31}, ...]}
-    x = null si en ese plano no se ve ninguna cara.
+    {"tramos": [{"from_ms": 0, "to_ms": 4200, "x": 0.31,
+                 "kf": [{"t_ms": 150, "x": 0.31}, ...]}, ...]}
+    x = null si en ese plano no se ve ninguna cara. kf (opcional, >=2
+    muestras del hablante, reloj de la VENTANA) es la serie cruda para el
+    tracking continuo: el worker la suaviza con zona muerta — aquí solo se
+    MIDE, la política de movimiento vive en un solo sitio.
 
 Uso:
     python3 encuadre-clip.py --input episode.mp4 --from 295.2 --to 354.1
@@ -175,6 +179,16 @@ def tramos_de_hablante(video: str, t0_abs: float, t1_abs: float,
     tramos = []
     ini = 0.0
     x_actual = next((x for _, x in puntos if x is not None), None)
+    seg_kf: list[dict] = []  # muestras del HABLANTE del tramo en curso
+
+    def cerrar(hasta_s: float) -> None:
+        t = {"from_ms": round(ini * 1000), "to_ms": round(hasta_s * 1000), "x": x_actual}
+        # la serie completa viaja como keyframes: el tracking continuo del
+        # worker la suaviza; con <2 muestras no hay paneo que valga
+        if len(seg_kf) >= 2:
+            t["kf"] = list(seg_kf)
+        tramos.append(t)
+
     i = 0
     while i < len(puntos):
         t_rel, x = puntos[i]
@@ -184,14 +198,18 @@ def tramos_de_hablante(video: str, t0_abs: float, t1_abs: float,
             sig = puntos[i + 1] if i + 1 < len(puntos) else None
             confirmada = sig is None or (sig[1] is not None and abs(sig[1] - x) <= 0.08)
         if cambia and confirmada:
-            tramos.append({"from_ms": round(ini * 1000), "to_ms": round(t_rel * 1000),
-                           "x": x_actual})
+            cerrar(t_rel)
             ini = t_rel
             x_actual = x
+            seg_kf = []
         elif x is not None and x_actual is None:
             x_actual = x
+        # solo las muestras del hablante actual: la cara del OTRO no debe
+        # tirar del paneo (el cambio de hablante ya abre tramo nuevo)
+        if x is not None and x_actual is not None and abs(x - x_actual) <= 0.08:
+            seg_kf.append({"t_ms": round(t_rel * 1000), "x": x})
         i += 1
-    tramos.append({"from_ms": round(ini * 1000), "to_ms": round(dur * 1000), "x": x_actual})
+    cerrar(dur)
     return [t for t in tramos if t["to_ms"] - t["from_ms"] >= TRAMO_MIN_MS or len(tramos) == 1]
 
 
@@ -218,9 +236,14 @@ def main() -> int:
             # dos personas: mismo plano, turnos alternos)
             for sub in tramos_de_hablante(args.input, args.desde + ini,
                                           args.desde + fin, tmp, f"p{i}"):
-                tramos.append({"from_ms": round(ini * 1000) + sub["from_ms"],
-                               "to_ms": round(ini * 1000) + sub["to_ms"],
-                               "x": sub["x"]})
+                t = {"from_ms": round(ini * 1000) + sub["from_ms"],
+                     "to_ms": round(ini * 1000) + sub["to_ms"],
+                     "x": sub["x"]}
+                if "kf" in sub:
+                    # mismo desplazamiento que el tramo: todo al reloj de la VENTANA
+                    t["kf"] = [{"t_ms": round(ini * 1000) + k["t_ms"], "x": k["x"]}
+                               for k in sub["kf"]]
+                tramos.append(t)
 
     json.dump({"tramos": tramos}, sys.stdout)
     return 0
