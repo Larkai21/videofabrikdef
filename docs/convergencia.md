@@ -21,10 +21,14 @@ un coste de bug real que lo justifica, y se ataca cuando toque ese código.
 
 ## Orden de ejecución propuesto
 
-1. **Fixtures de reloj compartidos** (barato, mata la clase de bug más cara):
-   casos `keep[] × tiempos` con resultado esperado, consumidos por pytest del
-   editor Y vitest de workers. Disparador: la próxima vez que se toque
-   `apretar.ts` o `reloj.py`.
+1. ~~**Fixtures de reloj compartidos**~~ — HECHO (S1, disparado por el corte
+   semántico que toca `apretar.ts`): `apps/editor/tests/fixtures/reloj/casos.json`
+   consumido por `tests/test_reloj_compartido.py` (columna `clamp_ms`, la
+   semántica del editor: al borde) y por
+   `apps/workers/src/pipelines/episodios/reloj-compartido.test.ts` (columna
+   `out_ms`, la del worker: null = se cae). La divergencia fuera del keep es
+   diseño y está congelada lado a lado; dentro del keep, mapear distinto es
+   un test en rojo.
 2. **Adaptador STT**: `providers/stt.ts` → formato de tokens del editor
    (`transcript.json` con `words[{w,start,end,p}]`). Disparador: cuando el
    worker de reels necesite el backend whisper-API (hoy mlx local basta).

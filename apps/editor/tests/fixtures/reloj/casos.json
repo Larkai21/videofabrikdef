@@ -1,0 +1,73 @@
+{
+  "_que": "Contrato compartido del reloj origen→salida tras quitar silencios. Lo consumen pytest (scripts/reloj.py, Mapa) Y vitest (apps/workers apretar.ts, remapear): dos implementaciones del mismo concepto que tienen que mapear IGUAL dentro de un keep.",
+  "_por_que": "La clase de bug más cara de los dos pipelines es un reloj desfasado: subtítulos que derivan, gráficos en el segundo de otro. docs/convergencia.md fija este fixture como el paso 1 — se disparó al tocar apretar.ts (corte semántico).",
+  "_semantica": "Dentro de un keep, ambos devuelven out_start + (t - src_start). FUERA difieren A PROPÓSITO y las dos columnas lo congelan: clamp_ms es el editor (Mapa lleva el tiempo al borde más cercano: un gráfico anclado a una pausa tiene que ir a algún sitio) y out_ms es el worker (remapear devuelve null: un token cortado se cae). Unidades: ms enteros; el editor divide entre 1000.",
+  "casos": [
+    {
+      "nombre": "identidad: un keep desde cero, nada cortado",
+      "keep": [{ "src_start_ms": 0, "src_end_ms": 10000, "out_start_ms": 0 }],
+      "sondas": [
+        { "t_ms": 0, "out_ms": 0, "clamp_ms": 0 },
+        { "t_ms": 9999, "out_ms": 9999, "clamp_ms": 9999 },
+        { "t_ms": 10000, "out_ms": 10000, "clamp_ms": 10000 },
+        { "t_ms": 12000, "out_ms": null, "clamp_ms": 10000 }
+      ]
+    },
+    {
+      "nombre": "dos keeps con un silencio quitado en medio",
+      "keep": [
+        { "src_start_ms": 0, "src_end_ms": 4200, "out_start_ms": 0 },
+        { "src_start_ms": 6000, "src_end_ms": 10000, "out_start_ms": 4200 }
+      ],
+      "sondas": [
+        { "t_ms": 0, "out_ms": 0, "clamp_ms": 0 },
+        { "t_ms": 2500, "out_ms": 2500, "clamp_ms": 2500 },
+        { "t_ms": 4200, "out_ms": 4200, "clamp_ms": 4200 },
+        { "t_ms": 5000, "out_ms": null, "clamp_ms": 4200 },
+        { "t_ms": 6000, "out_ms": 4200, "clamp_ms": 4200 },
+        { "t_ms": 8100, "out_ms": 6300, "clamp_ms": 6300 },
+        { "t_ms": 10000, "out_ms": 8200, "clamp_ms": 8200 },
+        { "t_ms": 11000, "out_ms": null, "clamp_ms": 8200 }
+      ]
+    },
+    {
+      "nombre": "los mismos dos keeps DESORDENADOS: el orden no puede cambiar el reloj",
+      "keep": [
+        { "src_start_ms": 6000, "src_end_ms": 10000, "out_start_ms": 4200 },
+        { "src_start_ms": 0, "src_end_ms": 4200, "out_start_ms": 0 }
+      ],
+      "sondas": [
+        { "t_ms": 2500, "out_ms": 2500, "clamp_ms": 2500 },
+        { "t_ms": 5000, "out_ms": null, "clamp_ms": 4200 },
+        { "t_ms": 8100, "out_ms": 6300, "clamp_ms": 6300 }
+      ]
+    },
+    {
+      "nombre": "tres keeps, ventana que no empieza en cero",
+      "keep": [
+        { "src_start_ms": 1000, "src_end_ms": 2000, "out_start_ms": 0 },
+        { "src_start_ms": 3000, "src_end_ms": 3500, "out_start_ms": 1000 },
+        { "src_start_ms": 5000, "src_end_ms": 7000, "out_start_ms": 1500 }
+      ],
+      "sondas": [
+        { "t_ms": 500, "out_ms": null, "clamp_ms": 0 },
+        { "t_ms": 1500, "out_ms": 500, "clamp_ms": 500 },
+        { "t_ms": 2000, "out_ms": 1000, "clamp_ms": 1000 },
+        { "t_ms": 2400, "out_ms": null, "clamp_ms": 1000 },
+        { "t_ms": 3200, "out_ms": 1200, "clamp_ms": 1200 },
+        { "t_ms": 4000, "out_ms": null, "clamp_ms": 1500 },
+        { "t_ms": 6000, "out_ms": 2500, "clamp_ms": 2500 },
+        { "t_ms": 7000, "out_ms": 3500, "clamp_ms": 3500 },
+        { "t_ms": 9000, "out_ms": null, "clamp_ms": 3500 }
+      ]
+    },
+    {
+      "nombre": "keep vacío: no se conserva metraje",
+      "keep": [],
+      "sondas": [
+        { "t_ms": 0, "out_ms": null, "clamp_ms": 0 },
+        { "t_ms": 5000, "out_ms": null, "clamp_ms": 0 }
+      ]
+    }
+  ]
+}
