@@ -1,6 +1,11 @@
 # Plan: que el sistema sepa dibujar cualquier idea
 
-Sprint propuesto. No implementado — este documento es el diseño.
+Sprint propuesto el 5-ago-2026. **Parcialmente ejecutado** (estado a
+13-ago-2026): la Fase 1 entera y el port a columna de la Fase 2 ya están en el
+código (`2ea9b43`, `166b98c`, `fdf072d`, `3efcb57`, `abf086b`), y el informe de
+cobertura de la Fase 5 también (`cobertura` en `packages/shared/src/calidad.ts`).
+Las notas «(ejecutado)» de abajo citan el código; el resto del documento sigue
+siendo el diseño vigente de lo que falta.
 
 ## El problema, con números
 
@@ -30,8 +35,16 @@ Tres capas, y las tres están cortas.
 efecto, doce son «texto o cifra dentro de un rectángulo»: `text_callout`,
 `quote_card`, `stat_card`, `stat_odometer`, `kinetic_text`, `device_frame`… Solo
 tres describen una RELACIÓN —`split_versus` (dos cosas enfrentadas),
-`pasos_flow` (un proceso), `tendencia` (algo que sube o baja)— y los tres están
-desactivados en vertical porque se maquetan en fila.
+`pasos_flow` (un proceso), `tendencia` (algo que sube o baja)—.
+
+> **(ejecutado, `3efcb57`)** Los tres YA viajan al vertical: se maquetan en
+> COLUMNA cuando el lienzo es vertical (`col = lienzo.vertical` en
+> `SplitVersus`/`PasosFlow`, `packages/video/src/effects/index.tsx`) y
+> `SHORT_EDIT_ALLOWED` los permite con su motivo medido
+> (`packages/shared/src/short-json.ts:186-194`). La versión anterior de este
+> párrafo — «los tres están desactivados en vertical porque se maquetan en
+> fila» — describía el código de antes de `3efcb57` y contradecía a
+> `docs/motion-graphics-vertical.md`, que es quien tenía razón.
 
 Para «cuello de botella» no hay nada. Tampoco para «esto depende de aquello»,
 «de aquí salen tres caminos», «esto creció y luego se hundió», «A es 10 veces B»
@@ -49,6 +62,12 @@ amontonar— pero es un techo duro: un short de 25 s tiene 2-3 beats, así que p
 muchos efectos que se generen, salen 2 o 3. Los presupuestos (`FX_CARDS_PER_MIN`
 y compañía) van por minuto, y sobre 30 s dan 0,6 tarjetas.
 
+> **(ejecutado, `166b98c` + `fdf072d`)** La capa 3 ya no está corta:
+> `dedupeAndCap` acepta un `PresupuestoFx` cuyo `granoMs` sustituye al beat
+> como franja de no-amontonamiento, y el largo sigue pasando
+> `presupuestoLargo()` por defecto (editing-director.ts:1090-1130). Las capas
+> 1 y 2 siguen siendo el diseño pendiente (fases 2 y 3).
+
 ## Lo que este sprint entrega
 
 Que el sistema, ante una frase cualquiera, sepa **elegir una forma que la
@@ -57,16 +76,21 @@ y con la densidad que cada uno pide.
 
 ---
 
-## Fase 1 — Densidad por formato
+## Fase 1 — Densidad por formato **(ejecutada)**
 
-Desbloquea el short inmediatamente y no añade vocabulario.
+Desbloquea el short inmediatamente y no añade vocabulario. Ejecutada en
+`2ea9b43` (constantes), `166b98c` (pasada propia `efectosDelShort` +
+`PRESUPUESTO_VERTICAL`) y `fdf072d` (el prompt vertical pregunta por segundos):
+los tres puntos de abajo describen exactamente lo que quedó en el código.
 
 - **Presupuesto por pieza, no por minuto.** `spreadByWindows` ya reparte en
   ventanas; lo que falta es que el número de ventanas venga dado en vez de
   derivarse de `duración × tasa/min`. Sobre 30 s la tasa por minuto degenera a
-  una sola ventana y el mecanismo se pierde. Las constantes verticales ya están
-  escritas (`SHORT_CARDS_MAX = 3`, `SHORT_MICRO_MAX = 4`, `SHORT_KEYWORDS_MAX = 8`,
-  `SHORT_ZOOMS_MAX = 5`) y hoy no las consume nadie.
+  una sola ventana y el mecanismo se pierde. Las constantes verticales
+  (`SHORT_CARDS_MAX = 3`, `SHORT_MICRO_MAX = 4`, `SHORT_KEYWORDS_MAX = 8`,
+  `SHORT_ZOOMS_MAX = 5`) las consume `PRESUPUESTO_VERTICAL`
+  (editing-director.ts:1105-1117), absoluto por pieza; cuando este plan se
+  escribió no las consumía nadie.
 - **La unidad de no-amontonamiento deja de ser el beat.** Pasa a ser una
   separación temporal (`FX_CARD_SEP_MS`, que ya existe). Un beat de 12 s puede
   llevar dos tarjetas si están separadas 7 s; un beat de 3 s no lleva dos.
@@ -87,11 +111,13 @@ en `EDIT_RENDER_KIND` y `SHORT_EDIT_ALLOWED` + payload en la unión discriminada
 + su línea en el prompt. Los dos `Record` completos son la red: un tipo sin
 clasificar no compila.
 
-**Primero, recuperar lo que ya existe.** `split_versus`, `pasos_flow` y
-`tendencia` están implementados y probados, y solo están fuera del vertical
-porque se maquetan en fila. Portarlos a columna es trabajo acotado y ya da tres
-relaciones: comparación, proceso y evolución. `pasos_flow` con una estación
-estrangulada **es** un cuello de botella.
+**Primero, recuperar lo que ya existe (ejecutado, `3efcb57` + `abf086b`).**
+`split_versus`, `pasos_flow` y `tendencia` ya se maquetan en columna en
+vertical y `SHORT_EDIT_ALLOWED` los permite; además el director de edición del
+short puede PEDIRLOS (`versus`, `pasos`, `tendencia` en su esquema de
+momentos), no solo heredarlos del guion. Eso ya da tres relaciones:
+comparación, proceso y evolución. `pasos_flow` con una estación estrangulada
+**es** un cuello de botella.
 
 **Después, las relaciones que faltan.** Propuesta, por orden de cuántas frases
 de este nicho cubren:
@@ -143,9 +169,12 @@ Una forma sin datos correctos es peor que ninguna. Hoy `items` es texto libre y
 
 ## Fase 5 — Saber si ha funcionado
 
-- **Informe de cobertura**: cuántos segundos de la pieza no tienen nada en
-  pantalla más allá del b-roll y el subtítulo. Es el número que mide este sprint,
-  y hoy no existe. Entra en `analizarMaster`, junto a los avisos que ya da.
+- **Informe de cobertura (ejecutado, `3833796`)**: cuántos segundos de la pieza
+  no tienen nada en pantalla más allá del b-roll y el subtítulo. Es el número
+  que mide este sprint. Vive en `cobertura` (packages/shared/src/calidad.ts),
+  entra en `analizarMaster` y `analizarShort` como `cobertura_grafica` +
+  `hueco_grafico_s` (con el desglose de huecos), y lo imprimen `pnpm calidad`
+  y el A/B de `scripts/ab-edicion.ts`.
 - **Previews por forma**: cada forma nueva, con la marca real, en los dos
   lienzos. `preview:marca` ya hace esto para las cuatro piezas del kit.
 - **Banco de frases**: 30-40 frases reales de los guiones producidos, con la
