@@ -1,7 +1,7 @@
 import { Player } from '@remotion/player';
 import { extractYoutubeId, FPS, SHORT_HEIGHT, SHORT_WIDTH, type ShortDto } from '@fabrica/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ApiError,
@@ -13,12 +13,13 @@ import {
   getShort,
   markShortPublished,
   proposeEpisodeClips,
+  proposeEpisodeClipWindow,
   renameShort,
   retryShort,
   shortDownloadUrl,
 } from '../lib/api';
 import { useLive } from '../lib/events';
-import { fmtClock } from '../lib/format';
+import { fmtClock, parseClock } from '../lib/format';
 import { useHotkeys } from '../lib/hotkeys';
 import { loadShortForm } from '../lib/shortform';
 import { PlayerBoundary } from '../lib/longform';
@@ -34,6 +35,7 @@ import {
   ProgressBar,
   ReasonModal,
   SkeletonRows,
+  useModalKeyboard,
 } from '../components/ui';
 
 // Aprobación de clips de un episodio externo. Es el espejo de la pantalla de
@@ -47,6 +49,151 @@ const MOTIVOS_DESCARTE = [
   { id: 'repetido', label: 'Dice lo mismo que otro candidato' },
   { id: 'corte', label: 'El corte entra o sale a mitad de idea' },
 ];
+
+/**
+ * Subventana a mano: dos relojes y la ventana manda. Es la vía para momentos
+ * que el director evita por criterio o zonas ya usadas — el operador mira el
+ * episodio en YouTube, apunta entrada y salida y las teclea aquí. El worker
+ * ajusta los bordes a frases, pero no infla ni retrae la zona pedida.
+ */
+function VentanaModal({
+  open,
+  sourceUrl,
+  pending,
+  error,
+  onConfirm,
+  onClose,
+}: {
+  open: boolean;
+  sourceUrl: string | null;
+  pending: boolean;
+  /** Mensaje del servidor: el modal se queda abierto para corregir. */
+  error?: string;
+  onConfirm: (fromMs: number, toMs: number) => void;
+  onClose: () => void;
+}) {
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
+  const boxRef = useRef<HTMLDivElement>(null);
+  const desdeRef = useRef<HTMLInputElement>(null);
+  useModalKeyboard(open, boxRef, onClose, desdeRef);
+
+  if (!open) return null;
+
+  const fromMs = parseClock(desde);
+  const toMs = parseClock(hasta);
+  // la validación habla solo cuando ambos campos tienen algo que decir:
+  // corregir un campo vacío a gritos es ruido, no ayuda
+  const aviso =
+    desde !== '' && fromMs === null
+      ? 'No entiendo la entrada — usa m:ss (por ejemplo 12:40)'
+      : hasta !== '' && toMs === null
+        ? 'No entiendo la salida — usa m:ss (por ejemplo 13:05)'
+        : fromMs !== null && toMs !== null && toMs <= fromMs
+          ? 'La salida tiene que ir después de la entrada'
+          : fromMs !== null && toMs !== null && toMs - fromMs < 3_000
+            ? 'Menos de 3 segundos no dan para un clip'
+            : null;
+  const valido = fromMs !== null && toMs !== null && aviso === null;
+  const largo = valido ? Math.round((toMs - fromMs) / 1000) : null;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        ref={boxRef}
+        className="modal-box"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Clip a mano"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (valido && !pending) onConfirm(fromMs, toMs);
+          }}
+        >
+          <div style={{ padding: 'var(--pad)', borderBottom: '1px solid var(--line)' }}>
+            <div className="head" style={{ fontSize: 17 }}>
+              Clip a mano
+            </div>
+            <div className="muted fs-sm" style={{ marginTop: 5 }}>
+              Apunta el momento exacto y el sistema hace el resto: corta por frases, aprieta los
+              silencios y encuadra. Tu ventana manda — no se mueve para «mejorarla».
+            </div>
+          </div>
+          <div style={{ padding: 'var(--pad)', display: 'grid', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <label className="fs-sm" style={{ flex: 1, display: 'grid', gap: 4 }}>
+                Entrada
+                <input
+                  ref={desdeRef}
+                  className="control mono"
+                  placeholder="12:40"
+                  value={desde}
+                  onChange={(e) => setDesde(e.target.value)}
+                />
+              </label>
+              <label className="fs-sm" style={{ flex: 1, display: 'grid', gap: 4 }}>
+                Salida
+                <input
+                  className="control mono"
+                  placeholder="13:05"
+                  value={hasta}
+                  onChange={(e) => setHasta(e.target.value)}
+                />
+              </label>
+            </div>
+            {aviso !== null ? (
+              <span className="fs-sm" style={{ color: 'var(--danger)' }} role="alert">
+                {aviso}
+              </span>
+            ) : largo !== null ? (
+              <span className="muted fs-sm">
+                {largo} segundos{largo > 90 ? ' — más de minuto y medio es mucho short' : ''}
+              </span>
+            ) : (
+              <span className="muted fs-sm">
+                Los clips del canal de referencia rondan los 20–60 segundos
+              </span>
+            )}
+            {sourceUrl !== null && fromMs !== null ? (
+              <a
+                className="fs-sm"
+                href={`${sourceUrl}${sourceUrl.includes('?') ? '&' : '?'}t=${Math.floor(fromMs / 1000)}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Comprobar la entrada en YouTube ↗
+              </a>
+            ) : null}
+            {error !== undefined ? (
+              <span className="fs-sm" style={{ color: 'var(--danger)' }} role="alert">
+                {error}
+              </span>
+            ) : null}
+          </div>
+          <div
+            style={{
+              padding: 'var(--pad)',
+              borderTop: '1px solid var(--line)',
+              display: 'flex',
+              gap: 8,
+              justifyContent: 'flex-end',
+            }}
+          >
+            <Button variant="ghost" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button variant="primary" type="submit" disabled={!valido || pending}>
+              {pending ? 'Pidiendo…' : 'Proponer este momento'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 const ESTADOS: Record<
   ShortDto['state'],
@@ -124,6 +271,30 @@ export function EpisodioClips() {
     },
     onError: alFallar('No se pudieron pedir clips'),
   });
+  // subventana a mano: el error del servidor se enseña dentro del modal para
+  // poder corregir los tiempos sin volver a abrirlo (patrón InputModal)
+  const [ventanaAbierta, setVentanaAbierta] = useState(false);
+  const [ventanaError, setVentanaError] = useState<string | undefined>(undefined);
+  const ventanaMut = useMutation({
+    mutationFn: ({ fromMs, toMs }: { fromMs: number; toMs: number }) =>
+      proposeEpisodeClipWindow(id, fromMs, toMs),
+    onSuccess: (r) => {
+      push(
+        r.ya_en_curso
+          ? 'Ese momento ya se está preparando'
+          : 'Preparando tu momento; aparecerá como candidato en unos segundos',
+      );
+      setVentanaAbierta(false);
+      setVentanaError(undefined);
+      invalidar();
+    },
+    onError: (err) =>
+      setVentanaError(
+        err instanceof ApiError && err.detail !== undefined
+          ? err.detail
+          : 'No se pudo pedir el clip',
+      ),
+  });
   const aprobarMut = useMutation({
     mutationFn: (shortId: string) => approveShort(shortId),
     onSuccess: () => {
@@ -195,7 +366,7 @@ export function EpisodioClips() {
       ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   };
   useHotkeys((e) => {
-    if (descartando !== null || publicando !== null) return;
+    if (descartando !== null || publicando !== null || ventanaAbierta) return;
     const k = e.key.toLowerCase();
     if (k === 'j' || e.key === 'ArrowDown') {
       e.preventDefault();
@@ -243,6 +414,14 @@ export function EpisodioClips() {
           Clips de «{episodio?.source_title ?? 'este episodio'}»
         </h1>
         <div style={{ flex: 1 }} />
+        <Button
+          variant="ghost"
+          disabled={!puedeProponer}
+          title="Pedir un momento exacto que el director no propuso"
+          onClick={() => setVentanaAbierta(true)}
+        >
+          Clip a mano
+        </Button>
         <Button
           variant={vivos.length === 0 ? 'primary' : 'secondary'}
           disabled={proponerMut.isPending || !puedeProponer}
@@ -480,6 +659,18 @@ export function EpisodioClips() {
           </div>
         </div>
       )}
+
+      <VentanaModal
+        open={ventanaAbierta}
+        sourceUrl={episodio?.source_url ?? null}
+        pending={ventanaMut.isPending}
+        error={ventanaError}
+        onConfirm={(fromMs, toMs) => ventanaMut.mutate({ fromMs, toMs })}
+        onClose={() => {
+          setVentanaAbierta(false);
+          setVentanaError(undefined);
+        }}
+      />
 
       <ReasonModal
         open={descartando !== null}

@@ -8,6 +8,7 @@ import {
   fmtClock,
   fmtMoney,
   fmtSim,
+  parseClock,
   pct,
   sceneOffsets,
   speechMs,
@@ -21,6 +22,24 @@ test('fmtClock formatea m:ss', () => {
   assert.equal(fmtClock(65_000), '1:05');
   assert.equal(fmtClock(522_000), '8:42');
   assert.equal(fmtClock(-100), '0:00');
+});
+
+test('parseClock entiende lo que un humano teclea mirando YouTube', () => {
+  assert.equal(parseClock('12:40'), 760_000);
+  assert.equal(parseClock('0:05'), 5_000);
+  assert.equal(parseClock('1:02:35'), 3_755_000);
+  // segundos a pelo también valen (YouTube los enseña en ?t=)
+  assert.equal(parseClock('95'), 95_000);
+  assert.equal(parseClock(' 3:07 '), 187_000);
+});
+
+test('parseClock rechaza lo que no es un reloj', () => {
+  assert.equal(parseClock(''), null);
+  assert.equal(parseClock('doce'), null);
+  assert.equal(parseClock('12:7'), null); // segundos sin dos cifras: ambiguo
+  assert.equal(parseClock('12:75'), null); // 75 segundos no existen
+  assert.equal(parseClock('1:75:00'), null); // 75 minutos con horas tampoco
+  assert.equal(parseClock('-1:00'), null);
 });
 
 test('fmtMoney usa coma decimal y símbolo detrás', () => {

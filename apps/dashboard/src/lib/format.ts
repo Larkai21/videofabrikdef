@@ -10,6 +10,24 @@ export function fmtClock(ms: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+/**
+ * «h:mm:ss», «m:ss» o segundos a pelo → milisegundos; null si no se entiende.
+ * Inverso laxo de fmtClock: acepta lo que un humano teclea mirando YouTube
+ * (1:02:35, 62:35 o 3755).
+ */
+export function parseClock(text: string): number | null {
+  const t = text.trim();
+  if (t === '') return null;
+  if (/^\d+$/.test(t)) return Number(t) * 1000;
+  const m = /^(?:(\d+):)?(\d{1,2}):(\d{2})$/.exec(t);
+  if (m === null) return null;
+  const h = m[1] !== undefined ? Number(m[1]) : 0;
+  const min = Number(m[2]);
+  const s = Number(m[3]);
+  if (s >= 60 || (m[1] !== undefined && min >= 60)) return null;
+  return ((h * 60 + min) * 60 + s) * 1000;
+}
+
 /** Dólares → «4,80 $» (coma decimal, como el mock). */
 export function fmtMoney(usd: number): string {
   // los enteros van limpios como en el mock («límite 15 $», no «15,00 $»)

@@ -692,6 +692,22 @@ export async function proposeEpisodeClips(id: string): Promise<{ ya_en_curso: bo
   return { ya_en_curso: (data as { ya_en_curso?: unknown } | null)?.ya_en_curso === true };
 }
 
+/**
+ * Subventana explícita del operador: propone exactamente esa zona (el worker
+ * la ajusta a frases pero la ventana manda). La vía para momentos que el
+ * director evita o zonas ya renderizadas.
+ */
+export async function proposeEpisodeClipWindow(
+  id: string,
+  fromMs: number,
+  toMs: number,
+): Promise<{ ya_en_curso: boolean }> {
+  const data = await post(`/episodios/${encodeURIComponent(id)}/clips`, {
+    ventana: { from_ms: fromMs, to_ms: toMs },
+  });
+  return { ya_en_curso: (data as { ya_en_curso?: unknown } | null)?.ya_en_curso === true };
+}
+
 export async function getEpisodeClips(id: string): Promise<ShortDto[]> {
   const data = await request(`/episodios/${encodeURIComponent(id)}/clips`);
   return shortsListDtoSchema.parse(data).shorts;
