@@ -218,12 +218,13 @@ español (menor competencia); el pipeline soporta ambos.
   en UI simple. Hecho = un MP4 publicable producido de punta a punta con ≤20 min humanos.
 - S2 — la herramienta de verdad: timeline de revisión con Player + brand kit por zips +
   biblioteca con etiquetado + juez de alineación de título. Hecho = 5 vídeos
-  consecutivos sin tocar código. ESTADO 13-ago-2026: 4 de 5 («Sesgos en la
-  IA», lA8Y6YVghCP6cGoGgVsK9, salió entero sin tocar el raíl — con los
-  directores LLM degradando limpio a reglas porque la clave de openrouter se
-  quedó sin saldo a mitad). El 5.º está BLOQUEADO por ese saldo, no por
-  código: recargar la clave y aprobar una idea con fuente de dominio real
-  (las de Google News dan 0 caracteres y la guarda de suficiencia las para).
+  consecutivos sin tocar código. ESTADO 14-ago-2026: «Actrices sintéticas»
+  (Dfgfjb4, 4,2 min, calidad verde, jueces LLM VIVOS: 39 intenciones vs 28
+  del anterior) salió entero — pero necesitó DOS fixes del resolver de Google
+  News (user-agent completo + cookie de consentimiento RGPD), así que el
+  contador estricto se resetea: 1 consecutivo post-fix. Con el resolver vivo,
+  el 56 % del radar (fuentes de Google News) vuelve a ser producible: los
+  siguientes 4 no deberían pedir código.
 - S3 — publicación y escala: subida por YouTube API (tras auditoría) + programación +
   segundo canal + primeras herramientas MCP. Hecho = subida automática en privado con
   aprobación desde la bandeja.
