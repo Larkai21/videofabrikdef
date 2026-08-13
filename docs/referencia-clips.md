@@ -129,6 +129,13 @@ Lo que destapó (y se arregló o quedó anotado):
   cine» de «hablante», y el material actual es todo entrevista) y el
   pre-corte a 9:16 completo para ese modo (hoy recorta al aspecto de la
   tarjeta; `cover` lo rellena recortando lados).
+  DECISIÓN (13-ago-2026, Sprint 8): el b-roll ilustrativo va DENTRO de la
+  tarjeta, como hace la referencia en sus insertos (fotograma t=11 s del
+  short de Cranston: Breaking Bad dentro de la tarjeta redondeada, cabecera
+  y titular intactos) — `short.broll` + BrollEnTarjeta. El full-bleed queda
+  reservado para metraje PROTAGONISTA de clip entero, que este material de
+  entrevista no pide; su heurística no se inventa hasta que haya material
+  que la necesite.
 - ~~Gráficos puntuales (emojis)~~ — portado: micro-FX `emoji` en el catálogo
   (`micro-fx.ts` + `PalabraVertical`), diez disparadores españoles con carga y
   el emoji como pieza a un quinto del ancho. Los LOGOS siguen fuera (exigen
