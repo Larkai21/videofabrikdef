@@ -19,6 +19,13 @@ describe('tokensFromCaption', () => {
   it('quita acentos y eñes sin partir las palabras', () => {
     expect(tokensFromCaption('montaña añil')).toEqual(['montana', 'anil']);
   });
+
+  it('no parte los nombres NFD de macOS por la marca combinante', () => {
+    // «señalando» tal y como lo entrega el sistema de archivos de macOS:
+    // n + tilde combinante (U+0303). El bug del hallazgo 11 de la auditoría
+    // lo partía en «sen» + «alando».
+    expect(tokensFromCaption('sen\u{0303}alando con el dedo')).toEqual(['senalando', 'dedo']);
+  });
 });
 
 describe('mergeTags', () => {
@@ -42,5 +49,11 @@ describe('mergeTags', () => {
 
   it('con caption vacío devuelve los existentes normalizados', () => {
     expect(mergeTags(['Ciudad', 'noche'], '')).toEqual(['ciudad', 'noche']);
+  });
+
+  it('sanea los existentes: stopwords fuera, acentos fuera, pero los cortos de humano se quedan', () => {
+    // «con» es basura de pasadas viejas y muere; «ia» es un tag corto puesto
+    // por un humano y la regla de longitud (pensada para captions) no lo toca
+    expect(mergeTags(['con', 'ia', 'tecnología'], '')).toEqual(['ia', 'tecnologia']);
   });
 });

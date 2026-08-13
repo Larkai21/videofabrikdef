@@ -6,7 +6,7 @@ import type { FastifyInstance } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { assets, beats, channels } from '@fabrica/db';
-import type { BeatCandidate, Fit } from '@fabrica/shared';
+import { tokensFromCaption, type BeatCandidate, type Fit } from '@fabrica/shared';
 import type { ApiContext } from '../lib/context.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { extOf, isVideoExt } from '../lib/beats.js';
@@ -14,11 +14,11 @@ import { toFileUrl } from '../lib/files.js';
 
 function tagsFromFilename(filename: string): string[] {
   const base = path.basename(filename, path.extname(filename));
-  const tokens = base
-    .toLowerCase()
-    .split(/[^a-z0-9áéíóúñü]+/i)
-    .filter((t) => t.length >= 3);
-  return [...new Set(tokens)].slice(0, 8);
+  // el MISMO tokenizador que el caption VLM (shared/tags.ts): los nombres de
+  // macOS llegan en NFD y la clase de caracteres que había aquí partía la
+  // tilde combinante — «señalando» acababa como «sen» + «alando» (auditoría
+  // UI 2026-08, hallazgo 11); de paso caen stopwords como «con»
+  return tokensFromCaption(base.replace(/[._-]+/g, ' ')).slice(0, 8);
 }
 
 export function registerLibraryRoutes(app: FastifyInstance, ctx: ApiContext): void {

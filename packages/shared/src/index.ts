@@ -24,6 +24,7 @@ export * from './component-prompt.js';
 export * from './component-author.js';
 export * from './queues.js';
 export * from './cost.js';
+export * from './tags.js';
 export * from './events.js';
 export * from './api.js';
 export * from './publish.js';

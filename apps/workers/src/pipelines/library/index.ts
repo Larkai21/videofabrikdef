@@ -153,8 +153,58 @@ async function backfillAsset(
   return outcome;
 }
 
+/**
+ * Posters que faltan. El thumb solo se generaba camino del caption VLM, así
+ * que un clip captioned en una pasada vieja (o ingerido antes de que la
+ * ingesta lo hiciera) se quedaba sin póster para siempre: la consulta del
+ * backfill no lo vuelve a visitar (auditoría UI 2026-08, hallazgo 10). Este
+ * pase mira el DISCO, no la BD, y es ffmpeg local: coste cero, corre en cada
+ * backfill aunque no haya nada que etiquetar.
+ */
+async function repararPosters(ctx: WorkerContext): Promise<number> {
+  const { db, logger } = ctx;
+  const rows = await db
+    .select({
+      id: assets.id,
+      channelId: assets.channelId,
+      path: assets.path,
+      durationMs: assets.durationMs,
+    })
+    .from(assets)
+    .orderBy(asc(assets.createdAt));
+
+  let creados = 0;
+  for (const row of rows) {
+    const absPath = resolveAbsPath(ctx.libraryDir, row.path);
+    if (visualKindOf(absPath) !== 'video') continue;
+    const thumb = thumbPathFor(ctx.libraryDir, row);
+    const hayThumb = await fs.access(thumb).then(
+      () => true,
+      () => false,
+    );
+    if (hayThumb) continue;
+    const hayArchivo = await fs.access(absPath).then(
+      () => true,
+      () => false,
+    );
+    if (!hayArchivo) continue;
+    await fs.mkdir(path.dirname(thumb), { recursive: true });
+    const ok = await extractCaptionJpeg(
+      { filePath: absPath, visual: 'video', durationMs: row.durationMs },
+      thumb,
+      logger,
+    );
+    if (ok) creados += 1;
+  }
+  if (creados > 0) logger.info({ creados }, 'Posters de clips reparados');
+  return creados;
+}
+
 async function runBackfill(ctx: WorkerContext, job: Job<LibraryBackfillJob>): Promise<void> {
   const { db, logger } = ctx;
+  // pase 0, antes del etiquetado: la reparación no depende de qué quede por
+  // captionar y tiene que correr también cuando no queda nada
+  const posters = await repararPosters(ctx);
   const conditions = [or(isNull(assets.embedding), isNull(assets.caption))];
   const assetIds = job.data.assetIds ?? [];
   if (assetIds.length > 0) conditions.push(inArray(assets.id, assetIds));
@@ -172,7 +222,10 @@ async function runBackfill(ctx: WorkerContext, job: Job<LibraryBackfillJob>): Pr
       video_id: LIBRARY_EVENT_ID,
       queue: QUEUES.library,
       progress: 100,
-      detail: 'Biblioteca al día: nada pendiente de etiquetar',
+      detail:
+        posters > 0
+          ? `Biblioteca al día · ${posters} ${posters === 1 ? 'póster reparado' : 'posters reparados'}`
+          : 'Biblioteca al día: nada pendiente de etiquetar',
     });
     return;
   }
