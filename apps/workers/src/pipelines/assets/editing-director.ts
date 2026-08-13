@@ -1056,6 +1056,11 @@ const PRIORITY: Record<string, number> = {
   split_versus: 5,
   pasos_flow: 5,
   tendencia: 5,
+  // las formas nuevas del sprint valen lo mismo: sin entrada aquí puntuaban 0
+  // (el fallback del ?? 0) y un zoom_punch (4) las mataba en su propia franja
+  barras: 5,
+  linea_tiempo: 5,
+  ciclo: 5,
   device_frame: 5,
   stat_odometer: 5,
   stat_card: 5,

@@ -717,6 +717,23 @@ describe('lo declarado por el guion gana al efecto inferido', () => {
     expect(out.filter((e) => e.type === 'text_callout')).toHaveLength(4);
     expect(out.filter((e) => e.type === 'zoom_punch')).toHaveLength(0);
   });
+
+  it('las formas nuevas valen como las de lista: un zoom no las mata en su franja', () => {
+    // sin entrada en PRIORITY puntuaban 0 (el ?? 0) y zoom_punch (4) ganaba:
+    // el gráfico que explica la frase moría contra un empujón de cámara
+    const barras: Edit = {
+      type: 'barras',
+      from_ms: 10_000,
+      to_ms: 13_400,
+      beat_idx: 1,
+      items: ['antes', 'ahora'],
+      values: ['504 h', '2 h'],
+    };
+    const zoom: Edit = { type: 'zoom_punch', from_ms: 10_000, to_ms: 11_600, beat_idx: 1 };
+    const out = dedupeAndCap([zoom, barras], 60_000);
+    expect(out.map((e) => e.type)).toContain('barras');
+    expect(out.map((e) => e.type)).not.toContain('zoom_punch');
+  });
 });
 
 describe('inserto declarado (S11)', () => {
