@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   getCatalogoEditor,
   plantillaUrl,
@@ -167,7 +167,9 @@ export function Plantillas() {
     queryFn: getCatalogoEditor,
     staleTime: Infinity,
   });
-  const [q, setQ] = useState('');
+  // ?q= permite el enlace profundo desde la puerta del reel («ver plantilla»)
+  const [params] = useSearchParams();
+  const [q, setQ] = useState(params.get('q') ?? '');
   const [origen, setOrigen] = useState<'todas' | 'propia' | 'hyperframes'>('todas');
   const [soloCopy, setSoloCopy] = useState(false);
   const [abierta, setAbierta] = useState<string | null>(null);

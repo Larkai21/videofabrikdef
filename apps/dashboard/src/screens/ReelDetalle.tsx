@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { ReelPlanLayer } from '@fabrica/shared';
+import { getCatalogoEditor } from '../lib/editor-catalogo';
 import {
   ApiError,
   fileUrl,
@@ -18,8 +19,31 @@ import { Button, Chip, EmptyState, ProgressBar, SkeletonRows } from '../componen
 // LA puerta del pipeline de reels: el plan de capas que preparó la máquina
 // espera la firma humana. Se revisa como documento (principio 2: nada de JSON
 // crudo): una fila por capa con lo que un humano decide de verdad — cuándo
-// entra, cuánto dura, y si sobra. El config interno de cada capa lo fijó el
-// guion; retocarlo es trabajo del guion, no de esta pantalla.
+// entra, cuánto dura, si sobra, y (plegado, porque es retoque fino) el config
+// de la plantilla con SUS claves reales, las del CATALOGO. Una clave que la
+// plantilla no lee aborta el plan en validar_plan: aquí se corta antes.
+
+/**
+ * El texto de un input → el valor que el plan guarda. Los config del editor
+ * mezclan strings, números y booleanos; un input solo da texto, así que se
+ * interpreta lo inequívoco ('true', '42') y lo demás queda como string —
+ * mismo criterio que un YAML de a pie. Vacío = quitar la clave (vuelve al
+ * default de la plantilla).
+ */
+function valorDeTexto(texto: string): unknown {
+  const t = texto.trim();
+  if (t === '') return undefined;
+  if (t === 'true') return true;
+  if (t === 'false') return false;
+  if (/^-?\d+(\.\d+)?$/.test(t)) return Number(t);
+  return texto;
+}
+
+function textoDeValor(v: unknown): string {
+  if (v === undefined || v === null) return '';
+  if (typeof v === 'string') return v;
+  return JSON.stringify(v);
+}
 
 const ESTADOS: Record<string, { label: string; kind: 'ok' | 'warn' | 'danger' | 'neutral' }> = {
   nuevo: { label: 'En cola', kind: 'neutral' },
@@ -47,6 +71,18 @@ export function ReelDetalle() {
       return s === 'preparando' || s === 'render' || s === 'nuevo' ? 5_000 : false;
     },
   });
+
+  // el catálogo dice qué claves de config lee cada plantilla (y cuáles abortan)
+  const catalogoQ = useQuery({
+    queryKey: ['editor-catalogo'],
+    queryFn: getCatalogoEditor,
+    staleTime: Infinity,
+  });
+  const piezaDe = (template: string | undefined) =>
+    template === undefined
+      ? undefined
+      : catalogoQ.data?.piezas.find((p) => p.plantilla === template);
+  const [configAbierta, setConfigAbierta] = useState<number | null>(null);
 
   // borrador local del plan: se edita encima de una copia y solo el botón
   // Guardar lo manda; así un refetch no pisa lo que estás tocando
@@ -105,6 +141,30 @@ export function ReelDetalle() {
     if (plan === null) return;
     setBorrador(plan.filter((_, i) => i !== idx));
   };
+  const cambiarConfig = (idx: number, clave: string, texto: string) => {
+    if (plan === null) return;
+    const capa = plan[idx]!;
+    const config = { ...((capa as { config?: Record<string, unknown> }).config ?? {}) };
+    const valor = valorDeTexto(texto);
+    if (valor === undefined) delete config[clave];
+    else config[clave] = valor;
+    cambiarCapa(idx, { config: Object.keys(config).length > 0 ? config : undefined } as Partial<ReelPlanLayer>);
+  };
+
+  // la regla que aborta en validar_plan, cortada aquí: claves de config que la
+  // plantilla no lee. Solo se valida lo que el catálogo conoce.
+  const avisosPlan =
+    plan === null || catalogoQ.data === undefined
+      ? []
+      : plan.flatMap((capa, idx) => {
+          const pieza = piezaDe(capa.template);
+          if (pieza === undefined) return [];
+          const config = (capa as { config?: Record<string, unknown> }).config ?? {};
+          const desconocidas = Object.keys(config).filter((k) => !pieza.config.includes(k));
+          return desconocidas.length > 0
+            ? [`capa ${idx} (${String(capa.capa)}): claves que ${pieza.plantilla} no lee — ${desconocidas.join(', ')}`]
+            : [];
+        });
 
   const estado = reel !== undefined ? ESTADOS[reel.state] : undefined;
 
@@ -139,7 +199,9 @@ export function ReelDetalle() {
             {borrador !== null ? (
               <Button
                 variant="secondary"
-                disabled={guardarMut.isPending || borrador.length === 0}
+                // con avisos no se guarda: una clave que la plantilla no lee
+                // abortaría el plan entero en validar_plan
+                disabled={guardarMut.isPending || borrador.length === 0 || avisosPlan.length > 0}
                 onClick={() => guardarMut.mutate(borrador)}
               >
                 Guardar cambios
@@ -166,6 +228,12 @@ export function ReelDetalle() {
       {reel?.incident != null ? (
         <div className="banner banner-danger fs-sm" style={{ marginBottom: 'var(--gap)' }}>
           {reel.incident.message}
+        </div>
+      ) : null}
+
+      {avisosPlan.length > 0 ? (
+        <div className="banner banner-danger fs-sm" style={{ marginBottom: 'var(--gap)' }}>
+          El plan no se puede guardar así: {avisosPlan.join(' · ')}
         </div>
       ) : null}
 
@@ -223,6 +291,7 @@ export function ReelDetalle() {
                   flexWrap: 'wrap',
                 }}
               >
+                {/* fila principal + config plegada debajo (flex-wrap) */}
                 <span className="head" style={{ fontSize: 14, minWidth: 140 }}>
                   {capa.capa}
                 </span>
@@ -260,11 +329,79 @@ export function ReelDetalle() {
                   s
                 </label>
                 <div style={{ flex: 1 }} />
+                {(() => {
+                  const pieza = piezaDe(capa.template);
+                  if (pieza === undefined || pieza.config.length === 0) return null;
+                  const nConfig = Object.keys(
+                    (capa as { config?: Record<string, unknown> }).config ?? {},
+                  ).length;
+                  return (
+                    <Button
+                      variant="ghost"
+                      onClick={() => setConfigAbierta(configAbierta === idx ? null : idx)}
+                    >
+                      {configAbierta === idx ? 'Cerrar config' : `Config (${nConfig}/${pieza.config.length})`}
+                    </Button>
+                  );
+                })()}
                 {editable ? (
                   <Button variant="danger-ghost" onClick={() => quitarCapa(idx)}>
                     Quitar
                   </Button>
                 ) : null}
+                {configAbierta === idx
+                  ? (() => {
+                      const pieza = piezaDe(capa.template);
+                      if (pieza === undefined) return null;
+                      const config =
+                        (capa as { config?: Record<string, unknown> }).config ?? {};
+                      return (
+                        <div
+                          style={{
+                            flexBasis: '100%',
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                            gap: 8,
+                            paddingTop: 8,
+                            borderTop: '1px solid var(--line)',
+                          }}
+                        >
+                          {pieza.config.map((clave) => (
+                            <label
+                              key={clave}
+                              className="fs-sm muted"
+                              style={{ display: 'grid', gap: 4 }}
+                            >
+                              <span className="mono">{clave}</span>
+                              <input
+                                className="control"
+                                defaultValue={textoDeValor(config[clave])}
+                                placeholder="(por defecto)"
+                                disabled={!editable}
+                                aria-label={`${clave} de ${String(capa.capa)}`}
+                                onBlur={(e) => cambiarConfig(idx, clave, e.target.value)}
+                              />
+                            </label>
+                          ))}
+                          <div
+                            className="fs-sm muted"
+                            style={{ gridColumn: '1 / -1', display: 'flex', gap: 10 }}
+                          >
+                            <span>
+                              Vacío = el default de la plantilla. Los textos del guion
+                              (copy) se corrigen en el guion, no aquí.
+                            </span>
+                            <Link
+                              to={`/reels/plantillas?q=${encodeURIComponent(pieza.plantilla.replace(/\.html$/, ''))}`}
+                              style={{ whiteSpace: 'nowrap' }}
+                            >
+                              Ver plantilla →
+                            </Link>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  : null}
               </div>
             ))}
           </div>
