@@ -92,6 +92,12 @@ Lo que destapó (y se arregló o quedó anotado):
    punchline, no en el fin de la anécdota) o permitir subventanas explícitas.
    La versión de 22 s equivalente a la referencia se cortó A MANO de la
    salida renderizada para el lado a lado (fuera del pipeline, solo demo).
+   → Sprint 7 (mismo día) cerró las tres patas: señal de CARCAJADA medida en
+   el audio (risas.ts: 90 eventos en el episodio, 46/164 beats) + guarda
+   determinista recortarAlRemate (de 0/3 clips rematando en risa a 2/3 con
+   gpt-5-mini y 3/3 con claude-sonnet-4.5, duraciones 25-38 s) + subventana
+   explícita del operador (API/MCP: la ventana 612-638 s salió renderizada en
+   23,9 s por el pipeline — la referencia publica 23,4; ya sin tijera manual).
    El prompt del director se reescribió con la lección (v2, mismo día): las
    historietas humanas puntúan como las opiniones y «cortar en el remate
    manda sobre la duración». Verificado sin dirigir sobre el mismo episodio:
