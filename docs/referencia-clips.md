@@ -92,6 +92,16 @@ Lo que destapó (y se arregló o quedó anotado):
    punchline, no en el fin de la anécdota) o permitir subventanas explícitas.
    La versión de 22 s equivalente a la referencia se cortó A MANO de la
    salida renderizada para el lado a lado (fuera del pipeline, solo demo).
+   El prompt del director se reescribió con la lección (v2, mismo día): las
+   historietas humanas puntúan como las opiniones y «cortar en el remate
+   manda sobre la duración». Verificado sin dirigir sobre el mismo episodio:
+   una anécdota humana pasó a encabezar la propuesta (antes nunca salió) y
+   dos de tres clips cortan en remate. Lo que el prompt NO puede arreglar:
+   (a) el remate exacto es adivinanza sin señal de carcajada — whisper no
+   transcribe risas; la señal de audio (pico de energía tras frase) es la
+   feature pendiente; (b) las duraciones siguen en 45-48 s; (c) la anécdota
+   del gas siguió sin proponerse — sospecha de auto-censura del modelo ante
+   contenido escatológico, pendiente de contrastar con otro proveedor.
 3. **Deltas de diseño confirmados en el lado a lado**: sin b-roll externo de
    películas (la referencia inserta Breaking Bad; nuestra cascada es
    biblioteca→stock por licencias), rótulos en el idioma del canal, y una

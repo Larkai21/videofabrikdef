@@ -57,12 +57,14 @@ export function buildHighlightsPrompt(
     'Recibes un tramo de la transcripción dividido en beats numerados con su duración.',
     `Elige hasta ${porBloque} fragmentos de beats CONSECUTIVOS y COMPLETOS que funcionen como clip vertical SUELTO.`,
     'Reglas:',
-    `- Duración objetivo ${SHORT_TARGET_S} s; nunca menos de ${SHORT_MIN_S} ni más de ${SHORT_MAX_S}. Suma las duraciones de los beats que incluyas.`,
+    `- Duración entre ${SHORT_MIN_S} y ${SHORT_MAX_S} s (orientación: ~${SHORT_TARGET_S} s), sumando los beats que incluyas. CORTAR EN EL REMATE manda sobre acercarse a la orientación.`,
     '- start_beat_idx <= end_beat_idx, y los fragmentos no se solapan entre sí.',
     'Qué hace bueno a un clip, por orden de importancia:',
-    '1. Que se entienda SOLO, sin nada de lo anterior: una anécdota cerrada, una opinión fuerte, un dato que sorprende.',
+    '1. Que se entienda SOLO, sin nada de lo anterior: una anécdota cerrada, una opinión fuerte, un dato que sorprende. Una historieta humana que acaba en carcajada vale tanto como una opinión o un dato.',
     '2. Que la PRIMERA frase enganche en frío: pregunta, afirmación contraintuitiva o arranque de historia.',
-    '3. Que tenga un remate: el clip acaba en algo, no se apaga.',
+    // la lección de la certificación (13-ago-2026): la referencia corta en el
+    // punchline y publica 23 s; el director se llevaba la anécdota entera
+    '3. El clip TERMINA EN EL REMATE: end_beat_idx es el beat donde cae el golpe (la carcajada, la frase lapidaria), no donde se agota el tema. No arrastres la reacción posterior ni la historia siguiente. Un remate a los 22 s gana a la anécdota completa de 55 s; si la historia tiene dos golpes, elige el primero y deja el resto para otro clip.',
     '4. Descarta presentaciones, agradecimientos, transiciones y tramos que dependen de un ejemplo anterior.',
     'Campos:',
     '- title: el rótulo del clip, 6 palabras como mucho. En el idioma del episodio.',
