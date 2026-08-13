@@ -268,6 +268,13 @@ async function main(): Promise<void> {
         style: 'apilado',
         text: 'importante',
       },
+      {
+        type: 'annotation',
+        from_ms: VENTANA_FX[0],
+        to_ms: VENTANA_FX[1],
+        style: 'emoji',
+        text: 'cohete',
+      },
     ];
     // OJO: renderStill usa las props RESUELTAS por selectComposition, no las
     // que se le pasen a él — cada variante necesita su propia selección (se

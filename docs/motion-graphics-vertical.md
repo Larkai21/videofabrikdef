@@ -125,6 +125,16 @@ offset alternado y peso creciente). Viven en el catálogo de `micro-fx.ts` con
 `conPalabra`: la palabra disparadora viaja en `annotation.text` y ES la pieza.
 Sus stills están en el banco de legibilidad (`preview:marca --vertical`).
 
+Cuarta pieza (S1, 13-ago-2026): `hf-caption-emoji-pop` → `emoji`. En el
+original el emoji acompaña al caption a 56 px y lo elige un léxico inglés de
+40 entradas; aquí el emoji ES la pieza (un quinto del ancho, en el ancla de
+micro-FX), el léxico es español y corto — diez disparadores con carga — y la
+coreografía se conserva: sobrepaso corto al entrar, quieto, se retira
+encogiendo con fade. Se descartó el mapa grande por la misma razón que
+`neural-node-pulse`: un disparador frecuente dispara siempre y no significa
+nada. También `soloVertical`: en 16:9 faceless un emoji gigante rompe el tono
+igual que `head-explode`.
+
 Queda el freeze-cut del gancho, ahora con instrumento que lo juzgue
 (`analizarShort` + banco de legibilidad): candidato natural del sprint
 siguiente.

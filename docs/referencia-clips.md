@@ -76,8 +76,10 @@ suelo sobre la banda de la interfaz).
   cine» de «hablante», y el material actual es todo entrevista) y el
   pre-corte a 9:16 completo para ese modo (hoy recorta al aspecto de la
   tarjeta; `cover` lo rellena recortando lados).
-- Gráficos puntuales (emojis, logos) que el editor añade a mano; emoji-pop
-  del catálogo hermano es el candidato.
+- ~~Gráficos puntuales (emojis)~~ — portado: micro-FX `emoji` en el catálogo
+  (`micro-fx.ts` + `PalabraVertical`), diez disparadores españoles con carga y
+  el emoji como pieza a un quinto del ancho. Los LOGOS siguen fuera (exigen
+  assets con licencia por marca, no un léxico).
 - ~~Corte semántico de relleno por LLM~~ — hecho tras el flag de canal
   `clips_relleno` (apagado por defecto): el director marca frases
   prescindibles POR ÍNDICE (nunca tiempos: una alucinación de ms no puede

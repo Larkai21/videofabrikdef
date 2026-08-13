@@ -38,6 +38,10 @@ export const MICRO_FX_IDS = [
   'sello',
   'aviso',
   'apilado',
+  // emoji-pop del hermano (S1): el gráfico puntual que el editor de la
+  // referencia añade a mano. También soloVertical: en 16:9 faceless un emoji
+  // gigante rompe el tono igual que head-explode.
+  'emoji',
 ] as const;
 export const microFxIdSchema = z.enum(MICRO_FX_IDS);
 export type MicroFxId = z.infer<typeof microFxIdSchema>;
@@ -154,6 +158,21 @@ export const MICRO_FX: readonly MicroFxDef[] = [
     style: 'aviso',
     sfx: 'notificacion',
     durationMs: 1600,
+    soloVertical: true,
+    conPalabra: true,
+  },
+  {
+    id: 'emoji',
+    // el léxico palabra→emoji vive en el componente que lo pinta; aquí solo
+    // los disparadores, cortos y con carga — el mapa de 40 entradas del
+    // hermano es la misma trampa que neural-node-pulse: dispara siempre,
+    // significa nada
+    label: 'Emoji de palabra',
+    triggers: ['cerebro', 'cohete', 'dinero', 'gratis', 'fuego', 'bomba', 'magia', 'robot', 'idea', 'mundo'],
+    edit: 'annotation',
+    style: 'emoji',
+    sfx: 'pop',
+    durationMs: 1100,
     soloVertical: true,
     conPalabra: true,
   },

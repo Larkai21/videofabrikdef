@@ -4,6 +4,7 @@ import {
   defaultDesign,
   formatCifra,
   hexToRgba,
+  normalizeWord,
   tokenCifra,
   type DesignTokens,
 } from '@fabrica/shared';
@@ -873,7 +874,23 @@ export const MicroFx: React.FC<{ shape?: string; design?: DesignTokens }> = ({ s
 // el b-roll sino texto en escena: la palabra disparadora es la pieza. Se
 // descartaron en 16:9 porque a 46 px se pierden; a 1080 de ancho ocupan media
 // pantalla, que es su hábitat. Solo las produce el catálogo con soloVertical.
-const VERTICAL_WORD_STYLES = ['sello', 'aviso', 'apilado'] as const;
+const VERTICAL_WORD_STYLES = ['sello', 'aviso', 'apilado', 'emoji'] as const;
+
+// Léxico del emoji-pop (hf-caption-emoji-pop del hermano, podado): la palabra
+// dispara y el emoji ES la pieza. Español y corto a propósito — el mapa de 40
+// entradas en inglés del original garantizaba disparos sin carga.
+const EMOJI_DE: Record<string, string> = {
+  cerebro: '🧠',
+  cohete: '🚀',
+  dinero: '💰',
+  gratis: '🎁',
+  fuego: '🔥',
+  bomba: '💣',
+  magia: '✨',
+  robot: '🤖',
+  idea: '💡',
+  mundo: '🌍',
+};
 
 const PalabraVertical: React.FC<{
   estilo: (typeof VERTICAL_WORD_STYLES)[number];
@@ -888,6 +905,43 @@ const PalabraVertical: React.FC<{
   const anchoUtil = lienzo.ancho - lienzo.safe.left - lienzo.safe.right;
   const texto = palabra.trim().toUpperCase();
   const chars = Math.max(3, texto.length);
+
+  if (estilo === 'emoji') {
+    // emoji-pop del hermano: entra con sobrepaso corto (power3.out ≈ nuestro
+    // outBack recortado), flota quieto y se retira encogiendo con fade
+    // (power2.in). El emoji ES la pieza — la palabra solo elige cuál — y por
+    // eso va grande: a 56 px, como en el original acompañando al caption, no
+    // sobrevive solo; a un quinto del ancho es un gesto, no un adorno.
+    const emoji = EMOJI_DE[normalizeWord(texto)] ?? '✨';
+    const entradaFrames = Math.max(5, Math.round(fps * 0.24));
+    const salidaFrames = Math.max(4, Math.round(fps * 0.18));
+    const e = span(frame, 0, entradaFrames, Ease.outBack6);
+    const s = span(frame, durationInFrames - salidaFrames, durationInFrames, Ease.inCubic);
+    const escala = (0.8 + 0.2 * Math.min(1, e * 1.05)) * (1 - 0.25 * s);
+    const cuerpo = Math.round(lienzo.ancho * 0.2);
+    return (
+      <AbsoluteFill style={{ pointerEvents: 'none' }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: cy,
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'center',
+            opacity: Math.min(1, e * 2) * (1 - 0.2 * s) * opacity,
+            transform: `scale(${escala.toFixed(3)})`,
+            fontFamily:
+              '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif',
+            fontSize: cuerpo,
+            lineHeight: 1,
+            textShadow: `0 6px 24px ${hexToRgba('#000000', 0.45)}`,
+          }}
+        >
+          {emoji}
+        </div>
+      </AbsoluteFill>
+    );
+  }
 
   if (estilo === 'sello') {
     // Cae de golpe y rebota: un sello que baja suave parece una tarjeta
