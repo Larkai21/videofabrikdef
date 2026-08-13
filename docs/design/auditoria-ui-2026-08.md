@@ -90,3 +90,32 @@ también se dice: es lo que NO hay que tocar.
   revocación de permisos de macOS del 13-ago → reintentar desde la UI.
 - Ideas a 0 con 672 en ranking: puede ser filtro `status=new` agotado tras
   aprobar/descartar — verificar antes de tocar UI.
+
+## Cierre — 13-ago-2026, tras los sprints 4-6
+
+Estado de los hallazgos al terminar los tres sprints de UI (verificado
+mirando, misma vara que la auditoría):
+
+- **Resueltos**: 2 (alta por actos S5.1 + file input propio S4.2), 3
+  (Incidencia con resumen y detalle plegado), 5 (cabecera estable con hueco
+  reservado), 6 (accionable sobre el radar), 7 (nav en grupos por producto),
+  8 (skeletons en Costes/Ajustes), 9 parcial (file input; date/month nativos
+  siguen), 10 (posters backfill — pase cero del worker, 23 reparados), 13
+  parcial (contador callado al cargar; virtualización sigue P3), 14
+  (hover-play + comparador lado a lado S6.1), 15 (wordmark navega), 17 (diff
+  de reescritura S5.4), 18 (marcas de cortes S5.3).
+- **11 (tags rotos)**: raíz arreglada (tokenizador NFD compartido en shared +
+  saneado en mergeTags); los tags basura ya guardados no se reconstruyen.
+- **Siguen abiertos**: 12 (lista de Episodios pobre), 16 (validación visible
+  de URLs del wizard), date/month con locale del navegador, paginación de
+  Ideas.
+- **Pasada final S6.4**: tema claro y densidad compacta sin roturas en
+  Bandeja, galería, Biblioteca y Ajustes; foco visible global y aria-labels
+  en los controles nuevos. La comprobación responsive a <1100 px quedó FUERA:
+  el zoom de página de la máquina de verificación impide encoger el viewport
+  CSS (innerWidth clavado en 1512) — pendiente para una sesión con ventana
+  real; el riesgo es bajo porque todo lo nuevo usa flex-wrap y grids
+  auto-fill/minmax.
+- Extra fuera de la lista: descartar una idea ahora tiene «Deshacer» en el
+  toast (ruta /restore), y los vacíos con filtros ofrecen «Quitar los
+  filtros».
