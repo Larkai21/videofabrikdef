@@ -82,6 +82,14 @@ async function main(): Promise<void> {
     },
     { type: 'tendencia', from_ms: 22000, to_ms: 25000, value: '3x', style: 'sube', label: 'uso' },
     { type: 'device_frame', from_ms: 26000, to_ms: 28600, style: 'browser', text: 'kernel.ai' },
+    {
+      type: 'barras',
+      from_ms: 29600,
+      to_ms: 33000,
+      items: ['Entrenar', 'Inferir'],
+      values: ['40 h', '3 h'],
+      label: 'coste por corrida',
+    },
   ];
 
   const serveUrl = await bundle({
@@ -106,6 +114,7 @@ async function main(): Promise<void> {
     ['fx-pasos', 96 + 575],
     ['fx-tendencia', 96 + 690],
     ['fx-device', 96 + 810],
+    ['fx-barras', 96 + 940],
     ['outro-a', total - 90],
     ['outro-b', total - 40],
   ];
@@ -243,6 +252,14 @@ async function main(): Promise<void> {
         value: '−72 %',
         style: 'baja',
         label: 'coste por token',
+      },
+      {
+        type: 'barras',
+        from_ms: VENTANA_FX[0],
+        to_ms: VENTANA_FX[1],
+        items: ['Parchear', 'Explotar'],
+        values: ['504 h', '2 h'],
+        label: 'ventana real',
       },
       { type: 'annotation', from_ms: VENTANA_FX[0], to_ms: VENTANA_FX[1], style: 'circulo' },
       { type: 'micro_fx', from_ms: VENTANA_FX[0], to_ms: VENTANA_FX[1], style: 'tachado' },

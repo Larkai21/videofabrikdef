@@ -245,6 +245,13 @@ export const EDIT_TYPES = [
   'pasos_flow',
   // una cifra que se dispara o se hunde; `value` + `style` (sube|baja) + `label`
   'tendencia',
+  // A frente a B CON magnitud («diez veces más barato»): dos barras a escala.
+  // `items` = las dos etiquetas, `values` = las dos magnitudes tal y como se
+  // dicen, en la MISMA unidad (la barra se escala con su parte numérica).
+  // Elegida por frecuencia en calibracion/frases-etiquetadas.json (3/39):
+  // split_versus enfrenta dos cosas pero no dice CUÁNTO, y eso es justo lo que
+  // este nicho compara («semanas frente a horas», «10x frente a 1x»).
+  'barras',
   // imagen REAL de referencia de una entidad con nombre (producto, empresa,
   // modelo), superpuesta al plano cuando la voz la menciona; `image_path`
   // congelado en workers + `text` (el término) + `credit` (atribución si la
@@ -294,6 +301,7 @@ export const EDIT_BANDA: Record<EditType, 'superior' | 'centro' | null> = {
   split_versus: 'centro',
   pasos_flow: 'centro',
   tendencia: 'centro',
+  barras: 'centro',
   // no ocupan sitio: mueven la cámara, tiñen el subtítulo, marcan el b-roll o suenan
   zoom_punch: null,
   keyword_highlight: null,
@@ -320,6 +328,7 @@ export const EDIT_RENDER_KIND: Record<
   split_versus: 'overlay',
   pasos_flow: 'overlay',
   tendencia: 'overlay',
+  barras: 'overlay',
   imagen_apoyo: 'overlay',
 };
 
@@ -406,6 +415,17 @@ export const editSchema = z.discriminatedUnion('type', [
     value: z.string().min(1),
     /** sube | baja: el perfil de la curva, no un color de marca */
     style: z.string().min(1),
+    label: z.string().optional(),
+  }),
+  // dos barras a escala: sin las dos magnitudes no hay nada que escalar, así
+  // que son obligatorias — una barra sin número sería un split_versus disfrazado
+  z.object({
+    ...editBase,
+    type: z.literal('barras'),
+    /** las dos etiquetas, en el mismo orden que `values` */
+    items: z.array(z.string().min(1)).length(2),
+    /** las dos magnitudes como se DICEN («3 semanas», «10x»), misma unidad */
+    values: z.array(z.string().min(1)).length(2),
     label: z.string().optional(),
   }),
   // annotation es la única sin payload obligatorio: es una marca sobre el b-roll

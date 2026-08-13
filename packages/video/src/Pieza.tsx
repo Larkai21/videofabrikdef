@@ -33,6 +33,7 @@ import { SECTION_TRANSITIONS, whip } from './effects/transitions';
 import {
   Ambience,
   Annotation,
+  Barras,
   DeviceFrame,
   ImagenApoyo,
   KineticText,
@@ -132,6 +133,11 @@ const EditOverlay: React.FC<{ cue: EffectCue; design: DesignTokens }> = ({ cue, 
         label={cue.label}
         design={design}
       />
+    );
+  }
+  if (cue.type === 'barras') {
+    return (
+      <Barras items={cue.items ?? []} values={cue.values ?? []} label={cue.label} design={design} />
     );
   }
   if (cue.type === 'imagen_apoyo') {

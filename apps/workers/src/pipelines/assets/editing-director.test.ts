@@ -225,6 +225,47 @@ describe('momentsToEdits (capa IA)', () => {
     expect(out.filter((e) => e.type === 'tendencia')).toHaveLength(0);
   });
 
+  it('un momento "barras" produce las dos etiquetas con sus dos magnitudes', () => {
+    const out = momentsToEdits(
+      [
+        {
+          beat_idx: 3,
+          type: 'barras',
+          items: ['posibles', 'usadas'],
+          values: ['1000000', '25'],
+          label: 'combinaciones',
+          keyword: 'cifra',
+        },
+      ],
+      beats,
+      cues,
+      [...CLAIMS, { text: 'solo 25 se usan de verdad' }],
+    );
+    const b = out.find((e) => e.type === 'barras');
+    expect(b && 'values' in b ? b.values : []).toEqual(['1000000', '25']);
+    expect(b && 'items' in b ? b.items : []).toEqual(['posibles', 'usadas']);
+  });
+
+  it('unas barras con UNA magnitud sin respaldo no se dibujan: la proporción es la afirmación', () => {
+    // la primera cifra está en el beat, la segunda no está en ningún sitio —
+    // dibujarla a escala sería inventar exactamente lo que la barra afirma
+    const out = momentsToEdits(
+      [
+        {
+          beat_idx: 3,
+          type: 'barras',
+          items: ['posibles', 'usadas'],
+          values: ['1000000', '999'],
+          keyword: 'cifra',
+        },
+      ],
+      beats,
+      cues,
+      CLAIMS,
+    );
+    expect(out.filter((e) => e.type === 'barras')).toHaveLength(0);
+  });
+
   it('un momento device produce device_frame con la URL', () => {
     const edits = momentsToEdits(
       [{ beat_idx: 3, type: 'device', text: 'grapheneos.org', keyword: 'grapheneos' }],

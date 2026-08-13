@@ -119,6 +119,9 @@ const DUR_MS: Record<string, number> = {
   split_versus: 3400,
   pasos_flow: 4200,
   tendencia: 3000,
+  // dos etiquetas + dos cifras y la proporción entre barras: se lee como una
+  // comparación, no como un vistazo — el mismo régimen que split_versus
+  barras: 3400,
   // una imagen se reconoce en menos tiempo que se lee una lista, pero el
   // espectador tiene que poder MIRARLA: entre tarjeta y lista
   imagen_apoyo: 3000,
@@ -648,12 +651,17 @@ const editingResultSchema = z.object({
           'versus',
           'pasos',
           'tendencia',
+          // A frente a B CON magnitud: dos barras a escala. Nueva del sprint
+          // de formas, elegida por frecuencia en el banco de frases (3/39).
+          'barras',
         ]),
         text: z.string().optional(),
         value: z.string().optional(),
         label: z.string().optional(),
-        /** versus: los dos lados. pasos: de 2 a 4 estaciones. */
+        /** versus/barras: los dos lados. pasos: de 2 a 4 estaciones. */
         items: z.array(z.string()).optional(),
+        /** barras: las dos magnitudes tal y como se dicen, misma unidad */
+        values: z.array(z.string()).optional(),
         direccion: z.enum(['sube', 'baja']).optional(),
         keyword: z.string().optional(),
         style: z.string().optional(),
@@ -677,7 +685,13 @@ const editingResultSchema = z.object({
         )
         .refine((m) => m.type !== 'tendencia' || (m.value ?? '').trim() !== '', {
           message: 'un momento "tendencia" necesita value',
-        }),
+        })
+        // sin las dos magnitudes no hay proporción que dibujar: mejor
+        // reintentar el esquema que pintar dos barras iguales que mienten
+        .refine(
+          (m) => m.type !== 'barras' || ((m.items ?? []).length === 2 && (m.values ?? []).length === 2),
+          { message: 'un momento "barras" necesita 2 items y 2 values' },
+        ),
     )
     // 8 era el techo real del vídeo largo: por muchos beats que tuviera, el
     // director no podía proponer más de ocho momentos en ocho minutos. El
@@ -721,7 +735,7 @@ function buildEditingPrompt(
     vertical
       ? ''
       : '- "device": muestra una web o comando en un marco de navegador; text = la URL o el comando (p. ej. "grapheneos.org"). Solo si el guion menciona un sitio/herramienta concreta.',
-    // Las tres formas que DIBUJAN una relación. Solo en vertical: en apaisado
+    // Las formas que DIBUJAN una relación. Solo en vertical: en apaisado
     // las declara el guion vía edit_intents, con su propio vocabulario, y
     // ofrecerlas también aquí duplicaría la decisión en dos sitios.
     ...(vertical
@@ -729,7 +743,8 @@ function buildEditingPrompt(
           '- "versus": DOS cosas enfrentadas, items = exactamente 2 etiquetas cortas. Para "frente a", "en vez de", "antes y ahora".',
           '- "pasos": un proceso, items = de 2 a 4 estaciones muy cortas EN ORDEN. Para "primero… luego…", "los tres pasos", "el cuello de botella está en X" (pon X como última estación).',
           '- "tendencia": una cifra que se dispara o se hunde; value = la cifra dicha, direccion = "sube" o "baja", label = de qué. Para "se disparó", "cayó a la mitad".',
-          'PREFIERE estas tres a un "callout" siempre que la frase exprese una relación: un rótulo que repite lo que ya dice el subtítulo no aporta nada.',
+          '- "barras": A frente a B CON magnitud; items = las 2 etiquetas, values = las 2 cifras TAL Y COMO SE DICEN y en la MISMA unidad ("3 semanas" y "2 horas" NO — "504 h" y "2 h" SÍ). Para "diez veces más", "semanas frente a horas". Las dos cifras tienen que estar dichas o respaldadas; nunca las inventes.',
+          'PREFIERE estas formas a un "callout" siempre que la frase exprese una relación: un rótulo que repite lo que ya dice el subtítulo no aporta nada.',
         ]
       : []),
     '',
@@ -740,12 +755,12 @@ function buildEditingPrompt(
     // gancho: tipografía cinética al abrir + payoff al cerrar
     `- OBLIGATORIO: un "kinetic" en el beat ${params.beats[0]?.idx ?? 0} con la frase-golpe del gancho, y un "callout" en el beat ${lastIdx} con el PAYOFF/conclusión.`,
     vertical
-      ? `Textos en ${langName}, muy cortos, sin comillas. Máximo 8 momentos; como mucho 1 "kinetic", 3 "annotation" y 2 de cada forma ("versus", "pasos", "tendencia").`
+      ? `Textos en ${langName}, muy cortos, sin comillas. Máximo 8 momentos; como mucho 1 "kinetic", 3 "annotation" y 2 de cada forma ("versus", "pasos", "tendencia", "barras").`
       : // El tope era 6 fijo, o sea seis gráficos en ocho minutos. Ahora sale
         // de los beats que se le pasan, que son los que no ha cubierto nadie.
         `Textos en ${langName}, muy cortos, sin comillas. Máximo ${maxMomentos} momentos; como mucho 1 "kinetic", 1 "device" y ${Math.max(2, Math.round(maxMomentos / 4))} "annotation".`,
     vertical
-      ? 'Devuelve JSON: { "moments": [ { "beat_idx", "type", "keyword", "text"?, "value"?, "label"?, "items"?, "direccion"? } ] }.'
+      ? 'Devuelve JSON: { "moments": [ { "beat_idx", "type", "keyword", "text"?, "value"?, "label"?, "items"?, "values"?, "direccion"? } ] }.'
       : 'Devuelve JSON: { "moments": [ { "beat_idx", "type", "keyword", "text"?, "value"?, "label"? } ] }.',
   ].join('\n');
   const user = [
@@ -855,6 +870,22 @@ export function momentsToEdits(
         value: m.value,
         // el contrato lo llama `style`: es el perfil de la curva, no un color
         style: m.direccion ?? 'sube',
+        ...(m.label ? { label: m.label } : {}),
+      });
+      edits.push({ type: 'sfx', from_ms: at, to_ms: at + 400, sfx: 'pop' });
+    } else if (m.type === 'barras' && (m.items ?? []).length === 2 && (m.values ?? []).length === 2) {
+      // las DOS magnitudes siguen la regla de stat/tendencia: dichas en el beat
+      // o respaldadas por un claim — una barra a escala inventada es peor que
+      // ninguna, porque la proporción ES la afirmación
+      const respaldadas = m.values!.every((v) => figureBackedBy(v, [beat.text, ...claimTexts]));
+      if (!respaldadas) continue;
+      edits.push({
+        type: 'barras',
+        from_ms: at,
+        to_ms: window(DUR_MS.barras!),
+        beat_idx: beat.idx,
+        items: m.items!,
+        values: m.values!,
         ...(m.label ? { label: m.label } : {}),
       });
       edits.push({ type: 'sfx', from_ms: at, to_ms: at + 400, sfx: 'pop' });

@@ -11,10 +11,11 @@ describe('EDIT_RENDER_KIND', () => {
     expect(Object.keys(EDIT_RENDER_KIND).sort()).toEqual([...EDIT_TYPES].sort());
   });
 
-  it('los tres del catálogo de listas cubren pantalla', () => {
+  it('las formas que dibujan una relación cubren pantalla', () => {
     expect(EDIT_RENDER_KIND.split_versus).toBe('overlay');
     expect(EDIT_RENDER_KIND.pasos_flow).toBe('overlay');
     expect(EDIT_RENDER_KIND.tendencia).toBe('overlay');
+    expect(EDIT_RENDER_KIND.barras).toBe('overlay');
   });
 
   it('lo que no se ve no se cuenta como visual', () => {

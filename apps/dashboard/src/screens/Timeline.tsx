@@ -57,6 +57,7 @@ const EDIT_LABELS: Record<EditType, string> = {
   split_versus: 'Comparación',
   pasos_flow: 'Pasos',
   tendencia: 'Tendencia',
+  barras: 'Barras a escala',
   imagen_apoyo: 'Imagen de referencia',
   sfx: 'Sonido',
 };

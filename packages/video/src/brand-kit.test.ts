@@ -268,6 +268,29 @@ describe('computeEffectsTrack', () => {
     expect(effects[2]).toMatchObject({ type: 'tendencia', value: '70%', style: 'sube' });
   });
 
+  it('las barras llegan al render con sus dos magnitudes', () => {
+    // el mismo bug que cazó el test de arriba, para el campo `values`: sin su
+    // línea en computeEffectsTrack, las barras validarían y se pintarían vacías
+    const master = makeDemoMaster({ audioPath: 'demo/silence.wav' });
+    master.edits = [
+      {
+        type: 'barras',
+        from_ms: 0,
+        to_ms: 3400,
+        items: ['Parchear', 'Explotar'],
+        values: ['504 h', '2 h'],
+        label: 'ventana real',
+      },
+    ];
+    const effects = computeEffectsTrack(master, 30, 0);
+    expect(effects[0]).toMatchObject({
+      type: 'barras',
+      items: ['Parchear', 'Explotar'],
+      values: ['504 h', '2 h'],
+      label: 'ventana real',
+    });
+  });
+
   it('mapea los efectos nuevos (kinetic_text, stat_odometer) por passthrough', () => {
     const master = makeDemoMaster({ audioPath: 'demo/silence.wav' });
     master.edits = [

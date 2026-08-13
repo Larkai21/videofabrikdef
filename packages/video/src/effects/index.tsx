@@ -1513,6 +1513,133 @@ export const Tendencia: React.FC<{
   );
 };
 
+/**
+ * A frente a B CON magnitud: dos barras horizontales a escala.
+ *
+ * Existe porque `split_versus` enfrenta dos cosas pero no dice CUÁNTO, y las
+ * frases medidas del nicho comparan magnitudes («semanas frente a horas», «10
+ * veces más barato» — calibracion/frases-etiquetadas.json). Las barras crecen
+ * hasta su proporción real: la parte numérica sale de `tokenCifra` sobre los
+ * `values` tal y como se dicen, así que la escala nunca se inventa — si alguno
+ * de los dos no trae número, no se dibuja nada (mejor que una proporción
+ * falsa, la misma regla que la lectura tolerante).
+ *
+ * Las filas se apilan en los DOS lienzos: el eje largo de la barra es el que
+ * comunica, y cabe igual a 1080 que a 1920 de ancho. La barra mayor lleva el
+ * acento; la menor, el trazo neutro — la comparación no es «bien contra mal»
+ * (eso es SENAL, y es de Tendencia), es «grande contra pequeño».
+ */
+export const Barras: React.FC<{
+  items: string[];
+  values: string[];
+  label?: string;
+  design?: DesignTokens;
+}> = ({ items, values, label, design }) => {
+  const d = design ?? defaultDesign();
+  const frame = useCurrentFrame();
+  const lienzo = useLienzo();
+  const { opacity } = useInOut();
+  const [etqA, etqB] = items;
+  const [valA, valB] = values;
+  if (etqA === undefined || etqB === undefined || valA === undefined || valB === undefined) {
+    return null;
+  }
+  const cifraA = tokenCifra(valA);
+  const cifraB = tokenCifra(valB);
+  if (cifraA === null || cifraB === null) return null;
+  const magA = Math.abs(cifraA.target);
+  const magB = Math.abs(cifraB.target);
+  const mayor = Math.max(magA, magB);
+  if (mayor === 0) return null;
+
+  const ancho = lienzo.vertical ? lienzo.ancho - lienzo.safe.left - lienzo.safe.right - 2 * S[6] : 900;
+  // el suelo del 6 %: una barra de 2 px no se lee como barra sino como raya
+  // perdida, y la magnitud pequeña es justo la que da sentido a la comparación
+  const fraccion = (m: number): number => Math.max(0.06, m / mayor);
+
+  const fila = (etiqueta: string, valor: string, mag: number, retraso: number): React.ReactNode => {
+    const p = span(frame, 4 + retraso, 16, Ease.outCubic);
+    const esMayor = mag === mayor;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: S[1] }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            gap: S[4],
+          }}
+        >
+          <div style={{ ...displayText(700), fontSize: T.md, color: d.foreground }}>{etiqueta}</div>
+          <div
+            style={{
+              ...displayText(800),
+              fontSize: T.lg,
+              fontVariantNumeric: 'tabular-nums',
+              color: esMayor ? d.accent : d.foreground,
+            }}
+          >
+            {valor}
+          </div>
+        </div>
+        <div
+          style={{
+            height: 26,
+            borderRadius: R.sm,
+            background: hexToRgba(d.foreground, 0.12),
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              height: '100%',
+              width: `${(fraccion(mag) * p * 100).toFixed(2)}%`,
+              borderRadius: R.sm,
+              background: esMayor ? d.accent : hexToRgba(d.foreground, 0.55),
+            }}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+      <div
+        style={{
+          opacity,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: S[4],
+          width: ancho,
+          padding: `${S[5]}px ${S[6]}px`,
+          ...glassSurface(d),
+          borderRadius: R.lg,
+          fontFamily: FONT_FAMILY,
+        }}
+      >
+        {label !== undefined && label.trim() !== '' ? (
+          <div
+            style={{
+              fontFamily: familias(d).mono,
+              fontSize: T.xs,
+              letterSpacing: '0.22em',
+              color: d.accent,
+              textTransform: 'uppercase',
+            }}
+          >
+            {label}
+          </div>
+        ) : null}
+        {/* la segunda barra entra 6 frames después: primero el término de
+            referencia, luego el que lo empequeñece — el orden ES el argumento */}
+        {fila(etqA, valA, magA, 0)}
+        {fila(etqB, valB, magB, 6)}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 // Imagen REAL de referencia de una entidad con nombre (producto, empresa,
 // modelo), superpuesta al plano mientras la voz la menciona. La resuelve el
 // worker (foto de stock → Wikimedia Commons, con veto del juez de planos) y
