@@ -2,7 +2,9 @@
 
 Herramienta self-hosted (VPS propio, Docker Compose) para producir vídeos de YouTube
 semi-automatizados estilo "faceless". MVP: un solo canal (IA/tecnología), de la idea al
-MP4 con metadatos, con intervención humana mínima y localizada en tres puertas.
+MP4 con metadatos, con intervención humana mínima y localizada en tres puertas (las del
+raíl del vídeo largo; el clipping de episodios y los reels del editor añaden las suyas
+propias FUERA del raíl — ver docs/episodios.md y docs/reels.md).
 La especificación completa está en `SPEC.md` (raíz del repo): léela entera antes de
 diseñar módulos nuevos o tomar decisiones de arquitectura.
 
@@ -79,6 +81,10 @@ diseñar módulos nuevos o tomar decisiones de arquitectura.
   o 'whisper' (API, 0,006 $/min)
 - `pnpm reescala:biblioteca [--dry]` — normaliza a 1080p los clips grandes ya ingeridos
 - `pnpm sfx` — regenera los 14 .wav sintetizados
+- Módulo editor (`apps/editor`, reels): su arnés es propio, no turbo —
+  `cd apps/editor && make ci` (clon sin builds) o `make rapido` (con un build);
+  puesta en marcha del venv en docs/reels.md. Requiere macOS Apple Silicon +
+  Python 3.12; el resto de la fábrica no hereda esos requisitos
 - `pnpm --filter @fabrica/video preview:marca --vertical [--video]` — fotogramas
   del short con la marca real (cartela, subtítulos cinéticos, recorte 9:16)
 
@@ -89,8 +95,12 @@ diseñar módulos nuevos o tomar decisiones de arquitectura.
 - No introducir Next.js/SSR ni cambiar el stack del front.
 - No usar MoviePy ni FFmpeg directo para el cuerpo del vídeo: Remotion es el motor;
   FFmpeg queda para utilidades (loudnorm, probes, extracción de frames).
-- No añadir un segundo motor de render. HyperFrames (HTML + Puppeteer) y
-  editor-youtube (HTML + Playwright) son CATÁLOGOS DE REFERENCIA VISUAL: se
+- No añadir un segundo motor de render AL PIPELINE DE LA FÁBRICA: el cuerpo de
+  vídeos, shorts y clips es solo Remotion (Player = render, mismo píxel).
+  Excepción consciente y acotada (2026-08-12): el módulo `apps/editor` (reels
+  desde A-roll propio) usa su propio motor Playwright+ffmpeg y NINGÚN píxel
+  cruza de un motor al otro — ver docs/reels.md §motivo. Para la fábrica,
+  HyperFrames y el catálogo del editor siguen siendo REFERENCIA VISUAL: se
   portan sus coreografías a Remotion, con su porqué, y se documenta qué se
   descarta. Ver docs/motion-graphics.md y docs/motion-graphics-vertical.md.
 - No añadir un control para mover la ventana de un short. Es un asa de recorte

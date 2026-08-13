@@ -30,6 +30,21 @@ completo de propuesta, curación y render vertical (ver `docs/shorts.md` y
 `docs/motion-graphics-vertical.md`; tabla `shorts`, máquina de estados propia,
 informe de calidad con umbrales del formato y bucle de métricas por CSV).
 
+Construido DESPUÉS (agosto 2026): **clipping de episodios** — de un episodio de
+podcast/directo ajeno a clips verticales con atribución (ver `docs/episodios.md`;
+tabla `episodes` con máquina de estados propia, registro de derechos desde el día 1,
+y dos puertas humanas en la bandeja FUERA del raíl: `episodio_listo` y
+`clips_episodio` — no paran ningún vídeo, van en su propia sección).
+
+Construido DESPUÉS (agosto 2026): **reels del módulo editor** — A-roll propio +
+guion de dirección JSON → vertical editado (ver `docs/reels.md`; tabla `reels`,
+cola `edit`, puerta humana `reel_plan`). El módulo `apps/editor` trae su PROPIO
+motor (plantillas HTML+GSAP rasterizadas con Playwright + composición ffmpeg):
+es una excepción CONSCIENTE y acotada a la regla «un solo motor de render» —
+el cuerpo de vídeos, shorts y clips de la fábrica sigue siendo solo Remotion,
+y ningún píxel cruza de un motor al otro (decisión del 2026-08-12, ver
+`docs/reels.md` §motivo).
+
 ## 3. Módulos: motivo y funcionalidad
 
 | Módulo | Por qué existe | Qué hace (MVP) |

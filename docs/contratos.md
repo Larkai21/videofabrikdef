@@ -105,6 +105,10 @@ POST /videos/:id/approve-timeline → encola render
 GET  /events                     SSE: progreso de jobs y render
 ```
 
+Construido después del MVP (mismas convenciones): `/videos/:id/shorts` y
+`/shorts/:id/*` (docs/shorts.md), `/episodios*` (docs/episodios.md) y
+`/reels*` (docs/reels.md) — DTOs en `packages/shared/src/api.ts`, como todo.
+
 Convención: toda transición de estado pasa por la API (nunca un worker "decide" un gate);
 la API valida el estado origen antes de transicionar (máquina de estados en un solo sitio).
 
