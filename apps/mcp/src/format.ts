@@ -7,6 +7,7 @@ import type {
   LibraryListDto,
   ReelDetailDto,
   ReelDto,
+  ShortDto,
   TimelineDto,
   VideoDetailDto,
   YoutubePublication,
@@ -239,6 +240,32 @@ export function formatCosts(
       videos_terminados: inbox.month_videos,
       nota: 'Agregado del ledger de costes del mes en curso (fuente: /inbox).',
     },
+  };
+}
+
+export function formatClips(shorts: ShortDto[]): Record<string, unknown> {
+  const vivos = shorts.filter((s) => s.state !== 'descartado');
+  return {
+    total: shorts.length,
+    vivos: vivos.length,
+    clips: shorts.map((s) => ({
+      clip_id: s.id,
+      estado: s.state,
+      desde_s: msToS(s.from_ms),
+      hasta_s: msToS(s.to_ms),
+      duracion_s: msToS(s.duration_ms),
+      titulo: s.title,
+      gancho: truncate(s.hook),
+      motivo: truncate(s.reason),
+      confianza: Math.round(s.score),
+      video_url: s.video_url,
+      incidencia: s.incident
+        ? { mensaje: s.incident.message, accion_sugerida: s.incident.suggested_action }
+        : null,
+    })),
+    nota:
+      'propuesto = espera tu decisión (approve_clip / discard_clip con motivo: ' +
+      'el motivo alimenta la siguiente propuesta). descartado no se re-propone.',
   };
 }
 

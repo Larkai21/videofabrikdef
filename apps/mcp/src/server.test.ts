@@ -26,6 +26,11 @@ const EXPECTED_TOOLS = [
   'publish_video',
   'library_search',
   'production_costs',
+  // clips de episodios: la puerta de curación vía agente
+  'list_episode_clips',
+  'propose_episode_clips',
+  'approve_clip',
+  'discard_clip',
   // reels (módulo editor): el agente como director antes de la firma
   'list_reels',
   'get_reel',
@@ -75,7 +80,7 @@ afterAll(async () => {
 });
 
 describe('catálogo de herramientas', () => {
-  it('expone las 23 herramientas (16 de S3 + 7 de reels)', async () => {
+  it('expone las 27 herramientas (16 de S3 + 4 de clips + 7 de reels)', async () => {
     const server = buildServer(createApi(baseUrl));
     const client = await connectClient(server);
     closers.push(() => client.close(), () => server.close());

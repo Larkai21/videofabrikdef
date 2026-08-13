@@ -35,6 +35,10 @@ Arranque manual (para depurar): `pnpm --filter @fabrica/mcp start`
 | `publish_video` | `video_id` | Aprueba la publicación en YouTube (subida en privado + programación) |
 | `library_search` | `q`, `kind?` | Busca en la biblioteca local de assets |
 | `production_costs` | `month?` | Agregado del ledger del mes en curso (vía `/inbox`) |
+| `list_episode_clips` | `episode_id` | Clips del episodio con estado, ventana, gancho y confianza |
+| `propose_episode_clips` | `episode_id` | Pide clips (episodio listo + encuadre elegido) |
+| `approve_clip` | `clip_id` | Aprueba un clip propuesto y lo manda a render |
+| `discard_clip` | `clip_id`, `reason` | Descarta con motivo (alimenta la siguiente propuesta) |
 | `list_reels` | — | Reels del módulo editor con su estado |
 | `get_reel` | `reel_id` | Detalle: guion congelado + plan COMPLETO de capas (el payload de `update_reel_plan`) |
 | `create_reel` | `aroll_path`, `guion_json`, `channel_id`, `title?`, `formato?` | Alta con subida del A-roll local (multipart) |

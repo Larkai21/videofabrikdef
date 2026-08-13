@@ -22,11 +22,13 @@ import {
   reelDetailDtoSchema,
   reelPlanLayerSchema,
   reelsListDtoSchema,
+  shortsListDtoSchema,
   timelineDtoSchema,
   videoDetailDtoSchema,
 } from '@fabrica/shared';
 import { createApi, type ApiResult, type FabricaApi } from './api.js';
 import {
+  formatClips,
   formatCosts,
   formatInbox,
   formatIdeas,
@@ -390,6 +392,81 @@ export function buildServer(api: FabricaApi = createApi()): McpServer {
       if (!costs.ok) return errorResult(costs.message);
       return textResult(costs.value);
     },
+  );
+
+  // ---- clips de episodios (clipping): la puerta de curación vía agente ----
+
+  server.registerTool(
+    'list_episode_clips',
+    {
+      description:
+        'Clips de un episodio (todos, descartados incluidos): estado, ventana, ' +
+        'gancho y confianza. propuesto = esperando approve_clip/discard_clip.',
+      inputSchema: { episode_id: z.string().min(1).describe('Id del episodio') },
+      ...readOnly,
+    },
+    async ({ episode_id }) =>
+      fetchAndFormat(
+        api.request('GET', `/episodios/${encodeURIComponent(episode_id)}/clips`),
+        shortsListDtoSchema,
+        `/episodios/${episode_id}/clips`,
+        (dto) => formatClips(dto.shorts),
+      ),
+  );
+
+  server.registerTool(
+    'propose_episode_clips',
+    {
+      description:
+        'Pide clips de un episodio LISTO con encuadre elegido (409 si falta ' +
+        'cualquiera de los dos). «Proponer otros» excluye solo las ventanas ya ' +
+        'propuestas y las descartadas con su motivo.',
+      inputSchema: { episode_id: z.string().min(1).describe('Id del episodio') },
+    },
+    async ({ episode_id }) =>
+      actionResult(
+        api.request('POST', `/episodios/${encodeURIComponent(episode_id)}/clips`),
+        (data) => {
+          const enCurso =
+            data && typeof data === 'object' && 'ya_en_curso' in data
+              ? (data as { ya_en_curso: unknown }).ya_en_curso === true
+              : false;
+          return enCurso
+            ? `Ya se están buscando clips del episodio ${episode_id}.`
+            : `Buscando clips del episodio ${episode_id}; míralos con list_episode_clips.`;
+        },
+      ),
+  );
+
+  server.registerTool(
+    'approve_clip',
+    {
+      description: 'Aprueba un clip propuesto y lo manda a la cola de render.',
+      inputSchema: { clip_id: z.string().min(1).describe('Id del clip (short)') },
+    },
+    async ({ clip_id }) =>
+      actionResult(
+        api.request('POST', `/shorts/${encodeURIComponent(clip_id)}/approve`),
+        `Clip ${clip_id} aprobado; entra en la cola de render.`,
+      ),
+  );
+
+  server.registerTool(
+    'discard_clip',
+    {
+      description:
+        'Descarta un clip propuesto con motivo. El motivo es la única señal ' +
+        'humana que el director aprende: escríbelo de verdad.',
+      inputSchema: {
+        clip_id: z.string().min(1).describe('Id del clip (short)'),
+        reason: z.string().min(1).describe('Por qué no vale (alimenta la siguiente propuesta)'),
+      },
+    },
+    async ({ clip_id, reason }) =>
+      actionResult(
+        api.request('POST', `/shorts/${encodeURIComponent(clip_id)}/discard`, { reason }),
+        `Clip ${clip_id} descartado.`,
+      ),
   );
 
   // ---- reels (módulo editor): el agente como director antes de la firma ----
