@@ -11,8 +11,9 @@ import {
   retryReel,
   updateReelPlan,
 } from '../lib/api';
+import { useLive } from '../lib/events';
 import { useToasts } from '../lib/toasts';
-import { Button, Chip, EmptyState, SkeletonRows } from '../components/ui';
+import { Button, Chip, EmptyState, ProgressBar, SkeletonRows } from '../components/ui';
 
 // LA puerta del pipeline de reels: el plan de capas que preparó la máquina
 // espera la firma humana. Se revisa como documento (principio 2: nada de JSON
@@ -34,6 +35,7 @@ export function ReelDetalle() {
   const navigate = useNavigate();
   const { push } = useToasts();
   const queryClient = useQueryClient();
+  const { reelProgress } = useLive();
 
   const reelQ = useQuery({
     queryKey: ['reels', id],
@@ -164,6 +166,17 @@ export function ReelDetalle() {
       {reel?.incident != null ? (
         <div className="banner banner-danger fs-sm" style={{ marginBottom: 'var(--gap)' }}>
           {reel.incident.message}
+        </div>
+      ) : null}
+
+      {reel?.state === 'render' ? (
+        <div style={{ display: 'grid', gap: 6, marginBottom: 'var(--gap)' }}>
+          <ProgressBar value={reelProgress[id] ?? 2} />
+          <span className="muted fs-sm">
+            {reelProgress[id] === undefined
+              ? 'En cola del editor (un render de reel cada vez)'
+              : `Renderizando · ${reelProgress[id]} % — el rasterizado es lo largo; la composición va a saltos`}
+          </span>
         </div>
       ) : null}
 

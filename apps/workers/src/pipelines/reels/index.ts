@@ -36,16 +36,55 @@ async function runEditor(
   buildDir: string,
   cmd: string[],
   paso: string,
+  opts: { onProgreso?: (fraccion: number) => void } = {},
 ): Promise<void> {
   ctx.logger.info({ reelId, paso, cmd: cmd.join(' ') }, 'editor: paso');
   const [bin, ...args] = cmd;
-  await execa(bin as string, args, {
+  if (opts.onProgreso === undefined) {
+    await execa(bin as string, args, {
+      cwd: editorDir(),
+      env: { ...process.env, EDITOR_BUILD: buildDir },
+      // los scripts del editor «no se callan»: su stderr es diagnóstico, no ruido
+      stderr: 'inherit',
+      stdout: 'inherit',
+    });
+    return;
+  }
+  // el rasterizador publica «##progreso {capa,capas,frame,frames}» por stdout;
+  // se parsea línea a línea y el resto del stdout se reenvía tal cual — el
+  // diagnóstico no se pierde por instrumentar
+  const child = execa(bin as string, args, {
     cwd: editorDir(),
     env: { ...process.env, EDITOR_BUILD: buildDir },
-    // los scripts del editor «no se callan»: su stderr es diagnóstico, no ruido
     stderr: 'inherit',
-    stdout: 'inherit',
+    buffer: false,
   });
+  let resto = '';
+  child.stdout?.on('data', (trozo: Buffer) => {
+    resto += trozo.toString('utf8');
+    const lineas = resto.split('\n');
+    resto = lineas.pop() ?? '';
+    for (const linea of lineas) {
+      if (!linea.startsWith('##progreso ')) {
+        process.stdout.write(`${linea}\n`);
+        continue;
+      }
+      try {
+        const p = JSON.parse(linea.slice('##progreso '.length)) as {
+          capa: number;
+          capas: number;
+          frame: number;
+          frames: number;
+        };
+        if (p.capas > 0 && p.frames > 0) {
+          opts.onProgreso!((p.capa + p.frame / p.frames) / p.capas);
+        }
+      } catch {
+        // una línea de progreso rota no tumba un render de minutos
+      }
+    }
+  });
+  await child;
 }
 
 type ReelRow = typeof reels.$inferSelect;
@@ -185,7 +224,14 @@ export async function handleRender(ctx: WorkerContext, job: Job<EditRenderJob>):
     const planPath = path.join(buildDir, 'plan.json');
     await writeFile(planPath, JSON.stringify(reel.plan, null, 2));
 
-    // 1. rasterizado por capas (Playwright abre SU Chromium; concurrency 1)
+    // 1. rasterizado por capas (Playwright abre SU Chromium; concurrency 1).
+    //    El rasterizado es lo LARGO: ocupa 0→80 % de la barra; el resto son
+    //    saltos fijos por fase — mejor una barra honesta a trozos que un %
+    //    inventado con reloj
+    let ultimoPub = 0;
+    const publicar = (progress: number) => {
+      void ctx.publishEvent({ type: 'render_progress', reel_id: reelId, progress });
+    };
     await runEditor(
       ctx,
       reelId,
@@ -201,9 +247,20 @@ export async function handleRender(ctx: WorkerContext, job: Job<EditRenderJob>):
         reel.formato,
       ],
       'rasterizar',
+      {
+        onProgreso: (fraccion) => {
+          const pct = Math.min(80, Math.round(fraccion * 80));
+          // throttle a 2 s, patrón del render de shorts
+          if (Date.now() - ultimoPub < 2_000) return;
+          ultimoPub = Date.now();
+          publicar(pct);
+        },
+      },
     );
+    publicar(80);
     // 2. composición: esquiva el rostro con lo ya rasterizado (no re-renderiza)
     await runEditor(ctx, reelId, buildDir, [editorPython(), 'scripts/colocar.py', '--aplicar'], 'colocar');
+    publicar(85);
     // 3. composición ffmpeg. El LUT es explícito por diseño del editor:
     //    REEL_LUT lo cambia; 'none' = sin grado, honesto por defecto
     await runEditor(
@@ -221,6 +278,7 @@ export async function handleRender(ctx: WorkerContext, job: Job<EditRenderJob>):
       ],
       'componer',
     );
+    publicar(95);
     // 4. portada: candidatas puntuadas de la pieza compuesta
     await runEditor(
       ctx,
@@ -236,6 +294,7 @@ export async function handleRender(ctx: WorkerContext, job: Job<EditRenderJob>):
       ],
       'portada',
     );
+    publicar(100);
 
     await ctx.db
       .update(reels)

@@ -31,6 +31,9 @@ export const fabricaEventSchema = z.discriminatedUnion('type', [
     // entregado. Con el id aparte, el consumidor decide y los viejos ni se
     // enteran.
     short_id: z.string().optional(),
+    // ídem para el render de un REEL (módulo editor): su rasterizador emite
+    // progreso por stdout y el worker lo traduce aquí
+    reel_id: z.string().optional(),
     progress: z.number(),
     rendered_frames: z.number().optional(),
     total_frames: z.number().optional(),

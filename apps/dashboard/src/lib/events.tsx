@@ -26,6 +26,8 @@ interface LiveState {
   renderProgress: Record<string, number>;
   /** progreso del render de cada SHORT, indexado por su id */
   shortProgress: Record<string, number>;
+  /** progreso del render de cada REEL (módulo editor), indexado por su id */
+  reelProgress: Record<string, number>;
   // última nota de progreso de job por vídeo
   jobNotes: Record<string, JobNote>;
   // feed de polls de fuentes (radar de ideas), acotado a los últimos 100
@@ -37,6 +39,7 @@ interface LiveState {
 const EMPTY_LIVE: LiveState = {
   renderProgress: {},
   shortProgress: {},
+  reelProgress: {},
   jobNotes: {},
   sourcePolls: [],
   ideasScored: {},
@@ -105,6 +108,14 @@ export function EventsProvider({ children }: { children: ReactNode }) {
             setLive((prev) => ({
               ...prev,
               shortProgress: { ...prev.shortProgress, [shortId]: event.progress },
+            }));
+            break;
+          }
+          if (event.reel_id !== undefined) {
+            const reelId = event.reel_id;
+            setLive((prev) => ({
+              ...prev,
+              reelProgress: { ...prev.reelProgress, [reelId]: event.progress },
             }));
             break;
           }

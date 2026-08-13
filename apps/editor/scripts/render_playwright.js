@@ -39,6 +39,10 @@ let BUILD = process.env.EDITOR_BUILD
   : path.join(RAIZ, 'build');
 let FRAMES = path.join(BUILD, 'frames');
 
+/* progreso global del render (capa en curso / total): lo publica el bucle de
+   fotogramas por stdout con el prefijo ##progreso. capas=0 = apagado. */
+const PROGRESO = { capa: 0, capas: 0 };
+
 /* Las rutas `dir`/`mask` del manifiesto se ESCRIBEN relativas al build y la
    raíz va una sola vez en la cabecera (`raiz`): con rutas absolutas dentro,
    un build/ copiado o movido —o el repo clonado en otra ruta— dejaba un
@@ -342,6 +346,15 @@ async function renderizarPasada(page, capa, o, modo, destino) {
       path: path.join(destino, String(f).padStart(5, '0') + '.png'),
       omitBackground: true            // <- de aquí sale el canal alfa
     });
+    /* progreso PARSEABLE por stdout (stderr es el diagnóstico humano y no se
+       toca): un consumidor externo —el worker de reels de la fábrica— lo lee
+       línea a línea sin regex frágil. Cada 30 frames: suficiente para una
+       barra, invisible en coste. */
+    if (PROGRESO.capas > 0 && (f % 30 === 29 || f === total - 1)) {
+      process.stdout.write('##progreso ' + JSON.stringify({
+        capa: PROGRESO.capa, capas: PROGRESO.capas, frame: f + 1, frames: total,
+      }) + '\n');
+    }
   }
   return { frames: total, dur, fps: fpsCapa, raiz,
            cues: info.cues || [], anclas };
@@ -556,7 +569,9 @@ async function main() {
 
   const hechas = [];
   const avisosAncla = [];
-  for (const capa of capas) {
+  for (const [iCapa, capa] of capas.entries()) {
+    PROGRESO.capa = iCapa;
+    PROGRESO.capas = capas.length;
     process.stderr.write(`renderizando ${capa.capa}... `);
     const r = await renderizarCapa(page, capa, o, anclasPrevias, avisosAncla);
     Object.entries(r.anclas || {}).forEach(
