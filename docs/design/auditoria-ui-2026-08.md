@@ -109,6 +109,11 @@ mirando, misma vara que la auditoría):
 - **Siguen abiertos**: 12 (lista de Episodios pobre), 16 (validación visible
   de URLs del wizard), date/month con locale del navegador, paginación de
   Ideas.
+  - **Cerrados el 14-ago (sprints UI-11/12/13)**: 12 (miniaturas en
+    Episodios), 16 (URLs línea a línea en el wizard), month de Costes y los
+    date de la galería (texto dd/mm/aaaa con parseFechaEs en la frontera),
+    paginación de Ideas y radar por tandas. Con esto, la lista de la
+    auditoría queda a cero.
 - **Pasada final S6.4**: tema claro y densidad compacta sin roturas en
   Bandeja, galería, Biblioteca y Ajustes; foco visible global y aria-labels
   en los controles nuevos. La comprobación responsive a <1100 px quedó FUERA:
@@ -116,6 +121,14 @@ mirando, misma vara que la auditoría):
   CSS (innerWidth clavado en 1512) — pendiente para una sesión con ventana
   real; el riesgo es bajo porque todo lo nuevo usa flex-wrap y grids
   auto-fill/minmax.
+  - **Hecha el 14-ago con ventana real** (resize del navegador, no zoom): el
+    riesgo NO era bajo. Dos roturas reales: la nav recortaba secciones sin
+    señal (su scroll interno lleva la barra oculta a propósito) — ahora
+    envuelve a su propia fila por debajo de ~1290 px, donde el comentario de
+    la propia CSS documentaba el desbordamiento; y la preview pegada de
+    320 px en clips/shorts/plantillas pisaba las tarjetas — ahora
+    .lista-con-preview apila por debajo de 900 px. Lección repetida: «flex
+    y minmax lo aguantan» no es verificación; se juzga mirando.
 - Extra fuera de la lista: descartar una idea ahora tiene «Deshacer» en el
   toast (ruta /restore), y los vacíos con filtros ofrecen «Quitar los
   filtros».
