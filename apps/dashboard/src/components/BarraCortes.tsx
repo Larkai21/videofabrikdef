@@ -9,13 +9,19 @@ interface BarraCortesProps {
   /** Tramos del encuadre_plan del maestro, en el reloj de la ventana del clip. */
   plan: NonNullable<ShortCut['encuadre_plan']>;
   duracionMs: number;
+  /**
+   * Insertos de b-roll del maestro (reloj de salida, como el plan). Pintan una
+   * segunda banda: dónde deja de verse al hablante y entra el plano de la
+   * biblioteca. Misma doctrina: auditoría, no control.
+   */
+  broll?: NonNullable<ShortCut['broll']>;
 }
 
 function fmtSegundos(ms: number): string {
   return `${(ms / 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 })} s`;
 }
 
-export function BarraCortes({ plan, duracionMs }: BarraCortesProps) {
+export function BarraCortes({ plan, duracionMs, broll = [] }: BarraCortesProps) {
   if (plan.length === 0 || duracionMs <= 0) return null;
 
   // Los tramos del detector no cubren el 100 % de la ventana (hay huecos sin
@@ -65,8 +71,35 @@ export function BarraCortes({ plan, duracionMs }: BarraCortesProps) {
           />
         ))}
       </div>
+      {broll.length > 0 ? (
+        <div
+          role="img"
+          aria-label={`${broll.length} insertos de b-roll sobre el reloj del clip`}
+          style={{ position: 'relative', height: 4, borderRadius: 2, background: 'var(--bg2)' }}
+        >
+          {broll.map((b) => (
+            <div
+              key={b.from_ms}
+              title={`b-roll «${b.query}» a ${fmtSegundos(b.from_ms)}`}
+              style={{
+                position: 'absolute',
+                left: `${(b.from_ms / duracionMs) * 100}%`,
+                // mínimo visible para que un inserto corto no desaparezca
+                width: `max(${((b.to_ms - b.from_ms) / duracionMs) * 100}%, 4px)`,
+                top: 0,
+                bottom: 0,
+                background: 'var(--accent)',
+                borderRadius: 2,
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
       <span className="mono muted" style={{ fontSize: 10.5 }}>
         cortes de plano del apretado · {plan.length} {plan.length === 1 ? 'plano' : 'planos'}
+        {broll.length > 0
+          ? ` · ${broll.length} ${broll.length === 1 ? 'inserto' : 'insertos'} de b-roll`
+          : ''}
       </span>
     </div>
   );

@@ -19,7 +19,7 @@ import {
   shortDownloadUrl,
 } from '../lib/api';
 import { useLive } from '../lib/events';
-import { fmtClock, parseClock } from '../lib/format';
+import { fmtClock, fmtSim, parseClock } from '../lib/format';
 import { useHotkeys } from '../lib/hotkeys';
 import { loadShortForm } from '../lib/shortform';
 import { PlayerBoundary } from '../lib/longform';
@@ -647,7 +647,28 @@ export function EpisodioClips() {
               <BarraCortes
                 plan={detalle.master.short.encuadre_plan}
                 duracionMs={detalle.master.short.duration_ms}
+                broll={detalle.master.short.broll}
               />
+            ) : null}
+            {/* auditoría del b-roll: qué pidió el director, qué plano de la
+                biblioteca respondió y con cuánta similitud — el operador ve
+                por qué la tarjeta deja de enseñar al hablante en ese tramo */}
+            {detalle !== undefined &&
+            detalle.master.short.broll !== undefined &&
+            detalle.master.short.broll.length > 0 ? (
+              <div style={{ marginTop: 8, display: 'grid', gap: 4 }}>
+                {detalle.master.short.broll.map((b) => (
+                  <div key={b.from_ms} className="fs-sm" style={{ display: 'flex', gap: 8 }}>
+                    <span className="mono muted" style={{ whiteSpace: 'nowrap' }}>
+                      {fmtClock(b.from_ms)}–{fmtClock(b.to_ms)}
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      «{b.query}»{' '}
+                      <span className="muted">· similitud {fmtSim(b.score)}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
             ) : null}
             <p className="muted fs-sm" style={{ marginTop: 8, lineHeight: 1.5 }}>
               Los cortes los fija la transcripción y el encuadre quedó congelado al proponer. La

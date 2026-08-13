@@ -75,6 +75,8 @@ interface ProdDraft {
   duracion_max: string;
   anti_repeat_n: string;
   background_music: boolean;
+  clips_relleno: boolean;
+  clips_broll: boolean;
 }
 
 function parseProd(draft: ProdDraft): {
@@ -82,6 +84,8 @@ function parseProd(draft: ProdDraft): {
   duracion: { min: number; max: number };
   anti_repeat_n: number;
   background_music: boolean;
+  clips_relleno: boolean;
+  clips_broll: boolean;
 } | null {
   const budget = Number(draft.monthly_budget_usd.replace(',', '.'));
   const min = Number(draft.duracion_min.replace(',', '.'));
@@ -96,6 +100,8 @@ function parseProd(draft: ProdDraft): {
     duracion: { min, max },
     anti_repeat_n: antiRepeat,
     background_music: draft.background_music,
+    clips_relleno: draft.clips_relleno,
+    clips_broll: draft.clips_broll,
   };
 }
 
@@ -170,6 +176,8 @@ function AjustesCanal({ channel }: { channel: ChannelDto }) {
         duracion_max: String(settingsQ.data.duracion.max),
         anti_repeat_n: String(settingsQ.data.anti_repeat_n),
         background_music: settingsQ.data.background_music,
+        clips_relleno: settingsQ.data.clips_relleno,
+        clips_broll: settingsQ.data.clips_broll,
       });
     }
   }, [settingsQ.data, prod]);
@@ -367,6 +375,34 @@ function AjustesCanal({ channel }: { channel: ChannelDto }) {
               <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.5 }}>
                 La música necesita pistas de tipo música (kind music) en la biblioteca del canal o
                 compartidas; sin pistas, el vídeo sale solo con la voz.
+              </p>
+              <label
+                style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 'var(--fs-sm)' }}
+              >
+                <input
+                  type="checkbox"
+                  checked={prod.clips_broll}
+                  onChange={(e) => setProd({ ...prod, clips_broll: e.target.checked })}
+                />
+                B-roll en los clips de episodio: la biblioteca ilustra las frases que lo piden
+              </label>
+              <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.5 }}>
+                Degrada limpio: sin un plano digno en la biblioteca no hay inserto y se queda el
+                hablante.
+              </p>
+              <label
+                style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 'var(--fs-sm)' }}
+              >
+                <input
+                  type="checkbox"
+                  checked={prod.clips_relleno}
+                  onChange={(e) => setProd({ ...prod, clips_relleno: e.target.checked })}
+                />
+                Corte semántico de relleno en los clips: las frases prescindibles se apretan como
+                silencio
+              </label>
+              <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.5 }}>
+                Una llamada más por clip y quita material — enciéndelo cuando te fíes del criterio.
               </p>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <Button
