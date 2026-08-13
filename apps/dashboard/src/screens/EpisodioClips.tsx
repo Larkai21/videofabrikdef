@@ -448,13 +448,7 @@ export function EpisodioClips() {
           descripción.
         </EmptyState>
       ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) 320px',
-            gap: 'var(--gap)',
-          }}
-        >
+        <div className="lista-con-preview">
           <div style={{ display: 'grid', gap: 'var(--gap)', alignContent: 'start' }}>
             {vivos.map((s) => {
               const estado = ESTADOS[s.state];
@@ -598,9 +592,7 @@ export function EpisodioClips() {
 
           {/* La previsualización monta la MISMA composición que el render, así
               que lo que se ve aquí es lo que se va a renderizar. */}
-          <div
-            style={{ position: 'sticky', top: 'calc(var(--row) * 2 + 18px)', alignSelf: 'start' }}
-          >
+          <div className="preview-pegada">
             <div
               style={{
                 aspectRatio: '9 / 16',

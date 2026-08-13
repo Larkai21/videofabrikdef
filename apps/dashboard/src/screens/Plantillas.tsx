@@ -359,13 +359,7 @@ export function Plantillas() {
           Prueba con otro texto u otro origen.
         </EmptyState>
       ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) 320px',
-            gap: 'var(--gap)',
-          }}
-        >
+        <div className="lista-con-preview">
           <div
             style={{
               display: 'grid',
@@ -462,9 +456,7 @@ export function Plantillas() {
             </div>
           ) : null}
 
-          <div
-            style={{ position: 'sticky', top: 'calc(var(--row) * 2 + 18px)', alignSelf: 'start' }}
-          >
+          <div className="preview-pegada">
             {seleccionada !== null ? (
               // key: cambiar de pieza re-monta el visor entero (iframe nuevo)
               <VisorPlantilla key={seleccionada.plantilla} pieza={seleccionada} />

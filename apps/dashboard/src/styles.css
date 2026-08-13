@@ -1613,6 +1613,49 @@ textarea.control {
   }
 }
 
+/* Por debajo de ~1290px la fila rígida de la cabecera desborda (el comentario
+   de .app-header-nav lo documenta) y el escape era un scroll interno con la
+   barra oculta: «Plantillas» se cortaba a «Pla» y las últimas secciones
+   desaparecían sin ninguna señal de que existen. La nav pasa a su propia
+   fila completa: todas las secciones a la vista, sin recortes. */
+@media (max-width: 1290px) {
+  .app-header-inner {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: var(--row);
+    padding-bottom: 6px;
+  }
+  .app-header-nav {
+    order: 10;
+    flex-basis: 100%;
+    overflow-x: visible;
+    flex-wrap: wrap;
+  }
+}
+
+/* Lista de candidatos + previsualización pegada (clips, shorts, plantillas).
+   En estrecho la columna fija de 320px no cabe y la preview pisaba las
+   tarjetas: se apila debajo, deja de pegarse y conserva su ancho de tarjeta. */
+.lista-con-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--gap);
+}
+.preview-pegada {
+  position: sticky;
+  top: calc(var(--row) * 2 + 18px);
+  align-self: start;
+}
+@media (max-width: 900px) {
+  .lista-con-preview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .preview-pegada {
+    position: static;
+    max-width: 320px;
+  }
+}
+
 @media (max-width: 900px) {
   .split-half,
   .split-lead {
