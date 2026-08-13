@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { z } from 'zod';
 import { Button, Chip, CostBadge, Incidencia, Kbd, ReasonModal, type Motivo } from '../components/ui';
 import {
   approveScript,
@@ -24,6 +25,15 @@ const MOTIVOS_REESCRITURA: Motivo[] = [
   { id: 'fuente', label: 'Faltan fuentes en los datos marcados' },
   { id: 'entrada', label: 'La entradilla tarda en llegar al grano' },
 ];
+
+// La versión previa a una reescritura, guardada en sessionStorage justo antes
+// de pedirla. Vive en la sesión del navegador a propósito: es un aviso de
+// transición («qué cambió con la reescritura»), no estado de negocio — el
+// maestro en Postgres sigue siendo la única verdad (principio 3). Se valida
+// con zod al leer porque sessionStorage es del navegador, no nuestro.
+const escenasPreviasSchema = z.array(z.object({ id: z.string(), text: z.string() }));
+type EscenasPrevias = z.infer<typeof escenasPreviasSchema>;
+const clavePrevio = (videoId: string): string => `guion-previo-${videoId}`;
 
 function titleNote(t: string): string {
   if (t.length <= 45) return 'directo, bien para resultados';
@@ -119,6 +129,30 @@ export function Guion() {
     void queryClient.invalidateQueries({ queryKey: ['inbox'] });
   };
 
+  // Diff v1 de la reescritura: la versión anterior se guarda al pedirla y se
+  // compara escena a escena (texto igual o distinto) cuando llega el nuevo
+  // borrador. Sin librería de diff: para juzgar si mejoró basta ver el antes.
+  const [avisoCerrado, setAvisoCerrado] = useState(false);
+  const previo = useMemo<EscenasPrevias | null>(() => {
+    if (id === '' || avisoCerrado) return null;
+    try {
+      const raw = sessionStorage.getItem(clavePrevio(id));
+      if (raw === null) return null;
+      return escenasPreviasSchema.parse(JSON.parse(raw));
+    } catch {
+      // JSON corrupto o sessionStorage inaccesible: sin aviso, sin drama
+      return null;
+    }
+  }, [id, avisoCerrado]);
+  const limpiarPrevio = () => {
+    try {
+      sessionStorage.removeItem(clavePrevio(id));
+    } catch {
+      // sin sessionStorage el aviso nunca existió; no hay nada que limpiar
+    }
+    setAvisoCerrado(true);
+  };
+
   const titleMut = useMutation({
     mutationFn: (idx: number) => chooseTitle(id, idx),
     onSuccess: invalidateVideo,
@@ -138,6 +172,8 @@ export function Guion() {
   const approveMut = useMutation({
     mutationFn: () => approveScript(id),
     onSuccess: () => {
+      // el aviso de reescritura muere al aprobar: ya decidiste con él delante
+      limpiarPrevio();
       invalidateVideo();
       push('Guion y título aprobados · la voz se está generando');
       void navigate('/');
@@ -344,6 +380,19 @@ export function Guion() {
     );
   }
 
+  // El diff solo ayuda en borrador (es cuando se decide aprobar o volver a
+  // reescribir). Se casa por id de escena y, si el id no sobrevivió a la
+  // reescritura, por posición.
+  const previoVigente = video.state === 'guion_borrador' ? previo : null;
+  const anteriorDe = (sceneId: string, i: number): string | undefined =>
+    previoVigente === null
+      ? undefined
+      : (previoVigente.find((p) => p.id === sceneId) ?? previoVigente[i])?.text;
+  const cambiadas = scenes.filter((s, i) => {
+    const anterior = anteriorDe(s.id, i);
+    return anterior !== undefined && anterior !== s.text;
+  }).length;
+
   const words = scenes.reduce((acc, s) => acc + wordCount(s.text), 0);
   const estMs = speechMs(words);
   const offsets = sceneOffsets(scenes.map((s) => s.text));
@@ -405,6 +454,19 @@ export function Guion() {
               {jobNote.detail}
             </div>
           ) : null}
+          {cambiadas > 0 ? (
+            <div className="banner" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ flex: 1 }}>
+                {cambiadas === 1
+                  ? 'La reescritura cambió una escena.'
+                  : `La reescritura cambió ${cambiadas} escenas.`}{' '}
+                El texto anterior está en el margen de cada una.
+              </span>
+              <Button variant="ghost" onClick={limpiarPrevio}>
+                Descartar aviso
+              </Button>
+            </div>
+          ) : null}
 
           <article
             className="card"
@@ -450,6 +512,8 @@ export function Guion() {
 
             {scenes.map((scene, i) => {
               const note = notes.get(scene.id);
+              const anterior = anteriorDe(scene.id, i);
+              const cambiada = anterior !== undefined && anterior !== scene.text;
               const isEditing = editing !== null && editing.id === scene.id;
               return (
                 <div
@@ -537,20 +601,41 @@ export function Guion() {
                     </p>
                   )}
 
-                  {note !== undefined && !isEditing ? (
-                    <div
-                      style={{
-                        width: 150,
-                        flex: 'none',
-                        fontSize: 11.5,
-                        lineHeight: 1.45,
-                        color: 'var(--warn)',
-                        borderLeft: '2px solid var(--warn)',
-                        paddingLeft: 9,
-                        marginTop: 4,
-                      }}
-                    >
-                      {note}
+                  {(note !== undefined || cambiada) && !isEditing ? (
+                    <div style={{ width: 150, flex: 'none', marginTop: 4, display: 'grid', gap: 10 }}>
+                      {note !== undefined ? (
+                        <div
+                          style={{
+                            fontSize: 11.5,
+                            lineHeight: 1.45,
+                            color: 'var(--warn)',
+                            borderLeft: '2px solid var(--warn)',
+                            paddingLeft: 9,
+                          }}
+                        >
+                          {note}
+                        </div>
+                      ) : null}
+                      {cambiada ? (
+                        // aviso de la reescritura con el estilo del margen,
+                        // plegado para no competir con los avisos de fondo:
+                        // el texto viejo solo aparece al desplegar
+                        <details
+                          style={{
+                            fontSize: 11.5,
+                            lineHeight: 1.45,
+                            borderLeft: '2px solid var(--accent)',
+                            paddingLeft: 9,
+                          }}
+                        >
+                          <summary style={{ cursor: 'pointer', color: 'var(--accent)' }}>
+                            esta escena cambió — ver anterior
+                          </summary>
+                          <p className="muted" style={{ margin: '6px 0 0', whiteSpace: 'pre-wrap' }}>
+                            {anterior}
+                          </p>
+                        </details>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -658,6 +743,20 @@ export function Guion() {
         cta="Pedir reescritura"
         onConfirm={(reason) => {
           setRewriteOpen(false);
+          // se guarda la versión que vas a perder ANTES de mutar: cuando
+          // llegue el nuevo borrador, el margen podrá enseñar qué cambió
+          if (scenes.length > 0) {
+            try {
+              sessionStorage.setItem(
+                clavePrevio(id),
+                JSON.stringify(scenes.map((s) => ({ id: s.id, text: s.text }))),
+              );
+              setAvisoCerrado(false);
+            } catch {
+              // sin hueco en sessionStorage la reescritura se pide igual;
+              // solo se pierde el aviso comparativo
+            }
+          }
           rewriteMut.mutate(reason);
         }}
         onClose={() => setRewriteOpen(false)}

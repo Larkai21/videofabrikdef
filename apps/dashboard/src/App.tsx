@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import { AppHeader } from './components/AppHeader';
+import { LeyendaAtajos } from './components/LeyendaAtajos';
 import { Ajustes } from './screens/Ajustes';
 import { Bandeja } from './screens/Bandeja';
 import { Biblioteca } from './screens/Biblioteca';
@@ -50,6 +51,9 @@ export function App() {
   return (
     <div style={{ minHeight: '100vh' }}>
       <AppHeader />
+      {/* leyenda global: ? abre los atajos de la ruta actual, una sola
+          instancia para toda la app */}
+      <LeyendaAtajos />
       <ScrollToHash />
       <Routes>
         <Route path="/" element={<Bandeja />} />
