@@ -105,6 +105,16 @@ export const shortCutSchema = z.object({
       }),
     )
     .optional(),
+  /**
+   * Modo del lienzo del clip (segundo modo del formato de referencia,
+   * t=260 s del tutorial): `tarjeta` (por defecto) = cabecera + titular +
+   * tarjeta ~cuadrada con el hablante; `full_bleed` = metraje a sangre 9:16
+   * sin tarjeta, subtítulo gigante en mayúsculas a media pantalla. Se usa
+   * cuando el plano es metraje de cine, no el hablante — la heurística del
+   * director que lo activa sola está pendiente; el campo existe para que el
+   * layout y el contrato no cambien cuando llegue.
+   */
+  modo: z.enum(['tarjeta', 'full_bleed']).optional(),
 });
 export type ShortCut = z.infer<typeof shortCutSchema>;
 

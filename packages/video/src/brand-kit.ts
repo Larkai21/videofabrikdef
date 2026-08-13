@@ -55,7 +55,15 @@ export type PiezaMaster = {
       }
     | undefined;
   /** solo en vertical: la ventana recortada del vídeo largo */
-  short?: { source_from_ms: number; duration_ms: number; title: string } | undefined;
+  short?:
+    | {
+        source_from_ms: number;
+        duration_ms: number;
+        title: string;
+        /** modo del lienzo del clip de episodio (tarjeta | full_bleed) */
+        modo?: 'tarjeta' | 'full_bleed' | undefined;
+      }
+    | undefined;
 };
 
 // Montaje del brand kit sobre la ley temporal del audio (SPEC §10,

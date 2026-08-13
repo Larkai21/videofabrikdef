@@ -69,8 +69,13 @@ suelo sobre la banda de la interfaz).
   quedan en `encuadre_plan[].kf` del maestro (auditoría). El banco `pnpm
   encuadre` aún no tiene casos de hablante en movimiento: falta material
   etiquetado con vaivén real.
-- Modo full-bleed para b-roll de película (no aplica a entrevistas; pendiente
-  si el material lo trae).
+- ~~Modo full-bleed para b-roll de película~~ — el LAYOUT está
+  (`short.modo: 'full_bleed'` en el maestro: metraje a sangre, subtítulo
+  gigante en mayúsculas a media pantalla, palabra activa amarilla). Queda la
+  heurística del director que lo active solo (necesita distinguir «plano de
+  cine» de «hablante», y el material actual es todo entrevista) y el
+  pre-corte a 9:16 completo para ese modo (hoy recorta al aspecto de la
+  tarjeta; `cover` lo rellena recortando lados).
 - Gráficos puntuales (emojis, logos) que el editor añade a mano; emoji-pop
   del catálogo hermano es el candidato.
 - ~~Corte semántico de relleno por LLM~~ — hecho tras el flag de canal

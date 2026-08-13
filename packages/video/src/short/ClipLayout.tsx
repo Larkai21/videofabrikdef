@@ -267,6 +267,80 @@ const SubtituloClip: React.FC<{ cues: readonly Cue[]; ancho: number }> = ({ cues
   );
 };
 
+/**
+ * Subtítulo del modo full-bleed: gigante, en MAYÚSCULAS, a media pantalla
+ * («DEADPOOL BUILDS A», t=260 s del tutorial). Grupos de hasta 3 palabras,
+ * base blanca con contorno negro y la palabra ACTIVA en amarillo.
+ */
+const SubtituloGigante: React.FC<{ cues: readonly Cue[]; ancho: number }> = ({ cues, ancho }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const currentMs = (frame / fps) * 1000;
+  const cueIdx = cues.findIndex((c) => currentMs >= c.from_ms && currentMs < c.to_ms);
+  const activo = cueIdx >= 0 ? cues[cueIdx] : undefined;
+  if (activo === undefined || activo.words.length === 0) return null;
+
+  const grupos: { from_ms: number; to_ms: number; words: typeof activo.words }[] = [];
+  for (let i = 0; i < activo.words.length; i += 3) {
+    const trozo = activo.words.slice(i, i + 3);
+    grupos.push({ from_ms: trozo[0]!.from_ms, to_ms: trozo[trozo.length - 1]!.to_ms, words: trozo });
+  }
+  const idx = grupos.findIndex((g, i) => {
+    const sig = grupos[i + 1];
+    const fin = sig !== undefined ? sig.from_ms : g.to_ms + 260;
+    return currentMs >= g.from_ms && currentMs < fin;
+  });
+  if (idx === -1) return null;
+  const grupo = grupos[idx]!;
+  const texto = grupo.words.map((w) => w.w).join(' ');
+  const cuerpo = Math.min(
+    Math.round(ancho * 0.104),
+    Math.floor((ancho * 0.9) / (0.58 * Math.max(5, texto.length))),
+  );
+  const borde = Math.max(4, Math.round(cuerpo * 0.1));
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: '46%',
+        left: '5%',
+        width: '90%',
+        display: 'flex',
+        justifyContent: 'center',
+        gap: Math.round(cuerpo * 0.3),
+        ...clipText(800),
+        fontSize: cuerpo,
+        textTransform: 'uppercase',
+        letterSpacing: '0.02em',
+      }}
+    >
+      {grupo.words.map((w, i) => {
+        const desde = Math.round((w.from_ms / 1000) * fps);
+        const e = clamp(span(frame - desde, 0, 5, Ease.outBack6), 0, 1.12);
+        const visible = currentMs >= w.from_ms - 40;
+        const activa =
+          currentMs >= w.from_ms && currentMs < (grupo.words[i + 1]?.from_ms ?? grupo.to_ms + 260);
+        return (
+          <span
+            key={i}
+            style={{
+              opacity: visible ? 1 : 0,
+              transform: `scale(${(0.7 + 0.3 * e).toFixed(3)})`,
+              color: activa ? AMARILLO : '#ffffff',
+              WebkitTextStroke: `${borde}px #000`,
+              paintOrder: 'stroke fill',
+              textShadow: `0 ${Math.round(cuerpo * 0.05)}px 0 #000`,
+            }}
+          >
+            {w.w}
+          </span>
+        );
+      })}
+    </div>
+  );
+};
+
 // El layout recibe el maestro PROGRESIVO del player (PiezaMaster), no el tipo
 // completo: cada capa tolera la ausencia de su sección, como el resto de Pieza.
 export const ClipLayout: React.FC<{
@@ -279,6 +353,23 @@ export const ClipLayout: React.FC<{
   const { width: ancho } = useVideoConfig();
   const clipPath = master.beats?.[0]?.asset?.path;
   const nombre = master.brand?.channel_name ?? '';
+
+  // segundo modo del formato: metraje de cine a sangre, sin tarjeta ni
+  // cabecera — el plano ES la pantalla y el subtítulo es el protagonista
+  if (master.short?.modo === 'full_bleed') {
+    return (
+      <AbsoluteFill style={{ backgroundColor: '#000', fontFamily: CLIP_FONT_FAMILY }}>
+        {clipPath !== undefined && isRenderableSrc(clipPath) ? (
+          <OffthreadVideo
+            src={toSrc(clipPath)}
+            muted
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : null}
+        <SubtituloGigante cues={master.cues ?? []} ancho={ancho} />
+      </AbsoluteFill>
+    );
+  }
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#000', fontFamily: CLIP_FONT_FAMILY }}>
