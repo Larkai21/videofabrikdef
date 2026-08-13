@@ -884,7 +884,7 @@ const PalabraVertical: React.FC<{
   const { durationInFrames, fps } = useVideoConfig();
   const { opacity } = useInOut({ exitFrames: 8 });
   const lienzo = useLienzo();
-  const { cx, cy } = lienzo.anclajes.microFx;
+  const { cy } = lienzo.anclajes.microFx;
   const anchoUtil = lienzo.ancho - lienzo.safe.left - lienzo.safe.right;
   const texto = palabra.trim().toUpperCase();
   const chars = Math.max(3, texto.length);
