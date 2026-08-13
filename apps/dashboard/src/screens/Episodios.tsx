@@ -229,7 +229,24 @@ export function Episodios() {
           {episodios.map((ep) => {
             const estado = ESTADOS[ep.state];
             return (
-              <div key={ep.id} className="card" style={{ padding: 'var(--pad)', display: 'grid', gap: 8 }}>
+              <div key={ep.id} className="card" style={{ padding: 'var(--pad)', display: 'flex', gap: 12 }}>
+                {/* miniatura: la tira central del encuadre, que ya existía en
+                    disco (hallazgo 12: la lista era texto sobre vacío) */}
+                {ep.thumb_url !== null ? (
+                  <img
+                    src={fileUrl(ep.thumb_url)}
+                    alt=""
+                    aria-hidden="true"
+                    style={{
+                      width: 132,
+                      alignSelf: 'flex-start',
+                      borderRadius: 'var(--r-sm)',
+                      border: '1px solid var(--line)',
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : null}
+                <div style={{ flex: 1, minWidth: 0, display: 'grid', gap: 8, alignContent: 'start' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <Chip kind={estado.kind}>{estado.label}</Chip>
                   <span className="head" style={{ fontSize: 15 }}>
@@ -297,6 +314,7 @@ export function Episodios() {
                     ) : null}
                   </div>
                 ) : null}
+                </div>
               </div>
             );
           })}

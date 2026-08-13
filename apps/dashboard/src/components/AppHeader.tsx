@@ -170,7 +170,9 @@ export function AppHeader() {
           + Canal
         </Link>
         <div style={{ flex: 1 }} />
-        <div className="input-wrap app-header-search" style={{ flex: '0 1 185px', minWidth: 110 }}>
+        {/* factor de encogimiento 999: el buscador cede TODO su ancho antes
+            de que la nav (elástica con scroll interno) esconda una sección */}
+        <div className="input-wrap app-header-search" style={{ flex: '0 999 185px', minWidth: 84 }}>
           <span className="muted" style={{ fontSize: 12 }} aria-hidden="true">
             ⌕
           </span>
@@ -196,18 +198,24 @@ export function AppHeader() {
         </div>
         {inbox !== undefined ? (
           <CostBadge title={tituloDelCoste(inbox)}>
-            {fmtMoney(inbox.month_cost_usd)} · {inbox.month_videos}{' '}
-            {inbox.month_videos === 1 ? 'vídeo' : 'vídeos'}
             {/* El saldo del proveedor solo aparece cuando importa: cuando se
-                está acabando. Enseñarlo siempre convierte en ruido el único
-                aviso que de verdad para la fábrica. */}
+                está acabando. Y cuando aparece, el contador de vídeos cede su
+                sitio — con los dos, el badge crecía y truncaba la nav. */}
             {saldoCritico(inbox.provider_balance) ? (
-              <strong style={{ marginLeft: 8, color: 'var(--danger)' }}>
-                {inbox.provider_balance!.queda_usd === 0
-                  ? 'clave sin saldo'
-                  : `quedan ${fmtMoney(inbox.provider_balance!.queda_usd!)}`}
-              </strong>
-            ) : null}
+              <>
+                {fmtMoney(inbox.month_cost_usd)}
+                <strong style={{ marginLeft: 8, color: 'var(--danger)' }}>
+                  {inbox.provider_balance!.queda_usd === 0
+                    ? 'clave sin saldo'
+                    : `quedan ${fmtMoney(inbox.provider_balance!.queda_usd!)}`}
+                </strong>
+              </>
+            ) : (
+              <>
+                {fmtMoney(inbox.month_cost_usd)} · {inbox.month_videos}{' '}
+                {inbox.month_videos === 1 ? 'vídeo' : 'vídeos'}
+              </>
+            )}
           </CostBadge>
         ) : null}
         {/* tema y densidad viven en Ajustes → Interfaz: el subbar del mock

@@ -474,6 +474,9 @@ h2.head,
   color: var(--fg);
   font-size: var(--fs-sm);
   width: 100%;
+  /* sin esto, el min-content del placeholder impide encoger el buscador de
+     la cabecera y la nav trunca secciones enteras antes que ceder él */
+  min-width: 0;
   font-family: var(--font-ui);
 }
 .input-wrap input:focus {

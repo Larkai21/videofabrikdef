@@ -19,6 +19,7 @@ import {
 } from '@fabrica/shared';
 import type { ApiContext } from '../lib/context.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
+import { toFileUrl } from '../lib/files.js';
 import { shortToDto } from './shorts.js';
 
 const ejec = promisify(execFile);
@@ -50,7 +51,18 @@ function plataformaDe(url: string): 'youtube' | 'twitch' | null {
   }
 }
 
-function toDto(row: EpisodeRow): EpisodeDto {
+/**
+ * Miniatura de la lista: la tira central del encuadre, que ya existe desde
+ * que el episodio llega a listo (hallazgo 12 de la auditoría: la lista era
+ * texto sobre vacío). Comprobación en disco barata y local; sin tira, null y
+ * la UI enseña el hueco neutro.
+ */
+function thumbUrlDe(libraryDir: string, episodeId: string): string | null {
+  const abs = path.join(libraryDir, 'episodes', episodeId, 'encuadres', 'centro.jpg');
+  return fs.existsSync(abs) ? toFileUrl(abs) : null;
+}
+
+function toDto(row: EpisodeRow, libraryDir?: string): EpisodeDto {
   return {
     id: row.id,
     channel_id: row.channelId,
@@ -59,6 +71,7 @@ function toDto(row: EpisodeRow): EpisodeDto {
     source_platform: row.sourcePlatform,
     source_title: row.sourceTitle,
     source_channel_name: row.sourceChannelName,
+    thumb_url: libraryDir !== undefined ? thumbUrlDe(libraryDir, row.id) : null,
     license_status: row.licenseStatus as EpisodeDto['license_status'],
     duration_ms: row.durationMs,
     focus_x: row.focus?.x ?? null,
@@ -120,14 +133,14 @@ export function registerEpisodeRoutes(app: FastifyInstance, ctx: ApiContext): vo
 
   app.get('/episodios', async (): Promise<EpisodesListDto> => {
     const rows = await ctx.db.select().from(episodes).orderBy(desc(episodes.createdAt));
-    return { episodes: rows.map(toDto) };
+    return { episodes: rows.map((r) => toDto(r, ctx.libraryDir)) };
   });
 
   app.get('/episodios/:id', async (req): Promise<EpisodeDto> => {
     const { id } = req.params as { id: string };
     const [row] = await ctx.db.select().from(episodes).where(eq(episodes.id, id)).limit(1);
     if (!row) throw notFound(`Episodio ${id} no existe`);
-    return toDto(row);
+    return toDto(row, ctx.libraryDir);
   });
 
   // Reintento desde incidencia: vuelve al estado en el que se falló y

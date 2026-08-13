@@ -130,6 +130,8 @@ export const episodeDtoSchema = z.object({
   source_platform: episodePlatformSchema,
   source_title: z.string().nullable(),
   source_channel_name: z.string().nullable(),
+  /** miniatura de la lista (tira central del encuadre); null antes de listo */
+  thumb_url: z.string().nullable(),
   license_status: episodeLicenseSchema,
   duration_ms: z.number().int().nullable(),
   /** x (0..1) del encuadre elegido por el humano; null si aún no eligió */
