@@ -12,6 +12,7 @@ import { Ideas } from './screens/Ideas';
 import { Shorts } from './screens/Shorts';
 import { EpisodioClips } from './screens/EpisodioClips';
 import { Episodios } from './screens/Episodios';
+import { Plantillas } from './screens/Plantillas';
 import { ReelDetalle } from './screens/ReelDetalle';
 import { Reels } from './screens/Reels';
 import { Timeline } from './screens/Timeline';
@@ -60,6 +61,8 @@ export function App() {
         <Route path="/videos/:id/shorts" element={<Shorts />} />
         <Route path="/episodios" element={<Episodios />} />
         <Route path="/episodios/:id/clips" element={<EpisodioClips />} />
+        {/* antes que /reels/:id: «plantillas» no es un id de reel */}
+        <Route path="/reels/plantillas" element={<Plantillas />} />
         <Route path="/reels" element={<Reels />} />
         <Route path="/reels/:id" element={<ReelDetalle />} />
         <Route path="/biblioteca" element={<Biblioteca />} />

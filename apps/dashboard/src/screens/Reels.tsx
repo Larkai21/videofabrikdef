@@ -88,8 +88,14 @@ export function Reels() {
       style={{ padding: 'calc(var(--pad) * 2) 26px 72px', display: 'grid', gap: 'var(--pad)' }}
     >
       <div className="card" style={{ padding: 'var(--pad)' }}>
-        <div className="head" style={{ fontSize: 17, marginBottom: 6 }}>
-          Nuevo reel
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 6 }}>
+          <div className="head" style={{ fontSize: 17 }}>
+            Nuevo reel
+          </div>
+          <div style={{ flex: 1 }} />
+          <Link className="btn btn-secondary" to="/reels/plantillas">
+            Plantillas del editor
+          </Link>
         </div>
         <p className="muted fs-sm" style={{ margin: '0 0 12px', lineHeight: 1.5 }}>
           Sube tu A-roll y pega el guion de dirección (JSON del contrato del editor). La máquina

@@ -1,4 +1,5 @@
-import { mkdirSync } from 'node:fs';
+import fs, { mkdirSync } from 'node:fs';
+import path from 'node:path';
 import fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
@@ -105,6 +106,25 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     prefix: '/files/library/',
     decorateReply: false,
   });
+  // el catálogo del módulo editor, servido tal cual: las plantillas son HTML
+  // autocontenido (auto-arrancan su demo y exponen TPL.setup/seek) y el
+  // dashboard las previsualiza en iframe — same-origin en dev vía el proxy
+  // /files de Vite. Solo templates/ y guiones/: los scripts no se sirven.
+  const editorDir = process.env.EDITOR_DIR ?? path.resolve(process.cwd(), '..', 'editor');
+  if (fs.existsSync(path.join(editorDir, 'templates'))) {
+    await app.register(fastifyStatic, {
+      root: path.join(editorDir, 'templates'),
+      prefix: '/files/editor/templates/',
+      decorateReply: false,
+    });
+    await app.register(fastifyStatic, {
+      root: path.join(editorDir, 'guiones'),
+      prefix: '/files/editor/guiones/',
+      decorateReply: false,
+    });
+  } else {
+    app.log.warn({ editorDir }, 'Módulo editor no encontrado: la galería de plantillas no se sirve');
+  }
 
   app.setErrorHandler((error, req, reply) => {
     if (error instanceof HttpError) {
