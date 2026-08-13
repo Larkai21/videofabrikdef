@@ -83,6 +83,15 @@ Lo que destapó (y se arregló o quedó anotado):
    monetizó. Salió a la segunda solo con el descarte dirigido («queremos la
    anécdota de…»). Sesgo a favor de opiniones/datos y en contra de
    historietas humanas cerradas; revisar los criterios del prompt.
+   Y segunda pata del mismo hallazgo: la referencia CORTA EN EL REMATE (23 s,
+   solo la mitad del gas) y nuestro director se llevó la anécdota entera
+   (58 s). Al pedirle la subventana del remate en dos rondas más, propuso la
+   ventana adyacente y después cayó a la reserva: el bucle de candidatos no
+   sabe proponer una SUBVENTANA de una zona ya renderizada. Para calcar el
+   oficio de la referencia falta o detección de remate (cortar el clip en el
+   punchline, no en el fin de la anécdota) o permitir subventanas explícitas.
+   La versión de 22 s equivalente a la referencia se cortó A MANO de la
+   salida renderizada para el lado a lado (fuera del pipeline, solo demo).
 3. **Deltas de diseño confirmados en el lado a lado**: sin b-roll externo de
    películas (la referencia inserta Breaking Bad; nuestra cascada es
    biblioteca→stock por licencias), rótulos en el idioma del canal, y una
