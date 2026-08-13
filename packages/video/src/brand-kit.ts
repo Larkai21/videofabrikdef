@@ -141,6 +141,12 @@ export interface EffectCue {
   values?: string[];
   /** linea_tiempo: 2-4 hitos con su cuándo */
   hitos?: { fecha: string; texto: string }[];
+  /** cuello: lo que entra (2-4) y lo único que sale */
+  entradas?: string[];
+  salida?: string;
+  /** arbol: el origen y sus 2-3 ramas */
+  raiz?: string;
+  ramas?: string[];
   // SfxName y no string: el nivel de volumen se indexa con esto
   sfx?: SfxName;
   style?: string;
@@ -193,6 +199,10 @@ export function computeEffectsTrack(
       ...('items' in e && e.items !== undefined ? { items: e.items } : {}),
       ...('values' in e && e.values !== undefined ? { values: e.values } : {}),
       ...('hitos' in e && e.hitos !== undefined ? { hitos: e.hitos } : {}),
+      ...('entradas' in e && e.entradas !== undefined ? { entradas: e.entradas } : {}),
+      ...('salida' in e && e.salida !== undefined ? { salida: e.salida } : {}),
+      ...('raiz' in e && e.raiz !== undefined ? { raiz: e.raiz } : {}),
+      ...('ramas' in e && e.ramas !== undefined ? { ramas: e.ramas } : {}),
       ...('sfx' in e ? { sfx: e.sfx } : {}),
       ...('style' in e && e.style !== undefined ? { style: e.style } : {}),
       // un campo no copiado aquí valida, sale en la timeline y renderiza VACÍO

@@ -107,6 +107,33 @@ async function main(): Promise<void> {
       items: ['Alerta', 'Contención', 'Aprendizaje'],
     },
   ];
+  // Las tres del cierre del banco van APARTE, cada una con su propio master:
+  // el timeline del demo acaba en ~44 s y encadenarlas detrás las metía en el
+  // outro (visto en la hoja: tres stills de «Gracias por ver»). El patrón es
+  // el del banco vertical: selectComposition por variante.
+  const FORMAS_NUEVAS = [
+    {
+      type: 'cuello' as const,
+      from_ms: 5000,
+      to_ms: 9200,
+      entradas: ['Cientos de demos', 'Prototipos', 'Papers'],
+      salida: 'Tres en producción',
+      label: 'la criba real',
+    },
+    {
+      type: 'capas' as const,
+      from_ms: 5000,
+      to_ms: 8400,
+      items: ['Datos', 'Modelo', 'Producto'],
+    },
+    {
+      type: 'arbol' as const,
+      from_ms: 5000,
+      to_ms: 8800,
+      raiz: '¿Funciona el piloto?',
+      ramas: ['Escala', 'Se descarta'],
+    },
+  ];
 
   const serveUrl = await bundle({
     entryPoint: path.join(pkgDir, 'src', 'entry.ts'),
@@ -147,6 +174,22 @@ async function main(): Promise<void> {
       overwrite: true,
     });
     console.log(`  ${nombre} (frame ${frame})`);
+  }
+
+  for (const forma of FORMAS_NUEVAS) {
+    const conForma = { ...master, edits: [forma] };
+    const comp = await selectComposition({ serveUrl, id: 'LongForm', inputProps: conForma });
+    // still a mitad de la ventana: la coreografía ya cuenta la relación entera
+    const frameForma = Math.round((((forma.from_ms + forma.to_ms) / 2 / 1000) * comp.fps)) + 96;
+    await renderStill({
+      composition: comp,
+      serveUrl,
+      output: path.join(outDir, `fx-${forma.type}.png`),
+      frame: Math.min(frameForma, comp.durationInFrames - 1),
+      inputProps: conForma,
+      overwrite: true,
+    });
+    console.log(`  fx-${forma.type} (frame ${frameForma})`);
   }
 
   // Los clips: una intro se juzga por cómo se MUEVE, y un fotograma no dice si
@@ -294,6 +337,27 @@ async function main(): Promise<void> {
         from_ms: VENTANA_FX[0],
         to_ms: VENTANA_FX[1],
         items: ['Alerta', 'Contención', 'Aprendizaje'],
+      },
+      {
+        type: 'cuello',
+        from_ms: VENTANA_FX[0],
+        to_ms: VENTANA_FX[1],
+        entradas: ['Demos', 'Prototipos', 'Papers'],
+        salida: 'Producción',
+        label: 'la criba real',
+      },
+      {
+        type: 'capas',
+        from_ms: VENTANA_FX[0],
+        to_ms: VENTANA_FX[1],
+        items: ['Datos', 'Modelo', 'Producto'],
+      },
+      {
+        type: 'arbol',
+        from_ms: VENTANA_FX[0],
+        to_ms: VENTANA_FX[1],
+        raiz: '¿Funciona el piloto?',
+        ramas: ['Escala', 'Se descarta'],
       },
       { type: 'annotation', from_ms: VENTANA_FX[0], to_ms: VENTANA_FX[1], style: 'circulo' },
       { type: 'micro_fx', from_ms: VENTANA_FX[0], to_ms: VENTANA_FX[1], style: 'tachado' },

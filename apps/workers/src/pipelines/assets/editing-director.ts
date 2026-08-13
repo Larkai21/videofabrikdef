@@ -127,6 +127,13 @@ const DUR_MS: Record<string, number> = {
   // estaciones + trazo del anillo + flecha del cierre: la coreografía entera
   // tarda ~2,3 s en contarse, y aún hay que leerla
   ciclo: 4200,
+  // entradas escalonadas + convergencia + escape de la salida: mismo régimen
+  // de lectura que el ciclo
+  cuello: 4200,
+  // la pila se construye losa a losa; menos elementos que un flow
+  capas: 3400,
+  // raíz + trazado de ramas + hojas escalonadas
+  arbol: 3800,
   // una imagen se reconoce en menos tiempo que se lee una lista, pero el
   // espectador tiene que poder MIRARLA: entre tarjeta y lista
   imagen_apoyo: 3000,
@@ -663,16 +670,28 @@ const editingResultSchema = z.object({
           'linea_tiempo',
           // algo que se retroalimenta: un anillo que se cierra (banco: 2/39)
           'ciclo',
+          // mucho entra, poco sale: el embudo de la criba (banco: 3/39)
+          'cuello',
+          // niveles apilados de la base a la cima: arquitectura (banco: 2/39)
+          'capas',
+          // una decisión que se ramifica desde un origen común (banco: 1/39)
+          'arbol',
         ]),
         text: z.string().optional(),
         value: z.string().optional(),
         label: z.string().optional(),
-        /** versus/barras: los dos lados. pasos: de 2 a 4 estaciones. */
+        /** versus/barras: los dos lados. pasos/capas: de 2 a 4 elementos. */
         items: z.array(z.string()).optional(),
         /** barras: las dos magnitudes tal y como se dicen, misma unidad */
         values: z.array(z.string()).optional(),
         /** linea_tiempo: 2-4 hitos, cada uno con su cuándo y su qué */
         hitos: z.array(z.object({ fecha: z.string(), texto: z.string() })).optional(),
+        /** cuello: lo que entra (2-4) y lo único que sale */
+        entradas: z.array(z.string()).optional(),
+        salida: z.string().optional(),
+        /** arbol: el origen y sus 2-3 ramas */
+        raiz: z.string().optional(),
+        ramas: z.array(z.string()).optional(),
         direccion: z.enum(['sube', 'baja']).optional(),
         keyword: z.string().optional(),
         style: z.string().optional(),
@@ -717,6 +736,27 @@ const editingResultSchema = z.object({
         .refine(
           (m) => m.type !== 'ciclo' || ((m.items ?? []).length >= 2 && (m.items ?? []).length <= 4),
           { message: 'un momento "ciclo" necesita de 2 a 4 items' },
+        )
+        // sin entradas no hay criba y sin salida no hay argumento
+        .refine(
+          (m) =>
+            m.type !== 'cuello' ||
+            ((m.entradas ?? []).length >= 2 &&
+              (m.entradas ?? []).length <= 4 &&
+              (m.salida ?? '').trim() !== ''),
+          { message: 'un momento "cuello" necesita de 2 a 4 entradas y una salida' },
+        )
+        .refine(
+          (m) => m.type !== 'capas' || ((m.items ?? []).length >= 2 && (m.items ?? []).length <= 4),
+          { message: 'un momento "capas" necesita de 2 a 4 items (de la base a la cima)' },
+        )
+        .refine(
+          (m) =>
+            m.type !== 'arbol' ||
+            ((m.raiz ?? '').trim() !== '' &&
+              (m.ramas ?? []).length >= 2 &&
+              (m.ramas ?? []).length <= 3),
+          { message: 'un momento "arbol" necesita raiz y de 2 a 3 ramas' },
         ),
     )
     // 8 era el techo real del vídeo largo: por muchos beats que tuviera, el
@@ -772,6 +812,9 @@ function buildEditingPrompt(
           '- "barras": A frente a B CON magnitud; items = las 2 etiquetas, values = las 2 cifras TAL Y COMO SE DICEN y en la MISMA unidad ("3 semanas" y "2 horas" NO — "504 h" y "2 h" SÍ). Para "diez veces más", "semanas frente a horas". Las dos cifras tienen que estar dichas o respaldadas; nunca las inventes.',
           '- "linea_tiempo": orden de hechos con su cuándo; hitos = de 2 a 4 objetos { "fecha", "texto" }, fecha MUY corta ("julio", "2026", "hoy") y dicha en la narración, texto de 2-4 palabras. Para "primero pasó… y luego…", plazos y cronologías.',
           '- "ciclo": algo que se retroalimenta; items = de 2 a 4 estaciones muy cortas EN ORDEN cuya última vuelve a la primera. Para "y eso vuelve a alimentar…", "el ciclo entre alerta y contención". NO es una lista: úsalo solo si la vuelta al principio es lo que la frase dice.',
+          '- "cuello": mucho entra y poco sale; entradas = de 2 a 4 cosas que entran, salida = lo ÚNICO que pasa la criba. Para "de cientos solo tres llegan", "todo acaba pasando por X". La criba tiene que estar dicha, no la inventes.',
+          '- "capas": niveles APILADOS de la base a la cima; items = de 2 a 4 niveles muy cortos, el primero es la BASE. Para "tres capas", "por encima de eso va…". Es arquitectura, no cronología: si hay orden temporal usa "pasos".',
+          '- "arbol": una decisión que se RAMIFICA; raiz = el origen (2-4 palabras), ramas = de 2 a 3 opciones cortas. Para "si funciona, escala; si no, se descarta". NO es un versus: las opciones salen del mismo origen.',
           'PREFIERE estas formas a un "callout" siempre que la frase exprese una relación: un rótulo que repite lo que ya dice el subtítulo no aporta nada.',
         ]
       : []),
@@ -783,12 +826,12 @@ function buildEditingPrompt(
     // gancho: tipografía cinética al abrir + payoff al cerrar
     `- OBLIGATORIO: un "kinetic" en el beat ${params.beats[0]?.idx ?? 0} con la frase-golpe del gancho, y un "callout" en el beat ${lastIdx} con el PAYOFF/conclusión.`,
     vertical
-      ? `Textos en ${langName}, muy cortos, sin comillas. Máximo 8 momentos; como mucho 1 "kinetic", 3 "annotation" y 2 de cada forma ("versus", "pasos", "tendencia", "barras", "linea_tiempo", "ciclo").`
+      ? `Textos en ${langName}, muy cortos, sin comillas. Máximo 8 momentos; como mucho 1 "kinetic", 3 "annotation" y 2 de cada forma ("versus", "pasos", "tendencia", "barras", "linea_tiempo", "ciclo", "cuello", "capas", "arbol").`
       : // El tope era 6 fijo, o sea seis gráficos en ocho minutos. Ahora sale
         // de los beats que se le pasan, que son los que no ha cubierto nadie.
         `Textos en ${langName}, muy cortos, sin comillas. Máximo ${maxMomentos} momentos; como mucho 1 "kinetic", 1 "device" y ${Math.max(2, Math.round(maxMomentos / 4))} "annotation".`,
     vertical
-      ? 'Devuelve JSON: { "moments": [ { "beat_idx", "type", "keyword", "text"?, "value"?, "label"?, "items"?, "values"?, "hitos"?, "direccion"? } ] }.'
+      ? 'Devuelve JSON: { "moments": [ { "beat_idx", "type", "keyword", "text"?, "value"?, "label"?, "items"?, "values"?, "hitos"?, "direccion"?, "entradas"?, "salida"?, "raiz"?, "ramas"? } ] }.'
       : 'Devuelve JSON: { "moments": [ { "beat_idx", "type", "keyword", "text"?, "value"?, "label"? } ] }.',
   ].join('\n');
   const user = [
@@ -946,6 +989,41 @@ export function momentsToEdits(
         to_ms: window(DUR_MS.ciclo!),
         beat_idx: beat.idx,
         items: m.items!.slice(0, 4),
+      });
+    } else if (
+      m.type === 'cuello' &&
+      (m.entradas ?? []).length >= 2 &&
+      (m.salida ?? '').trim() !== ''
+    ) {
+      edits.push({
+        type: 'cuello',
+        from_ms: at,
+        to_ms: window(DUR_MS.cuello!),
+        beat_idx: beat.idx,
+        entradas: m.entradas!.slice(0, 4),
+        salida: m.salida!,
+        ...(m.label ? { label: m.label } : {}),
+      });
+    } else if (m.type === 'capas' && (m.items ?? []).length >= 2) {
+      edits.push({
+        type: 'capas',
+        from_ms: at,
+        to_ms: window(DUR_MS.capas!),
+        beat_idx: beat.idx,
+        items: m.items!.slice(0, 4),
+      });
+    } else if (
+      m.type === 'arbol' &&
+      (m.raiz ?? '').trim() !== '' &&
+      (m.ramas ?? []).length >= 2
+    ) {
+      edits.push({
+        type: 'arbol',
+        from_ms: at,
+        to_ms: window(DUR_MS.arbol!),
+        beat_idx: beat.idx,
+        raiz: m.raiz!,
+        ramas: m.ramas!.slice(0, 3),
       });
     } else if (m.type === 'annotation') {
       edits.push({

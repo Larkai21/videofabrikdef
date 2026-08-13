@@ -262,6 +262,21 @@ export const EDIT_TYPES = [
   // fin; aquí el final ES la vuelta al principio, y ese cierre es lo que la
   // frase afirma. `items` = las estaciones en orden. Banco de frases: 2/39.
   'ciclo',
+  // CUELLO DE BOTELLA: mucho entra, poco sale («cientos de modelos y solo
+  // tres llegan a producción»). `entradas` (2-4) convergen en un embudo y
+  // `salida` (1) escapa con acento. barras compara magnitudes; aquí lo que
+  // se dibuja es la CRIBA. Banco de frases: 3/39 — la más frecuente sin forma.
+  'cuello',
+  // niveles APILADOS («tres capas: datos, modelo y producto», «por encima de
+  // eso va…»): pila de abajo arriba, la cima con acento. pasos_flow es una
+  // secuencia temporal; esto es arquitectura — el orden es soporte, no
+  // cronología. `items` = de la base a la cima. Banco de frases: 2/39.
+  'capas',
+  // decisión que se RAMIFICA («si funciona, escala; si no, se descarta»):
+  // una raíz arriba y 2-3 ramas abajo. split_versus enfrenta dos cosas ya
+  // dadas; aquí lo que se dibuja es la bifurcación desde un mismo origen.
+  // `raiz` + `ramas`. Banco de frases: 1/39 — cierra el banco entero.
+  'arbol',
   // imagen REAL de referencia de una entidad con nombre (producto, empresa,
   // modelo), superpuesta al plano cuando la voz la menciona; `image_path`
   // congelado en workers + `text` (el término) + `credit` (atribución si la
@@ -314,6 +329,9 @@ export const EDIT_BANDA: Record<EditType, 'superior' | 'centro' | null> = {
   barras: 'centro',
   linea_tiempo: 'centro',
   ciclo: 'centro',
+  cuello: 'centro',
+  capas: 'centro',
+  arbol: 'centro',
   // no ocupan sitio: mueven la cámara, tiñen el subtítulo, marcan el b-roll o suenan
   zoom_punch: null,
   keyword_highlight: null,
@@ -343,6 +361,9 @@ export const EDIT_RENDER_KIND: Record<
   barras: 'overlay',
   linea_tiempo: 'overlay',
   ciclo: 'overlay',
+  cuello: 'overlay',
+  capas: 'overlay',
+  arbol: 'overlay',
   imagen_apoyo: 'overlay',
 };
 
@@ -457,6 +478,31 @@ export const editSchema = z.discriminatedUnion('type', [
     ...editBase,
     type: z.literal('ciclo'),
     items: z.array(z.string().min(1)).min(2).max(4),
+  }),
+  // el embudo exige la criba entera: sin entradas no hay cuello y sin salida
+  // no hay argumento — todo obligatorio
+  z.object({
+    ...editBase,
+    type: z.literal('cuello'),
+    /** lo que entra (2-4, muy cortas) */
+    entradas: z.array(z.string().min(1)).min(2).max(4),
+    /** lo único que sale */
+    salida: z.string().min(1),
+    label: z.string().optional(),
+  }),
+  // la pila: de la BASE a la CIMA; con más de cuatro niveles los rótulos no
+  // caben apilados en vertical
+  z.object({
+    ...editBase,
+    type: z.literal('capas'),
+    items: z.array(z.string().min(1)).min(2).max(4),
+  }),
+  // la bifurcación: una raíz y 2-3 ramas (con más, el abanico no cabe a 1080)
+  z.object({
+    ...editBase,
+    type: z.literal('arbol'),
+    raiz: z.string().min(1),
+    ramas: z.array(z.string().min(1)).min(2).max(3),
   }),
   // annotation es la única sin payload obligatorio: es una marca sobre el b-roll
   z.object({

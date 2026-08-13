@@ -1866,6 +1866,334 @@ export const Ciclo: React.FC<{ items: string[]; design?: DesignTokens }> = ({ it
   );
 };
 
+/**
+ * CUELLO DE BOTELLA: muchas entradas, una salida («cientos de modelos y solo
+ * tres llegan a producción» — calibracion/frases-etiquetadas.json, 3/39, la
+ * forma más pedida sin dibujo). Las entradas aterrizan escalonadas, sus hilos
+ * CONVERGEN en la garganta del embudo, y la salida escapa al final con el
+ * acento: primero la abundancia, luego la criba, y el superviviente es el
+ * remate. En vertical el embudo corre de arriba abajo (como se lee el
+ * formato); en apaisado, de izquierda a derecha.
+ */
+export const Cuello: React.FC<{
+  entradas: string[];
+  salida: string;
+  label?: string;
+  design?: DesignTokens;
+}> = ({ entradas, salida, label, design }) => {
+  const d = design ?? defaultDesign();
+  const frame = useCurrentFrame();
+  const lienzo = useLienzo();
+  const { opacity } = useInOut();
+  const cosas = entradas.filter((s) => s.trim() !== '').slice(0, 4);
+  if (cosas.length < 2 || salida.trim() === '') return null;
+  const n = cosas.length;
+  const ESCALON = 7;
+
+  // la caja del dibujo; el eje largo es el del lienzo
+  const ANCHO = lienzo.vertical
+    ? lienzo.ancho - lienzo.safe.left - lienzo.safe.right - 2 * S[4]
+    : 900;
+  const ALTO = lienzo.vertical ? 640 : 420;
+  // garganta: donde convergen los hilos; la salida escapa pasada la garganta
+  const garganta = lienzo.vertical ? { x: ANCHO / 2, y: ALTO * 0.62 } : { x: ANCHO * 0.62, y: ALTO / 2 };
+
+  const trazo = span(frame, 6 + ESCALON * (n - 1), 18, Ease.inOutCubic);
+  const escape = span(frame, 26 + ESCALON * (n - 1), 12, Ease.outBack6);
+
+  // posiciones de las entradas repartidas en el eje corto
+  const posEntrada = (i: number): { x: number; y: number } => {
+    const f = n === 1 ? 0.5 : i / (n - 1);
+    return lienzo.vertical
+      ? { x: ANCHO * (0.16 + 0.68 * f), y: ALTO * 0.1 }
+      : { x: ANCHO * 0.12, y: ALTO * (0.12 + 0.76 * f) };
+  };
+  const posSalida = lienzo.vertical
+    ? { x: ANCHO / 2, y: ALTO * 0.88 }
+    : { x: ANCHO * 0.88, y: ALTO / 2 };
+
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+      <div style={{ opacity, position: 'relative', width: ANCHO, height: ALTO, fontFamily: FONT_FAMILY }}>
+        <svg width={ANCHO} height={ALTO} viewBox={`0 0 ${ANCHO} ${ALTO}`} style={{ position: 'absolute', inset: 0 }}>
+          {/* los hilos de cada entrada hasta la garganta: la convergencia ES el dibujo */}
+          {cosas.map((_, i) => {
+            const p = posEntrada(i);
+            const cx = lienzo.vertical ? p.x : (p.x + garganta.x) / 2;
+            const cy = lienzo.vertical ? (p.y + garganta.y) / 2 : p.y;
+            return (
+              <path
+                key={i}
+                d={`M ${p.x} ${p.y} Q ${cx} ${cy} ${garganta.x} ${garganta.y}`}
+                fill="none"
+                stroke={hexToRgba(d.foreground, 0.45)}
+                strokeWidth={4}
+                strokeLinecap="round"
+                pathLength={1}
+                strokeDasharray={1}
+                strokeDashoffset={1 - trazo}
+              />
+            );
+          })}
+          {/* de la garganta a la salida: un solo hilo, con el acento */}
+          <path
+            d={`M ${garganta.x} ${garganta.y} L ${posSalida.x} ${posSalida.y}`}
+            fill="none"
+            stroke={hexToRgba(d.accent, 0.85)}
+            strokeWidth={6}
+            strokeLinecap="round"
+            pathLength={1}
+            strokeDasharray={1}
+            strokeDashoffset={1 - Math.min(1, escape)}
+          />
+        </svg>
+        {cosas.map((cosa, i) => {
+          const p = span(frame, 3 + i * ESCALON, 12, Ease.outBack6);
+          const pos = posEntrada(i);
+          return (
+            <div
+              key={`${i}-${cosa}`}
+              style={{
+                position: 'absolute',
+                left: pos.x,
+                top: pos.y,
+                transform: `translate(-50%, -50%) scale(${0.9 + 0.1 * Math.min(1, p)})`,
+                opacity: Math.min(1, p),
+                ...glassSurface(d, {}),
+                borderRadius: R.md,
+                padding: `${S[1]}px ${S[3]}px`,
+                maxWidth: lienzo.vertical ? ANCHO / n - S[2] : 240,
+                textAlign: 'center',
+                ...displayText(600),
+                fontSize: T.sm,
+                lineHeight: 1.15,
+                color: d.foreground,
+              }}
+            >
+              {cosa}
+            </div>
+          );
+        })}
+        <div
+          style={{
+            position: 'absolute',
+            left: posSalida.x,
+            top: posSalida.y,
+            transform: `translate(-50%, -50%) scale(${0.85 + 0.15 * Math.min(1, escape)})`,
+            opacity: Math.min(1, escape),
+            ...glassSurface(d, { accent: true }),
+            borderRadius: R.md,
+            padding: `${S[2]}px ${S[4]}px`,
+            maxWidth: lienzo.vertical ? ANCHO - 2 * S[4] : 300,
+            textAlign: 'center',
+            ...displayText(700),
+            fontSize: T.md,
+            lineHeight: 1.15,
+            color: d.foreground,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {salida}
+        </div>
+        {label !== undefined && label.trim() !== '' ? (
+          <div
+            style={{
+              position: 'absolute',
+              left: '50%',
+              bottom: -S[5],
+              transform: 'translateX(-50%)',
+              fontSize: T.sm,
+              fontWeight: 600,
+              color: hexToRgba(d.foreground, 0.7),
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {label}
+          </div>
+        ) : null}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/**
+ * CAPAS: niveles apilados de la base a la cima («tres capas: datos, modelo y
+ * producto» — banco 2/39). No es cronología (eso es pasos_flow): es
+ * arquitectura, y lo que la frase afirma es el SOPORTE — cada nivel descansa
+ * sobre el anterior. Coreografía: la pila se construye desde la base, cada
+ * losa cae sobre la anterior, y la cima lleva el acento porque es donde la
+ * frase suele apuntar («y por encima de todo eso…»). Pila = vertical por
+ * naturaleza: idéntica en ambos lienzos, solo cambia el ancho de la losa.
+ */
+export const Capas: React.FC<{ items: string[]; design?: DesignTokens }> = ({ items, design }) => {
+  const d = design ?? defaultDesign();
+  const frame = useCurrentFrame();
+  const lienzo = useLienzo();
+  const { opacity } = useInOut();
+  const niveles = items.filter((s) => s.trim() !== '').slice(0, 4);
+  if (niveles.length < 2) return null;
+  const n = niveles.length;
+  const ESCALON = 8;
+
+  const ANCHO_LOSA = lienzo.vertical
+    ? lienzo.ancho - lienzo.safe.left - lienzo.safe.right - 2 * S[6]
+    : 560;
+
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+      <div
+        style={{
+          opacity,
+          display: 'flex',
+          // la base primero en el DOM de abajo: column-reverse construye la
+          // pila como se lee el argumento, desde el suelo
+          flexDirection: 'column-reverse',
+          gap: S[1],
+          fontFamily: FONT_FAMILY,
+        }}
+      >
+        {niveles.map((nivel, i) => {
+          // i=0 es la base; cada losa cae un poco DESPUÉS que la de abajo
+          const p = span(frame, 4 + i * ESCALON, 12, Ease.outBack6);
+          const esCima = i === n - 1;
+          return (
+            <div
+              key={`${i}-${nivel}`}
+              style={{
+                transform: `translateY(${(1 - Math.min(1, p)) * -18}px) scale(${0.94 + 0.06 * Math.min(1, p)})`,
+                opacity: Math.min(1, p),
+                ...glassSurface(d, { accent: esCima }),
+                borderRadius: R.md,
+                // la pila se estrecha hacia arriba: la silueta dice «pirámide
+                // de soporte» sin necesitar perspectiva
+                width: ANCHO_LOSA * (1 - 0.12 * i),
+                padding: `${S[2]}px ${S[4]}px`,
+                textAlign: 'center',
+                ...displayText(esCima ? 700 : 600),
+                fontSize: esCima ? T.md : T.sm,
+                lineHeight: 1.15,
+                color: d.foreground,
+                alignSelf: 'center',
+              }}
+            >
+              {nivel}
+            </div>
+          );
+        })}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/**
+ * ÁRBOL: una decisión que se ramifica («si funciona, escala; si no, se
+ * descarta» — banco 1/39, cierra el banco entero). split_versus enfrenta dos
+ * cosas ya dadas; aquí lo que se dibuja es la BIFURCACIÓN desde un origen
+ * común. Coreografía: la raíz aterriza, las ramas se trazan desde ella y las
+ * hojas caen escalonadas — el origen primero, porque sin él las opciones no
+ * significan nada. Raíz arriba y abanico abajo en ambos lienzos.
+ */
+export const Arbol: React.FC<{ raiz: string; ramas: string[]; design?: DesignTokens }> = ({
+  raiz,
+  ramas,
+  design,
+}) => {
+  const d = design ?? defaultDesign();
+  const frame = useCurrentFrame();
+  const lienzo = useLienzo();
+  const { opacity } = useInOut();
+  const hojas = ramas.filter((s) => s.trim() !== '').slice(0, 3);
+  if (raiz.trim() === '' || hojas.length < 2) return null;
+  const n = hojas.length;
+  const ESCALON = 8;
+
+  const ANCHO = lienzo.vertical
+    ? lienzo.ancho - lienzo.safe.left - lienzo.safe.right - 2 * S[4]
+    : 820;
+  const ALTO = 380;
+  const raizPos = { x: ANCHO / 2, y: ALTO * 0.14 };
+  const hojaPos = (i: number): { x: number; y: number } => {
+    const f = n === 1 ? 0.5 : i / (n - 1);
+    return { x: ANCHO * (0.14 + 0.72 * f), y: ALTO * 0.82 };
+  };
+
+  const pRaiz = span(frame, 3, 12, Ease.outBack6);
+  const trazo = span(frame, 12, 16, Ease.inOutCubic);
+
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+      <div style={{ opacity, position: 'relative', width: ANCHO, height: ALTO, fontFamily: FONT_FAMILY }}>
+        <svg width={ANCHO} height={ALTO} viewBox={`0 0 ${ANCHO} ${ALTO}`} style={{ position: 'absolute', inset: 0 }}>
+          {hojas.map((_, i) => {
+            const h = hojaPos(i);
+            return (
+              <path
+                key={i}
+                d={`M ${raizPos.x} ${raizPos.y} Q ${raizPos.x} ${(raizPos.y + h.y) / 2} ${h.x} ${h.y}`}
+                fill="none"
+                stroke={hexToRgba(d.accent, 0.7)}
+                strokeWidth={5}
+                strokeLinecap="round"
+                pathLength={1}
+                strokeDasharray={1}
+                strokeDashoffset={1 - trazo}
+              />
+            );
+          })}
+        </svg>
+        <div
+          style={{
+            position: 'absolute',
+            left: raizPos.x,
+            top: raizPos.y,
+            transform: `translate(-50%, -50%) scale(${0.9 + 0.1 * Math.min(1, pRaiz)})`,
+            opacity: Math.min(1, pRaiz),
+            ...glassSurface(d, { accent: true }),
+            borderRadius: R.md,
+            padding: `${S[2]}px ${S[4]}px`,
+            maxWidth: ANCHO * 0.7,
+            textAlign: 'center',
+            ...displayText(700),
+            fontSize: T.md,
+            lineHeight: 1.15,
+            color: d.foreground,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {raiz}
+        </div>
+        {hojas.map((hoja, i) => {
+          const p = span(frame, 20 + i * ESCALON, 12, Ease.outBack6);
+          const pos = hojaPos(i);
+          return (
+            <div
+              key={`${i}-${hoja}`}
+              style={{
+                position: 'absolute',
+                left: pos.x,
+                top: pos.y,
+                transform: `translate(-50%, -50%) scale(${0.9 + 0.1 * Math.min(1, p)})`,
+                opacity: Math.min(1, p),
+                ...glassSurface(d, {}),
+                borderRadius: R.md,
+                padding: `${S[1]}px ${S[3]}px`,
+                maxWidth: ANCHO / n - S[3],
+                textAlign: 'center',
+                ...displayText(600),
+                fontSize: T.sm,
+                lineHeight: 1.15,
+                color: d.foreground,
+              }}
+            >
+              {hoja}
+            </div>
+          );
+        })}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 // Imagen REAL de referencia de una entidad con nombre (producto, empresa,
 // modelo), superpuesta al plano mientras la voz la menciona. La resuelve el
 // worker (foto de stock → Wikimedia Commons, con veto del juez de planos) y

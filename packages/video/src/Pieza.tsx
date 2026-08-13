@@ -33,8 +33,11 @@ import { SECTION_TRANSITIONS, whip } from './effects/transitions';
 import {
   Ambience,
   Annotation,
+  Arbol,
   Barras,
+  Capas,
   Ciclo,
+  Cuello,
   DeviceFrame,
   ImagenApoyo,
   KineticText,
@@ -146,6 +149,20 @@ const EditOverlay: React.FC<{ cue: EffectCue; design: DesignTokens }> = ({ cue, 
     return <LineaTiempo hitos={cue.hitos ?? []} design={design} />;
   }
   if (cue.type === 'ciclo') return <Ciclo items={cue.items ?? []} design={design} />;
+  if (cue.type === 'cuello') {
+    return (
+      <Cuello
+        entradas={cue.entradas ?? []}
+        salida={cue.salida ?? ''}
+        label={cue.label}
+        design={design}
+      />
+    );
+  }
+  if (cue.type === 'capas') return <Capas items={cue.items ?? []} design={design} />;
+  if (cue.type === 'arbol') {
+    return <Arbol raiz={cue.raiz ?? ''} ramas={cue.ramas ?? []} design={design} />;
+  }
   if (cue.type === 'imagen_apoyo') {
     return (
       <ImagenApoyo imagePath={cue.imagePath} text={cue.text} credit={cue.credit} design={design} />

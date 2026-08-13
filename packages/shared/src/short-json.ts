@@ -225,6 +225,13 @@ export const SHORT_EDIT_ALLOWED: Record<EditType, boolean> = {
   linea_tiempo: true,
   // el anillo es cuadrado: cabe igual en los dos lienzos, solo cambia el radio
   ciclo: true,
+  // el embudo en vertical corre de arriba abajo (entradas → criba → salida),
+  // que es exactamente como se lee el formato
+  cuello: true,
+  // la pila ya ES vertical por naturaleza: niveles apilados
+  capas: true,
+  // raíz arriba y ramas abajo: el abanico cabe a 1080 con 2-3 ramas
+  arbol: true,
   // el marco de navegador es 16:9 por definición
   device_frame: false,
   // un recuadro apaisado sobre un plano apaisado: dos cajas 16:9 en un lienzo
