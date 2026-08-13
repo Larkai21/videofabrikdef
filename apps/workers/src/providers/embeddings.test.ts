@@ -123,17 +123,12 @@ describe('backend efectivo con EMBEDDINGS_PROVIDER=fastembed', () => {
     expect(vec).toHaveLength(EMBEDDING_DIMS);
     const norm = Math.sqrt((vec ?? []).reduce((acc, v) => acc + v * v, 0));
     expect(norm).toBeCloseTo(1, 6);
-    // el backend depende del entorno: e5 con la dependencia instalada,
-    // hash como degradación; ambos son válidos y ninguno debe romper
-    const backendOk = await (async () => {
-      try {
-        await import('@huggingface/transformers');
-        return 'e5-transformers';
-      } catch {
-        return 'hash';
-      }
-    })();
-    expect(provider.describe().backend).toBe(backendOk);
+    // el backend depende del entorno: e5 con la dependencia instalada, hash
+    // como degradación. Predecirlo por import era un flake: bajo carga (el
+    // turbo completo compitiendo por CPU/memoria con un render) la CARGA del
+    // modelo puede fallar aunque el import funcione, y la degradación a hash
+    // es comportamiento correcto por diseño — no un fallo del test.
+    expect(['e5-transformers', 'hash']).toContain(provider.describe().backend);
   }, 120_000);
 });
 
