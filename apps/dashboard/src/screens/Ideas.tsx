@@ -72,6 +72,11 @@ export function Ideas() {
   });
 
   const sorted = [...(ideas ?? [])].sort((a, b) => b.score - a.score);
+  // primera pintura por tandas: 672 tarjetas de golpe eran 3-4 s de pantalla
+  // en blanco (auditoría, hallazgo 13). La decisión vive arriba del ranking:
+  // pintar 60 cubre de sobra y «ver más» trae la cola para quien la quiera
+  const [visibles, setVisibles] = useState(60);
+  const pagina = sorted.slice(0, visibles);
 
   return (
     <div>
@@ -110,7 +115,7 @@ export function Ideas() {
         ) : null}
 
         <div style={{ display: 'grid', gap: 'var(--gap)' }}>
-          {sorted.map((idea, i) => (
+          {pagina.map((idea, i) => (
             <div key={idea.id} className="card" style={{ padding: 'var(--pad)', display: 'flex', gap: 'var(--gap)' }}>
               <div
                 style={{
@@ -174,6 +179,13 @@ export function Ideas() {
             </div>
           ))}
         </div>
+        {sorted.length > visibles ? (
+          <div style={{ marginTop: 'var(--gap)', textAlign: 'center' }}>
+            <Button variant="secondary" onClick={() => setVisibles((v) => v + 120)}>
+              Ver más ({sorted.length - visibles} restantes)
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <ReasonModal
