@@ -14,6 +14,7 @@ import {
 } from '../lib/api';
 import { useLive } from '../lib/events';
 import { useToasts } from '../lib/toasts';
+import { MiniPlantilla } from '../components/MiniPlantilla';
 import { Button, Chip, EmptyState, Incidencia, ProgressBar, SkeletonRows } from '../components/ui';
 
 // LA puerta del pipeline de reels: el plan de capas que preparó la máquina
@@ -292,6 +293,14 @@ export function ReelDetalle() {
                 }}
               >
                 {/* fila principal + config plegada debajo (flex-wrap) */}
+                {capa.template != null && piezaDe(capa.template) !== undefined ? (
+                  // key: cambiar de plantilla re-monta el iframe entero
+                  <MiniPlantilla
+                    key={capa.template}
+                    plantilla={capa.template}
+                    config={(capa as { config?: Record<string, unknown> }).config}
+                  />
+                ) : null}
                 <span className="head" style={{ fontSize: 14, minWidth: 140 }}>
                   {capa.capa}
                 </span>
