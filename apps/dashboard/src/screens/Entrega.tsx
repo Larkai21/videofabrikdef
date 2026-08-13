@@ -151,6 +151,28 @@ function MiniaturaCard({
         </figure>
       ) : null}
 
+      {/* la variante B lado a lado mientras no haya miniatura propia: las dos
+          auto-generadas existían desde siempre y la B no se enseñaba nunca —
+          comparar es lo que informa qué generar a mano */}
+      {thumbnailUrl !== null && !isCustom && thumbnailUrl.includes('thumb_a') ? (
+        <figure style={{ margin: 0, display: 'grid', gap: 6 }}>
+          <img
+            src={fileUrl(thumbnailUrl.replace('thumb_a', 'thumb_b'))}
+            alt="Miniatura auto-generada B"
+            style={{
+              width: '100%',
+              maxWidth: 480,
+              aspectRatio: '16 / 9',
+              objectFit: 'cover',
+              borderRadius: 'var(--r-sm)',
+              border: '1px solid var(--line)',
+              background: 'var(--bg3)',
+            }}
+          />
+          <figcaption className="fs-sm muted">Variante B (otro fotograma y composición)</figcaption>
+        </figure>
+      ) : null}
+
       {/* brief: descripción ES + prompt EN */}
       {brief ? (
         <div style={{ display: 'grid', gap: 10 }}>
