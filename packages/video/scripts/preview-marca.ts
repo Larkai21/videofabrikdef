@@ -100,6 +100,12 @@ async function main(): Promise<void> {
         { fecha: 'hoy', texto: 'Nadie paga API' },
       ],
     },
+    {
+      type: 'ciclo',
+      from_ms: 38600,
+      to_ms: 42800,
+      items: ['Alerta', 'Contención', 'Aprendizaje'],
+    },
   ];
 
   const serveUrl = await bundle({
@@ -126,6 +132,7 @@ async function main(): Promise<void> {
     ['fx-device', 96 + 810],
     ['fx-barras', 96 + 940],
     ['fx-linea-tiempo', 96 + 1075],
+    ['fx-ciclo', 96 + 1220],
     ['outro-a', total - 90],
     ['outro-b', total - 40],
   ];
@@ -281,6 +288,12 @@ async function main(): Promise<void> {
           { fecha: 'agosto', texto: 'Réplicas abiertas' },
           { fecha: 'hoy', texto: 'Nadie paga API' },
         ],
+      },
+      {
+        type: 'ciclo',
+        from_ms: VENTANA_FX[0],
+        to_ms: VENTANA_FX[1],
+        items: ['Alerta', 'Contención', 'Aprendizaje'],
       },
       { type: 'annotation', from_ms: VENTANA_FX[0], to_ms: VENTANA_FX[1], style: 'circulo' },
       { type: 'micro_fx', from_ms: VENTANA_FX[0], to_ms: VENTANA_FX[1], style: 'tachado' },

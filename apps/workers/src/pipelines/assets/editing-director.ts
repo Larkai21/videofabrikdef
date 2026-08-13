@@ -124,6 +124,9 @@ const DUR_MS: Record<string, number> = {
   barras: 3400,
   // hitos escalonados como los pasos: el último aparece cuando la línea llega
   linea_tiempo: 4200,
+  // estaciones + trazo del anillo + flecha del cierre: la coreografía entera
+  // tarda ~2,3 s en contarse, y aún hay que leerla
+  ciclo: 4200,
   // una imagen se reconoce en menos tiempo que se lee una lista, pero el
   // espectador tiene que poder MIRARLA: entre tarjeta y lista
   imagen_apoyo: 3000,
@@ -658,6 +661,8 @@ const editingResultSchema = z.object({
           'barras',
           // orden de hechos con su cuándo: hitos sobre una línea (banco: 2/39)
           'linea_tiempo',
+          // algo que se retroalimenta: un anillo que se cierra (banco: 2/39)
+          'ciclo',
         ]),
         text: z.string().optional(),
         value: z.string().optional(),
@@ -707,6 +712,11 @@ const editingResultSchema = z.object({
               (m.hitos ?? []).length <= 4 &&
               (m.hitos ?? []).every((h) => h.fecha.trim() !== '' && h.texto.trim() !== '')),
           { message: 'un momento "linea_tiempo" necesita de 2 a 4 hitos con fecha y texto' },
+        )
+        // con una sola estación no hay vuelta que cerrar
+        .refine(
+          (m) => m.type !== 'ciclo' || ((m.items ?? []).length >= 2 && (m.items ?? []).length <= 4),
+          { message: 'un momento "ciclo" necesita de 2 a 4 items' },
         ),
     )
     // 8 era el techo real del vídeo largo: por muchos beats que tuviera, el
@@ -761,6 +771,7 @@ function buildEditingPrompt(
           '- "tendencia": una cifra que se dispara o se hunde; value = la cifra dicha, direccion = "sube" o "baja", label = de qué. Para "se disparó", "cayó a la mitad".',
           '- "barras": A frente a B CON magnitud; items = las 2 etiquetas, values = las 2 cifras TAL Y COMO SE DICEN y en la MISMA unidad ("3 semanas" y "2 horas" NO — "504 h" y "2 h" SÍ). Para "diez veces más", "semanas frente a horas". Las dos cifras tienen que estar dichas o respaldadas; nunca las inventes.',
           '- "linea_tiempo": orden de hechos con su cuándo; hitos = de 2 a 4 objetos { "fecha", "texto" }, fecha MUY corta ("julio", "2026", "hoy") y dicha en la narración, texto de 2-4 palabras. Para "primero pasó… y luego…", plazos y cronologías.',
+          '- "ciclo": algo que se retroalimenta; items = de 2 a 4 estaciones muy cortas EN ORDEN cuya última vuelve a la primera. Para "y eso vuelve a alimentar…", "el ciclo entre alerta y contención". NO es una lista: úsalo solo si la vuelta al principio es lo que la frase dice.',
           'PREFIERE estas formas a un "callout" siempre que la frase exprese una relación: un rótulo que repite lo que ya dice el subtítulo no aporta nada.',
         ]
       : []),
@@ -772,7 +783,7 @@ function buildEditingPrompt(
     // gancho: tipografía cinética al abrir + payoff al cerrar
     `- OBLIGATORIO: un "kinetic" en el beat ${params.beats[0]?.idx ?? 0} con la frase-golpe del gancho, y un "callout" en el beat ${lastIdx} con el PAYOFF/conclusión.`,
     vertical
-      ? `Textos en ${langName}, muy cortos, sin comillas. Máximo 8 momentos; como mucho 1 "kinetic", 3 "annotation" y 2 de cada forma ("versus", "pasos", "tendencia", "barras", "linea_tiempo").`
+      ? `Textos en ${langName}, muy cortos, sin comillas. Máximo 8 momentos; como mucho 1 "kinetic", 3 "annotation" y 2 de cada forma ("versus", "pasos", "tendencia", "barras", "linea_tiempo", "ciclo").`
       : // El tope era 6 fijo, o sea seis gráficos en ocho minutos. Ahora sale
         // de los beats que se le pasan, que son los que no ha cubierto nadie.
         `Textos en ${langName}, muy cortos, sin comillas. Máximo ${maxMomentos} momentos; como mucho 1 "kinetic", 1 "device" y ${Math.max(2, Math.round(maxMomentos / 4))} "annotation".`,
@@ -925,6 +936,16 @@ export function momentsToEdits(
         to_ms: window(DUR_MS.linea_tiempo!),
         beat_idx: beat.idx,
         hitos,
+      });
+    } else if (m.type === 'ciclo' && (m.items ?? []).length >= 2) {
+      // estaciones sin cifras: no hay magnitud que respaldar, solo rótulos —
+      // la misma situación que pasos_flow
+      edits.push({
+        type: 'ciclo',
+        from_ms: at,
+        to_ms: window(DUR_MS.ciclo!),
+        beat_idx: beat.idx,
+        items: m.items!.slice(0, 4),
       });
     } else if (m.type === 'annotation') {
       edits.push({

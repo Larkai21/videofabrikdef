@@ -267,6 +267,24 @@ describe('momentsToEdits (capa IA)', () => {
     expect(lt && 'hitos' in lt ? lt.hitos.map((h) => h.fecha) : []).toEqual(['hoy', 'mañana']);
   });
 
+  it('un momento "ciclo" produce el anillo con sus estaciones en orden', () => {
+    const out = momentsToEdits(
+      [
+        {
+          beat_idx: 3,
+          type: 'ciclo',
+          items: ['alerta', 'contención', 'aprendizaje'],
+          keyword: 'cifra',
+        },
+      ],
+      beats,
+      cues,
+      CLAIMS,
+    );
+    const c = out.find((e) => e.type === 'ciclo');
+    expect(c && 'items' in c ? c.items : []).toEqual(['alerta', 'contención', 'aprendizaje']);
+  });
+
   it('una fecha con dígitos que nadie dijo tumba la línea de tiempo entera', () => {
     // «hoy» no tiene nada que fabricar, pero un «2019» sin respaldo es una
     // cronología inventada: misma regla de cifras que stat/tendencia/barras

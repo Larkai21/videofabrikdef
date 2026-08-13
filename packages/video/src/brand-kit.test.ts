@@ -258,6 +258,7 @@ describe('computeEffectsTrack', () => {
       },
       { type: 'pasos_flow', from_ms: 4000, to_ms: 8200, items: ['Descarga', 'Ajusta', 'Mide'] },
       { type: 'tendencia', from_ms: 9000, to_ms: 12000, value: '70%', style: 'sube', label: 'uso' },
+      { type: 'ciclo', from_ms: 13000, to_ms: 17200, items: ['Alerta', 'Contención', 'Aprendizaje'] },
     ];
     const effects = computeEffectsTrack(master, 30, 0);
     expect(effects[0]).toMatchObject({
@@ -266,6 +267,10 @@ describe('computeEffectsTrack', () => {
     });
     expect(effects[1]).toMatchObject({ type: 'pasos_flow', items: ['Descarga', 'Ajusta', 'Mide'] });
     expect(effects[2]).toMatchObject({ type: 'tendencia', value: '70%', style: 'sube' });
+    expect(effects[3]).toMatchObject({
+      type: 'ciclo',
+      items: ['Alerta', 'Contención', 'Aprendizaje'],
+    });
   });
 
   it('las barras llegan al render con sus dos magnitudes', () => {

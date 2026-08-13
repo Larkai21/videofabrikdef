@@ -17,6 +17,7 @@ describe('EDIT_RENDER_KIND', () => {
     expect(EDIT_RENDER_KIND.tendencia).toBe('overlay');
     expect(EDIT_RENDER_KIND.barras).toBe('overlay');
     expect(EDIT_RENDER_KIND.linea_tiempo).toBe('overlay');
+    expect(EDIT_RENDER_KIND.ciclo).toBe('overlay');
   });
 
   it('lo que no se ve no se cuenta como visual', () => {

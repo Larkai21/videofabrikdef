@@ -124,7 +124,7 @@ export interface EffectCue {
   value?: string;
   label?: string;
   keyword?: string;
-  /** rótulos de los efectos de lista: split_versus (2), pasos_flow (2-4) y barras (2) */
+  /** rótulos de los efectos de lista: split_versus (2), pasos_flow (2-4), barras (2) y ciclo (2-4) */
   items?: string[];
   /** barras: las dos magnitudes tal y como se dicen, en el orden de `items` */
   values?: string[];

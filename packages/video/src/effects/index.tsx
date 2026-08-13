@@ -1756,6 +1756,109 @@ export const LineaTiempo: React.FC<{
   );
 };
 
+/**
+ * Algo que se retroalimenta: 2-4 estaciones sobre un anillo que se CIERRA.
+ *
+ * `pasos_flow` tiene principio y fin; aquí el final es la vuelta al principio,
+ * y ese cierre es exactamente lo que la frase afirma («y eso vuelve a
+ * alimentar al sistema», «el ciclo entre alerta y contención» —
+ * calibracion/frases-etiquetadas.json). Por eso la coreografía es: las
+ * estaciones aterrizan escalonadas, el anillo se traza pasando por todas, y la
+ * FLECHA del cierre aparece al final — es el único adorno, porque es el
+ * argumento.
+ *
+ * El anillo es cuadrado, así que vive igual en los dos lienzos: solo cambia el
+ * radio, nunca la maquetación (a diferencia de los efectos de fila, que en
+ * vertical van a columna).
+ */
+export const Ciclo: React.FC<{ items: string[]; design?: DesignTokens }> = ({ items, design }) => {
+  const d = design ?? defaultDesign();
+  const frame = useCurrentFrame();
+  const lienzo = useLienzo();
+  const { opacity } = useInOut();
+  const estaciones = items.filter((s) => s.trim() !== '').slice(0, 4);
+  if (estaciones.length < 2) return null;
+  const n = estaciones.length;
+  const ESCALON = 9;
+
+  // el radio deja sitio a los rótulos del perímetro; en vertical manda el
+  // ancho útil del lienzo, en apaisado el tercio central de 1080 de alto
+  const anchoUtil = lienzo.vertical ? lienzo.ancho - lienzo.safe.left - lienzo.safe.right : 720;
+  const RADIO = Math.min(230, (anchoUtil - 280) / 2);
+  const LADO = RADIO * 2 + 300; // la caja cuadrada donde caben anillo + rótulos
+  const cx = LADO / 2;
+  const cy = LADO / 2;
+
+  // el anillo se traza cuando las estaciones ya están puestas, y la flecha del
+  // cierre entra al terminar el trazo: primero las cosas, luego la relación
+  const trazo = span(frame, 8 + ESCALON * (n - 1), 22, Ease.inOutCubic);
+  const cierre = span(frame, 30 + ESCALON * (n - 1), 8, Ease.outBack6);
+
+  // estaciones en el reloj, empezando arriba (−90°)
+  const angulo = (i: number): number => (i / n) * 2 * Math.PI - Math.PI / 2;
+
+  return (
+    <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+      <div style={{ opacity, position: 'relative', width: LADO, height: LADO, fontFamily: FONT_FAMILY }}>
+        <svg width={LADO} height={LADO} viewBox={`0 0 ${LADO} ${LADO}`} style={{ position: 'absolute', inset: 0 }}>
+          {/* el trazo arranca arriba y recorre el reloj: la rotación pone el
+              inicio del dasharray en la primera estación */}
+          <circle
+            cx={cx}
+            cy={cy}
+            r={RADIO}
+            fill="none"
+            stroke={hexToRgba(d.accent, 0.75)}
+            strokeWidth={6}
+            strokeLinecap="round"
+            pathLength={1}
+            strokeDasharray={1}
+            strokeDashoffset={1 - trazo}
+            transform={`rotate(-90 ${cx} ${cy})`}
+          />
+          {/* la flecha del cierre, tangente al anillo justo antes de la
+              primera estación: el «vuelve a empezar» hecho geometría */}
+          <g
+            transform={`translate(${cx - 14}, ${cy - RADIO}) scale(${Math.min(1, cierre)})`}
+            opacity={Math.min(1, cierre)}
+          >
+            <path d="M 0 -12 L 14 0 L 0 12 Z" fill={d.accent} />
+          </g>
+        </svg>
+        {estaciones.map((estacion, i) => {
+          const p = span(frame, 4 + i * ESCALON, 12, Ease.outBack6);
+          const x = cx + RADIO * Math.cos(angulo(i));
+          const y = cy + RADIO * Math.sin(angulo(i));
+          return (
+            <div
+              key={`${i}-${estacion}`}
+              style={{
+                position: 'absolute',
+                left: x,
+                top: y,
+                transform: `translate(-50%, -50%) scale(${0.9 + 0.1 * Math.min(1, p)})`,
+                opacity: Math.min(1, p),
+                ...glassSurface(d, { accent: i === 0 }),
+                borderRadius: R.md,
+                padding: `${S[2]}px ${S[4]}px`,
+                maxWidth: 260,
+                textAlign: 'center',
+                ...displayText(700),
+                fontSize: T.md,
+                lineHeight: 1.15,
+                color: d.foreground,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {estacion}
+            </div>
+          );
+        })}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 // Imagen REAL de referencia de una entidad con nombre (producto, empresa,
 // modelo), superpuesta al plano mientras la voz la menciona. La resuelve el
 // worker (foto de stock → Wikimedia Commons, con veto del juez de planos) y

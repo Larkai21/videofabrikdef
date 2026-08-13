@@ -257,6 +257,11 @@ export const EDIT_TYPES = [
   // y la fecha es lo que convierte la lista en historia. `hitos` = 2-4 pares
   // fecha + texto. Banco de frases: 2/39.
   'linea_tiempo',
+  // algo que se retroalimenta («y eso vuelve a alimentar al sistema»): 2-4
+  // estaciones sobre un anillo que se cierra. pasos_flow tiene principio y
+  // fin; aquí el final ES la vuelta al principio, y ese cierre es lo que la
+  // frase afirma. `items` = las estaciones en orden. Banco de frases: 2/39.
+  'ciclo',
   // imagen REAL de referencia de una entidad con nombre (producto, empresa,
   // modelo), superpuesta al plano cuando la voz la menciona; `image_path`
   // congelado en workers + `text` (el término) + `credit` (atribución si la
@@ -308,6 +313,7 @@ export const EDIT_BANDA: Record<EditType, 'superior' | 'centro' | null> = {
   tendencia: 'centro',
   barras: 'centro',
   linea_tiempo: 'centro',
+  ciclo: 'centro',
   // no ocupan sitio: mueven la cámara, tiñen el subtítulo, marcan el b-roll o suenan
   zoom_punch: null,
   keyword_highlight: null,
@@ -336,6 +342,7 @@ export const EDIT_RENDER_KIND: Record<
   tendencia: 'overlay',
   barras: 'overlay',
   linea_tiempo: 'overlay',
+  ciclo: 'overlay',
   imagen_apoyo: 'overlay',
 };
 
@@ -443,6 +450,13 @@ export const editSchema = z.discriminatedUnion('type', [
       .array(z.object({ fecha: z.string().min(1), texto: z.string().min(1) }))
       .min(2)
       .max(4),
+  }),
+  // el anillo necesita al menos dos estaciones para que haya vuelta; con más
+  // de cuatro, los rótulos del perímetro se pisan a 1080 de ancho
+  z.object({
+    ...editBase,
+    type: z.literal('ciclo'),
+    items: z.array(z.string().min(1)).min(2).max(4),
   }),
   // annotation es la única sin payload obligatorio: es una marca sobre el b-roll
   z.object({

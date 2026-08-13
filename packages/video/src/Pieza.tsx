@@ -34,6 +34,7 @@ import {
   Ambience,
   Annotation,
   Barras,
+  Ciclo,
   DeviceFrame,
   ImagenApoyo,
   KineticText,
@@ -144,6 +145,7 @@ const EditOverlay: React.FC<{ cue: EffectCue; design: DesignTokens }> = ({ cue, 
   if (cue.type === 'linea_tiempo') {
     return <LineaTiempo hitos={cue.hitos ?? []} design={design} />;
   }
+  if (cue.type === 'ciclo') return <Ciclo items={cue.items ?? []} design={design} />;
   if (cue.type === 'imagen_apoyo') {
     return (
       <ImagenApoyo imagePath={cue.imagePath} text={cue.text} credit={cue.credit} design={design} />
