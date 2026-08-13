@@ -190,4 +190,22 @@ export function registerIdeaRoutes(app: FastifyInstance, ctx: ApiContext): void 
     await ctx.events.publish({ type: 'inbox_changed' });
     return { ok: true as const };
   });
+
+  // el deshacer del descarte (toast de la puerta 1): SOLO desde discarded y
+  // vuelve a 'new' limpio. El manualRank no se restaura a propósito — el
+  // orden manual se decide mirando el radar, no lo recuerda una idea que
+  // estuvo fuera
+  app.post('/ideas/:id/restore', async (req) => {
+    const { id } = req.params as { id: string };
+    const [row] = await ctx.db
+      .update(ideas)
+      .set({ status: 'new', discardReason: null, decidedAt: null })
+      .where(and(eq(ideas.id, id), eq(ideas.status, 'discarded')))
+      .returning({ channelId: ideas.channelId });
+    if (!row) throw notFound(`Idea ${id} no existe o no está descartada`);
+
+    await ctx.events.publish({ type: 'ideas_updated', channel_id: row.channelId });
+    await ctx.events.publish({ type: 'inbox_changed' });
+    return { ok: true as const };
+  });
 }

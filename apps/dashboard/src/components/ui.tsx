@@ -437,7 +437,16 @@ export function Incidencia({ mensaje }: { mensaje: string }) {
   );
 }
 
-export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
+export function EmptyState({
+  title,
+  children,
+  accion,
+}: {
+  title: string;
+  children?: ReactNode;
+  /** salida accionable del vacío (botón o enlace): un vacío sin puerta es un callejón */
+  accion?: ReactNode;
+}) {
   return (
     <div
       style={{
@@ -456,6 +465,7 @@ export function EmptyState({ title, children }: { title: string; children?: Reac
           {children}
         </div>
       ) : null}
+      {accion !== undefined ? <div style={{ marginTop: 12 }}>{accion}</div> : null}
     </div>
   );
 }

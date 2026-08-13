@@ -589,7 +589,23 @@ export function Biblioteca() {
               Nada lleva 90 días sin usarse. La biblioteca está sana.
             </EmptyState>
           ) : hasFilters ? (
-            <EmptyState title="Sin resultados con estos filtros">
+            <EmptyState
+              title="Sin resultados con estos filtros"
+              accion={
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setKind('');
+                    setSearch('');
+                    setPurgeOnly(false);
+                    setFavoriteOnly(false);
+                    setLimit(PAGE);
+                  }}
+                >
+                  Quitar los filtros
+                </Button>
+              }
+            >
               Prueba con otro tipo o con menos texto en la búsqueda.
             </EmptyState>
           ) : (

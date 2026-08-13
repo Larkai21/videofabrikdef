@@ -198,6 +198,11 @@ export async function discardIdea(id: string, reason: string): Promise<void> {
   await post(`/ideas/${id}/discard`, { reason });
 }
 
+/** Deshacer del descarte (toast): la idea vuelve al radar como 'new'. */
+export async function restoreIdea(id: string): Promise<void> {
+  await post(`/ideas/${id}/restore`);
+}
+
 // ---- vídeos ----
 
 export async function getVideo(id: string): Promise<VideoDetailDto> {

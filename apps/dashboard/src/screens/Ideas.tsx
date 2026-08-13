@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Chip, EmptyState, ReasonModal, SkeletonRows, type Motivo } from '../components/ui';
-import { approveIdea, discardIdea, getIdeasFor } from '../lib/api';
+import { approveIdea, discardIdea, getIdeasFor, restoreIdea } from '../lib/api';
 import { useChannel } from '../lib/channel';
 import { useToasts } from '../lib/toasts';
 
@@ -48,11 +48,25 @@ export function Ideas() {
     onError: () => push('No se pudo aprobar la idea', 'danger'),
   });
 
-  const discardMut = useMutation({
-    mutationFn: (args: { id: string; reason: string }) => discardIdea(args.id, args.reason),
+  const restoreMut = useMutation({
+    mutationFn: (id: string) => restoreIdea(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['ideas'] });
-      push('Idea descartada · el motivo alimenta el ranking');
+      push('Idea restaurada al radar');
+    },
+    onError: () => push('No se pudo deshacer el descarte', 'danger'),
+  });
+
+  const discardMut = useMutation({
+    mutationFn: (args: { id: string; reason: string }) => discardIdea(args.id, args.reason),
+    onSuccess: (_res, args) => {
+      void queryClient.invalidateQueries({ queryKey: ['ideas'] });
+      // descartar es reversible (POST /restore): el toast lleva el deshacer
+      // y aguanta abierto lo suficiente para reaccionar
+      push('Idea descartada · el motivo alimenta el ranking', 'ok', {
+        label: 'Deshacer',
+        onClick: () => restoreMut.mutate(args.id),
+      });
     },
     onError: () => push('No se pudo descartar la idea', 'danger'),
   });

@@ -2,20 +2,30 @@ import { createContext, useCallback, useContext, useRef, useState, type ReactNod
 
 export type ToastKind = 'ok' | 'danger';
 
+/** Acción opcional del toast («Deshacer»): ejecuta y cierra el aviso. */
+export interface ToastAccion {
+  label: string;
+  onClick: () => void;
+}
+
 interface Toast {
   id: number;
   text: string;
   kind: ToastKind;
+  accion?: ToastAccion;
 }
 
 interface ToastState {
-  push: (text: string, kind?: ToastKind) => void;
+  push: (text: string, kind?: ToastKind, accion?: ToastAccion) => void;
 }
 
 const ToastContext = createContext<ToastState | null>(null);
 
 /** Un error necesita tiempo para leerse y decidir; una confirmación, no. */
 const DURACION_MS: Record<ToastKind, number> = { ok: 3600, danger: 9000 };
+// con acción, la confirmación aguanta lo que un error: deshacer necesita
+// tiempo de reacción, no reflejos
+const DURACION_ACCION_MS = 9000;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -26,10 +36,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const push = useCallback(
-    (text: string, kind: ToastKind = 'ok') => {
+    (text: string, kind: ToastKind = 'ok', accion?: ToastAccion) => {
       const id = nextId.current++;
-      setToasts((prev) => [...prev.slice(-3), { id, text, kind }]);
-      window.setTimeout(() => dismiss(id), DURACION_MS[kind]);
+      setToasts((prev) => [...prev.slice(-3), { id, text, kind, ...(accion ? { accion } : {}) }]);
+      window.setTimeout(
+        () => dismiss(id),
+        accion !== undefined ? DURACION_ACCION_MS : DURACION_MS[kind],
+      );
     },
     [dismiss],
   );
@@ -51,6 +64,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               style={{ background: t.kind === 'ok' ? 'var(--ok)' : 'var(--danger)' }}
             />
             <span style={{ flex: 1 }}>{t.text}</span>
+            {t.accion !== undefined ? (
+              <button
+                type="button"
+                className="toast-accion"
+                onClick={() => {
+                  t.accion?.onClick();
+                  dismiss(t.id);
+                }}
+              >
+                {t.accion.label}
+              </button>
+            ) : null}
             <button
               type="button"
               className="toast-close"

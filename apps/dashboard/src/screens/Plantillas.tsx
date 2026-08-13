@@ -340,7 +340,22 @@ export function Plantillas() {
             : 'Comprueba que la API esté en marcha.'}
         </EmptyState>
       ) : piezas.length === 0 ? (
-        <EmptyState title="Ninguna plantilla casa con el filtro">
+        <EmptyState
+          title="Ninguna plantilla casa con el filtro"
+          accion={
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setQ('');
+                setOrigen('todas');
+                setSoloCopy(false);
+                setSoloFavoritas(false);
+              }}
+            >
+              Quitar los filtros
+            </Button>
+          }
+        >
           Prueba con otro texto u otro origen.
         </EmptyState>
       ) : (
