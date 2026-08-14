@@ -2,16 +2,18 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Worker, type Job } from 'bullmq';
 import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
-import { assets } from '@fabrica/db';
+import { assets, channels } from '@fabrica/db';
 import {
   JOBS,
   PRICES,
   QUEUES,
   type LibraryBackfillJob,
+  type LibraryHarvestJob,
   type LibraryPurgeScanJob,
   type LibraryReembedJob,
 } from '@fabrica/shared';
 import type { WorkerContext } from '../../lib/context.js';
+import { cosecharDesdeStock } from '../assets/index.js';
 import { buildAssetEmbedText } from '../../lib/embed-text.js';
 import { closeCost, failCost, openCost } from '../../lib/ledger.js';
 import {
@@ -295,6 +297,49 @@ async function runPurgeScan(ctx: WorkerContext, job: Job<LibraryPurgeScanJob>): 
   await ctx.publishEvent({ type: 'inbox_changed' });
 }
 
+/**
+ * Cosecha semanal: por canal, las example_queries de sus pilares ROTADAS por
+ * número de semana (cada lunes toca un tramo distinto de la taxonomía; con
+ * pocas queries repite y la caché/idempotencia lo absorben). Topes cortos a
+ * propósito: 8 consultas y 12 assets por canal y semana — crecimiento
+ * constante, no una tarde de descargas.
+ */
+async function runHarvest(ctx: WorkerContext, job: Job<LibraryHarvestJob>): Promise<void> {
+  const { db, logger } = ctx;
+  const filas = await db
+    .select({ id: channels.id, profile: channels.profile })
+    .from(channels)
+    .where(job.data.channelId ? eq(channels.id, job.data.channelId) : undefined);
+  const QUERIES_POR_RUN = 8;
+  // semana ISO aproximada: días desde epoch / 7 — solo se usa para ROTAR
+  const semana = Math.floor(Date.now() / (7 * 24 * 3600 * 1000));
+  let total = 0;
+  for (const canal of filas) {
+    const pool = (canal.profile?.pillars ?? []).flatMap((p) => p.example_queries);
+    if (pool.length === 0) continue;
+    const desde = (semana * QUERIES_POR_RUN) % pool.length;
+    const queries = Array.from(
+      { length: Math.min(QUERIES_POR_RUN, pool.length) },
+      (_, i) => pool[(desde + i) % pool.length]!,
+    );
+    total += await cosecharDesdeStock(ctx, canal.id, queries, {
+      topePorQuery: 3,
+      topeTotal: 12,
+    });
+  }
+  logger.info({ canales: filas.length, cosechados: total }, 'Cosecha semanal completada');
+  await ctx.publishEvent({
+    type: 'job_progress',
+    video_id: LIBRARY_EVENT_ID,
+    queue: QUEUES.library,
+    progress: 100,
+    detail:
+      total > 0
+        ? `Cosecha semanal: ${total} ${total === 1 ? 'clip nuevo' : 'clips nuevos'} en biblioteca`
+        : 'Cosecha semanal: nada nuevo que valiera la pena',
+  });
+}
+
 export async function registerLibraryWorkers(ctx: WorkerContext): Promise<Worker[]> {
   // schedulers repetibles e idempotentes (upsert por id, sin ':' en los ids):
   // backfill diario de madrugada y barrido de purga el día 1 de cada mes
@@ -308,6 +353,14 @@ export async function registerLibraryWorkers(ctx: WorkerContext): Promise<Worker
       'library-purge-scan',
       { pattern: '0 5 1 * *' },
       { name: JOBS.library.purgeScan, data: {} satisfies LibraryPurgeScanJob },
+    );
+    // cosecha temática los lunes de madrugada: la biblioteca crece sola por la
+    // taxonomía del canal usando el rate limit ocioso, en vez de crecer solo
+    // como subproducto de producir vídeos
+    await ctx.queues.library.upsertJobScheduler(
+      'library-cosecha',
+      { pattern: '0 6 * * 1' },
+      { name: JOBS.library.harvest, data: {} satisfies LibraryHarvestJob },
     );
   } catch (err) {
     ctx.logger.warn({ err }, 'No se pudieron registrar los schedulers de biblioteca');
@@ -323,6 +376,8 @@ export async function registerLibraryWorkers(ctx: WorkerContext): Promise<Worker
           await runPurgeScan(ctx, job as Job<LibraryPurgeScanJob>);
         } else if (job.name === JOBS.library.reembed) {
           await runReembed(ctx, job as Job<LibraryReembedJob>);
+        } else if (job.name === JOBS.library.harvest) {
+          await runHarvest(ctx, job as Job<LibraryHarvestJob>);
         } else {
           ctx.logger.warn({ job: job.name }, 'Job desconocido en la cola library');
         }

@@ -42,7 +42,7 @@ export const JOBS = {
   assets: { match: 'match', ingest: 'ingest' },
   render: { video: 'video', short: 'short' },
   components: { validate: 'validate', author: 'author' },
-  library: { backfill: 'backfill', purgeScan: 'purge-scan', reembed: 'reembed' },
+  library: { backfill: 'backfill', purgeScan: 'purge-scan', reembed: 'reembed', harvest: 'cosecha' },
   publish: { upload: 'upload' },
   shorts: { propose: 'propose' },
   media: { download: 'download', transcribe: 'transcribe' },
@@ -186,6 +186,13 @@ export interface LibraryBackfillJob {
 }
 
 export interface LibraryPurgeScanJob {
+  channelId?: string;
+}
+
+// cosecha semanal: la biblioteca crece SOLA por la taxonomía del canal
+// (pillars.example_queries) dentro de los rate limits gratuitos, en vez de
+// solo como subproducto de producir vídeos
+export interface LibraryHarvestJob {
   channelId?: string;
 }
 
