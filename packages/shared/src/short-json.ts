@@ -199,6 +199,9 @@ export type ShortMasterJson = z.infer<typeof shortMasterV1>;
  * cabe a 1080 de ancho no compila.
  */
 export const SHORT_EDIT_ALLOWED: Record<EditType, boolean> = {
+  // el fallback al veto es cosa del raíl LARGO: los clips/shorts tienen su
+  // propia política (el hablante siempre está) y su lienzo no lo necesita
+  cobertura: false,
   zoom_punch: true,
   keyword_highlight: true,
   text_callout: true,

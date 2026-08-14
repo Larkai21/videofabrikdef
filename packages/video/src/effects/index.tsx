@@ -2194,6 +2194,89 @@ export const Arbol: React.FC<{ raiz: string; ramas: string[]; design?: DesignTok
   );
 };
 
+// Cobertura del veto: cuando el juez dijo «ninguno pega» y la re-consulta
+// tampoco rescató, el plano que queda debajo es malo o repetido. Este panel
+// cubre la ventana ENTERA del sub-plano: velo con desenfoque fuerte que
+// convierte el b-roll vetado en textura, y la propia narración del tramo en
+// grande (con la keyword acentuada si la hay). Determinista, sin material
+// externo y sin coste — la alternativa era el tartamudeo de la reserva.
+export const Cobertura: React.FC<{ text: string; keyword?: string; design?: DesignTokens }> = ({
+  text,
+  keyword,
+  design,
+}) => {
+  const d = design ?? defaultDesign();
+  const lienzo = useLienzo();
+  const { opacity, enter } = useInOut();
+  const limpio = text.trim();
+  if (limpio === '') return null;
+
+  // la keyword se acentúa en su PRIMERA aparición; sin coincidencia, todo plano
+  const kw = keyword?.trim() ?? '';
+  const idx = kw === '' ? -1 : limpio.toLowerCase().indexOf(kw.toLowerCase());
+  const partes =
+    idx < 0
+      ? [{ t: limpio, acento: false }]
+      : [
+          { t: limpio.slice(0, idx), acento: false },
+          { t: limpio.slice(idx, idx + kw.length), acento: true },
+          { t: limpio.slice(idx + kw.length), acento: false },
+        ];
+
+  return (
+    <AbsoluteFill style={{ opacity, pointerEvents: 'none', fontFamily: FONT_FAMILY }}>
+      {/* velo full-bleed: el plano vetado pasa a ser textura desenfocada */}
+      <AbsoluteFill
+        style={{
+          background: hexToRgba(d.background, 0.82),
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+        }}
+      />
+      <AbsoluteFill
+        style={{
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: lienzo.vertical ? '0 72px' : '0 240px',
+        }}
+      >
+        <div
+          style={{
+            width: 84,
+            height: 6,
+            background: d.accent,
+            borderRadius: 3,
+            marginBottom: 34,
+            alignSelf: 'flex-start',
+            transform: `scaleX(${enter})`,
+            transformOrigin: 'left',
+          }}
+        />
+        <div
+          style={{
+            ...displayText(800),
+            color: d.foreground,
+            fontSize: lienzo.vertical ? 54 : 62,
+            lineHeight: 1.22,
+            textAlign: 'left',
+            alignSelf: 'flex-start',
+            textWrap: 'balance',
+            transform: `translateY(${(1 - enter) * 24}px)`,
+          }}
+        >
+          {partes.map((p, i) =>
+            p.t === '' ? null : (
+              <span key={i} style={p.acento ? { color: d.accent } : undefined}>
+                {p.t}
+              </span>
+            ),
+          )}
+        </div>
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
 // Imagen REAL de referencia de una entidad con nombre (producto, empresa,
 // modelo), superpuesta al plano mientras la voz la menciona. La resuelve el
 // worker (foto de stock → Wikimedia Commons, con veto del juez de planos) y

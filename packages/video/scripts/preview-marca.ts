@@ -133,6 +133,13 @@ async function main(): Promise<void> {
       raiz: '¿Funciona el piloto?',
       ramas: ['Escala', 'Se descarta'],
     },
+    {
+      type: 'cobertura' as const,
+      from_ms: 5000,
+      to_ms: 10000,
+      text: 'Cientos de modelos se entrenan cada semana y solo tres llegan a producción',
+      keyword: 'producción',
+    },
   ];
 
   const serveUrl = await bundle({

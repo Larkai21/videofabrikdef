@@ -75,6 +75,10 @@ export const audioSchema = z.object({
   // o de una medida fallida, y no había forma de distinguirlo. Un dato inventado
   // que se parece a uno bueno es peor que la ausencia del dato.
   lufs: z.number().nullable(),
+  // pista de música mezclada bajo la voz (asset kind='music'), si la hubo:
+  // es lo que permite la anti-repetición de pista entre vídeos — con un pool
+  // pequeño y el pick por hash, dos vídeos seguidos sonaban idénticos
+  music_asset_id: z.string().optional(),
 });
 
 export const fitSchema = z.object({
@@ -287,6 +291,14 @@ export const EDIT_TYPES = [
   // licencia la exige). Nunca imagen generada: cascada foto de stock →
   // Wikimedia Commons.
   'imagen_apoyo',
+  // FALLBACK AL VETO DEL JUEZ: panel tipográfico que cubre la ventana entera
+  // del sub-plano cuando «ningún plano ilustra lo que se dice» y la
+  // re-consulta tampoco rescató. Antes la respuesta a material malo era
+  // material repetido (la reserva, incluso tartamudeo); esto pone la propia
+  // narración en pantalla sobre el plano difuminado — determinista, 0 $ y
+  // 0 riesgo legal. Lo emite el pipeline de assets, no el director LLM.
+  // `text` (la frase del tramo) + `keyword` opcional (la palabra acentuada).
+  'cobertura',
 ] as const;
 export const editTypeSchema = z.enum(EDIT_TYPES);
 export type EditType = z.infer<typeof editTypeSchema>;
@@ -336,6 +348,9 @@ export const EDIT_BANDA: Record<EditType, 'superior' | 'centro' | null> = {
   cuello: 'centro',
   capas: 'centro',
   arbol: 'centro',
+  // pantalla completa sobre el plano vetado: centro, y el emisor retira
+  // cualquier otro edit que caiga dentro de su ventana
+  cobertura: 'centro',
   // no ocupan sitio: mueven la cámara, tiñen el subtítulo, marcan el b-roll o suenan
   zoom_punch: null,
   keyword_highlight: null,
@@ -369,6 +384,7 @@ export const EDIT_RENDER_KIND: Record<
   capas: 'overlay',
   arbol: 'overlay',
   imagen_apoyo: 'overlay',
+  cobertura: 'overlay',
 };
 
 // Efectos de sonido integrados. Se sintetizan con ffmpeg en
@@ -423,6 +439,13 @@ export const editSchema = z.discriminatedUnion('type', [
   z.object({ ...editBase, type: z.literal('text_callout'), text: z.string().min(1) }),
   z.object({ ...editBase, type: z.literal('quote_card'), text: z.string().min(1) }),
   z.object({ ...editBase, type: z.literal('kinetic_text'), text: z.string().min(1) }),
+  // sin `text` la cobertura sería un panel vacío sobre un plano vetado
+  z.object({
+    ...editBase,
+    type: z.literal('cobertura'),
+    text: z.string().min(1),
+    keyword: z.string().optional(),
+  }),
   z.object({
     ...editBase,
     type: z.literal('stat_card'),

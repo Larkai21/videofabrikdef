@@ -1465,7 +1465,9 @@ export function dedupeAndCap(
     at: (e) => e.from_ms,
     // una tarjeta centrada tapa el subtítulo: resaltarlo debajo no se vería
     // a igualdad, gana la palabra más larga: las cortas suelen ser genéricas
-    score: (e) => (declared.has(e) ? 10 : 0) + ('keyword' in e ? e.keyword.length : 0) / 100,
+    score: (e) =>
+      (declared.has(e) ? 10 : 0) +
+      ('keyword' in e && e.keyword !== undefined ? e.keyword.length : 0) / 100,
     reject: pisaTarjeta,
   }).kept;
 

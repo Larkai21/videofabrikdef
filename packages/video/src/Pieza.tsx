@@ -37,6 +37,7 @@ import {
   Barras,
   Capas,
   Ciclo,
+  Cobertura,
   Cuello,
   DeviceFrame,
   ImagenApoyo,
@@ -167,6 +168,9 @@ const EditOverlay: React.FC<{ cue: EffectCue; design: DesignTokens }> = ({ cue, 
     return (
       <ImagenApoyo imagePath={cue.imagePath} text={cue.text} credit={cue.credit} design={design} />
     );
+  }
+  if (cue.type === 'cobertura') {
+    return <Cobertura text={cue.text ?? ''} keyword={cue.keyword} design={design} />;
   }
   return null;
 };

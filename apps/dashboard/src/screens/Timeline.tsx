@@ -63,6 +63,7 @@ const EDIT_LABELS: Record<EditType, string> = {
   cuello: 'Embudo',
   capas: 'Capas',
   arbol: 'Árbol',
+  cobertura: 'Cobertura del veto',
   imagen_apoyo: 'Imagen de referencia',
   sfx: 'Sonido',
 };

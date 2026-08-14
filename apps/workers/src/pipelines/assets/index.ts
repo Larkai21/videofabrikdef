@@ -17,6 +17,7 @@ import {
   ANTI_REPEAT_N,
   CLIP_MAX_S,
   IMAGE_HANDICAP,
+  EDIT_RENDER_KIND,
   IMAGE_MAX_S,
   JOBS,
   MAX_VISUALS_PER_BEAT,
@@ -32,6 +33,7 @@ import {
   type AssetsMatchJob,
   type Beat,
   type BeatCandidate,
+  type Edit as MasterEdit,
   type Fit,
   type RenderVideoJob,
   type StoredSubvisual,
@@ -162,6 +164,42 @@ function toBeatKind(assetKind: string): 'clip' | 'image' {
  */
 function libIdDe(cand: BeatCandidate): string | null {
   return cand.provider === 'library' ? cand.ref.replace('library:', '') : null;
+}
+
+/** Recorta por palabra entera a ~max chars (para el texto de una cobertura). */
+export function recortarPorPalabra(texto: string, max: number): string {
+  const limpio = texto.trim().replace(/\s+/g, ' ');
+  if (limpio.length <= max) return limpio;
+  const cortado = limpio.slice(0, max);
+  const ultimo = cortado.lastIndexOf(' ');
+  return (ultimo > 0 ? cortado.slice(0, ultimo) : cortado).trim();
+}
+
+/**
+ * Mezcla las ventanas de cobertura con los edits del director: el panel tapa
+ * la pantalla entera, así que dentro de su ventana solo sobreviven los edits
+ * de audio (EDIT_RENDER_KIND) — un callout o un zoom bajo el velo no se ve, y
+ * una tarjeta centrada pelearía con él. Pura para poder testearla.
+ */
+export function aplicarCoberturas(
+  edits: MasterEdit[],
+  coberturas: { beat_idx: number; from_ms: number; to_ms: number; text: string; keyword?: string }[],
+): MasterEdit[] {
+  if (coberturas.length === 0) return edits;
+  const solapa = (e: { from_ms: number; to_ms: number }): boolean =>
+    coberturas.some((c) => e.from_ms < c.to_ms && e.to_ms > c.from_ms);
+  const conservados = edits.filter(
+    (e) => EDIT_RENDER_KIND[e.type] === 'audio' || !solapa(e),
+  );
+  const nuevos: MasterEdit[] = coberturas.map((c) => ({
+    type: 'cobertura' as const,
+    from_ms: c.from_ms,
+    to_ms: c.to_ms,
+    beat_idx: c.beat_idx,
+    text: c.text,
+    ...(c.keyword !== undefined ? { keyword: c.keyword } : {}),
+  }));
+  return [...conservados, ...nuevos].sort((a, b) => a.from_ms - b.from_ms);
 }
 
 function originLabel(cand: BeatCandidate): string {
@@ -1016,6 +1054,18 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
   // Se juzga POR SUB-PLANO y se escribe en `visuals`, que es de donde tira la
   // ingesta. Reordenar solo `beats.candidates` habría sido decorativo: es
   // exactamente el fallo que tenía la puerta de curación humana.
+  //
+  // Ventanas de COBERTURA: los planos que el juez vetó y la re-consulta no
+  // rescató. El director de edición las convierte luego en un panel
+  // tipográfico a pantalla completa (edit 'cobertura') — la alternativa era
+  // enseñar el plano malo o el repetido de la reserva.
+  const coberturas: {
+    beat_idx: number;
+    from_ms: number;
+    to_ms: number;
+    text: string;
+    keyword?: string;
+  }[] = [];
   if (fullRun) {
     // Se RELEEN los beats de la BD. `beatRows` se cargó antes del matching y
     // sus `visuals` en memoria son los huecos que calculó el reparto de
@@ -1051,6 +1101,9 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
       channelId: video.channelId,
       planos,
     });
+    // el veto VIVO tras todo el bloque: arranca con el primer juez, la
+    // re-consulta rescata (delete) y el segundo juez puede re-vetar (add)
+    const vetadosFinal = new Set(sinPlano);
     // El visto bueno del juez puede dar el verde (flag por canal). T_AUTO está
     // descalibrado y no se corrige moviendo el número (constants.ts): con la
     // fuga cerrada, ~6/35 beats salen auto_ok y el humano revisa casi todo. El
@@ -1176,6 +1229,7 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
               asset_id: r.libAssetId,
             };
             tocado = true;
+            vetadosFinal.delete(clave);
             rescatados.push({
               beatIdx: b.idx,
               vIdx,
@@ -1224,6 +1278,7 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
             if (!rescatados.some((r) => r.beatIdx === b.idx && r.vIdx === vIdx)) return v;
             const nuevo = segundo.orden.get(clave);
             const rechazado = segundo.sinPlano.has(clave);
+            if (rechazado) vetadosFinal.add(clave);
             const primero = (nuevo ?? v.candidates)[0];
             const aprueba =
               juezAprueba &&
@@ -1278,6 +1333,37 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
         );
       }
     }
+
+    // De veto vivo a ventana de cobertura: el texto es lo que la voz DICE en
+    // ese tramo (palabras del maestro dentro de la ventana; sin cues, la
+    // narración del beat recortada por palabra). El plano malo se queda debajo
+    // como textura del velo — nunca un hueco (principio de la cascada).
+    for (const clave of vetadosFinal) {
+      const [bIdxRaw, vIdxRaw] = clave.split(':');
+      const bIdx = Number(bIdxRaw);
+      const vIdx = Number(vIdxRaw);
+      const beat = frescos.find((b) => b.idx === bIdx);
+      const sv = beat?.visuals?.[vIdx];
+      if (!beat || !sv) continue;
+      const words = wordsInSpan(video.master.cues, sv.from_ms, sv.to_ms);
+      const dicho = words.map((w) => w.w).join(' ').trim();
+      const base = dicho !== '' ? dicho : beat.text;
+      const texto = recortarPorPalabra(base, 110);
+      if (texto === '') continue;
+      coberturas.push({
+        beat_idx: bIdx,
+        from_ms: sv.from_ms,
+        to_ms: sv.to_ms,
+        text: texto,
+        ...(sv.keyword !== undefined && sv.keyword !== '' ? { keyword: sv.keyword } : {}),
+      });
+    }
+    if (coberturas.length > 0) {
+      logger.info(
+        { videoId, coberturas: coberturas.length },
+        'Planos vetados sin rescate: entra la cobertura tipográfica',
+      );
+    }
   }
 
   // Directores de capítulos y de EDICIÓN: sobre los beats (timings de la ley del
@@ -1316,10 +1402,14 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
       resolverInsertos: (pendientes) =>
         resolverInsertos(ctx, { id: videoId, channelId: video.channelId }, pendientes),
     });
+    // Coberturas del veto: el panel tapa la ventana entera, así que cualquier
+    // otro edit que caiga dentro se retira (no se vería o pelearía con el
+    // velo); los de audio se quedan — suenan igual con panel que sin él.
+    const editsFinales = aplicarCoberturas(edits, coberturas);
     await db
       .update(videos)
       .set({
-        master: masterVideoJsonV1.parse({ ...video.master, segments, edits }),
+        master: masterVideoJsonV1.parse({ ...video.master, segments, edits: editsFinales }),
         updatedAt: new Date(),
       })
       .where(eq(videos.id, videoId));
