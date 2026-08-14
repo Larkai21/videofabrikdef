@@ -178,7 +178,7 @@ async function juezLee(filas: Fila[]): Promise<Map<number, string | null>> {
     query: f.query,
     candidates: f.candidatos.map((c) => ({
       ref: c.ref,
-      provider: c.provider as 'library' | 'pexels' | 'pixabay' | 'flux' | 'wikimedia',
+      provider: c.provider as 'library' | 'pexels' | 'pixabay' | 'nasa' | 'flux' | 'wikimedia',
       score: c.cos,
       meta: { kind: c.kind, caption: c.caption },
     })),

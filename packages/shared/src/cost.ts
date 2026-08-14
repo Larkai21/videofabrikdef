@@ -10,6 +10,9 @@ export const COST_PROVIDERS = [
   'elevenlabs',
   'pexels',
   'pixabay',
+  // NASA Image and Video Library: coste 0 y sin key, pero se apunta igual
+  // (principio 4) para vigilar cuántas búsquedas hace la red de dominio público
+  'nasa',
   'fal',
   'youtube',
   // binario del sistema para descargar episodios externos (clipping); coste 0,

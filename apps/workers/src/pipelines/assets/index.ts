@@ -173,6 +173,7 @@ function originLabel(cand: BeatCandidate): string {
   // guardan candidatos con este proveedor y hay que saber etiquetarlos
   if (cand.provider === 'flux') return 'Generado · Flux';
   if (cand.provider === 'wikimedia') return `Commons · imagen ${cand.ref.split(':')[2] ?? ''}`;
+  if (cand.provider === 'nasa') return `NASA · clip ${cand.ref.split(':')[2] ?? ''}`;
   const id = cand.ref.split(':')[2] ?? cand.ref;
   const isPhoto = cand.ref.includes(':photo:');
   const label = cand.provider === 'pexels' ? 'Pexels' : 'Pixabay';
@@ -1431,7 +1432,7 @@ interface IngestedAsset {
    * congela en el maestro para que el informe pueda agregar la cuota de
    * biblioteca sin BD — chosen_origin no sobrevive a la congelación.
    */
-  origin: 'library' | 'pexels' | 'pixabay' | 'wikimedia' | 'flux' | 'upload';
+  origin: 'library' | 'pexels' | 'pixabay' | 'nasa' | 'wikimedia' | 'flux' | 'upload';
 }
 
 // Objetivo de ingesta: un plano concreto (beat o sub-plano) con su candidato
@@ -1614,6 +1615,7 @@ async function insertIngestedAsset(
   target: { beatIdx: number; visualQuery: string },
   chosen: BeatCandidate,
   info: IngestFileInfo,
+  opts: { cosecha?: boolean } = {},
 ): Promise<IngestedAsset> {
   const { db, logger } = ctx;
   const { kind, destPath, source, license, probed, meta } = info;
@@ -1642,12 +1644,22 @@ async function insertIngestedAsset(
     caption: caption || null,
     originQuery: target.visualQuery,
     embedding: embedding ?? null,
-    timesUsed: 1,
-    lastVideoId: video.id,
+    // cosecha (subcampeón): entra SIN uso — nadie lo ha puesto en pantalla;
+    // la purga mensual de times_used=0 a los 90 días lo vigila igual que a
+    // cualquier asset que no se gane su sitio
+    timesUsed: opts.cosecha === true ? 0 : 1,
+    lastVideoId: opts.cosecha === true ? null : video.id,
   });
   logger.info(
-    { videoId: video.id, beatIdx: target.beatIdx, assetId, source, codec: probed.codec },
-    'Asset ingerido en biblioteca',
+    {
+      videoId: video.id,
+      beatIdx: target.beatIdx,
+      assetId,
+      source,
+      codec: probed.codec,
+      ...(opts.cosecha === true ? { cosecha: true } : {}),
+    },
+    opts.cosecha === true ? 'Subcampeón cosechado en biblioteca' : 'Asset ingerido en biblioteca',
   );
 
   return {
@@ -1657,6 +1669,78 @@ async function insertIngestedAsset(
     durationMs: kind === 'clip' ? probed.durationMs : null,
     origin: chosen.provider,
   };
+}
+
+// Tope de subcampeones cosechados por vídeo: cada uno es una descarga (hasta
+// 200 MB con el cap) y disco; 12 por vídeo ya multiplica el crecimiento de la
+// biblioteca ~2-3x sin convertir cada ingesta en una tarde de descargas.
+const SUBCAMPEONES_MAX_POR_VIDEO = 12;
+
+/**
+ * Cosecha del subcampeón: el candidato nº 2 del plano (tras el juez) ya tiene
+ * caption VLM pagado y licencia gratuita, y hasta ahora se TIRABA. Entra en la
+ * biblioteca con times_used=0 para que el matching futuro pueda encontrarlo.
+ * Best-effort: ningún fallo aquí puede tumbar la ingesta del vídeo.
+ *
+ * Solo candidatos con CAPTION: sin descripción el embedding del asset sería el
+ * título-slug del proveedor, exactamente la señal pobre que la biblioteca no
+ * quiere (docs/assets-y-biblioteca.md §1).
+ */
+async function cosecharSubcampeon(
+  ctx: WorkerContext,
+  video: { id: string; channelId: string },
+  sv: { visual_query: string; candidates: BeatCandidate[] | null },
+  beatIdx: number,
+): Promise<boolean> {
+  const { db, logger } = ctx;
+  const sub = sv.candidates?.[1];
+  if (!sub || sub.provider === 'library' || sub.provider === 'flux') return false;
+  const meta = (sub.meta ?? {}) as Record<string, unknown>;
+  const caption = meta.caption as string | undefined;
+  const downloadUrl = meta.download_url as string | undefined;
+  if (!caption || caption === '' || !downloadUrl) return false;
+  const kind = (meta.kind as 'clip' | 'image' | undefined) ?? 'clip';
+
+  // ya en biblioteca (suya o de otro vídeo): nada que cosechar
+  const [existing] = await db
+    .select({ id: assetsTable.id })
+    .from(assetsTable)
+    .where(and(eq(assetsTable.sourceRef, sub.ref), eq(assetsTable.channelId, video.channelId)));
+  if (existing) return false;
+
+  const destDir = path.join(ctx.libraryDir, 'assets', video.channelId, kind);
+  await fs.mkdir(destDir, { recursive: true });
+  const license =
+    typeof meta.license === 'string' && meta.license !== ''
+      ? (meta.license as string)
+      : sub.provider === 'pexels'
+        ? 'Pexels'
+        : sub.provider === 'pixabay'
+          ? 'Pixabay'
+          : sub.provider;
+  const destPath = path.join(destDir, `${nanoid()}.${extFromUrl(downloadUrl, kind)}`);
+  try {
+    await downloadWithCap(downloadUrl, destPath, sub.ref);
+    await reducirA1080(ctx, destPath);
+    const probed = await probeMedia(destPath);
+    const ingested = await insertIngestedAsset(
+      ctx,
+      video,
+      { beatIdx, visualQuery: sv.visual_query },
+      sub,
+      { kind, destPath, source: sub.provider, license, probed, meta },
+      { cosecha: true },
+    );
+    await ensureClipThumb(ctx, video.channelId, ingested);
+    return true;
+  } catch (err) {
+    await fs.unlink(destPath).catch(() => {});
+    logger.warn(
+      { err, videoId: video.id, beatIdx, ref: sub.ref },
+      'No se pudo cosechar el subcampeón; se sigue',
+    );
+    return false;
+  }
 }
 
 // Póster de un clip en library/assets/<canal>/thumbs/<id>.jpg (misma convención
@@ -1705,6 +1789,9 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
   if (beatRows.length === 0) throw new Error('El vídeo no tiene beats que ingerir');
 
   const frozenBeats: Beat[] = [];
+  // cosecha de subcampeones: el nº 2 de cada plano con caption ya pagado entra
+  // en biblioteca (times_used=0) hasta el tope por vídeo; ver cosecharSubcampeon
+  let cosechados = 0;
   for (let i = 0; i < beatRows.length; i++) {
     const beat = beatRows[i];
     if (!beat) continue;
@@ -1744,6 +1831,15 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
       // póster para la biblioteca: sin esto los clips de producción salen sin
       // preview (thumbUrlFor busca thumbs/<id>.jpg). Best-effort, no bloquea.
       await ensureClipThumb(ctx, video.channelId, ingested);
+      if (cosechados < SUBCAMPEONES_MAX_POR_VIDEO) {
+        const entro = await cosecharSubcampeon(
+          ctx,
+          { id: videoId, channelId: video.channelId },
+          { visual_query: sv.visual_query, candidates: sv.candidates },
+          beat.idx,
+        );
+        if (entro) cosechados += 1;
+      }
       // el fit se recalcula SIEMPRE con la duración real del archivo, contra el
       // tramo del SUB-PLANO (no todo el beat)
       const seed = mockHash(`${videoId}${beat.idx}:${vIdx}`);
@@ -1876,7 +1972,10 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
     progress: 100,
     detail: 'Assets ingeridos; render encolado',
   });
-  logger.info({ videoId, beats: frozenBeats.length }, 'Ingesta completada y render encolado');
+  logger.info(
+    { videoId, beats: frozenBeats.length, ...(cosechados > 0 ? { cosechados } : {}) },
+    'Ingesta completada y render encolado',
+  );
 }
 
 export async function registerAssetsWorkers(ctx: WorkerContext): Promise<Worker[]> {

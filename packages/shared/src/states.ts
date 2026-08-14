@@ -63,7 +63,17 @@ export type AssetKind = z.infer<typeof assetKindSchema>;
 // guardados con ese origen y el enum tiene que seguir aceptándolos.
 // 'wikimedia' = Wikimedia Commons, la fuente de los insertos de referencia
 // (imágenes reales de entidades con nombre; licencia y atribución por asset).
-export const ASSET_SOURCES = ['pexels', 'pixabay', 'flux', 'playwright', 'upload', 'wikimedia'] as const;
+// 'nasa' = NASA Image and Video Library, red de CLIPS de dominio público del
+// b-roll (espacio, robótica, ciencia); sin API key y sin coste.
+export const ASSET_SOURCES = [
+  'pexels',
+  'pixabay',
+  'nasa',
+  'flux',
+  'playwright',
+  'upload',
+  'wikimedia',
+] as const;
 export const assetSourceSchema = z.enum(ASSET_SOURCES);
 export type AssetSource = z.infer<typeof assetSourceSchema>;
 

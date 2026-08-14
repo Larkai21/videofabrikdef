@@ -31,6 +31,7 @@ const PROVIDER_LABELS: Record<BeatCandidate['provider'], string> = {
   library: 'Biblioteca',
   pexels: 'Pexels',
   pixabay: 'Pixabay',
+  nasa: 'NASA',
   flux: 'Flux',
   wikimedia: 'Wikimedia Commons',
 };

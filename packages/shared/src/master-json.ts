@@ -100,7 +100,7 @@ export const beatAssetSchema = z.object({
   // de dónde vino el PICK del matching, congelado en la ingesta: es lo que
   // permite al informe de calidad agregar la cuota de biblioteca sin BD
   // (chosen_origin vive en la tabla beats y no sobrevive a la congelación)
-  origin: z.enum(['library', 'pexels', 'pixabay', 'wikimedia', 'flux', 'upload']).optional(),
+  origin: z.enum(['library', 'pexels', 'pixabay', 'nasa', 'wikimedia', 'flux', 'upload']).optional(),
   // Cómo encuadrar el plano en un lienzo VERTICAL. Lo estampa el recorte a
   // short a partir de las dimensiones y el tipo que la biblioteca ya conoce;
   // el render largo lo ignora. Vive aquí y no en un esquema de beat propio del
@@ -111,9 +111,9 @@ export const beatAssetSchema = z.object({
 
 export const candidateSchema = z.object({
   ref: z.string(),
-  // 'wikimedia' solo aparece en candidatos de inserto (imagen de referencia de
-  // una entidad con nombre); la cascada de b-roll no lo usa
-  provider: z.enum(['library', 'pexels', 'pixabay', 'flux', 'wikimedia']),
+  // 'wikimedia' aparece en candidatos de inserto y como red del b-roll (solo
+  // PD/CC0); 'nasa' es la red de CLIPS de dominio público del b-roll
+  provider: z.enum(['library', 'pexels', 'pixabay', 'nasa', 'flux', 'wikimedia']),
   score: z.number(),
   thumb_url: z.string().optional(),
   // URL servible (/files/...) que la API deriva de meta.path para los

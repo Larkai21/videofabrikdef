@@ -19,13 +19,18 @@ export interface StockMeta {
   title: string;
   kind: 'clip' | 'image';
   caption?: string;
+  // licencia por ITEM cuando el proveedor la trae (NASA: dominio público;
+  // Wikimedia la trae en su propio tipo); la ingesta la prefiere al nombre
+  // del proveedor
+  license?: string;
 }
 
 export interface StockResult {
   ref: string;
-  // 'wikimedia' solo aparece cuando el stock comercial se queda corto: imágenes
-  // PD/CC0 de Commons como red, nunca como fuente principal (ver searchStock)
-  provider: 'pexels' | 'pixabay' | 'wikimedia';
+  // 'wikimedia' y 'nasa' solo aparecen cuando el stock comercial se queda
+  // corto: la red de dominio público (NASA = clips, Commons = imágenes PD/CC0),
+  // nunca fuente principal (ver searchStock)
+  provider: 'pexels' | 'pixabay' | 'nasa' | 'wikimedia';
   thumb_url: string;
   meta: StockMeta;
 }
@@ -305,6 +310,130 @@ async function searchPixabay(
   }
 }
 
+// ---- NASA Image and Video Library: red de CLIPS de dominio público ----
+// Sin API key y sin rate limit publicado. La búsqueda no trae ni URL de mp4 ni
+// duración, así que por cada candidato se pagan 2 requests más (collection.json
+// para las variantes de fichero y metadata.json para duración/dimensiones) —
+// por eso el tope de candidatos es corto y la fuente solo entra como red.
+const NASA_CANDIDATOS = 5;
+
+/** «0:03:39», «03:39» o segundos a pelo → ms; null si no se entiende. */
+export function parseNasaDuration(raw: unknown): number | null {
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) return Math.round(raw * 1000);
+  if (typeof raw !== 'string' || raw.trim() === '') return null;
+  const t = raw.trim();
+  // «12.34 s» del exiftool también aparece
+  const soloSegundos = /^(\d+(?:\.\d+)?)(?:\s*s)?$/.exec(t);
+  if (soloSegundos) return Math.round(Number(soloSegundos[1]) * 1000);
+  const partes = t.split(':').map((p) => Number(p));
+  if (partes.some((p) => !Number.isFinite(p))) return null;
+  const [s = 0, m = 0, h = 0] = partes.reverse();
+  const ms = Math.round((h * 3600 + m * 60 + s) * 1000);
+  return ms > 0 ? ms : null;
+}
+
+/** La variante razonable para render 1080p: large > medium > orig. */
+export function pickNasaFile(files: string[]): string | null {
+  const mp4s = files.filter((f) => f.toLowerCase().endsWith('.mp4'));
+  const porVariante = (suf: string): string | undefined =>
+    mp4s.find((f) => f.toLowerCase().includes(`~${suf}.mp4`));
+  const elegido = porVariante('large') ?? porVariante('medium') ?? porVariante('orig') ?? mp4s[0];
+  // los ficheros llegan con http:// pelado; el download va por https
+  return elegido !== undefined ? elegido.replace(/^http:\/\//, 'https://') : null;
+}
+
+async function searchNasa(
+  db: Db,
+  logger: pino.Logger,
+  query: string,
+  ids: StockSearchIds,
+): Promise<StockResult[]> {
+  const queryNorm = normalizeQuery(query);
+  const cached = await readCache(db, queryNorm, 'nasa');
+  if (cached) return cached;
+
+  const handle = await openCost(db, {
+    videoId: ids.videoId ?? null,
+    channelId: ids.channelId ?? null,
+    provider: 'nasa',
+    operation: 'search',
+    meta: { query: queryNorm },
+  });
+  try {
+    const params = new URLSearchParams({ q: queryNorm, media_type: 'video', page_size: '10' });
+    const json = (await fetchJson(
+      `https://images-api.nasa.gov/search?${params.toString()}`,
+      {},
+    )) as {
+      collection?: {
+        items?: {
+          href?: string;
+          data?: { nasa_id?: string; title?: string; description?: string }[];
+          links?: { href?: string; render?: string }[];
+        }[];
+      };
+    };
+    const items = (json.collection?.items ?? []).slice(0, NASA_CANDIDATOS);
+    const out: StockResult[] = [];
+    let requests = 1;
+    for (const item of items) {
+      const data = item.data?.[0];
+      const nasaId = data?.nasa_id;
+      const collectionHref = item.href;
+      if (!nasaId || !collectionHref) continue;
+      const base = collectionHref.replace(/\/collection\.json$/, '');
+      try {
+        const [filesJson, metaJson] = await Promise.all([
+          fetchJson(collectionHref, {}),
+          fetchJson(`${base}/metadata.json`, {}),
+        ]);
+        requests += 2;
+        const files = Array.isArray(filesJson) ? (filesJson as string[]) : [];
+        const downloadUrl = pickNasaFile(files);
+        const metaMap = metaJson as Record<string, unknown>;
+        const durationMs =
+          parseNasaDuration(metaMap['QuickTime:Duration']) ??
+          parseNasaDuration(metaMap['Composite:Duration']);
+        // sin mp4 o sin duración el candidato no puede competir (computeFit
+        // descarta clips sin duración): mejor fuera aquí que un finalista roto
+        if (downloadUrl === null || durationMs === null) continue;
+        const thumb = item.links?.find((l) => l.render === 'image')?.href ?? '';
+        const descripcion = (data.description ?? '').replace(/\s+/g, ' ').trim();
+        out.push({
+          ref: stockRef('nasa', 'clip', nasaId),
+          provider: 'nasa',
+          thumb_url: thumb.replace(/^http:\/\//, 'https://'),
+          meta: {
+            download_url: downloadUrl,
+            width: Number(metaMap['QuickTime:ImageWidth'] ?? 0),
+            height: Number(metaMap['QuickTime:ImageHeight'] ?? 0),
+            duration_ms: durationMs,
+            title: String(data.title ?? nasaId),
+            // la descripción oficial de NASA como caption: describe el
+            // contenido real y ahorra el caption VLM de pago
+            ...(descripcion !== ''
+              ? { caption: descripcion.slice(0, 240) }
+              : {}),
+            kind: 'clip',
+            license: 'Dominio público (NASA)',
+          },
+        });
+      } catch (itemErr) {
+        logger.warn({ err: itemErr, nasaId }, 'Candidato de NASA sin resolver; se salta');
+      }
+    }
+    await closeCost(db, handle, { units: requests, unitCost: 0 });
+    await writeCache(db, queryNorm, 'nasa', out);
+    return out;
+  } catch (err) {
+    const motivo = err instanceof Error ? err.message : String(err);
+    await failCost(db, handle, motivo);
+    ids.muertes?.set('nasa', motivo);
+    logger.warn({ err, query: queryNorm }, 'Fallo en la búsqueda de NASA; se continúa sin ella');
+    return [];
+  }
+}
+
 export async function searchStock(
   db: Db,
   logger: pino.Logger,
@@ -325,16 +454,24 @@ export async function searchStock(
   // insertos siguen usando el rango completo de licencias: su crédito se pinta
   // en el propio recuadro.
   if (comercial.length >= STOCK_FINALISTS) return comercial;
-  try {
-    const commons = await searchWikimedia(db, logger, query);
-    const sinAtribucion = commons.filter(
-      (c) => SIN_ATRIBUCION.test(c.meta.license) || c.meta.credit === '',
-    );
-    return [...comercial, ...sinAtribucion];
-  } catch (err) {
-    logger.warn({ err, query }, 'Commons como red de b-roll falló; se sigue sin él');
-    return comercial;
+  // Red de dominio público, en dos pasos: NASA primero (da CLIPS, que es lo
+  // que el b-roll prefiere; ideal en espacio/robótica/ciencia donde el stock
+  // comercial devuelve genérico o nada) y Commons después (solo imágenes).
+  const red: StockResult[] = [];
+  const nasa = await searchNasa(db, logger, query, ids);
+  red.push(...nasa);
+  if (comercial.length + red.length < STOCK_FINALISTS) {
+    try {
+      const commons = await searchWikimedia(db, logger, query);
+      const sinAtribucion = commons.filter(
+        (c) => SIN_ATRIBUCION.test(c.meta.license) || c.meta.credit === '',
+      );
+      red.push(...sinAtribucion);
+    } catch (err) {
+      logger.warn({ err, query }, 'Commons como red de b-roll falló; se sigue sin él');
+    }
   }
+  return [...comercial, ...red];
 }
 
 /**

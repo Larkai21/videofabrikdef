@@ -108,6 +108,8 @@ function providerLicense(candidate: BeatCandidate | undefined): string {
       return 'Pixabay · uso comercial';
     case 'library':
       return 'Biblioteca propia';
+    case 'nasa':
+      return 'NASA · dominio público';
     case 'flux':
       return 'Generada · uso propio';
     case 'wikimedia':
