@@ -4,7 +4,7 @@ import type pino from 'pino';
 import { captionCache, stockCache, type Db } from '@fabrica/db';
 import { MAX_QUERY_CHARS, STOCK_CACHE_TTL_H, stockRef } from '@fabrica/shared';
 import { STOCK_FINALISTS } from '../pipelines/assets/pool.js';
-import { searchWikimedia, SIN_ATRIBUCION } from './wikimedia.js';
+import { searchWikimedia } from './wikimedia.js';
 import { closeCost, failCost, openCost } from '../lib/ledger.js';
 
 // Búsqueda de stock (docs/assets-y-biblioteca.md §3): Pexels (vídeos y fotos)
@@ -23,6 +23,9 @@ export interface StockMeta {
   // Wikimedia la trae en su propio tipo); la ingesta la prefiere al nombre
   // del proveedor
   license?: string;
+  // atribución exigida por esa licencia; la ingesta la guarda en la fila del
+  // asset y la congelación la lleva al maestro y a description.txt
+  credit?: string;
 }
 
 export interface StockResult {
@@ -446,28 +449,23 @@ export async function searchStock(
     searchPixabay(db, logger, query, ids),
   ]);
   const comercial = [...pexels, ...pixabay];
-  // Wikimedia Commons como RED, no como fuente principal: solo cuando el stock
-  // comercial no llena el pool de finalistas — consultas de nicho (hardware
-  // concreto, hechos históricos, diagramas) donde Pexels devuelve genérico o
-  // nada. Solo PD/CC0: `assets` no guarda crédito y llevar la atribución de un
-  // b-roll hasta description.txt es plomería que no compensa (mismo criterio
-  // por el que se descartó Coverr, cuya licencia gratuita exige crédito). Los
-  // insertos siguen usando el rango completo de licencias: su crédito se pinta
-  // en el propio recuadro.
+  // Red de licencia libre, no fuente principal: solo cuando el stock comercial
+  // no llena el pool de finalistas — consultas de nicho (hardware concreto,
+  // hechos históricos, diagramas) donde Pexels devuelve genérico o nada.
   if (comercial.length >= STOCK_FINALISTS) return comercial;
-  // Red de dominio público, en dos pasos: NASA primero (da CLIPS, que es lo
-  // que el b-roll prefiere; ideal en espacio/robótica/ciencia donde el stock
-  // comercial devuelve genérico o nada) y Commons después (solo imágenes).
+  // Dos pasos: NASA primero (da CLIPS, que es lo que el b-roll prefiere;
+  // ideal en espacio/robótica/ciencia) y Commons después (solo imágenes).
+  // Commons entra ya con TODO su rango LICENSE_OK, atribución incluida: desde
+  // que assets guarda `credit` y la congelación lo lleva a description.txt
+  // («Metraje: …»), el motivo del filtro PD/CC0 desapareció. El crédito viaja
+  // en meta.credit y la ingesta lo persiste.
   const red: StockResult[] = [];
   const nasa = await searchNasa(db, logger, query, ids);
   red.push(...nasa);
   if (comercial.length + red.length < STOCK_FINALISTS) {
     try {
       const commons = await searchWikimedia(db, logger, query);
-      const sinAtribucion = commons.filter(
-        (c) => SIN_ATRIBUCION.test(c.meta.license) || c.meta.credit === '',
-      );
-      red.push(...sinAtribucion);
+      red.push(...commons);
     } catch (err) {
       logger.warn({ err, query }, 'Commons como red de b-roll falló; se sigue sin él');
     }

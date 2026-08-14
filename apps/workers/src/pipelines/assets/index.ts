@@ -1523,6 +1523,8 @@ interface IngestedAsset {
    * biblioteca sin BD — chosen_origin no sobrevive a la congelación.
    */
   origin: 'library' | 'pexels' | 'pixabay' | 'nasa' | 'wikimedia' | 'flux' | 'upload';
+  /** atribución exigida por la licencia; viaja congelada al maestro */
+  credit?: string;
 }
 
 // Objetivo de ingesta: un plano concreto (beat o sub-plano) con su candidato
@@ -1561,6 +1563,7 @@ async function ingestChosen(
       kind: toBeatKind(row.kind),
       durationMs: row.durationMs,
       origin: 'library',
+      ...(row.credit !== null ? { credit: row.credit } : {}),
     };
   }
 
@@ -1590,6 +1593,7 @@ async function ingestChosen(
       // el pick vino de STOCK aunque el fichero ya estuviera dentro: para la
       // cuota de biblioteca cuenta quién ganó el matching, no dónde vive
       origin: chosen.provider,
+      ...(existing.credit !== null ? { credit: existing.credit } : {}),
     };
   }
 
@@ -1718,6 +1722,7 @@ async function insertIngestedAsset(
   );
 
   const assetId = nanoid();
+  const credit = typeof meta.credit === 'string' && meta.credit !== '' ? meta.credit : null;
   await db.insert(assetsTable).values({
     id: assetId,
     scope: 'channel',
@@ -1727,6 +1732,7 @@ async function insertIngestedAsset(
     source,
     sourceRef: chosen.ref,
     license,
+    credit,
     durationMs: kind === 'clip' ? probed.durationMs : null,
     width: probed.width,
     height: probed.height,
@@ -1749,7 +1755,7 @@ async function insertIngestedAsset(
       codec: probed.codec,
       ...(opts.cosecha === true ? { cosecha: true } : {}),
     },
-    opts.cosecha === true ? 'Subcampeón cosechado en biblioteca' : 'Asset ingerido en biblioteca',
+    opts.cosecha === true ? 'Asset cosechado en biblioteca' : 'Asset ingerido en biblioteca',
   );
 
   return {
@@ -1758,6 +1764,7 @@ async function insertIngestedAsset(
     kind,
     durationMs: kind === 'clip' ? probed.durationMs : null,
     origin: chosen.provider,
+    ...(credit !== null ? { credit } : {}),
   };
 }
 
@@ -1776,16 +1783,16 @@ const SUBCAMPEONES_MAX_POR_VIDEO = 12;
  * título-slug del proveedor, exactamente la señal pobre que la biblioteca no
  * quiere (docs/assets-y-biblioteca.md §1).
  */
-async function cosecharSubcampeon(
+async function cosecharCandidato(
   ctx: WorkerContext,
   video: { id: string; channelId: string },
-  sv: { visual_query: string; candidates: BeatCandidate[] | null },
+  cand: BeatCandidate,
+  visualQuery: string,
   beatIdx: number,
 ): Promise<boolean> {
   const { db, logger } = ctx;
-  const sub = sv.candidates?.[1];
-  if (!sub || sub.provider === 'library' || sub.provider === 'flux') return false;
-  const meta = (sub.meta ?? {}) as Record<string, unknown>;
+  if (cand.provider === 'library' || cand.provider === 'flux') return false;
+  const meta = (cand.meta ?? {}) as Record<string, unknown>;
   const caption = meta.caption as string | undefined;
   const downloadUrl = meta.download_url as string | undefined;
   if (!caption || caption === '' || !downloadUrl) return false;
@@ -1795,7 +1802,7 @@ async function cosecharSubcampeon(
   const [existing] = await db
     .select({ id: assetsTable.id })
     .from(assetsTable)
-    .where(and(eq(assetsTable.sourceRef, sub.ref), eq(assetsTable.channelId, video.channelId)));
+    .where(and(eq(assetsTable.sourceRef, cand.ref), eq(assetsTable.channelId, video.channelId)));
   if (existing) return false;
 
   const destDir = path.join(ctx.libraryDir, 'assets', video.channelId, kind);
@@ -1803,22 +1810,22 @@ async function cosecharSubcampeon(
   const license =
     typeof meta.license === 'string' && meta.license !== ''
       ? (meta.license as string)
-      : sub.provider === 'pexels'
+      : cand.provider === 'pexels'
         ? 'Pexels'
-        : sub.provider === 'pixabay'
+        : cand.provider === 'pixabay'
           ? 'Pixabay'
-          : sub.provider;
+          : cand.provider;
   const destPath = path.join(destDir, `${nanoid()}.${extFromUrl(downloadUrl, kind)}`);
   try {
-    await downloadWithCap(downloadUrl, destPath, sub.ref);
+    await downloadWithCap(downloadUrl, destPath, cand.ref);
     await reducirA1080(ctx, destPath);
     const probed = await probeMedia(destPath);
     const ingested = await insertIngestedAsset(
       ctx,
       video,
-      { beatIdx, visualQuery: sv.visual_query },
-      sub,
-      { kind, destPath, source: sub.provider, license, probed, meta },
+      { beatIdx, visualQuery },
+      cand,
+      { kind, destPath, source: cand.provider, license, probed, meta },
       { cosecha: true },
     );
     await ensureClipThumb(ctx, video.channelId, ingested);
@@ -1826,11 +1833,97 @@ async function cosecharSubcampeon(
   } catch (err) {
     await fs.unlink(destPath).catch(() => {});
     logger.warn(
-      { err, videoId: video.id, beatIdx, ref: sub.ref },
-      'No se pudo cosechar el subcampeón; se sigue',
+      { err, videoId: video.id, beatIdx, ref: cand.ref },
+      'No se pudo cosechar el candidato; se sigue',
     );
     return false;
   }
+}
+
+async function cosecharSubcampeon(
+  ctx: WorkerContext,
+  video: { id: string; channelId: string },
+  sv: { visual_query: string; candidates: BeatCandidate[] | null },
+  beatIdx: number,
+): Promise<boolean> {
+  const sub = sv.candidates?.[1];
+  if (!sub) return false;
+  return cosecharCandidato(ctx, video, sub, sv.visual_query, beatIdx);
+}
+
+/**
+ * Cosecha TEMÁTICA para la cosecha semanal de biblioteca: busca en el stock
+ * con las consultas de la taxonomía del canal y mete los mejores CLIPS nuevos
+ * con times_used=0. El caption se reutiliza si ya está pagado (caption_cache,
+ * descripción de NASA) y solo se paga VLM para los que van a entrar. Aprovecha
+ * el rate limit ocioso (Pexels 200/h se desperdicia 22 h al día) e invierte la
+ * cascada a favor del tier biblioteca.
+ */
+export async function cosecharDesdeStock(
+  ctx: WorkerContext,
+  channelId: string,
+  queries: string[],
+  opts: { topePorQuery?: number; topeTotal?: number } = {},
+): Promise<number> {
+  const { db, logger } = ctx;
+  const topeQuery = opts.topePorQuery ?? 3;
+  const topeTotal = opts.topeTotal ?? 12;
+  let cosechados = 0;
+  for (const q of queries) {
+    if (cosechados >= topeTotal) break;
+    const resultados = await searchStock(db, logger, q, { channelId });
+    // clips primero: es lo que el b-roll prefiere y lo que menos abunda
+    const clips = resultados.filter((r) => (r.meta.kind ?? 'clip') === 'clip');
+    const yaDescritos = await captionsByRef(
+      db,
+      clips.map((c) => c.ref),
+    );
+    let porQuery = 0;
+    for (const r of clips) {
+      if (porQuery >= topeQuery || cosechados >= topeTotal) break;
+      let caption = (r.meta.caption as string | undefined) ?? yaDescritos.get(r.ref);
+      if (caption === undefined || caption === '') {
+        // caption VLM solo para el que va a entrar, con su fila en el ledger
+        const handle = await openCost(db, {
+          channelId,
+          provider: ctx.llm.ledgerProvider,
+          operation: 'vlm_caption',
+          meta: { src: 'library.cosecha', query: q, ref: r.ref },
+        });
+        try {
+          const res = await ctx.llm.captionImage(
+            r.thumb_url,
+            'Describe en una frase corta el contenido visual de esta imagen para indexarla como b-roll.',
+          );
+          caption = res.caption.trim();
+          await cacheCaption(db, q, r.ref, caption);
+          await closeCost(db, handle, {
+            units: 1,
+            unitCost: ctx.llm.name === 'mock' ? 0 : PRICES.openai.vlm_caption_per_image,
+          });
+        } catch (err) {
+          await failCost(db, handle, err instanceof Error ? err.message : String(err));
+          logger.warn({ err, ref: r.ref }, 'Caption de cosecha falló; se salta el candidato');
+          continue;
+        }
+      }
+      if (caption === undefined || caption === '') continue;
+      const cand: BeatCandidate = {
+        ref: r.ref,
+        provider: r.provider,
+        score: 0,
+        thumb_url: r.thumb_url,
+        meta: { ...r.meta, caption },
+      };
+      const entro = await cosecharCandidato(ctx, { id: 'cosecha-semanal', channelId }, cand, q, -1);
+      if (entro) {
+        porQuery += 1;
+        cosechados += 1;
+      }
+    }
+  }
+  if (cosechados > 0) logger.info({ channelId, cosechados }, 'Cosecha temática en biblioteca');
+  return cosechados;
 }
 
 // Póster de un clip en library/assets/<canal>/thumbs/<id>.jpg (misma convención
@@ -1975,6 +2068,7 @@ async function runIngest(ctx: WorkerContext, job: Job<AssetsIngestJob>): Promise
             path: ingested.absPath,
             kind: ingested.kind,
             fit: parte.fit,
+            ...(ingested.credit !== undefined ? { credit: ingested.credit } : {}),
             ...(parte.effect ? { effect: parte.effect } : {}),
           },
         });

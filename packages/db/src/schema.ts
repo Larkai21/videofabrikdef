@@ -269,9 +269,14 @@ export const assets = pgTable(
     channelId: text('channel_id').references(() => channels.id),
     kind: text('kind').notNull(), // clip|image|music|screenshot|upload
     path: text('path').notNull(),
-    source: text('source').notNull(), // pexels|pixabay|wikimedia|flux|playwright|upload
+    source: text('source').notNull(), // pexels|pixabay|nasa|wikimedia|flux|playwright|upload
     sourceRef: text('source_ref'),
     license: text('license').notNull(),
+    // atribución EXIGIDA por la licencia (CC BY/BY-SA: «Autor, CC BY 4.0, via
+    // Wikimedia Commons»); null = la licencia no la exige. Viaja congelada al
+    // maestro (beat.asset.credit) y de ahí a description.txt — es lo que
+    // permite usar material con atribución como B-ROLL, no solo como inserto.
+    credit: text('credit'),
     durationMs: integer('duration_ms'),
     width: integer('width'),
     height: integer('height'),

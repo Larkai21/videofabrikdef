@@ -105,6 +105,10 @@ export const beatAssetSchema = z.object({
   // permite al informe de calidad agregar la cuota de biblioteca sin BD
   // (chosen_origin vive en la tabla beats y no sobrevive a la congelación)
   origin: z.enum(['library', 'pexels', 'pixabay', 'nasa', 'wikimedia', 'flux', 'upload']).optional(),
+  // atribución exigida por la licencia del asset (CC BY/BY-SA), congelada en
+  // la ingesta: el render la agrega a description.txt («Metraje: …»). Es lo
+  // que permite b-roll con atribución, no solo insertos.
+  credit: z.string().optional(),
   // Cómo encuadrar el plano en un lienzo VERTICAL. Lo estampa el recorte a
   // short a partir de las dimensiones y el tipo que la biblioteca ya conoce;
   // el render largo lo ignora. Vive aquí y no en un esquema de beat propio del

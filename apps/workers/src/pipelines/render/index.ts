@@ -86,6 +86,22 @@ async function writeOutputs(outDir: string, master: RenderableMaster): Promise<v
   if (creditos.length > 0) {
     description += `\n\nImágenes: ${creditos.join(' · ')}`;
   }
+  // atribución del B-ROLL: los assets con licencia que exige crédito (CC
+  // BY/BY-SA) lo llevan congelado en beat.asset.credit desde la ingesta; una
+  // sola línea agregada por autor/licencia, como las imágenes
+  const creditosMetraje = [
+    ...new Set(
+      (master.beats ?? []).flatMap((b) => {
+        const assets = [b.asset, ...(b.visuals ?? []).map((v) => v.asset)];
+        return assets.flatMap((a) =>
+          a?.credit !== undefined && a.credit !== '' ? [a.credit] : [],
+        );
+      }),
+    ),
+  ].filter((c) => !creditos.includes(c));
+  if (creditosMetraje.length > 0) {
+    description += `\n${creditos.length > 0 ? '' : '\n'}Metraje: ${creditosMetraje.join(' · ')}`;
+  }
   await fsp.writeFile(path.join(outDir, 'title.txt'), `${title}\n`);
   await fsp.writeFile(path.join(outDir, 'description.txt'), `${description}\n`);
   await fsp.writeFile(path.join(outDir, 'tags.txt'), `${master.seo.tags.join('\n')}\n`);
