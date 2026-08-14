@@ -1333,12 +1333,12 @@ textarea.control {
 .ficha-entrega {
   width: 1040px;
   max-width: 100%;
-  max-height: 100%;
-  /* la altura la manda el VÍDEO, no la descripción: sin esto, un texto largo
-     estiraba la ficha a pantalla completa y el 16:9 quedaba flotando en un
-     vacío negro que parecía roto. 380 = columna de vídeo (1.35/2.35 de 1040,
-     16:9) más la tira de datos; el texto scrollea en su columna. */
-  aspect-ratio: 1040 / 380;
+  /* alto ACOTADO por los dos lados: el tope de 560 evita la sábana (una
+     descripción larga estiraba la ficha a pantalla completa y el vídeo
+     flotaba en un vacío negro), y el 100% evita desbordar un viewport bajo.
+     Nada de aspect-ratio aquí: en viewports bajos el max-height recortaba el
+     alto, el ancho se quedaba, y el grid desbordaba el modal. */
+  height: min(560px, 100%);
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr);
   border: 1px solid var(--line);
@@ -1362,6 +1362,9 @@ textarea.control {
 .ficha-entrega-video {
   width: 100%;
   aspect-ratio: 16 / 9;
+  /* el vídeo NUNCA más alto que el hueco: antes desbordar, letterbox (el
+     object-fit por defecto de <video> ya es contain) */
+  max-height: 46vh;
   display: block;
   background: #000;
 }
@@ -1430,13 +1433,13 @@ textarea.control {
 }
 
 /* Bajo el suelo de dos columnas la ficha se apila: el vídeo arriba, el texto
-   debajo, que es el orden en que se usa. Apilada, la proporción fija no vale
-   (el vídeo y el texto suman en vertical): la altura vuelve al viewport. */
+   debajo, que es el orden en que se usa. Apilada es una hoja a toda altura:
+   vídeo y texto suman en vertical y el tope de 46vh del vídeo garantiza que
+   el texto y el pie siempre tienen su sitio. */
 @media (max-width: 860px) {
   .ficha-entrega {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
-    aspect-ratio: auto;
     height: 100%;
   }
   .ficha-entrega-media {
