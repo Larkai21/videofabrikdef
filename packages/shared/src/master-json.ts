@@ -609,7 +609,18 @@ export const masterVideoJsonV1 = z.object({
    * no, cambiar el ajuste re-califica en silencio todos los vídeos viejos y el
    * histórico deja de poder compararse consigo mismo.
    */
-  broll_telemetry: z.object({ imagenes_max_pct: z.number().min(0).max(1) }).optional(),
+  broll_telemetry: z
+    .object({
+      imagenes_max_pct: z.number().min(0).max(1),
+      /**
+       * Fuentes de stock que murieron durante el matching (provider → motivo:
+       * API key ausente, error de red tras reintento). Congelado aquí para que
+       * el informe de calidad enseñe que ESTE vídeo se produjo con menos
+       * variedad de la configurada — antes solo quedaba un warn en el log.
+       */
+      fuentes_muertas: z.record(z.string(), z.string()).optional(),
+    })
+    .optional(),
   seo: seoSchema.optional(),
   audio: audioSchema.optional(),
   cues: z.array(cueSchema).optional(),

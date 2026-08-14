@@ -279,6 +279,10 @@ interface MatchDeps {
   imagenesMaxPct: number;
   imagenesElegidas: number;
   planosResueltos: number;
+  // fuentes de stock muertas durante ESTE matching (provider → motivo); se
+  // congela en broll_telemetry al terminar para que el informe de calidad lo
+  // enseñe en vez de dejarlo morir en un warn del log
+  muertes: Map<string, string>;
 }
 
 /**
@@ -378,7 +382,11 @@ async function resolveOneVisual(
 
   // 2) stock solo si la biblioteca no llega al umbral
   if (bestLibClip < T_STOCK) {
-    const stockResults = await searchStock(db, logger, queryText, { videoId, channelId });
+    const stockResults = await searchStock(db, logger, queryText, {
+      videoId,
+      channelId,
+      muertes: deps.muertes,
+    });
     const finalists = pickFinalists(stockResults, {
       total: STOCK_FINALISTS,
       imagenesMax: args.exigeClip === true ? 0 : deps.imagenesPorPool,
@@ -830,6 +838,21 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
   const antiN = channel?.settings?.anti_repeat_n ?? ANTI_REPEAT_N;
   const recentIds = await recentAssetIds(db, video.channelId, videoId, antiN);
 
+  // Un .env sin NINGUNA clave de stock degradaba todo el vídeo a
+  // biblioteca+reserva en silencio (cada búsqueda devolvía [] con un warn).
+  // Mejor incidencia reintentable YA que descubrirlo mirando el vídeo. La
+  // válvula STOCK_SIN_CLAVES=1 existe para entornos de desarrollo a propósito.
+  if (
+    !process.env.PEXELS_API_KEY &&
+    !process.env.PIXABAY_API_KEY &&
+    process.env.STOCK_SIN_CLAVES !== '1'
+  ) {
+    throw new Error(
+      'Sin PEXELS_API_KEY ni PIXABAY_API_KEY el matching saldría solo con biblioteca. ' +
+        'Configura al menos una clave o exporta STOCK_SIN_CLAVES=1 si es intencionado.',
+    );
+  }
+
   // El techo de imágenes en vigor se congela en el maestro ANTES de matchear:
   // el informe de calidad tiene que auditar contra lo que se pidió al producir.
   const imagenesMaxPct = channel?.profile?.style.broll_imagenes_max_pct ?? RATIO_IMAGENES_MAX;
@@ -926,6 +949,7 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
     // no, los beats que se rehacen creerían que el vídeo va a cero imágenes.
     imagenesElegidas: 0,
     planosResueltos: 0,
+    muertes: new Map(),
     ...palancas,
   };
   for (const row of allRows) {
@@ -1270,6 +1294,36 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
         updatedAt: new Date(),
       })
       .where(eq(videos.id, videoId));
+  }
+
+  // Las fuentes muertas se congelan en el maestro (patrón broll_telemetry)
+  // para que pnpm calidad enseñe que ESTE vídeo salió con menos variedad de la
+  // configurada; un re-run limpio también BORRA la marca de un run anterior
+  // (idempotencia del retry). Se relee el maestro: el bloque de edits de arriba
+  // lo acaba de reescribir y esta copia local está rancia.
+  const [freshRow] = await db.select().from(videos).where(eq(videos.id, videoId)).limit(1);
+  if (freshRow) {
+    const teniaMuertas = freshRow.master.broll_telemetry?.fuentes_muertas !== undefined;
+    if (deps.muertes.size > 0 || teniaMuertas) {
+      const base = freshRow.master.broll_telemetry ?? { imagenes_max_pct: imagenesMaxPct };
+      const telemetry =
+        deps.muertes.size > 0
+          ? { ...base, fuentes_muertas: Object.fromEntries(deps.muertes) }
+          : { imagenes_max_pct: base.imagenes_max_pct };
+      await db
+        .update(videos)
+        .set({
+          master: masterVideoJsonV1.parse({ ...freshRow.master, broll_telemetry: telemetry }),
+          updatedAt: new Date(),
+        })
+        .where(eq(videos.id, videoId));
+      if (deps.muertes.size > 0) {
+        logger.error(
+          { videoId, fuentes: Object.fromEntries(deps.muertes) },
+          'Fuentes de stock muertas durante el matching: el vídeo salió con menos variedad de la configurada',
+        );
+      }
+    }
   }
 
   if (fullRun && video.state === 'audio') {

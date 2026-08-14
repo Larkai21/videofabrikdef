@@ -331,6 +331,21 @@ export function analizarMaster(master: MasterVideoJson): MetricasVideo {
   const msConOrigen = conOrigen.reduce((acc, t) => acc + t.ms, 0);
   const cuotaBiblioteca = msConOrigen > 0 ? msBiblioteca / msConOrigen : null;
 
+  // fuentes de stock muertas durante el matching (congeladas en el maestro):
+  // el vídeo se produjo con menos variedad de la configurada y eso se enseña
+  // aquí, no en un warn de log que nadie relee
+  const muertas = master.broll_telemetry?.fuentes_muertas;
+  if (muertas !== undefined && Object.keys(muertas).length > 0) {
+    const lista = Object.entries(muertas)
+      .map(([p, motivo]) => `${p} (${motivo})`)
+      .join('; ');
+    avisos.push({
+      gravedad: 'alta',
+      codigo: 'fuente_muerta',
+      detalle: `fuentes de stock muertas durante el matching: ${lista} — el matching salió con menos variedad de la configurada`,
+    });
+  }
+
   // el techo con el que se PRODUJO este vídeo, no el que tenga el canal hoy
   const techoImagenes = master.broll_telemetry?.imagenes_max_pct ?? RATIO_IMAGENES_MAX;
   if (presentes.length > 0 && ratioImagenes > techoImagenes) {

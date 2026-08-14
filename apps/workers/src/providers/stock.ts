@@ -33,6 +33,14 @@ export interface StockResult {
 export interface StockSearchIds {
   videoId?: string | null;
   channelId?: string | null;
+  /**
+   * Colector de fuentes muertas: si una búsqueda no puede ejecutarse (API key
+   * ausente, error de red tras el reintento), se anota provider → motivo en
+   * vez de morir SOLO con un warn. El matching lo vuelca a broll_telemetry
+   * para que el informe de calidad lo enseñe — un .env roto degradaba toda la
+   * variedad a biblioteca+reserva sin que nadie lo viera.
+   */
+  muertes?: Map<string, string>;
 }
 
 export function normalizeQuery(q: string): string {
@@ -207,7 +215,10 @@ export async function searchPexels(
   if (cached) return cached;
 
   const key = process.env.PEXELS_API_KEY;
-  if (!key) return [];
+  if (!key) {
+    ids.muertes?.set('pexels', 'falta PEXELS_API_KEY en el entorno');
+    return [];
+  }
 
   const handle = await openCost(db, {
     videoId: ids.videoId ?? null,
@@ -237,7 +248,9 @@ export async function searchPexels(
     await writeCache(db, queryNorm, 'pexels', results);
     return results;
   } catch (err) {
-    await failCost(db, handle, err instanceof Error ? err.message : String(err));
+    const motivo = err instanceof Error ? err.message : String(err);
+    await failCost(db, handle, motivo);
+    ids.muertes?.set('pexels', motivo);
     logger.warn({ err, query: queryNorm }, 'Fallo en la búsqueda de Pexels; se continúa sin stock');
     return [];
   }
@@ -254,7 +267,10 @@ async function searchPixabay(
   if (cached) return cached;
 
   const key = process.env.PIXABAY_API_KEY;
-  if (!key) return [];
+  if (!key) {
+    ids.muertes?.set('pixabay', 'falta PIXABAY_API_KEY en el entorno');
+    return [];
+  }
 
   const handle = await openCost(db, {
     videoId: ids.videoId ?? null,
@@ -278,7 +294,9 @@ async function searchPixabay(
     await writeCache(db, queryNorm, 'pixabay', results);
     return results;
   } catch (err) {
-    await failCost(db, handle, err instanceof Error ? err.message : String(err));
+    const motivo = err instanceof Error ? err.message : String(err);
+    await failCost(db, handle, motivo);
+    ids.muertes?.set('pixabay', motivo);
     logger.warn(
       { err, query: queryNorm },
       'Fallo en la búsqueda de Pixabay; se continúa sin stock',
@@ -345,7 +363,11 @@ export async function cacheCaption(
   caption: string,
 ): Promise<void> {
   await db.insert(captionCache).values({ ref, caption }).onConflictDoNothing();
-  const provider = ref.startsWith('pixabay:') ? 'pixabay' : 'pexels';
+  // el proveedor sale del prefijo del ref (formato provider:kind:id): el
+  // ternario binario pexels/pixabay de antes habría escrito los captions de
+  // cualquier proveedor nuevo en la fila de caché de Pexels (inexistente)
+  const sep = ref.indexOf(':');
+  const provider = sep > 0 ? ref.slice(0, sep) : 'pexels';
   const queryNorm = normalizeQuery(query);
   const [row] = await db
     .select()
