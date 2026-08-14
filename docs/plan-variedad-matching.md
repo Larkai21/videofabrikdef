@@ -54,12 +54,18 @@ APROVECHABLE: PySceneDetect al servicio de un embedding visual local.
   - Cosecha de subcampeones: el nº 2 de cada plano con caption ya pagado
     entra en biblioteca con times_used=0 (tope 12/vídeo; la purga de 90 días
     lo vigila). HECHO 14-ago.
-  - Coverr (pendiente D2); fallback elegante al veto del juez (composición
-    tipográfica con los edit types en vez de tartamudeo). PENDIENTE.
-- **S2b · Música, urgente**: inventario de pistas kind='music' con licencia;
-  15-20 pistas seguras por mood; anti-repetición de pista entre vídeos. La
-  música es el mayor vector de Content ID y el pick actual es determinista
-  sobre un pool minúsculo.
+  - Fallback al veto del juez: edit 'cobertura' a pantalla completa (velo +
+    narración del tramo, keyword acentuada) emitido por el pipeline para los
+    vetados sin rescate; retira los edits visibles bajo su ventana. HECHO
+    14-ago (still fx-cobertura.png verificado).
+  - Coverr: PENDIENTE de D2.
+- **S2b · Música**: maquinaria HECHA 14-ago — master.audio.music_asset_id
+  congela la pista, pickMusicTrack anti-repite contra los últimos 3 vídeos
+  (con pool agotado repite antes que quitar), y elegir una pista sin
+  licencia registrada avisa. Inventario medido: CERO pistas kind=music.
+  PENDIENTE HUMANO: ingerir 15-20 pistas seguras etiquetadas por mood
+  (YouTube Audio Library / CC BY con crédito / Pixabay Music) — sin pool,
+  background_music sigue siendo un toggle sin efecto.
 - **S3 · Licencias por item + cosecha semanal**: whitelist dura de licenseurl
   (PD/CC0/BY/BY-SA), crédito automático de b-roll en description.txt (patrón
   insertos); desbloquea Internet Archive y el vídeo de Commons; job semanal de
