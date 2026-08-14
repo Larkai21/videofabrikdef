@@ -45,11 +45,17 @@ APROVECHABLE: PySceneDetect al servicio de un embedding visual local.
   - PENDIENTE HUMANO (D5): curar 3-4 vídeos en el dashboard y volcar con
     exportar-etiquetas hasta ≥100 etiquetas; sin banco, S2/S4 no se pueden
     afirmar.
-- **S2 · Variedad barata**: 2ª variante de query por plano (solo si la 1ª no
-  llena 10 finalistas); proveedores NASA (sin key, dominio público) y Coverr
-  (pendiente D2); ingerir los 2-3 subcampeones aprobados por el juez (hoy se
-  tiran con el caption ya pagado); fallback elegante al veto del juez
-  (composición tipográfica con los edit types en vez de tartamudeo).
+- **S2 · Variedad barata**:
+  - 2ª variante de query por plano (alt_query del director, solo si la 1ª no
+    llena 10 finalistas). HECHO 14-ago.
+  - NASA como red de CLIPS de dominio público (sin key; búsqueda + metadata
+    por candidato para duración/mp4; entra cuando el comercial no llena el
+    pool, antes que Commons). HECHO 14-ago.
+  - Cosecha de subcampeones: el nº 2 de cada plano con caption ya pagado
+    entra en biblioteca con times_used=0 (tope 12/vídeo; la purga de 90 días
+    lo vigila). HECHO 14-ago.
+  - Coverr (pendiente D2); fallback elegante al veto del juez (composición
+    tipográfica con los edit types en vez de tartamudeo). PENDIENTE.
 - **S2b · Música, urgente**: inventario de pistas kind='music' con licencia;
   15-20 pistas seguras por mood; anti-repetición de pista entre vídeos. La
   música es el mayor vector de Content ID y el pick actual es determinista
