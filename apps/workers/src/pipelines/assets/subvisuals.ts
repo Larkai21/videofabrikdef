@@ -16,7 +16,16 @@ export interface SubvisualSpan {
   from_ms: number;
   to_ms: number;
   visual_query: string;
+  alt_query?: string;
   keyword?: string;
+}
+
+// las props de consulta del corte que viajan al tramo, tal cual
+function consultasDe(cut: DirectorCut): { visual_query: string; alt_query?: string } {
+  return {
+    visual_query: cut.visual_query,
+    ...(cut.alt_query !== undefined ? { alt_query: cut.alt_query } : {}),
+  };
 }
 
 // tramo mínimo de un sub-plano: por debajo se fusiona con el anterior (evita
@@ -55,7 +64,13 @@ export function computeSubvisualSpans(
   const full = beat.to_ms - beat.from_ms;
   const first = cuts[0];
   if (cuts.length <= 1 || full < 2 * MIN_SUBVISUAL_MS) {
-    return [{ from_ms: beat.from_ms, to_ms: beat.to_ms, visual_query: first?.visual_query ?? '' }];
+    return [
+      {
+        from_ms: beat.from_ms,
+        to_ms: beat.to_ms,
+        ...(first !== undefined ? consultasDe(first) : { visual_query: '' }),
+      },
+    ];
   }
 
   // anclar cada corte (el primero siempre arranca en beat.from_ms)
@@ -82,12 +97,12 @@ export function computeSubvisualSpans(
   if (anchors.length === 1 && cuts.length > 1 && !extrasHaveKeyword) {
     const n = Math.min(cuts.length, Math.max(1, Math.floor(full / MIN_SUBVISUAL_MS)));
     if (n <= 1)
-      return [{ from_ms: beat.from_ms, to_ms: beat.to_ms, visual_query: first!.visual_query }];
+      return [{ from_ms: beat.from_ms, to_ms: beat.to_ms, ...consultasDe(first!) }];
     const step = Math.round(full / n);
     return Array.from({ length: n }, (_, i) => ({
       from_ms: beat.from_ms + i * step,
       to_ms: i === n - 1 ? beat.to_ms : beat.from_ms + (i + 1) * step,
-      visual_query: cuts[i]!.visual_query,
+      ...consultasDe(cuts[i]!),
       ...(cuts[i]!.keyword ? { keyword: cuts[i]!.keyword } : {}),
     }));
   }
@@ -95,7 +110,7 @@ export function computeSubvisualSpans(
   return anchors.map((a, i) => ({
     from_ms: a.ms,
     to_ms: i === anchors.length - 1 ? beat.to_ms : anchors[i + 1]!.ms,
-    visual_query: a.cut.visual_query,
+    ...consultasDe(a.cut),
     ...(a.cut.keyword ? { keyword: a.cut.keyword } : {}),
   }));
 }

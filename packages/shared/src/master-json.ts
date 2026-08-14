@@ -158,6 +158,10 @@ export const storedSubvisualSchema = z.object({
   from_ms: z.number().int().nonnegative(),
   to_ms: z.number().int().nonnegative(),
   visual_query: z.string(),
+  // segunda consulta del director (otro ángulo del MISMO sujeto): solo se
+  // consulta si la primera no llena el pool de finalistas — variedad extra
+  // sin duplicar requests en el caso común
+  alt_query: z.string().optional(),
   keyword: z.string().optional(),
   status: beatStatusSchema,
   candidates: z.array(candidateSchema),

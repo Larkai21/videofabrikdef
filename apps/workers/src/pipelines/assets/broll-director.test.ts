@@ -52,6 +52,34 @@ describe('buildDirectorPrompt', () => {
   });
 });
 
+describe('alt_query en el contrato del director', () => {
+  it('el prompt pide la segunda consulta y el esquema la acepta', () => {
+    const { system } = buildDirectorPrompt({
+      videoId: 'v1',
+      channelId: 'c1',
+      lang: 'en',
+      beats: BEATS,
+    });
+    expect(system).toContain('alt_query');
+    const parsed = brollResultSchema.parse({
+      beats: [
+        {
+          idx: 0,
+          visuals: [{ visual_query: 'server room aisle', alt_query: 'data center racks closeup' }],
+        },
+      ],
+    });
+    expect(parsed.beats[0]!.visuals[0]!.alt_query).toBe('data center racks closeup');
+  });
+
+  it('el esquema no exige alt_query (opcional de verdad)', () => {
+    const parsed = brollResultSchema.parse({
+      beats: [{ idx: 0, visuals: [{ visual_query: 'server room aisle' }] }],
+    });
+    expect(parsed.beats[0]!.visuals[0]!.alt_query).toBeUndefined();
+  });
+});
+
 describe('recortarConsulta', () => {
   it('deja intactas las consultas cortas y normaliza los espacios', () => {
     expect(recortarConsulta('  server   room  ')).toBe('server room');

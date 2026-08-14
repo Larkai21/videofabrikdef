@@ -12,6 +12,15 @@ const WORDS: BeatWord[] = [
 const BEAT = { from_ms: 0, to_ms: 13_000 };
 
 describe('computeSubvisualSpans', () => {
+  it('la alt_query del corte viaja al tramo (y su ausencia no inventa la clave)', () => {
+    const conAlt = computeSubvisualSpans(BEAT, WORDS, [
+      { visual_query: 'libros antiguos', alt_query: 'estantería biblioteca vieja' },
+    ]);
+    expect(conAlt[0]!.alt_query).toBe('estantería biblioteca vieja');
+    const sinAlt = computeSubvisualSpans(BEAT, WORDS, [{ visual_query: 'libros antiguos' }]);
+    expect('alt_query' in sinAlt[0]!).toBe(false);
+  });
+
   it('un solo corte → un tramo que cubre todo el beat', () => {
     const spans = computeSubvisualSpans(BEAT, WORDS, [{ visual_query: 'libros antiguos' }]);
     expect(spans).toEqual([{ from_ms: 0, to_ms: 13_000, visual_query: 'libros antiguos' }]);

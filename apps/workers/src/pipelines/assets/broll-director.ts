@@ -20,9 +20,14 @@ export interface DirectorBeat {
 
 // Un corte visual dentro de un beat. `keyword` (opcional) es la palabra de la
 // narración donde debe entrar el plano; sin ella, el corte va por idea.
+// `alt_query` (opcional) es un SEGUNDO ángulo del mismo sujeto: solo se
+// consulta cuando la primera búsqueda no llena el pool (variedad sin duplicar
+// requests en el caso común — el cuello documentado era UNA query por plano
+// contra una caché de 24 h que devolvía siempre los mismos candidatos).
 export interface DirectorCut {
   keyword?: string;
   visual_query: string;
+  alt_query?: string;
 }
 
 export const brollResultSchema = z.object({
@@ -34,6 +39,7 @@ export const brollResultSchema = z.object({
           z.object({
             keyword: z.string().optional(),
             visual_query: z.string().min(1),
+            alt_query: z.string().optional(),
           }),
         )
         .min(1),
@@ -64,8 +70,11 @@ export function buildDirectorPrompt(params: DirectorParams): { system: string; u
     '- Escenas y objetos concretos, nunca conceptos abstractos ni texto en pantalla.',
     '- Planos consecutivos (dentro y entre beats) VISUALMENTE DISTINTOS.',
     '- keyword: una palabra EXACTA tal cual aparece en la narración del beat (o vacío).',
+    '- alt_query (opcional): un SEGUNDO ángulo del MISMO sujeto con otras palabras',
+    '  (sinónimos, otro encuadre), mismas reglas; nunca un sujeto distinto.',
     'Devuelve JSON: { "beats": [ { "idx": number, "visuals": [ { "keyword"?: string,',
-    '"visual_query": string } ] } ] }, un objeto por beat recibido con el mismo idx.',
+    '"visual_query": string, "alt_query"?: string } ] } ] }, un objeto por beat',
+    'recibido con el mismo idx.',
   ].join('\n');
 
   const user = [
@@ -130,10 +139,16 @@ export async function directBroll(
   for (const b of data.beats) {
     if (!out.has(b.idx)) continue;
     const cuts: DirectorCut[] = b.visuals
-      .map((v) => ({
-        ...(v.keyword && v.keyword.trim() !== '' ? { keyword: v.keyword.trim() } : {}),
-        visual_query: recortarConsulta(v.visual_query),
-      }))
+      .map((v) => {
+        const principal = recortarConsulta(v.visual_query);
+        const alt = v.alt_query !== undefined ? recortarConsulta(v.alt_query) : '';
+        return {
+          ...(v.keyword && v.keyword.trim() !== '' ? { keyword: v.keyword.trim() } : {}),
+          visual_query: principal,
+          // una alt igual a la principal no aporta nada: fuera
+          ...(alt !== '' && alt !== principal ? { alt_query: alt } : {}),
+        };
+      })
       .filter((v) => v.visual_query !== '')
       .slice(0, MAX_VISUALS_PER_BEAT);
     if (cuts.length > 0) out.set(b.idx, cuts);

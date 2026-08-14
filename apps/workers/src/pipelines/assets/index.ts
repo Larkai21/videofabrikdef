@@ -342,6 +342,9 @@ async function resolveOneVisual(
     beatIdx: number;
     vIdx: number;
     query: string;
+    // segundo ángulo del director: SOLO se consulta si la búsqueda principal
+    // no llena el pool de finalistas (no duplica requests en el caso común)
+    queryAlt?: string;
     spanMs: number;
     vetoedRefs: Set<string>;
     // refs YA ELEGIDOS en este mismo beat: la reserva los evita mientras haya
@@ -382,17 +385,39 @@ async function resolveOneVisual(
 
   // 2) stock solo si la biblioteca no llega al umbral
   if (bestLibClip < T_STOCK) {
-    const stockResults = await searchStock(db, logger, queryText, {
+    let stockResults = await searchStock(db, logger, queryText, {
       videoId,
       channelId,
       muertes: deps.muertes,
     });
-    const finalists = pickFinalists(stockResults, {
+    let finalists = pickFinalists(stockResults, {
       total: STOCK_FINALISTS,
       imagenesMax: args.exigeClip === true ? 0 : deps.imagenesPorPool,
       spanMs: beatMs,
       vetoedRefs,
     });
+    // La segunda consulta del director entra SOLO cuando la primera no llena
+    // el pool: variedad extra donde hace falta, cero requests extra donde no.
+    // Con la caché de 24 h por query, dos vídeos del mismo tema en la misma
+    // semana dejan de ver exactamente los mismos candidatos.
+    if (finalists.length < STOCK_FINALISTS && args.queryAlt !== undefined) {
+      const extraResults = await searchStock(db, logger, args.queryAlt, {
+        videoId,
+        channelId,
+        muertes: deps.muertes,
+      });
+      const yaVistos = new Set(stockResults.map((r) => r.ref));
+      const nuevos = extraResults.filter((r) => !yaVistos.has(r.ref));
+      if (nuevos.length > 0) {
+        stockResults = [...stockResults, ...nuevos];
+        finalists = pickFinalists(stockResults, {
+          total: STOCK_FINALISTS,
+          imagenesMax: args.exigeClip === true ? 0 : deps.imagenesPorPool,
+          spanMs: beatMs,
+          vetoedRefs,
+        });
+      }
+    }
     // Reserva de stock: los que el veto dejó fuera, puntuados solo con su
     // TÍTULO. No se les paga descripción de visión porque son repeticiones y
     // solo entran si no queda absolutamente nada más; el embedding es local y
@@ -625,6 +650,7 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
           from_ms: v.from_ms,
           to_ms: v.to_ms,
           visual_query: v.visual_query,
+          ...(v.alt_query ? { alt_query: v.alt_query } : {}),
           ...(v.keyword ? { keyword: v.keyword } : {}),
         }))
       : [
@@ -653,6 +679,7 @@ async function matchBeat(deps: MatchDeps, beat: BeatRow): Promise<void> {
       beatIdx: beat.idx,
       vIdx,
       query: span.visual_query,
+      ...('alt_query' in span && span.alt_query ? { queryAlt: span.alt_query } : {}),
       spanMs: span.to_ms - span.from_ms,
       // Los planos ya usados en este vídeo se vetan al ARMAR el pool, no solo
       // al elegir: así el candidato repetido ni siquiera compite y la cascada
@@ -905,6 +932,7 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
           from_ms: s.from_ms,
           to_ms: s.to_ms,
           visual_query: s.visual_query,
+          ...(s.alt_query ? { alt_query: s.alt_query } : {}),
           ...(s.keyword ? { keyword: s.keyword } : {}),
           status: 'pending' as const,
           candidates: [],
