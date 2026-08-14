@@ -484,11 +484,23 @@ export function Entrega() {
       >
         <div style={{ display: 'grid', gap: 'var(--gap)' }}>
           <div className="card" style={{ overflow: 'hidden' }}>
-            {/* El worker de render escribe outputs/<id>/video.mp4 (docs/render.md) */}
+            {/* El worker de render escribe outputs/<id>/video.mp4 (docs/render.md).
+                El tope de altura mantiene player Y controles dentro del viewport
+                cuando la columna es ancha (a una columna el 16:9 salía más alto
+                que la pantalla y el vídeo se veía «cortado»); el vídeo hace
+                letterbox dentro, como cualquier player. La miniatura A de póster
+                para que el primer frame no sea una caja negra. */}
             <video
               controls
               src={fileUrl(`${relativeDir}/video.mp4`)}
-              style={{ width: '100%', aspectRatio: '16 / 9', display: 'block', background: '#000' }}
+              poster={fileUrl(`${relativeDir}/${THUMB_NAMES[0]}`)}
+              style={{
+                width: '100%',
+                aspectRatio: '16 / 9',
+                maxHeight: 'calc(100vh - 240px)',
+                display: 'block',
+                background: '#000',
+              }}
             />
           </div>
 
