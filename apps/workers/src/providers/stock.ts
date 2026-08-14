@@ -342,7 +342,8 @@ export function pickNasaFile(files: string[]): string | null {
   return elegido !== undefined ? elegido.replace(/^http:\/\//, 'https://') : null;
 }
 
-async function searchNasa(
+// exportada para poder probarla suelta (scripts), como searchPexels
+export async function searchNasa(
   db: Db,
   logger: pino.Logger,
   query: string,
