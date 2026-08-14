@@ -87,10 +87,13 @@ la fila en memoria tiene los candidatos vacíos.
   con TTL 24 h. Los `ref` de ambos clientes comparten formato.
 - Los metadatos textuales del stock son pobres y DESIGUALES (título de foto = alt
   humano; título de clip = slug de URL). Por eso: preselección gratis por coseno de
-  título con embeddings locales, y caption VLM de pago (~0,0005 $/imagen) solo para los
-  `CAPTION_TOP_K=4` de los 6 finalistas que pueden ganar, con reparto de plazas POR
-  TIPO para que la desigualdad de títulos no regale las descripciones a las fotos.
-  Caché por imagen (`caption_cache`): un ref ya descrito no se paga dos veces.
+  título con embeddings locales, y caption VLM de pago (~0,0005 $/imagen) para los
+  `CAPTION_TOP_K=10` — es decir, TODOS los `STOCK_FINALISTS=10` (el pool se ensanchó
+  al servicio del juez de planos y el presupuesto de captions lo siguió; los valores
+  históricos 4/6 sobrevivieron aquí meses después de morir en el código), con reparto
+  de plazas POR TIPO para que la desigualdad de títulos no regale las descripciones a
+  las fotos. Caché por imagen (`caption_cache`): un ref ya descrito no se paga dos
+  veces. Techo real: ~45 planos × 10 × 0,0005 $ ≈ 0,22 $/vídeo en primera pasada.
 - La descripción se hace sobre el fotograma del PUNTO MEDIO del tramo que se usa, no
   sobre el segundo 1: en más de la mitad de los clips la decisión se tomaba sobre una
   imagen que el espectador nunca veía.
