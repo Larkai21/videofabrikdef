@@ -1334,6 +1334,11 @@ textarea.control {
   width: 1040px;
   max-width: 100%;
   max-height: 100%;
+  /* la altura la manda el VÍDEO, no la descripción: sin esto, un texto largo
+     estiraba la ficha a pantalla completa y el 16:9 quedaba flotando en un
+     vacío negro que parecía roto. 380 = columna de vídeo (1.35/2.35 de 1040,
+     16:9) más la tira de datos; el texto scrollea en su columna. */
+  aspect-ratio: 1040 / 380;
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr);
   border: 1px solid var(--line);
@@ -1388,6 +1393,9 @@ textarea.control {
 }
 .ficha-entrega-campos {
   flex: 1;
+  /* sin el mínimo explícito, el texto largo se niega a encoger y revienta la
+     altura de la ficha por debajo del aspect-ratio */
+  min-height: 0;
   overflow-y: auto;
   padding: var(--e-4);
   display: flex;
@@ -1422,11 +1430,14 @@ textarea.control {
 }
 
 /* Bajo el suelo de dos columnas la ficha se apila: el vídeo arriba, el texto
-   debajo, que es el orden en que se usa. */
+   debajo, que es el orden en que se usa. Apilada, la proporción fija no vale
+   (el vídeo y el texto suman en vertical): la altura vuelve al viewport. */
 @media (max-width: 860px) {
   .ficha-entrega {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
+    aspect-ratio: auto;
+    height: 100%;
   }
   .ficha-entrega-media {
     border-right: none;
