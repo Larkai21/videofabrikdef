@@ -38,7 +38,11 @@ export function useModalKeyboard(
           'button, [href], input, select, textarea, [tabindex]',
         ) ?? [],
       ).filter((el) => !el.hasAttribute('disabled') && el.tabIndex >= 0);
-    (initialFocusRef?.current ?? focusables()[0])?.focus();
+    // preventScroll SIEMPRE: enfocar dentro de un modal con overflow hidden
+    // puede scrollear el contenedor igualmente (pasó: el foco de Cerrar
+    // corría la ficha 150px cuando el pie desbordaba) y el modal aparece
+    // descolocado sin barra que lo delate
+    (initialFocusRef?.current ?? focusables()[0])?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
@@ -51,10 +55,10 @@ export function useModalKeyboard(
       if (!first || !last) return;
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault();
-        last.focus();
+        last.focus({ preventScroll: true });
       } else if (!e.shiftKey && document.activeElement === last) {
         e.preventDefault();
-        first.focus();
+        first.focus({ preventScroll: true });
       }
     };
     window.addEventListener('keydown', onKey);

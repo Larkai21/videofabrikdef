@@ -1408,6 +1408,10 @@ textarea.control {
 .ficha-entrega-pie {
   flex: none;
   display: flex;
+  /* los «Sin publicar» llevan un botón más («Ya lo he subido a mano») y sin
+     envolver el pie desbordaba la columna: el foco de Cerrar al abrir
+     scrolleaba el overflow hidden y toda la ficha aparecía corrida 150px */
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--e-2);
   padding: var(--e-3) var(--e-4);
