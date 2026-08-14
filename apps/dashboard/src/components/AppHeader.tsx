@@ -13,12 +13,11 @@ import { CostBadge } from './ui';
 // productos, vistas, anclas y hasta una acción). El separador dibuja el mapa:
 // la fábrica del vídeo largo · los otros dos productos · los recursos · el
 // sistema. «Nuevo canal» es una ACCIÓN y vive como botón, no como sección.
+// «En curso» y «Publicados» eran anclas a secciones de la propia Bandeja, no
+// destinos: fuera de la nav por decisión del usuario (14-ago). Se llega
+// scrolleando la Bandeja, que es donde ya estás.
 const NAV_GRUPOS: { label: string; to: string }[][] = [
-  [
-    { label: 'Bandeja', to: '/' },
-    { label: 'En curso', to: '/#en-curso' },
-    { label: 'Publicados', to: '/#publicados' },
-  ],
+  [{ label: 'Bandeja', to: '/' }],
   [
     { label: 'Episodios', to: '/episodios' },
     { label: 'Reels', to: '/reels' },
