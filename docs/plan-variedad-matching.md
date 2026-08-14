@@ -66,10 +66,14 @@ APROVECHABLE: PySceneDetect al servicio de un embedding visual local.
   PENDIENTE HUMANO: ingerir 15-20 pistas seguras etiquetadas por mood
   (YouTube Audio Library / CC BY con crédito / Pixabay Music) — sin pool,
   background_music sigue siendo un toggle sin efecto.
-- **S3 · Licencias por item + cosecha semanal**: whitelist dura de licenseurl
-  (PD/CC0/BY/BY-SA), crédito automático de b-roll en description.txt (patrón
-  insertos); desbloquea Internet Archive y el vídeo de Commons; job semanal de
-  cosecha dentro de los límites gratuitos.
+- **S3 · Licencias por item + cosecha semanal**: HECHO 14-ago en su núcleo —
+  assets.credit (migración 0015) + crédito congelado en beat.asset.credit +
+  línea «Metraje: …» en description.txt; la red de Commons para b-roll pasa
+  de PD/CC0 a todo LICENSE_OK (BY/BY-SA con crédito). Cosecha semanal (lunes
+  6:00): rota las example_queries de los pilares, 8 consultas y 12 clips por
+  canal/semana, caption reutilizado o VLM con ledger, times_used=0; probada
+  en vivo (2 clips reales). PENDIENTE: cliente de Internet Archive y vídeo
+  de Commons (el habilitador ya existe).
 - **S4 · Matching visual (L)**: sidecar Python (PySceneDetect 0.7.1 +
   SigLIP2 so400m-patch14-384, dim 1152, multilingüe, transformers+MPS;
   fallback MobileCLIP2-S2) → tabla asset_shots con pgvector HNSW. Regla
