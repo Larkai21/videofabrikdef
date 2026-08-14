@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "calidad": "tsx scripts/calidad.ts",
+    "variedad": "tsx scripts/variedad.ts",
     "guion": "tsx scripts/guion.ts",
     "reescala:biblioteca": "tsx scripts/reescala-biblioteca.ts",
     "rerank": "tsx scripts/rerank.ts",

@@ -21,6 +21,7 @@
     "sfx": "pnpm --filter @fabrica/video sfx",
     "guion": "pnpm --filter @fabrica/workers guion",
     "calidad": "pnpm --filter @fabrica/workers calidad",
+    "variedad": "pnpm --filter @fabrica/workers variedad",
     "reescala:biblioteca": "pnpm --filter @fabrica/workers reescala:biblioteca",
     "rerank": "pnpm --filter @fabrica/workers rerank",
     "encuadre": "pnpm --filter @fabrica/workers encuadre",

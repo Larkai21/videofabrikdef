@@ -1,0 +1,149 @@
+{
+  "generado": "2026-08-14T12:28:20.389Z",
+  "ventana": 8,
+  "videos": [
+    {
+      "video": "NAD-wntw8In0cSwzt3kDp",
+      "titulo": "Qué pasó con GPT-5.6 Sol (y qué medidas tomar ho",
+      "creado": "2026-08-03",
+      "planos": 31,
+      "unicos": 27,
+      "repetidos_vs_ventana_pct": null,
+      "jaccard_ventana": null,
+      "proveedores": {
+        "desconocido": 31
+      }
+    },
+    {
+      "video": "gmu3muVluTZJZB5WooRgL",
+      "titulo": "Por qué Jalapeño y otros chips cambian tu coste ",
+      "creado": "2026-08-03",
+      "planos": 79,
+      "unicos": 49,
+      "repetidos_vs_ventana_pct": 8,
+      "jaccard_ventana": 0.056,
+      "proveedores": {
+        "desconocido": 79
+      }
+    },
+    {
+      "video": "bGXgQmI3pCJ5u3MBdInE3",
+      "titulo": "Qué propone Elon Musk para el futuro y cómo prep",
+      "creado": "2026-08-04",
+      "planos": 117,
+      "unicos": 73,
+      "repetidos_vs_ventana_pct": 7,
+      "jaccard_ventana": 0.036,
+      "proveedores": {
+        "library": 29,
+        "pexels": 81,
+        "pixabay": 7
+      }
+    },
+    {
+      "video": "Nn7rGNukJ0LZOyi_N84DF",
+      "titulo": "La ventana de parcheo se cierra: prioridades par",
+      "creado": "2026-08-06",
+      "planos": 73,
+      "unicos": 41,
+      "repetidos_vs_ventana_pct": 22,
+      "jaccard_ventana": 0.052,
+      "proveedores": {
+        "pexels": 53,
+        "library": 16,
+        "pixabay": 4
+      }
+    },
+    {
+      "video": "SrMPAzTTzFd1NDd-_r6zI",
+      "titulo": "Qué hay dentro del centro de datos de AWS en Ara",
+      "creado": "2026-08-12",
+      "planos": 126,
+      "unicos": 69,
+      "repetidos_vs_ventana_pct": 17,
+      "jaccard_ventana": 0.052,
+      "proveedores": {
+        "pexels": 93,
+        "library": 30,
+        "pixabay": 3
+      }
+    },
+    {
+      "video": "lA8Y6YVghCP6cGoGgVsK9",
+      "titulo": "Sesgos en la IA: quién decide detrás del algorit",
+      "creado": "2026-08-13",
+      "planos": 65,
+      "unicos": 51,
+      "repetidos_vs_ventana_pct": 22,
+      "jaccard_ventana": 0.041,
+      "proveedores": {
+        "pixabay": 10,
+        "pexels": 43,
+        "library": 12
+      }
+    },
+    {
+      "video": "Dfgfjb4CAGIKnTbCAfUky",
+      "titulo": "Actrices sintéticas: qué cambia en producción y ",
+      "creado": "2026-08-13",
+      "planos": 67,
+      "unicos": 44,
+      "repetidos_vs_ventana_pct": 11,
+      "jaccard_ventana": 0.016,
+      "proveedores": {
+        "pexels": 50,
+        "library": 9,
+        "pixabay": 8
+      }
+    }
+  ],
+  "top_reutilizados": [
+    {
+      "path": "4D4pticpUOt7uEag0nH9n.mp4",
+      "videos": 4
+    },
+    {
+      "path": "hOb49SKdNzfUIUiRY5jZC.mp4",
+      "videos": 4
+    },
+    {
+      "path": "mzojxexpkrCEiexGtX-Kf.jpeg",
+      "videos": 4
+    },
+    {
+      "path": "HNDLzl3nPOu45JhCdZgAL.jpeg",
+      "videos": 3
+    },
+    {
+      "path": "URIvSqxU-9sH6Rqgnvpgu.jpeg",
+      "videos": 3
+    },
+    {
+      "path": "zFjcaecPwwDoFTy8tTeY-.jpeg",
+      "videos": 3
+    },
+    {
+      "path": "LsYOtY1KRdXZcY6HOJ_UI.mp4",
+      "videos": 3
+    },
+    {
+      "path": "6mr57UzltZzKAI1V5eb9b.mp4",
+      "videos": 3
+    },
+    {
+      "path": "1TOXn2KYfwd3yOPbKZXbl.mp4",
+      "videos": 3
+    },
+    {
+      "path": "0QAHFnwee8GjyERmEnwhb.mp4",
+      "videos": 3
+    }
+  ],
+  "agregado": {
+    "videos": 7,
+    "planos_por_video": 79.7,
+    "unicos_por_video": 50.6,
+    "repetidos_vs_ventana_pct_media": 14.5,
+    "jaccard_ventana_media": 0.042
+  }
+}
