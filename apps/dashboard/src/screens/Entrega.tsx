@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { extractYoutubeId } from '@fabrica/shared';
 import { Button, Chip, CostBadge, InputModal, ProgressBar } from '../components/ui';
@@ -10,14 +10,11 @@ import {
   getChannel,
   getDeliverables,
   getInbox,
-  getThumbnailBrief,
   getVideo,
   getYoutubeStatus,
   markPublishedByHand,
   publishToYoutube,
-  requestThumbnailBrief,
   revealVideoFolder,
-  uploadThumbnail,
   videoDownloadUrl,
 } from '../lib/api';
 import { useLive } from '../lib/events';
@@ -67,237 +64,12 @@ function CopyField({ label, value, multiline = false, onCopied }: CopyFieldProps
   );
 }
 
-// Nombres de fichero según docs/render.md (video.mp4) y convención de miniaturas.
+// Nombre de fichero según docs/render.md (video.mp4) y convención de miniaturas.
+// La miniatura A solo se usa ya como póster del player: la sección de
+// miniaturas (oficial, variante B, brief, subida) se quitó de esta pantalla a
+// petición del usuario (14-ago); los ficheros siguen en la carpeta del vídeo.
 const THUMB_NAMES = ['thumb_a.jpg', 'thumb_b.jpg'];
 
-// Miniatura de alta conversión: la app describe la imagen ideal (brief ES +
-// prompt EN); el humano la genera fuera y la sube, y esa subida pasa a ser la
-// miniatura oficial (reemplaza a las auto-generadas y se usa en YouTube).
-function MiniaturaCard({
-  videoId,
-  relativeDir,
-  thumbnailUrl,
-}: {
-  videoId: string;
-  relativeDir: string;
-  thumbnailUrl: string | null;
-}) {
-  const { push } = useToasts();
-  const queryClient = useQueryClient();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [generating, setGenerating] = useState(false);
-
-  const briefQ = useQuery({
-    queryKey: ['thumb-brief', videoId],
-    queryFn: () => getThumbnailBrief(videoId),
-    // mientras se genera, sondea hasta que aparezca el json
-    refetchInterval: generating ? 2_000 : false,
-  });
-  // en cuanto llega el brief, deja de sondear
-  if (generating && briefQ.data) setGenerating(false);
-
-  const genMut = useMutation({
-    mutationFn: () => requestThumbnailBrief(videoId),
-    onSuccess: () => {
-      setGenerating(true);
-      push('Generando el brief de miniatura');
-    },
-    onError: (err) =>
-      push(err instanceof Error ? err.message : 'No se pudo generar el brief', 'danger'),
-  });
-
-  const uploadMut = useMutation({
-    mutationFn: (file: File) => uploadThumbnail(videoId, file),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['video', videoId] });
-      push('Miniatura subida; es la oficial del vídeo');
-    },
-    onError: (err) =>
-      push(err instanceof Error ? err.message : 'No se pudo subir la miniatura', 'danger'),
-  });
-
-  const brief = briefQ.data;
-  const isCustom = thumbnailUrl?.includes('/thumb_custom.') ?? false;
-
-  const copy = async (text: string, label: string) => {
-    await navigator.clipboard.writeText(text);
-    push(`${label} copiado`);
-  };
-
-  return (
-    <div className="card" style={{ padding: 'var(--pad)', display: 'grid', gap: 14 }}>
-      <div className="step-label">Miniatura de alta conversión</div>
-
-      {/* miniatura oficial (la subida gana; si no, la auto-generada A) */}
-      {thumbnailUrl ? (
-        <figure style={{ margin: 0, display: 'grid', gap: 6 }}>
-          <img
-            // cache-bust: tras subir, la URL es estable pero el contenido cambió
-            src={`${fileUrl(thumbnailUrl)}${isCustom ? `?t=${uploadMut.submittedAt ?? ''}` : ''}`}
-            alt="Miniatura oficial"
-            style={{
-              width: '100%',
-              maxWidth: 480,
-              aspectRatio: '16 / 9',
-              objectFit: 'cover',
-              borderRadius: 'var(--r-sm)',
-              border: '1px solid var(--line)',
-              background: 'var(--bg3)',
-            }}
-          />
-          <figcaption className="fs-sm muted">
-            {isCustom ? 'Miniatura oficial (la tuya)' : 'Miniatura oficial (auto-generada A)'}
-          </figcaption>
-        </figure>
-      ) : null}
-
-      {/* la variante B lado a lado mientras no haya miniatura propia: las dos
-          auto-generadas existían desde siempre y la B no se enseñaba nunca —
-          comparar es lo que informa qué generar a mano */}
-      {thumbnailUrl !== null && !isCustom && thumbnailUrl.includes('thumb_a') ? (
-        <figure style={{ margin: 0, display: 'grid', gap: 6 }}>
-          <img
-            src={fileUrl(thumbnailUrl.replace('thumb_a', 'thumb_b'))}
-            alt="Miniatura auto-generada B"
-            style={{
-              width: '100%',
-              maxWidth: 480,
-              aspectRatio: '16 / 9',
-              objectFit: 'cover',
-              borderRadius: 'var(--r-sm)',
-              border: '1px solid var(--line)',
-              background: 'var(--bg3)',
-            }}
-          />
-          <figcaption className="fs-sm muted">Variante B (otro fotograma y composición)</figcaption>
-        </figure>
-      ) : null}
-
-      {/* brief: descripción ES + prompt EN */}
-      {brief ? (
-        <div style={{ display: 'grid', gap: 10 }}>
-          <div>
-            <div className="fs-sm muted" style={{ marginBottom: 4 }}>
-              Cómo debería ser (para que la generes tú)
-            </div>
-            <div
-              className="fs-sm"
-              style={{ lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
-            >
-              {brief.brief}
-            </div>
-            <Button
-              variant="secondary"
-              style={{ marginTop: 8 }}
-              onClick={() => void copy(brief.brief, 'Brief')}
-            >
-              Copiar brief
-            </Button>
-          </div>
-          <div>
-            <div className="fs-sm muted" style={{ marginBottom: 4 }}>
-              Prompt para el generador (Nano Banana, Midjourney, etc.)
-            </div>
-            <pre
-              className="mono"
-              style={{
-                margin: 0,
-                padding: 10,
-                fontSize: 12,
-                lineHeight: 1.5,
-                whiteSpace: 'pre-wrap',
-                overflowWrap: 'anywhere',
-                background: 'var(--bg2)',
-                border: '1px solid var(--line)',
-                borderRadius: 'var(--r)',
-              }}
-            >
-              {brief.prompt}
-            </pre>
-            <Button
-              variant="secondary"
-              style={{ marginTop: 8 }}
-              onClick={() => void copy(brief.prompt, 'Prompt')}
-            >
-              Copiar prompt
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <p className="muted fs-sm" style={{ margin: 0, lineHeight: 1.55 }}>
-          {generating
-            ? 'Generando el brief…'
-            : 'Genera un brief con la descripción de la miniatura ideal y su prompt para crearla.'}
-        </p>
-      )}
-
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <Button
-          variant={brief ? 'secondary' : 'primary'}
-          disabled={genMut.isPending || generating}
-          onClick={() => genMut.mutate()}
-        >
-          {generating ? 'Generando' : brief ? 'Regenerar brief' : 'Generar brief'}
-        </Button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) uploadMut.mutate(file);
-            if (fileRef.current) fileRef.current.value = '';
-          }}
-        />
-        <Button
-          variant="primary"
-          disabled={uploadMut.isPending}
-          onClick={() => fileRef.current?.click()}
-        >
-          {uploadMut.isPending ? 'Subiendo' : 'Subir mi miniatura'}
-        </Button>
-      </div>
-
-      {/* auto-generadas como respaldo */}
-      <details>
-        <summary className="muted fs-sm" style={{ cursor: 'pointer' }}>
-          Miniaturas auto-generadas (respaldo)
-        </summary>
-        <div
-          className="split-half"
-          style={{
-            gap: 'var(--gap)',
-            marginTop: 10,
-          }}
-        >
-          {THUMB_NAMES.map((name, i) => (
-            <figure key={name} style={{ margin: 0 }}>
-              <img
-                src={fileUrl(`${relativeDir}/${name}`)}
-                alt={`Miniatura ${i === 0 ? 'A' : 'B'}`}
-                style={{
-                  width: '100%',
-                  aspectRatio: '16 / 9',
-                  objectFit: 'cover',
-                  borderRadius: 'var(--r-sm)',
-                  border: '1px solid var(--line)',
-                  background: 'var(--bg3)',
-                }}
-                onError={(e) => {
-                  e.currentTarget.style.opacity = '0.25';
-                }}
-              />
-              <figcaption className="mono fs-sm muted" style={{ marginTop: 6 }}>
-                Miniatura {i === 0 ? 'A' : 'B'}
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-      </details>
-    </div>
-  );
-}
 
 /** ISO → «lunes, 3 de agosto, 17:00» en hora local. */
 function fmtInstant(iso: string): string {
@@ -513,11 +285,6 @@ export function Entrega() {
           />
           <CopyField label="Tags" value={tags} multiline onCopied={() => push('Tags copiadas')} />
 
-          <MiniaturaCard
-            videoId={id}
-            relativeDir={relativeDir}
-            thumbnailUrl={video.thumbnail_url}
-          />
         </div>
 
         <aside
