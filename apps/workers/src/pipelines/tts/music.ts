@@ -8,6 +8,8 @@ import { execa } from 'execa';
 
 export const MUSIC_GAIN_DB = -22;
 export const MUSIC_FADE_S = 2;
+// pistas de los últimos N vídeos del canal que el pick aparta (anti-repetición)
+export const MUSIC_ANTI_REPEAT_N = 3;
 // la mezcla no puede cambiar la duración del master más que esto
 export const MUSIC_DURATION_TOLERANCE_MS = 50;
 
@@ -23,9 +25,18 @@ export function musicHash(input: string): number {
 
 // Selección determinista: ordena por id (estable ante el orden de la consulta)
 // y elige con el hash del videoId. Sin pistas → null (el flujo sigue sin música).
-export function pickMusicTrack<T extends { id: string }>(videoId: string, tracks: T[]): T | null {
+// `excluir` = pistas de los últimos vídeos del canal (anti-repetición): se
+// apartan mientras quede alternativa; si el pool entero está excluido, se
+// repite — con la música activada, repetir pista es mejor que quitarla.
+export function pickMusicTrack<T extends { id: string }>(
+  videoId: string,
+  tracks: T[],
+  excluir: ReadonlySet<string> = new Set(),
+): T | null {
   if (tracks.length === 0) return null;
-  const sorted = [...tracks].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const frescas = tracks.filter((t) => !excluir.has(t.id));
+  const pool = frescas.length > 0 ? frescas : tracks;
+  const sorted = [...pool].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return sorted[musicHash(videoId) % sorted.length] ?? null;
 }
 

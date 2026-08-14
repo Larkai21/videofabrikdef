@@ -59,3 +59,20 @@ describe('buildMusicMixFilter', () => {
     expect(buildMusicMixFilter(1_000)).toContain('afade=t=out:st=0.000');
   });
 });
+
+describe('pickMusicTrack con anti-repetición', () => {
+  const pistas = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  it('aparta las pistas de los últimos vídeos mientras quede alternativa', () => {
+    const elegida = pickMusicTrack('video-x', pistas, new Set(['a', 'b']));
+    expect(elegida?.id).toBe('c');
+  });
+  it('con el pool entero excluido, repite antes que quitar la música', () => {
+    const elegida = pickMusicTrack('video-x', pistas, new Set(['a', 'b', 'c']));
+    expect(elegida).not.toBeNull();
+  });
+  it('sigue siendo determinista: mismo vídeo y exclusiones → misma pista', () => {
+    const uno = pickMusicTrack('video-x', pistas, new Set(['b']));
+    const dos = pickMusicTrack('video-x', pistas, new Set(['b']));
+    expect(uno?.id).toBe(dos?.id);
+  });
+});

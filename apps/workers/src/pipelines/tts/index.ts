@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { Worker, type Job } from 'bullmq';
-import { and, eq, or } from 'drizzle-orm';
+import { and, desc, eq, or } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import PQueue from 'p-queue';
 import {
@@ -38,7 +38,12 @@ import {
 import { computeBeats, type BeatSceneSpan } from './beats.js';
 import { synthesizeSceneConPausas } from './frases.js';
 import { buildCues } from './cues.js';
-import { MUSIC_DURATION_TOLERANCE_MS, mixMusicUnderVoice, pickMusicTrack } from './music.js';
+import {
+  MUSIC_ANTI_REPEAT_N,
+  MUSIC_DURATION_TOLERANCE_MS,
+  mixMusicUnderVoice,
+  pickMusicTrack,
+} from './music.js';
 import { alignSceneTokens, type TimedToken } from './words.js';
 
 // Worker de voz (docs/voz-y-beats.md): síntesis POR ESCENA, concat con
@@ -232,9 +237,10 @@ async function runSynthesize(ctx: WorkerContext, factory: TtsFactory, job: Job<T
     // conserva como voice.wav y el master pasa a ser voice-mix.wav solo si la
     // mezcla no cambia la duración (±50 ms). Cualquier fallo → voz sola.
     let masterAudioPath = voiceWav;
+    let musicAssetId: string | undefined;
     if (settings.background_music) {
       const tracks = await db
-        .select({ id: assetsTable.id, path: assetsTable.path })
+        .select({ id: assetsTable.id, path: assetsTable.path, license: assetsTable.license })
         .from(assetsTable)
         .where(
           and(
@@ -242,13 +248,36 @@ async function runSynthesize(ctx: WorkerContext, factory: TtsFactory, job: Job<T
             or(eq(assetsTable.channelId, video.channelId), eq(assetsTable.scope, 'shared')),
           ),
         );
-      const track = pickMusicTrack(videoId, tracks);
+      // anti-repetición de pista: las de los últimos vídeos del canal se
+      // apartan mientras quede alternativa (master.audio.music_asset_id es el
+      // registro; los maestros anteriores a ese campo no cuentan y no pasa nada)
+      const recientes = await db
+        .select({ master: videos.master })
+        .from(videos)
+        .where(eq(videos.channelId, video.channelId))
+        .orderBy(desc(videos.createdAt))
+        .limit(MUSIC_ANTI_REPEAT_N + 1);
+      const usadas = new Set<string>();
+      for (const r of recientes) {
+        const id = r.master.audio?.music_asset_id;
+        if (id !== undefined) usadas.add(id);
+      }
+      const track = pickMusicTrack(videoId, tracks, usadas);
       if (!track) {
         logger.info(
           { videoId },
           'Música de fondo activa pero sin pistas kind music en la biblioteca; sigue la voz sola',
         );
       } else {
+        // la música es EL vector clásico de Content ID: una pista sin licencia
+        // registrada replicada en todos los vídeos convierte un error puntual
+        // en exposición sistemática — se avisa aquí, donde se elige
+        if (!track.license || track.license.trim() === '') {
+          logger.warn(
+            { videoId, trackId: track.id },
+            'La pista de música elegida no tiene licencia registrada en la biblioteca',
+          );
+        }
         const musicPath = path.isAbsolute(track.path)
           ? track.path
           : path.join(ctx.libraryDir, track.path);
@@ -259,6 +288,7 @@ async function runSynthesize(ctx: WorkerContext, factory: TtsFactory, job: Job<T
           const mixDurationMs = await probeDurationMs(mixWav);
           if (Math.abs(mixDurationMs - voiceDurationMs) <= MUSIC_DURATION_TOLERANCE_MS) {
             masterAudioPath = mixWav;
+            musicAssetId = track.id;
             logger.info({ videoId, trackId: track.id }, 'Música de fondo mezclada a -22 dB');
           } else {
             logger.warn(
@@ -365,7 +395,12 @@ async function runSynthesize(ctx: WorkerContext, factory: TtsFactory, job: Job<T
     // repetida se anclaría en su primera aparición, casi siempre la equivocada.
     const newMaster = {
       ...master,
-      audio: { path: masterAudioPath, duration_ms: durationMs, lufs },
+      audio: {
+        path: masterAudioPath,
+        duration_ms: durationMs,
+        lufs,
+        ...(musicAssetId !== undefined ? { music_asset_id: musicAssetId } : {}),
+      },
       cues,
       scene_spans: scenes.map((scene, i) => ({
         scene_id: scene.id,
