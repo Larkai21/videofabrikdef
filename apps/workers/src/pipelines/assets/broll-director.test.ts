@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_QUERY_CHARS } from '@fabrica/shared';
-import { brollResultSchema, buildDirectorPrompt, recortarConsulta } from './broll-director.js';
+import {
+  brollResultSchema,
+  buildDirectorPrompt,
+  consultaDeBuscador,
+  recortarConsulta,
+} from './broll-director.js';
 import { buildMockBroll } from './mocks.js';
 
 const BEATS = [
@@ -72,11 +77,52 @@ describe('alt_query en el contrato del director', () => {
     expect(parsed.beats[0]!.visuals[0]!.alt_query).toBe('data center racks closeup');
   });
 
-  it('el esquema no exige alt_query (opcional de verdad)', () => {
-    const parsed = brollResultSchema.parse({
-      beats: [{ idx: 0, visuals: [{ visual_query: 'server room aisle' }] }],
-    });
-    expect(parsed.beats[0]!.visuals[0]!.alt_query).toBeUndefined();
+  // Como campo opcional, el modelo la omitió en 575 de 575 sub-planos de
+  // producción y el mecanismo entero quedó muerto: ahora el esquema la exige.
+  it('el esquema RECHAZA un plano sin alt_query', () => {
+    expect(() =>
+      brollResultSchema.parse({
+        beats: [{ idx: 0, visuals: [{ visual_query: 'server room' }] }],
+      }),
+    ).toThrow();
+  });
+});
+
+// Los bancos de stock SUMAN palabras en vez de afinar (Pixabay hace OR puro):
+// una consulta larga no es «un poco peor», trae otro tema. La guarda es la red
+// determinista bajo el prompt; el sujeto filmable lo elige el LLM.
+describe('consultaDeBuscador', () => {
+  it('quita ambiente, preposiciones y vocabulario de encuadre', () => {
+    expect(consultaDeBuscador('dusty empty server room corridor')).toBe('server room corridor');
+    expect(consultaDeBuscador('empty meeting room chairs wide shot')).toBe('meeting room chairs');
+    expect(consultaDeBuscador('hacker hands on keyboard with terminal screen')).toBe(
+      'hacker hands keyboard terminal screen',
+    );
+  });
+
+  // Medido mirando: truncar a tres palabras convertía «youtube comments section
+  // on smartphone screen» en «youtube comments section», que devuelve botones
+  // de suscribirse. Quitar ruido ayuda siempre; cortar sustantivos, no.
+  it('no trunca sustantivos útiles salvo que se pida (Pixabay)', () => {
+    const q = 'youtube comments section on smartphone screen';
+    expect(consultaDeBuscador(q)).toBe('youtube comments section smartphone screen');
+    expect(consultaDeBuscador(q, 2)).toBe('youtube comments');
+  });
+
+  it('NO se come sustantivos que acaban en -ing (meeting, cooling)', () => {
+    expect(consultaDeBuscador('liquid cooling pipes inside rack')).toBe(
+      'liquid cooling pipes rack',
+    );
+    expect(consultaDeBuscador('team meeting office')).toBe('team meeting office');
+  });
+
+  it('recorta a dos palabras para Pixabay, que hace OR entre ellas', () => {
+    expect(consultaDeBuscador('technician replacing server hardware', 2)).toBe('technician server');
+  });
+
+  it('si al limpiar no queda nada, devuelve la consulta original', () => {
+    expect(consultaDeBuscador('wide shot')).toBe('wide shot');
+    expect(consultaDeBuscador('de la')).toBe('de la');
   });
 });
 

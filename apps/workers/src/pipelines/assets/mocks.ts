@@ -56,7 +56,7 @@ function keywordsOf(text: string, avoid: Set<string>, limit: number): string[] {
 }
 
 export function buildMockBroll(mockContext: Record<string, unknown>): {
-  beats: { idx: number; visuals: { keyword?: string; visual_query: string }[] }[];
+  beats: { idx: number; visuals: { keyword?: string; visual_query: string; alt_query: string }[] }[];
 } {
   const beats = Array.isArray(mockContext.beats) ? (mockContext.beats as DirectorBeat[]) : [];
   const used = new Set<string>();
@@ -65,10 +65,20 @@ export function buildMockBroll(mockContext: Record<string, unknown>): {
       const base = b.sceneQuery ?? 'b-roll';
       // hasta 2 keywords → hasta 2 sub-planos anclados; imita el corte por palabra
       const kws = keywordsOf(b.text ?? '', used, 2);
-      if (kws.length === 0) return { idx: b.idx, visuals: [{ visual_query: `${base} ${b.idx}` }] };
+      // alt_query es obligatoria en el contrato: el mock también la cumple
+      if (kws.length === 0) {
+        return {
+          idx: b.idx,
+          visuals: [{ visual_query: `${base} ${b.idx}`, alt_query: `${base} alterno` }],
+        };
+      }
       return {
         idx: b.idx,
-        visuals: kws.map((kw) => ({ keyword: kw, visual_query: `${base} ${kw.toLowerCase()}` })),
+        visuals: kws.map((kw) => ({
+          keyword: kw,
+          visual_query: `${base} ${kw.toLowerCase()}`,
+          alt_query: `${kw.toLowerCase()} detalle`,
+        })),
       };
     }),
   };

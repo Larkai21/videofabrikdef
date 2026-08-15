@@ -145,7 +145,11 @@ async function presupuestarCaptions(
   return [...top(clips, plazas.clips), ...top(imagenes, plazas.imagenes)];
 }
 
-const ALTERNATES = 6;
+// Cuántas alternativas ve el juez además de la elegida. Era 6 con pools de 6;
+// con STOCK_FINALISTS=10 dejaba fuera del prompt a cuatro candidatos que sí
+// habían pagado su descripción (rerank.ts documenta que el juez ve «los
+// finalistas», y no era verdad).
+const ALTERNATES = STOCK_FINALISTS - 1;
 // coseno de contenido por encima del cual dos clips se consideran "el mismo
 // plano" y no deben caer en beats contiguos aunque sean refs distintos
 const ADJACENT_DEDUPE_COS = 0.9;
@@ -164,6 +168,23 @@ function toBeatKind(assetKind: string): 'clip' | 'image' {
  */
 function libIdDe(cand: BeatCandidate): string | null {
   return cand.provider === 'library' ? cand.ref.replace('library:', '') : null;
+}
+
+/**
+ * Encaje provisional de un candidato en un tramo. Se recalcula cada vez que
+ * cambia el plano elegido (el juez reordena) porque el fit pertenece al PAR
+ * candidato+tramo: una imagen solo admite kenburns y un clip nunca lo usa.
+ * El definitivo lo pone la congelación con la duración real del fichero.
+ */
+function fitDe(cand: BeatCandidate, spanMs: number): Fit {
+  const meta = (cand.meta ?? {}) as Record<string, unknown>;
+  const kind = (meta.kind as 'clip' | 'image' | undefined) ?? 'clip';
+  const dur = typeof meta.duration_ms === 'number' ? meta.duration_ms : null;
+  return (
+    computeFit({ kind, assetDurationMs: dur, beatDurationMs: spanMs }, { clampLoops: true })?.fit ?? {
+      mode: kind === 'image' ? 'kenburns' : 'trim',
+    }
+  );
 }
 
 /** Recorta por palabra entera a ~max chars (para el texto de una cobertura). */
@@ -429,17 +450,36 @@ async function resolveOneVisual(
       channelId,
       muertes: deps.muertes,
     });
+    // Relevancia local ANTES de recortar: los proveedores devuelven 200+ por
+    // su propio orden (Pixabay ordena por descargas, no por relevancia) y
+    // cortar a 10 por orden de llegada tiraba el material bueno sin mirarlo.
+    // Los embeddings son locales: esto no cuesta ni una llamada de pago.
+    const relevanciaDe = async (rs: readonly StockResult[]): Promise<Map<string, number>> => {
+      const textos = rs.map((r) => String(r.meta.caption ?? r.meta.title ?? ''));
+      const vecs = await ctx.embeddings.embed(textos, 'passage');
+      const m = new Map<string, number>();
+      rs.forEach((r, i) => {
+        const v = vecs[i];
+        m.set(r.ref, v && textos[i] !== '' ? cosineSimilarity(qVec, v) : 0);
+      });
+      return m;
+    };
+    let relevancia = await relevanciaDe(stockResults);
     let finalists = pickFinalists(stockResults, {
       total: STOCK_FINALISTS,
       imagenesMax: args.exigeClip === true ? 0 : deps.imagenesPorPool,
       spanMs: beatMs,
       vetoedRefs,
+      relevancia,
     });
-    // La segunda consulta del director entra SOLO cuando la primera no llena
-    // el pool: variedad extra donde hace falta, cero requests extra donde no.
-    // Con la caché de 24 h por query, dos vídeos del mismo tema en la misma
-    // semana dejan de ver exactamente los mismos candidatos.
-    if (finalists.length < STOCK_FINALISTS && args.queryAlt !== undefined) {
+    // La segunda consulta del director entra por CALIDAD, no por cantidad. La
+    // puerta anterior («si el pool no llega a 10») no se abría jamás: los
+    // proveedores devuelven 200+ y el pool se llenaba SIEMPRE, incluso cuando
+    // los diez finalistas no tenían nada que ver con el beat. Ahora se dispara
+    // cuando el mejor candidato no llega al suelo de viabilidad, que es
+    // exactamente el caso «Pexels me ha devuelto tarta de helado».
+    const mejorRel = Math.max(0, ...finalists.map((f) => relevancia.get(f.ref) ?? 0));
+    if ((finalists.length < STOCK_FINALISTS || mejorRel < T_REV) && args.queryAlt !== undefined) {
       const extraResults = await searchStock(db, logger, args.queryAlt, {
         videoId,
         channelId,
@@ -449,11 +489,14 @@ async function resolveOneVisual(
       const nuevos = extraResults.filter((r) => !yaVistos.has(r.ref));
       if (nuevos.length > 0) {
         stockResults = [...stockResults, ...nuevos];
+        const relNuevos = await relevanciaDe(nuevos);
+        relevancia = new Map([...relevancia, ...relNuevos]);
         finalists = pickFinalists(stockResults, {
           total: STOCK_FINALISTS,
           imagenesMax: args.exigeClip === true ? 0 : deps.imagenesPorPool,
           spanMs: beatMs,
           vetoedRefs,
+          relevancia,
         });
       }
     }
@@ -1088,13 +1131,23 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
     const planos = frescos
       .filter((b) => b.status !== 'locked' && b.visuals && b.visuals.length > 0)
       .flatMap((b) =>
-        (b.visuals ?? []).map((v, vIdx) => ({
-          beatIdx: b.idx,
-          vIdx,
-          text: b.text,
-          query: v.visual_query,
-          candidates: v.candidates,
-        })),
+        (b.visuals ?? []).map((v, vIdx) => {
+          // Lo que se OYE mientras se ve ESTE plano, no la narración del beat
+          // entero: con sub-planos, el juez recibía 15 s de texto para juzgar
+          // un tramo de 5 s, y el recorte del prompt dejaba fuera justo las
+          // palabras del último plano. La función ya se usa 200 líneas abajo.
+          const dicho = wordsInSpan(video.master.cues, v.from_ms, v.to_ms)
+            .map((w) => w.w)
+            .join(' ')
+            .trim();
+          return {
+            beatIdx: b.idx,
+            vIdx,
+            text: dicho !== '' ? dicho : b.text,
+            query: v.visual_query,
+            candidates: v.candidates,
+          };
+        }),
       );
     const { orden, sinPlano, confirmados } = await rerankBeats(ctx, {
       videoId,
@@ -1140,6 +1193,11 @@ async function runMatch(ctx: WorkerContext, job: Job<AssetsMatchJob>): Promise<v
                 // el del que la máquina había puesto primero
                 chosen_score: nuevo[0]!.score,
                 asset_id: libIdDe(nuevo[0]!),
+                // ...y el ENCAJE también: sin esto el fit se quedaba el del
+                // candidato anterior, y la ficha que revisa el humano enseñaba
+                // un encuadre que no era el que se iba a renderizar (medido:
+                // 56 imágenes con modo trim y 21 clips con kenburns en la BD)
+                fit: fitDe(nuevo[0]!, v.to_ms - v.from_ms),
               }
             : {}),
           // «Ninguno pega» no descarta el plano: sin generación de imagen no

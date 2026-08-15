@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid';
 import type pino from 'pino';
 import { captionCache, stockCache, type Db } from '@fabrica/db';
 import { MAX_QUERY_CHARS, STOCK_CACHE_TTL_H, stockRef } from '@fabrica/shared';
+import { consultaDeBuscador } from '../pipelines/assets/broll-director.js';
 import { STOCK_FINALISTS } from '../pipelines/assets/pool.js';
 import { searchWikimedia } from './wikimedia.js';
 import { closeCost, failCost, openCost } from '../lib/ledger.js';
@@ -288,14 +289,22 @@ async function searchPixabay(
     meta: { query: queryNorm },
   });
   try {
-    // Pixabay responde 400 si `q` pasa de MAX_QUERY_CHARS y no dice por qué:
-    // el recorte aquí es la última red, para que ninguna consulta larga tumbe
-    // la fuente entera desde otro punto de entrada
-    const q = queryNorm.slice(0, MAX_QUERY_CHARS);
-    // 50: Pixabay admite hasta 200, pero sus resultados degradan más rápido
-    // que los de Pexels pasada la primera página. safesearch iba en el cliente
-    // de la API y aquí no: mismo proveedor, mismos filtros.
-    const params = new URLSearchParams({ key, q, per_page: '50', safesearch: 'true' });
+    // Pixabay hace OR PURO entre palabras: medido, 'server'=48 resultados,
+    // 'server room'=803, '+corridor'=989, '+empty'=1281. Cada palabra ENSANCHA
+    // el pool con otro tema («small team…» devolvía perros pequeños por
+    // «small»), así que aquí la consulta se recorta a DOS palabras — el resto
+    // del matiz lo pone el juez mirando los candidatos, no el buscador.
+    const q = consultaDeBuscador(queryNorm, 2).slice(0, MAX_QUERY_CHARS);
+    // 200 (el máximo) en la MISMA petición: no cuesta cuota y el pool se
+    // reordena luego por relevancia local, así que traer más ya no significa
+    // «más ruido primero». video_type=film deja fuera las animaciones de banco.
+    const params = new URLSearchParams({
+      key,
+      q,
+      per_page: '200',
+      safesearch: 'true',
+      video_type: 'film',
+    });
     const json = await fetchJson(`https://pixabay.com/api/videos/?${params.toString()}`, {});
     const results = parsePixabay(json);
     await closeCost(db, handle, { units: 1, unitCost: 0 });

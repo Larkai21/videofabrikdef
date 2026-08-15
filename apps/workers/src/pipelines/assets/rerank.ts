@@ -101,11 +101,19 @@ export function buildRerankPrompt(planos: RerankPlano[]): { system: string; user
     'Eres montador de un canal de YouTube. Para cada beat te doy lo que se OYE',
     'y los pies de foto de los planos de archivo disponibles.',
     'Elige el plano que un espectador aceptaría como ilustración de esa frase.',
-    'Criterio: que el plano muestre el SUJETO del que se habla, o una escena en',
-    'la que eso ocurriría. No basta con que comparta el tema general: un teclado',
-    'no ilustra «una multa», ni una sala de reuniones ilustra «un contrato».',
-    'Si ninguno lo cumple, responde 0. Vale la pena responder 0: un plano que no',
-    'pega se nota más que la falta de un plano concreto.',
+    'Decide en dos pasos:',
+    '1) DESCARTA los que no pegan. Criterio: el plano tiene que mostrar el SUJETO',
+    '   del que se habla, o una escena en la que eso ocurriría. No basta con que',
+    '   comparta el tema general: un teclado no ilustra «una multa», ni una sala',
+    '   de reuniones ilustra «un contrato».',
+    '2) Entre los que quedan, elige EL MEJOR PLANO, no el primero que valga:',
+    '   - concreto y con carácter antes que metraje de catálogo intercambiable;',
+    '   - prefiere lo específico («brazo robótico en una línea de montaje») a lo',
+    '     genérico de banco de imágenes («gente sonriendo en una oficina»);',
+    '   - evita a la gente posando o mirando a cámara, y los planos donde el',
+    '     sujeto real es un modelo actuando de oficinista.',
+    'Si ninguno pasa el paso 1, responde 0. Vale la pena responder 0: un plano que',
+    'no pega se nota más que la falta de un plano concreto.',
     'Responde SOLO JSON: {"planos":[{"idx":number,"elegido":number}]}, con idx el',
     'número de PLANO tal cual te lo doy y elegido entre 1 y el número de',
     'candidatos de ese plano, o 0 si ninguno sirve.',
@@ -293,6 +301,10 @@ export async function rerankBeats(
       user,
       schema: rerankSchema,
       mockContext: { planos: conCandidatos.map((_, i) => ({ idx: i })) },
+      // determinismo (principio 6): sin semilla, dos llamadas idénticas con el
+      // mismo pool coincidían solo 12 de 15 veces — el juez es hoy quien de
+      // verdad elige el plano, así que su capricho salía en pantalla
+      seed: 7,
     });
     return aplicarVeredicto(conCandidatos, data.planos);
   } catch (err) {

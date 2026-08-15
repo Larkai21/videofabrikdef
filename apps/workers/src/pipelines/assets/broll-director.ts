@@ -39,7 +39,9 @@ export const brollResultSchema = z.object({
           z.object({
             keyword: z.string().optional(),
             visual_query: z.string().min(1),
-            alt_query: z.string().optional(),
+            // obligatoria: como campo opcional, el modelo la omitió en 575 de
+            // 575 sub-planos de producción y el mecanismo entero quedó muerto
+            alt_query: z.string().min(1),
           }),
         )
         .min(1),
@@ -64,16 +66,33 @@ export function buildDirectorPrompt(params: DirectorParams): { system: string; u
     '- 2 o 3 planos si la narración salta entre sujetos filmables DISTINTOS; cada',
     '  plano se ancla a la palabra exacta de la narración donde debe entrar (keyword).',
     'Sé conservador: menos es más; no trocees una sola idea.',
-    'Cada plano: una consulta de archivo (stock) que ilustre lo que se DICE ahí.',
+    'Cada plano: una CONSULTA DE BUSCADOR de archivo (stock) para lo que se DICE ahí.',
+    'Escribe como quien teclea en el buscador de un banco de vídeo, NO como quien',
+    'describe un plano: los bancos suman las palabras en vez de afinar, así que cada',
+    'palabra de más TRAE MÁS BASURA. Medido: «server room» devuelve salas de servidores;',
+    '«dusty empty server room corridor» devuelve un colegio abandonado de Chernóbil.',
     'Reglas de la consulta:',
-    `- 3-6 palabras concretas y filmables, en ${langName}; nunca más de ${MAX_QUERY_CHARS} caracteres.`,
-    '- Escenas y objetos concretos, nunca conceptos abstractos ni texto en pantalla.',
-    '- Planos consecutivos (dentro y entre beats) VISUALMENTE DISTINTOS.',
+    `- 2-3 palabras, en ${langName}; nunca más de ${MAX_QUERY_CHARS} caracteres.`,
+    '- SUJETO filmable (+ contexto si hace falta): «server room», «robotic arm»,',
+    '  «team meeting office», «solar panels».',
+    '- PROHIBIDO: adjetivos de ambiente (dusty, empty, modern, worried, small),',
+    '  verbos en -ing, preposiciones (on, at, with, of, inside), artículos, y',
+    '  cualquier palabra que describa la ESCENA en vez de nombrar el objeto.',
+    '  El ambiente y el encuadre se eligen después, al ver los candidatos.',
+    '- Nada de conceptos abstractos ni de texto en pantalla: cosas que se filman.',
+    '- Planos consecutivos (dentro y entre beats) VISUALMENTE DISTINTOS. Un mismo',
+    '  objeto no puede aparecer en más de dos consultas de todo el vídeo.',
     '- keyword: una palabra EXACTA tal cual aparece en la narración del beat (o vacío).',
-    '- alt_query (opcional): un SEGUNDO ángulo del MISMO sujeto con otras palabras',
-    '  (sinónimos, otro encuadre), mismas reglas; nunca un sujeto distinto.',
+    '- alt_query: OBLIGATORIA. Otro OBJETO de la misma frase (no un sinónimo del',
+    '  primero) para tener un segundo ángulo cuando el primero no dé nada:',
+    '  visual_query «cleanroom» → alt_query «microchip». Mismas reglas de arriba.',
+    'Ejemplos (narración → visual_query / alt_query):',
+    '- «los centros de datos se llenan de aceleradores» → «data center» / «gpu»',
+    '- «un brazo robótico repite la misma tarea sin cansarse» → «robotic arm» / «factory line»',
+    '- «el equipo revisó los resultados del piloto» → «team meeting» / «laptop screen»',
+    '- «la norma europea obliga a avisar» → «european parliament» / «legal documents»',
     'Devuelve JSON: { "beats": [ { "idx": number, "visuals": [ { "keyword"?: string,',
-    '"visual_query": string, "alt_query"?: string } ] } ] }, un objeto por beat',
+    '"visual_query": string, "alt_query": string } ] } ] }, un objeto por beat',
     'recibido con el mismo idx.',
   ].join('\n');
 
@@ -101,6 +120,56 @@ export function recortarConsulta(q: string): string {
   return (ultimo > 0 ? cortada.slice(0, ultimo) : cortada).trim();
 }
 
+// Palabras que ENSANCHAN el pool en vez de afinarlo. Los bancos de stock suman
+// tokens (Pixabay hace OR puro: 'server'=48 resultados, 'server room'=803,
+// '+corridor'=989, '+empty'=1281), así que cada una de estas trae material de
+// otro tema: «small» mete perros pequeños, «dusty» mete confeti dorado, «empty»
+// mete pasillos de Chernóbil. El ambiente se elige mirando los candidatos, no
+// pidiéndoselo al buscador.
+const RUIDO = new Set([
+  // preposiciones, artículos y conectores (los dos idiomas del canal)
+  'on','at','with','of','in','inside','the','a','an','and','for','to','from','into','over','under',
+  'near','by','through','between','without','around',
+  'de','del','la','el','los','las','un','una','con','en','sobre','bajo','para','por','y','al','entre','sin',
+  // adjetivos de ambiente y estado: describen la escena, no el objeto
+  'dusty','empty','modern','worried','small','large','big','busy','quiet','dark','bright','clean',
+  'old','new','young','happy','sad','tired','abandoned','futuristic','minimal','cozy','beautiful',
+  'professional','simple','complex','real','digital','virtual','smart','advanced','innovative',
+  'luminoso','vacío','moderno','pequeño','grande','oscuro','limpio','viejo','nuevo','abandonado',
+  'futurista','amplio','sencillo','avanzado',
+  // vocabulario de ENCUADRE: no es un objeto que exista en el banco
+  'shot','view','angle','closeup','close-up','close','wide','footage','scene','frame','clip','video',
+  'image','photo','background','plano','toma','fondo','imagen','vídeo','video',
+  // verbos de acción genéricos (el banco los ignora o los cruza con otro tema).
+  // Lista explícita en vez de la regla «acaba en -ing», que se comía sustantivos
+  // legítimos y frecuentes en este canal: meeting, cooling, building, training.
+  'looking','watching','reviewing','checking','using','showing','doing','performing','making',
+  'holding','walking','sitting','standing','working','typing','auditing','replacing','moving',
+  'mirando','revisando','usando','trabajando','sentado','caminando',
+]);
+
+/**
+ * Deja la consulta como la teclearía un humano: quita el RUIDO (ambiente,
+ * preposiciones, encuadre, verbos genéricos) y conserva los sustantivos.
+ *
+ * NO trunca por defecto, y eso está medido: recortar a tres palabras se comía
+ * contexto útil («youtube comments section on smartphone screen» → «youtube
+ * comments section» devolvía botones de suscribirse, peor que el original).
+ * Quitar ruido siempre ayuda; cortar sustantivos, no. `maxPalabras` existe
+ * para Pixabay, que hace OR puro y sí necesita el recorte duro.
+ *
+ * Es una GUARDA, no el mecanismo: el prompt es quien debe escribir corto — una
+ * regex no sabe cuál es el sujeto filmable. Si al limpiar no queda nada, se
+ * devuelve la original: mejor una consulta larga que ninguna.
+ */
+export function consultaDeBuscador(q: string, maxPalabras?: number): string {
+  const palabras = q.trim().toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, ' ').split(/\s+/);
+  const utiles = palabras.filter((p) => p !== '' && !RUIDO.has(p));
+  if (utiles.length === 0) return recortarConsulta(q);
+  const cortadas = maxPalabras !== undefined ? utiles.slice(0, maxPalabras) : utiles;
+  return recortarConsulta(cortadas.join(' '));
+}
+
 // Devuelve idx→cortes[]. Ante cualquier fallo del LLM se cae con gracia a un
 // único corte con la consulta de escena (expandida) para no bloquear el pipeline.
 export async function directBroll(
@@ -110,7 +179,9 @@ export async function directBroll(
   const fallback = new Map<number, DirectorCut[]>(
     params.beats.map((b) => [
       b.idx,
-      [{ visual_query: recortarConsulta(expandQuery(b.sceneQuery, b.text)) }],
+      // el fallback también pasa por la guarda: expandQuery añade keywords del
+      // beat y sin limpiar salían consultas de 6-8 palabras
+      [{ visual_query: consultaDeBuscador(expandQuery(b.sceneQuery, b.text)) }],
     ]),
   );
   if (params.beats.length === 0) return fallback;
@@ -140,8 +211,11 @@ export async function directBroll(
     if (!out.has(b.idx)) continue;
     const cuts: DirectorCut[] = b.visuals
       .map((v) => {
-        const principal = recortarConsulta(v.visual_query);
-        const alt = v.alt_query !== undefined ? recortarConsulta(v.alt_query) : '';
+        // la guarda corre SIEMPRE, no solo cuando el modelo se pasa de largo:
+        // el prompt pide 2-3 palabras y aun así conviene garantizarlo, porque
+        // una consulta de 5 palabras no es «un poco peor», trae otro tema
+        const principal = consultaDeBuscador(v.visual_query);
+        const alt = v.alt_query !== undefined ? consultaDeBuscador(v.alt_query) : '';
         return {
           ...(v.keyword && v.keyword.trim() !== '' ? { keyword: v.keyword.trim() } : {}),
           visual_query: principal,

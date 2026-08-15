@@ -173,3 +173,25 @@ describe('exigeClipPorCuota', () => {
     expect(exigeClipPorCuota(0, 10, 0)).toBe(true);
   });
 });
+
+// La forma que de verdad ocurre en producción y que ningún test cubría: pool
+// abundante de clips. Medido antes del arreglo: 7 clips + 3 imágenes en 93 de
+// 93 pools, con 129 clips elegibles esperando — el techo de imágenes actuaba
+// como SUELO y se comía tres plazas del material que el vídeo prefiere.
+describe('repartirPlazas con material abundante (forma de producción)', () => {
+  it('las imágenes solo conservan la plaza de red, no su techo', () => {
+    expect(repartirPlazas(129, 80, 10, 3)).toEqual({ clips: 9, imagenes: 1 });
+  });
+
+  it('sin imágenes en el pool, los clips se lo llevan todo', () => {
+    expect(repartirPlazas(129, 0, 10, 3)).toEqual({ clips: 10, imagenes: 0 });
+  });
+
+  it('cuando faltan clips, las imágenes rellenan por encima de su techo', () => {
+    expect(repartirPlazas(2, 40, 10, 3)).toEqual({ clips: 2, imagenes: 8 });
+  });
+
+  it('con el techo a cero no se reserva red (exigeClip del troceo)', () => {
+    expect(repartirPlazas(129, 80, 10, 0)).toEqual({ clips: 10, imagenes: 0 });
+  });
+});

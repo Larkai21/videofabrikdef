@@ -19,15 +19,19 @@ export function repartirPlazas(
   total: number,
   imagenesMax: number,
 ): { clips: number; imagenes: number } {
-  const imagenes = Math.min(nImagenes, imagenesMax);
-  const clips = Math.min(nClips, total - imagenes);
-  // relleno cruzado en los dos sentidos
-  const hueco = total - clips - imagenes;
-  if (hueco <= 0) return { clips, imagenes };
-  return {
-    clips: clips + Math.min(hueco, nClips - clips),
-    imagenes: imagenes + Math.min(Math.max(0, hueco - (nClips - clips)), nImagenes - imagenes),
-  };
+  // `imagenesMax` es un TECHO y con material abundante casi no se usa: la
+  // única plaza que las imágenes tienen garantizada es la RED (punto 3 de
+  // pickFinalists). Antes se reservaba imagenesMax de entrada y el techo
+  // funcionaba como SUELO — medido: 7 clips + 3 imágenes en 93 de 93 pools,
+  // aunque hubiera 129 clips elegibles esperando. Se penalizaba la imagen en
+  // la elección (IMAGE_HANDICAP) mientras se le regalaban 3 de 10 plazas.
+  const red = nImagenes > 0 && imagenesMax > 0 ? 1 : 0;
+  const clips = Math.min(nClips, total - red);
+  // si faltan clips, las imágenes rellenan por encima del techo: 10 candidatos
+  // flojos siguen siendo mejor pool que 5, y el techo del VÍDEO lo gobierna
+  // exigeClipPorCuota aguas arriba, no este reparto
+  const imagenes = Math.min(nImagenes, Math.max(imagenesMax, total - clips));
+  return { clips, imagenes: Math.min(imagenes, total - clips) };
 }
 
 // Intercalado por proveedor: sin esto los finalistas salen por orden de API y
@@ -81,6 +85,16 @@ export function pickFinalists(
     imagenesMax: number;
     spanMs: number;
     vetoedRefs: ReadonlySet<string>;
+    /**
+     * Relevancia por candidato (ref → coseno del título contra la consulta),
+     * calculada con los embeddings LOCALES antes de recortar. Sin esto el pool
+     * se cortaba por ORDEN DE LLEGADA de cada API — y el orden de Pixabay es
+     * «lo más descargado», no «lo más relevante»: de 200 resultados pasaban a
+     * los 10 finalistas los más populares, no los que hablaban del beat.
+     * Opcional: sin ella se conserva el orden del proveedor (comportamiento
+     * anterior), que es lo que hacen los tests de forma.
+     */
+    relevancia?: ReadonlyMap<string, number>;
   },
 ): StockResult[] {
   const usable = results.filter((r) => !opts.vetoedRefs.has(r.ref));
@@ -90,8 +104,25 @@ export function pickFinalists(
       assetDurationMs: r.meta.duration_ms,
       beatDurationMs: opts.spanMs,
     }) !== null;
-  const clips = interleaveByProvider(usable.filter((r) => r.meta.kind === 'clip' && cubre(r)));
-  const imagenes = interleaveByProvider(usable.filter((r) => r.meta.kind !== 'clip'));
+  // Orden POR RELEVANCIA dentro de cada proveedor, antes del intercalado: así
+  // el round-robin reparte las plazas entre fuentes (que es lo que queremos)
+  // pero cada fuente aporta lo mejor que tiene, no lo primero que devolvió.
+  const rel = opts.relevancia;
+  const porRelevancia = (lista: StockResult[]): StockResult[] =>
+    rel === undefined
+      ? lista
+      : [...lista].sort((a, b) => (rel.get(b.ref) ?? 0) - (rel.get(a.ref) ?? 0));
+  const agrupar = (lista: StockResult[]): StockResult[] => {
+    const porProveedor = new Map<string, StockResult[]>();
+    for (const r of lista) {
+      const g = porProveedor.get(r.provider) ?? [];
+      g.push(r);
+      porProveedor.set(r.provider, g);
+    }
+    return interleaveByProvider([...porProveedor.values()].flatMap((g) => porRelevancia(g)));
+  };
+  const clips = agrupar(usable.filter((r) => r.meta.kind === 'clip' && cubre(r)));
+  const imagenes = agrupar(usable.filter((r) => r.meta.kind !== 'clip'));
   const plazas = repartirPlazas(clips.length, imagenes.length, opts.total, opts.imagenesMax);
   return [...clips.slice(0, plazas.clips), ...imagenes.slice(0, plazas.imagenes)];
 }

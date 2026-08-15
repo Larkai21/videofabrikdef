@@ -33,6 +33,8 @@ export async function ledgeredLlmJson<S extends z.ZodType>(
     /** claves extra para cost_ledger.meta (p. ej. short_id: la facturación va
      * contra el vídeo largo y sin esto el coste por short es invisible) */
     meta?: Record<string, unknown>;
+    /** semilla del proveedor: misma entrada → misma respuesta (principio 6) */
+    seed?: number;
   },
 ): Promise<z.infer<S>> {
   const handle = await openCost(ctx.db, {
@@ -50,6 +52,7 @@ export async function ledgeredLlmJson<S extends z.ZodType>(
       user: params.user,
       schema: params.schema,
       mockContext: params.mockContext ?? {},
+      ...(params.seed !== undefined ? { seed: params.seed } : {}),
     });
     await closeCost(ctx.db, handle, usageCost(usage, ctx.llm.model));
     return data;
