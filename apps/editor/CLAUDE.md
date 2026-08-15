@@ -324,6 +324,13 @@ python3 scripts/solo_subs.py --input clip.mp4 --acento '#E5789F' \
                              --claves novia,éxito
 ```
 
+**El caso de uso entero está en `docs/captions.md`**: qué motor manda
+(`templates/kinetic-captions.html`, y no hay otro), el estilo tal como está
+escrito, la historia del acento —amarillo → bronce → azul `#6FA0D6` en `38bcf0f`
+→ rosa por plan— y por qué `tam` no agranda nada cuando el ajuste al `anchoMax`
+ya ha entrado. Se escribió porque este caso se ha reimplementado desde cero más
+de una vez, deduciendo a ojo un estilo que ya estaba en el repo.
+
 Respeta los **fps del origen** y no los 30 del pipeline. Imponerlos remuestrea:
 cuatro clips a 24 salieron a 30, o sea 240 fotogramas convertidos en 300
 duplicando uno de cada cuatro. En una imagen quieta no se ve; en movimiento es
