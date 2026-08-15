@@ -97,3 +97,43 @@ APROVECHABLE: PySceneDetect al servicio de un embedding visual local.
 - D4: confirmar que no se paga stock (nada con API baja de 50 $/mes).
 - D5: una tarde de curación humana para llenar el banco (bloquea S2/S4).
 - D6: autorizar el sidecar Python en workers (precedente: apps/editor).
+
+## 15-ago-2026 — «todo lo que sale es basura»: la autopsia
+
+Queja del usuario editando: el material que propone el pipeline no vale, y
+buscando A MANO en Pexels/Pixabay encuentra cosas mejores. Investigación de 5
+agentes con mediciones en vivo. **La causa no era el catálogo: era nuestra
+consulta.**
+
+- La API de Pexels devuelve **lo mismo que su web**, 12/12 posición a posición.
+  Buscar a mano salía mejor porque el humano teclea dos palabras y el pipeline
+  mandaba cinco.
+- **Pixabay hace OR puro**: `server`=48 resultados, `server room`=803,
+  `+corridor`=989, `+empty`=1281. Cada palabra de más ENSANCHA el pool con otro
+  tema. «small team reviewing pilot results» devolvía perros pequeños (por
+  *small*); «dusty empty server room corridor», el colegio abandonado de
+  Chernóbil (solape con «server room»: 0/80).
+- El prompt pedía «3-6 palabras» y el modelo nunca bajó de 4: **cero consultas
+  de 1-3 palabras** en 575 sub-planos de producción.
+
+Arreglado (commits del 15-ago): prompt de 2-3 palabras con prohibiciones y
+ejemplos + guarda determinista `consultaDeBuscador`; pool ordenado por
+relevancia local ANTES de recortar a diez (el orden de Pixabay es «lo más
+descargado»); el techo de imágenes deja de actuar como suelo (era 7+3 en 93 de
+93 pools); el juez juzga contra lo que se oye en SU tramo, con semilla y con
+criterio explícito de calidad de plano; `alt_query` obligatoria y disparada por
+calidad; Openverse en la red libre, también por calidad.
+
+Bug encontrado de paso: 79 sub-planos con un `fit` imposible (56 imágenes en
+modo trim, 21 clips con kenburns) porque el juez cambiaba el plano sin
+recalcular el encaje — la ficha que revisaba el humano enseñaba un encuadre
+distinto del que se renderiza.
+
+**Descartado con datos** (no volver ahí): `orientation=landscape`, `size=medium`,
+el filtro de duración (0 clips descartados por no cubrir el tramo), los vetos de
+repetición (0,6 % del pool), la cobertura de captions (91,5 % ya la tenían) y
+«la web rankea distinto».
+
+**Lo que sigue faltando**: el catálogo de VÍDEO para tecnología es pobre en
+todas las fuentes gratuitas; la mejora grande de aquí en adelante es el
+emparejamiento visual (S4) y más fuentes de vídeo, no más ajustes de consulta.
