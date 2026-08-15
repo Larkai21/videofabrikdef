@@ -9,7 +9,7 @@
 //
 // Al construirse aquí, un cliente nuevo no puede volver a divergir.
 
-export type StockProvider = 'pexels' | 'pixabay' | 'nasa';
+export type StockProvider = 'pexels' | 'pixabay' | 'nasa' | 'openverse';
 export type StockKind = 'clip' | 'image';
 
 export function stockRef(provider: StockProvider, kind: StockKind, id: string | number): string {
@@ -22,7 +22,10 @@ export function parseStockRef(
 ): { provider: StockProvider; kind: StockKind; id: string } | null {
   const [provider, tipo, ...resto] = ref.split(':');
   const id = resto.join(':');
-  if (id === '' || (provider !== 'pexels' && provider !== 'pixabay' && provider !== 'nasa')) {
+  if (
+    id === '' ||
+    (provider !== 'pexels' && provider !== 'pixabay' && provider !== 'nasa' && provider !== 'openverse')
+  ) {
     return null;
   }
   if (tipo !== 'video' && tipo !== 'photo') return null;

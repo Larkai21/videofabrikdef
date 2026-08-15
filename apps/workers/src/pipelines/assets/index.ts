@@ -46,6 +46,7 @@ import { mockHash } from '../../providers/llm.js';
 import {
   cacheCaption,
   captionsByRef,
+  searchRedLibre,
   searchStock,
   type StockResult,
 } from '../../providers/stock.js';
@@ -478,7 +479,35 @@ async function resolveOneVisual(
     // los diez finalistas no tenían nada que ver con el beat. Ahora se dispara
     // cuando el mejor candidato no llega al suelo de viabilidad, que es
     // exactamente el caso «Pexels me ha devuelto tarta de helado».
-    const mejorRel = Math.max(0, ...finalists.map((f) => relevancia.get(f.ref) ?? 0));
+    let mejorRel = Math.max(0, ...finalists.map((f) => relevancia.get(f.ref) ?? 0));
+
+    // La RED DE LICENCIA LIBRE (NASA, Openverse, Commons) entra por calidad:
+    // cuando el stock comercial devuelve diez candidatos que no hablan del
+    // beat. Es el caso que motiva su existencia —consultas de nicho técnico,
+    // donde Pexels devuelve oficinas y Openverse devuelve el objeto real— y
+    // con la puerta por cantidad no se abría jamás.
+    if (mejorRel < T_REV) {
+      const red = await searchRedLibre(db, logger, queryText, {
+        videoId,
+        channelId,
+        muertes: deps.muertes,
+      });
+      const yaVistos = new Set(stockResults.map((r) => r.ref));
+      const nuevos = red.filter((r) => !yaVistos.has(r.ref));
+      if (nuevos.length > 0) {
+        stockResults = [...stockResults, ...nuevos];
+        relevancia = new Map([...relevancia, ...(await relevanciaDe(nuevos))]);
+        finalists = pickFinalists(stockResults, {
+          total: STOCK_FINALISTS,
+          imagenesMax: args.exigeClip === true ? 0 : deps.imagenesPorPool,
+          spanMs: beatMs,
+          vetoedRefs,
+          relevancia,
+        });
+        mejorRel = Math.max(0, ...finalists.map((f) => relevancia.get(f.ref) ?? 0));
+      }
+    }
+
     if ((finalists.length < STOCK_FINALISTS || mejorRel < T_REV) && args.queryAlt !== undefined) {
       const extraResults = await searchStock(db, logger, args.queryAlt, {
         videoId,
@@ -1580,7 +1609,15 @@ interface IngestedAsset {
    * congela en el maestro para que el informe pueda agregar la cuota de
    * biblioteca sin BD — chosen_origin no sobrevive a la congelación.
    */
-  origin: 'library' | 'pexels' | 'pixabay' | 'nasa' | 'wikimedia' | 'flux' | 'upload';
+  origin:
+    | 'library'
+    | 'pexels'
+    | 'pixabay'
+    | 'nasa'
+    | 'openverse'
+    | 'wikimedia'
+    | 'flux'
+    | 'upload';
   /** atribución exigida por la licencia; viaja congelada al maestro */
   credit?: string;
 }

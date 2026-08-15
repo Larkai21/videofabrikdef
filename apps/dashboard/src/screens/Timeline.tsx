@@ -111,6 +111,8 @@ function providerLicense(candidate: BeatCandidate | undefined): string {
       return 'Biblioteca propia';
     case 'nasa':
       return 'NASA · dominio público';
+    case 'openverse':
+      return 'Openverse · licencia libre';
     case 'flux':
       return 'Generada · uso propio';
     case 'wikimedia':

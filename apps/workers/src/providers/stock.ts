@@ -5,6 +5,7 @@ import { captionCache, stockCache, type Db } from '@fabrica/db';
 import { MAX_QUERY_CHARS, STOCK_CACHE_TTL_H, stockRef } from '@fabrica/shared';
 import { consultaDeBuscador } from '../pipelines/assets/broll-director.js';
 import { STOCK_FINALISTS } from '../pipelines/assets/pool.js';
+import { searchOpenverse } from './openverse.js';
 import { searchWikimedia } from './wikimedia.js';
 import { closeCost, failCost, openCost } from '../lib/ledger.js';
 
@@ -34,7 +35,7 @@ export interface StockResult {
   // 'wikimedia' y 'nasa' solo aparecen cuando el stock comercial se queda
   // corto: la red de dominio público (NASA = clips, Commons = imágenes PD/CC0),
   // nunca fuente principal (ver searchStock)
-  provider: 'pexels' | 'pixabay' | 'nasa' | 'wikimedia';
+  provider: 'pexels' | 'pixabay' | 'nasa' | 'openverse' | 'wikimedia';
   thumb_url: string;
   meta: StockMeta;
 }
@@ -447,6 +448,42 @@ export async function searchNasa(
   }
 }
 
+/**
+ * La red de licencia libre, por separado: NASA (clips de dominio público),
+ * Openverse (Flickr + Commons + museos, la única con material específico de
+ * tecnología) y Commons. Existe suelta porque la puerta de «cuándo hace falta
+ * la red» es de CALIDAD, no de cantidad, y esa señal vive en el matching (que
+ * tiene los embeddings), no aquí. La puerta por cantidad de searchStock nunca
+ * se abría: con Pexels y Pixabay devolviendo 200+, el pool comercial SIEMPRE
+ * llega a diez, aunque los diez sean de otro tema.
+ */
+export async function searchRedLibre(
+  db: Db,
+  logger: pino.Logger,
+  query: string,
+  ids: StockSearchIds,
+): Promise<StockResult[]> {
+  const red: StockResult[] = [];
+  try {
+    red.push(...(await searchNasa(db, logger, query, ids)));
+  } catch (err) {
+    logger.warn({ err, query }, 'NASA en la red libre falló; se sigue');
+  }
+  try {
+    red.push(...(await searchOpenverse(logger, query)));
+  } catch (err) {
+    const motivo = err instanceof Error ? err.message : String(err);
+    ids.muertes?.set('openverse', motivo);
+    logger.warn({ err, query }, 'Openverse en la red libre falló; se sigue');
+  }
+  try {
+    red.push(...(await searchWikimedia(db, logger, query)));
+  } catch (err) {
+    logger.warn({ err, query }, 'Commons en la red libre falló; se sigue');
+  }
+  return red;
+}
+
 export async function searchStock(
   db: Db,
   logger: pino.Logger,
@@ -462,15 +499,26 @@ export async function searchStock(
   // no llena el pool de finalistas — consultas de nicho (hardware concreto,
   // hechos históricos, diagramas) donde Pexels devuelve genérico o nada.
   if (comercial.length >= STOCK_FINALISTS) return comercial;
-  // Dos pasos: NASA primero (da CLIPS, que es lo que el b-roll prefiere;
-  // ideal en espacio/robótica/ciencia) y Commons después (solo imágenes).
-  // Commons entra ya con TODO su rango LICENSE_OK, atribución incluida: desde
-  // que assets guarda `credit` y la congelación lo lleva a description.txt
-  // («Metraje: …»), el motivo del filtro PD/CC0 desapareció. El crédito viaja
-  // en meta.credit y la ingesta lo persiste.
+  // Tres pasos: NASA primero (da CLIPS, que es lo que el b-roll prefiere;
+  // ideal en espacio/robótica/ciencia), luego Openverse (agregador de Flickr +
+  // Commons + museos: es la única fuente con material REAL y específico de
+  // tecnología — medido, «data center» y «semiconductor wafer» devuelven ahí
+  // centros de datos y obleas de verdad, mientras el stock comercial devuelve
+  // oficinas genéricas) y Commons al final. Todos entran con su licencia y su
+  // atribución por item: desde que assets guarda `credit` y la congelación lo
+  // lleva a description.txt («Metraje: …»), el filtro a PD/CC0 sobra.
   const red: StockResult[] = [];
   const nasa = await searchNasa(db, logger, query, ids);
   red.push(...nasa);
+  if (comercial.length + red.length < STOCK_FINALISTS) {
+    try {
+      red.push(...(await searchOpenverse(logger, query)));
+    } catch (err) {
+      const motivo = err instanceof Error ? err.message : String(err);
+      ids.muertes?.set('openverse', motivo);
+      logger.warn({ err, query }, 'Openverse como red de b-roll falló; se sigue sin él');
+    }
+  }
   if (comercial.length + red.length < STOCK_FINALISTS) {
     try {
       const commons = await searchWikimedia(db, logger, query);

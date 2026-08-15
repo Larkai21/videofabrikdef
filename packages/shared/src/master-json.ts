@@ -104,7 +104,9 @@ export const beatAssetSchema = z.object({
   // de dónde vino el PICK del matching, congelado en la ingesta: es lo que
   // permite al informe de calidad agregar la cuota de biblioteca sin BD
   // (chosen_origin vive en la tabla beats y no sobrevive a la congelación)
-  origin: z.enum(['library', 'pexels', 'pixabay', 'nasa', 'wikimedia', 'flux', 'upload']).optional(),
+  origin: z
+    .enum(['library', 'pexels', 'pixabay', 'nasa', 'openverse', 'wikimedia', 'flux', 'upload'])
+    .optional(),
   // atribución exigida por la licencia del asset (CC BY/BY-SA), congelada en
   // la ingesta: el render la agrega a description.txt («Metraje: …»). Es lo
   // que permite b-roll con atribución, no solo insertos.
@@ -121,7 +123,7 @@ export const candidateSchema = z.object({
   ref: z.string(),
   // 'wikimedia' aparece en candidatos de inserto y como red del b-roll (solo
   // PD/CC0); 'nasa' es la red de CLIPS de dominio público del b-roll
-  provider: z.enum(['library', 'pexels', 'pixabay', 'nasa', 'flux', 'wikimedia']),
+  provider: z.enum(['library', 'pexels', 'pixabay', 'nasa', 'openverse', 'flux', 'wikimedia']),
   score: z.number(),
   thumb_url: z.string().optional(),
   // URL servible (/files/...) que la API deriva de meta.path para los

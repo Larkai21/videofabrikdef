@@ -69,6 +69,8 @@ export const ASSET_SOURCES = [
   'pexels',
   'pixabay',
   'nasa',
+  // Openverse: agregador de imagen con licencia libre (Flickr, Commons, museos)
+  'openverse',
   'flux',
   'playwright',
   'upload',
