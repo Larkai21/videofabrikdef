@@ -1,9 +1,16 @@
 ---
 name: tech-editor-m4
-description: Procesa y edita un vídeo bruto .mp4 de forma autónoma con Whisper local (M4 Pro), visión local para evitar el rostro, Google GenAI SDK, motor de motion graphics en Playwright y ffmpeg con LUT 3D. Úsala cuando el usuario pida editar, montar o subtitular un vídeo, o invoque /tech-editor-m4 [archivo.mp4].
+description: Monta una pieza ENTERA a partir de un vídeo bruto .mp4 con Whisper local (M4 Pro), visión local para evitar el rostro, Google GenAI SDK, motor de motion graphics en Playwright y ffmpeg con LUT 3D. Úsala cuando el usuario pida editar o montar un vídeo propio, o invoque /tech-editor-m4 [archivo.mp4]. NO la uses si lo único que se pide son subtítulos sobre material ajeno: eso es scripts/solo_subs.py (ver docs/captions.md).
 ---
 
 # Skill: /tech-editor-m4
+
+> **Si lo único que se pide son captions/subtítulos sobre material que no es de
+> esta marca, esta skill NO es.** Usa
+> `.venv/bin/python scripts/solo_subs.py --input clip.mp4 --acento '#RRGGBB'
+> --claves a,b` y lee `docs/captions.md`. Este pipeline reedita (quita silencios
+> y tomas falsas), aplica el LUT de marca y genera B-Rolls: sobre el clip de otro
+> las tres cosas son decisiones que nadie ha pedido.
 
 Pipeline de edición en cinco fases. Ejecuta seguido y **solo se detiene una
 vez**: antes del render final, para que el usuario apruebe.

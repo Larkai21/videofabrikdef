@@ -91,6 +91,13 @@ diseñar módulos nuevos o tomar decisiones de arquitectura.
   `cd apps/editor && make ci` (clon sin builds) o `make rapido` (con un build);
   puesta en marcha del venv en docs/reels.md. Requiere macOS Apple Silicon +
   Python 3.12; el resto de la fábrica no hereda esos requisitos
+- **Captions sobre un clip AJENO** (solo subtítulos: ni reel, ni fábrica) —
+  `cd apps/editor && .venv/bin/python scripts/solo_subs.py --input clip.mp4
+  --acento '#E5789F' --claves palabra1,palabra2`. El motor es
+  `apps/editor/templates/kinetic-captions.html` y el caso entero está en
+  `apps/editor/docs/captions.md`. NO es el `SubtitulosCineticos.tsx` de la línea
+  siguiente: otro motor, otro producto. Este caso se ha reimplementado desde
+  cero más de una vez por entrar por la puerta equivocada
 - `pnpm --filter @fabrica/video preview:marca --vertical [--video]` — fotogramas
   del short con la marca real (cartela, subtítulos cinéticos, recorte 9:16)
 
