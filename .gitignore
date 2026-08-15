@@ -43,3 +43,6 @@ local_cache/
 # Banco de guiones: los CASOS y la rúbrica se versionan (son el conjunto de
 # evaluación y el criterio); las CORRIDAS no, son salida y se rehacen en 3 min.
 banco/corridas/
+
+# hoja de etiquetado: HTML con miniaturas incrustadas (~17 MB) y sus jpg
+calibracion/etiquetado/
